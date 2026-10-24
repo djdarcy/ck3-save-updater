@@ -1,0 +1,201 @@
+#!/bin/sh
+# Pre-commit hook that:
+# 1. Updates version.py with correct version info
+# 2. Prevents committing private content to public branches: a built-in list,
+#    plus the project's own `private-patterns` (literal path prefixes from the
+#    repository root) under [tool.repokit-common] in pyproject.toml or
+#    .repokit-common.toml; paths in .repokit-allowlist are exempt from both
+# 3. Blocks files over 10 MB
+
+# Shared code (finding the vendored copy, the version tools and the settings;
+# the branch lists) lives in lib.sh beside this hook.
+_rk_lib="$(dirname "$0")/lib.sh"
+if [ ! -f "$_rk_lib" ]; then
+    echo "repokit-common: $(basename "$0") cannot run -- lib.sh is not beside it in $(dirname "$0")." >&2
+    echo "  Re-run install-hooks.sh from the vendored repokit-common copy." >&2
+    exit 1
+fi
+. "$_rk_lib"
+rk_locate
+# One settings call for the whole hook; its result is acted on at the
+# private-content check below. The output style is chosen from it now.
+_rk_settings_ok=true
+rk_read_settings private-patterns private-branches output version-source versioning || _rk_settings_ok=false
+rk_setup_output
+
+# PART 1: Update version.py
+# -------------------------
+# sync-versions.py is found by rk_locate: beside the vendored copy, else the
+# layouts consumers have used, else git's index (any mount point).
+# versioning = "off" (a project with no version source) skips this part and
+# says nothing; the private-content check below still runs.
+if [ "${REPOKIT_VERSIONING:-on}" = "off" ]; then
+    :
+elif [ -n "$SYNC_SCRIPT" ] && command -v python >/dev/null 2>&1; then
+    # Run in auto mode to update version before commit
+    UPDATE_OUTPUT=$(python "$SYNC_SCRIPT" --auto 2>&1)
+    UPDATE_EXIT=$?
+
+    if [ $UPDATE_EXIT -eq 0 ]; then
+        # Success - check if the version file was staged: anything named
+        # _version.py (as before), or the configured version-source under
+        # any name (e.g. a root version.py).
+        if git diff --cached --name-only | grep -q "_version.py" || \
+           { [ -n "${REPOKIT_VERSION_SOURCE:-}" ] && \
+             git diff --cached --name-only | grep -qxF "$REPOKIT_VERSION_SOURCE"; }; then
+            echo "${RK_OK} Version updated for commit"
+        fi
+    else
+        # Say why. A bare warning once let a commit ship with a stale version
+        # string: sed choked on a "/" in the branch name and nobody saw it.
+        echo "${RK_WARN} Warning: Version update failed but continuing:"
+        printf '%s\n' "$UPDATE_OUTPUT" | sed 's/^/    /'
+    fi
+elif [ -n "$UPDATE_SCRIPT" ]; then
+    # Fallback to legacy bash script
+    "$UPDATE_SCRIPT" --auto 2>&1 || echo "${RK_WARN} Warning: Version update failed but continuing"
+fi
+
+# PART 2: Check for private content
+# -------------------------------------------------
+# Private content is allowed on the private branches (rk_is_private_branch in
+# lib.sh); every other branch is treated as public.
+if rk_is_private_branch "$CURRENT_BRANCH"; then
+    echo "Checking for private content on branch: $CURRENT_BRANCH"
+    exit 0
+fi
+echo "${RK_INFO} Pre-Commit Check"
+echo "   Branch: $CURRENT_BRANCH (public)"
+
+# Check for private content using patterns specific to this project.
+#
+# Allowlist support: if .repokit-allowlist exists in repo root, paths listed
+# there (one per line, # comments allowed, blank lines OK) bypass the private-
+# content regex check below. Intended for DELIBERATE move-aside artifacts that
+# carry signal-bearing extensions like .bak (preserved pre-pivot source: "this
+# is the old version, do not use this") which would otherwise trip the regex.
+ALLOWLIST_FILE="$REPO_ROOT/.repokit-allowlist"
+allowed() {
+    [ -f "$ALLOWLIST_FILE" ] || return 1
+    grep -v '^[[:space:]]*#' "$ALLOWLIST_FILE" | grep -v '^[[:space:]]*$' | grep -Fxq -- "$1"
+}
+
+# Staged paths, NUL-delimited, written to a temp file.
+#
+# `for f in $(git diff --cached --name-only)` word-splits on whitespace, so
+# "my report.log" arrived as "my" and "report.log" -- the regex below then
+# matched a fragment rather than the path, and the large-file check further
+# down silently skipped every file whose name contains a space, because
+# `[ -f "$file" ]` failed on every fragment.
+#
+# The list goes to a FILE rather than a variable: command substitution strips
+# NUL bytes, so `X=$(git ... -z)` silently concatenates every path into one
+# string. A temp file is the only way to carry NUL-delimited data through sh.
+#
+# The temp files live in git's directory for THIS checkout, asked of git, not
+# under "$REPO_ROOT/.git/": in a git worktree .git is a file ("gitdir: ..."),
+# so writes under it fail, the list came out empty, and both checks below
+# passed every commit -- private files and oversized files included.
+GIT_DIR_ABS="$(git rev-parse --absolute-git-dir 2>/dev/null)"
+STAGED_LIST="$GIT_DIR_ABS/.repokit-staged.$$"
+HITS_FILE="$GIT_DIR_ABS/.repokit-private-hits.$$"
+cleanup_staged() { rm -f "$STAGED_LIST" "$HITS_FILE"; }
+trap cleanup_staged EXIT
+# Fail closed: without the list, the checks below would silently check nothing.
+if [ -z "$GIT_DIR_ABS" ] || ! git diff --cached --name-only -z --diff-filter=ACMR > "$STAGED_LIST"; then
+    echo ""
+    echo "${RK_FAIL} COMMIT BLOCKED - pre-commit could not list the staged files"
+    echo "   (tried to write: $STAGED_LIST)"
+    echo "   The private-content and large-file checks cannot run without it."
+    exit 1
+fi
+
+# Project patterns (#13): `private-patterns` in [tool.repokit-common] (the
+# project's pyproject.toml, or .repokit-common.toml at the root), read through
+# the vendored repokit_config.py (rk_read_settings in lib.sh).
+# Each entry is a LITERAL path prefix from the repository root -- "private/"
+# blocks private/..., ".env" blocks .env and .env.local -- never a regular
+# expression, and it is ADDED to the built-in list below, never replacing it.
+# (Read as unanchored regular expressions, dazzlecmd's nine entries would have
+# newly blocked 20 of its tracked files; as prefixes, none.)
+# A config file that exists but cannot be read blocks the commit: silently
+# dropping the project's patterns would let exactly those files through.
+PATTERNS_FILE="$GIT_DIR_ABS/.repokit-patterns.$$"
+trap 'cleanup_staged; rm -f "$PATTERNS_FILE"' EXIT
+: > "$PATTERNS_FILE"
+if [ "$_rk_settings_ok" != true ]; then
+    echo ""
+    echo "${RK_FAIL} COMMIT BLOCKED - the repokit-common settings could not be read"
+    echo "   private-patterns cannot be checked until the [tool.repokit-common]"
+    echo "   table named above is fixed."
+    exit 1
+fi
+[ -n "${REPOKIT_PRIVATE_PATTERNS-}" ] && printf '%s\n' "$REPOKIT_PRIVATE_PATTERNS" > "$PATTERNS_FILE"
+
+# One grep over the whole list instead of an `echo | grep` per file. On a large
+# commit the per-file form costs thousands of process spawns, which is slow
+# everywhere and painful on Windows. The allowlist is consulted only for paths
+# that actually match, so the common case (no private content) costs one grep.
+# The project's prefixes are matched in one awk pass (a leading "./" or "/" on
+# an entry is ignored: every entry is relative to the repository root).
+has_private_content=0
+private_candidates=$( {
+    tr '\0' '\n' < "$STAGED_LIST" |
+        grep -E "^.*/__private__.*|^.*/private_.*|^.*~$|\.backup$|\.bak$|\.log$|\.tmp$|^\.env.*|^\.env\.local$|^\.env\.private$|^convos/|^credentials/|^logs/|^nul$|^private/|^revisions/|^secrets/|^test-runs/|^test_runs/"
+    if [ -s "$PATTERNS_FILE" ]; then
+        tr '\0' '\n' < "$STAGED_LIST" | awk '
+            NR == FNR { sub(/\r$/, ""); sub(/^\.\//, ""); sub(/^\/+/, ""); if ($0 != "") p[++n] = $0; next }
+            { for (i = 1; i <= n; i++) if (index($0, p[i]) == 1) { print; next } }
+        ' "$PATTERNS_FILE" -
+    fi
+} | sort -u )
+
+if [ -n "$private_candidates" ]; then
+    printf '%s\n' "$private_candidates" | while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        allowed "$file" && continue
+        printf '%s\n' "$file"
+    done > "$HITS_FILE"
+
+    if [ -s "$HITS_FILE" ]; then
+        has_private_content=1
+        echo ""
+        echo "${RK_FAIL} COMMIT BLOCKED - Private Content Protection"
+        echo ""
+        echo "ERROR: Attempting to commit private files to public branch '$CURRENT_BRANCH':"
+        echo ""
+        while IFS= read -r file; do
+            echo "  - $file"
+        done < "$HITS_FILE"
+    fi
+    rm -f "$HITS_FILE"
+fi
+
+if [ $has_private_content -eq 1 ]; then
+    echo ""
+    echo "These files should only exist in private branches."
+    echo "To fix this:"
+    echo "  1. Switch to private branch: git checkout private"
+    echo "  2. Or unstage these files: git reset HEAD <file>"
+    echo "  3. Or remove from working directory: rm <file>"
+    echo ""
+    exit 1
+fi
+
+# Check for large files (>10MB)
+# xargs -0 batches the whole staged list into a handful of du calls rather than
+# one per file, and keeps paths with spaces intact. The previous loop's
+# `[ -f "$file" ]` guard failed on every word-split fragment, so a large file
+# whose name contained a space was never checked at all.
+large_files=$(xargs -0 -r du -k < "$STAGED_LIST" 2>/dev/null |
+    awk -F'\t' '$1 > 10240 { printf "%s\t%s\n", $2, $1 }')
+
+if [ -n "$large_files" ]; then
+    printf '%s\n' "$large_files" | while IFS="$(printf '\t')" read -r file size; do
+        echo "ERROR: File $file is too large ($size KB)"
+    done
+    echo "Consider using Git LFS or add to .gitignore"
+    exit 1
+fi
+
+exit 0

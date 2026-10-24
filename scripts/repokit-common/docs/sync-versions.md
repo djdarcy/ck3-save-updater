@@ -1,0 +1,259 @@
+# sync-versions.py
+
+Single source of truth for version management across DazzleTools projects.
+
+## Overview
+
+`sync-versions.py` reads version components from `_version.py` and propagates them to:
+- The `__version__` string (with git metadata: branch, build count, date, commit hash)
+- CHANGELOG.md compare links
+
+It replaces manual version editing. Git hooks call it automatically on every commit.
+
+## How It Works
+
+### The Version File (`_version.py`)
+
+Every project has a `_version.py` in its package directory. This is the canonical source:
+
+```python
+# Version components - edit these for version bumps
+MAJOR = 0
+MINOR = 3
+PATCH = 0
+PHASE = ""        # "" (stable), "alpha", "beta", "rc1"
+PROJECT_PHASE = "" # "prealpha", "alpha", "beta", "stable"
+
+# Auto-updated by git hooks - do not edit manually
+__version__ = "0.3.0_main_12-20260404-a1b2c3d4"
+__app_name__ = "my-project"
+```
+
+**You edit:** `MAJOR`, `MINOR`, `PATCH`, `PHASE`, `PROJECT_PHASE`
+**Hooks update:** `__version__`, `PIP_VERSION`, `VERSION`, etc.
+
+### Other version sources: a plain `VERSION` file, a C/C++ header
+
+`version-source` may also name:
+
+- **a plain text file** (`VERSION`, `version.txt`: anything that is not `.py` or a header) holding one line, `x.y.z` or `x.y.z-phase`. This is repokit-common's own shape (`version-source = "VERSION"` in its `.repokit-common.toml`).
+- **a C/C++ header** (`.h`, `.hpp`, `.hh`, `.hxx`) of `#define` lines, as the C/C++ project template writes it:
+
+  ```c
+  #define MY_TOOL_VERSION_MAJOR 0
+  #define MY_TOOL_VERSION_MINOR 1
+  #define MY_TOOL_VERSION_PATCH 0
+  #define MY_TOOL_VERSION_PHASE ""
+  #define MY_TOOL_VERSION_STRING "0.1.0"
+  ```
+
+  Any prefix before `_VERSION_` works. `--bump`, `--set` and `--phase` rewrite the five defines; CMake, the `.rc` resource and the code read the header, so a bump never edits them. Two more defines are optional, mirroring the Python file's optional lines: `#define MY_TOOL_VERSION_PRE_RELEASE_NUM 1` (the PEP 440 counter behind `alpha`/`beta`; `--pre-num` writes it) and `#define MY_TOOL_PROJECT_PHASE "alpha"` (the project-wide maturity; read, shown by the program's `--version`, never written by the tool -- as `PROJECT_PHASE` in Python).
+
+**A flag that cannot land is said, not swallowed.** `--pre-num` on a source with no `PRE_RELEASE_NUM` line or define -- a `_version.py` without the line, a header without the define, or a plain `VERSION` file, which cannot hold one -- prints a warning naming the fix and exits 0 with the file untouched. Before 0.4.0 it exited 0 silently, for every kind.
+
+Both kinds are edited on their **bytes**: only the version text changes, and a BOM, the line endings and any non-UTF-8 byte elsewhere in the file are kept. Neither carries a `__version__` stamp, so the git-metadata step does nothing for them (a C project stamps at build time instead), and `post-commit` stays quiet.
+
+### `versioning = "off"`
+
+A project that keeps no version source at all sets `versioning = "off"`. Every run of the tool then does nothing and exits 0 (`--check` says so), and the pre-commit and post-commit hooks say nothing about versions.
+
+### The `__version__` String Format
+
+```
+MAJOR.MINOR.PATCH[-PHASE]_BRANCH_BUILD-YYYYMMDD-COMMITHASH
+```
+
+Examples:
+- `0.3.0_main_12-20260404-a1b2c3d4` -- stable, 12th build on main
+- `0.3.0-alpha_dev_5-20260401-b2c3d4e5` -- alpha phase, 5th build on dev
+
+### Version Levels
+
+| Level | Scope | Changes when... | Example |
+|-------|-------|-----------------|---------|
+| `PHASE` | Per-MINOR feature set | Feature set matures: `"alpha"` -> `"beta"` -> `""` | `0.3.0-alpha` -> `0.3.0` |
+| `PROJECT_PHASE` | Entire project | Project hits maturity threshold (rare) | `PREALPHA 0.3.0` -> `BETA 0.5.0` |
+
+`PHASE` resets with each MINOR bump. `PROJECT_PHASE` is independent of version numbers.
+
+## Configuration
+
+In `pyproject.toml`, or in `.repokit-common.toml` at the repository root for a project without a `pyproject.toml`:
+
+```toml
+[tool.repokit-common]
+version-source = "my_package/_version.py"
+changelog = "CHANGELOG.md"
+repo-url = "https://github.com/MyOrg/my-project"
+tag-prefix = "v"
+tag-format = "pep440"    # or "human"
+```
+
+The same table holds the hook settings (`private-patterns`, `test-command`, `print-warning`); the README's Configuration section describes them. The script finds the table through `repokit_config.py`: it walks up from its own directory to the nearest file that holds the table, and never past the repository root (or the superproject's root when repokit-common is a git submodule). Earlier versions looked only five directories up, at the first `pyproject.toml` found, so a deeper mount or a table-less `pyproject.toml` in between left them on the placeholder defaults.
+
+Reading this table needs a TOML parser: the standard library's `tomllib` on Python 3.11+, or the `tomli` package on older versions. Without one, the script warns that it found `pyproject.toml` but cannot read it, and falls back to placeholder defaults such as `$PACKAGE_NAME/_version.py`.
+
+### Tag Format
+
+| Setting | Tag example | PEP 440 | Use when |
+|---------|-------------|---------|----------|
+| `"pep440"` (default) | `v0.3.0a1` | `0.3.0a1` | Publishing to PyPI |
+| `"human"` | `v0.3.0-alpha` | N/A | Human-readable tags, not on PyPI |
+
+For stable releases (no phase), both produce identical tags: `v0.3.0`.
+
+### Extra Targets
+
+Some projects carry the version in more files than the version source: a Claude Code `plugin.json` and `marketplace.json`, a `package.json`, a browser extension's `manifest.json`. Declare each one and the script keeps it at the same version:
+
+```toml
+[[tool.repokit-common.extra-targets]]
+path = ".claude-plugin/plugin.json"
+
+[[tool.repokit-common.extra-targets]]
+path = ".claude-plugin/marketplace.json"
+match = "all"           # it carries the version twice: top level and per plugin
+
+[[tool.repokit-common.extra-targets]]
+path = "src/manifest.json"
+format = "base"         # browser manifests accept only X.Y.Z
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `path` | (required) | The file, relative to the project root. A path outside the root is refused |
+| `type` | `"json"` | The only type so far |
+| `field` | `"version"` | The JSON key that holds the version string |
+| `match` | `"one"` | `"one"`: the file must have exactly one such field (a second one is an error, so a file is never left half-updated); `"first"`: the first of several; `"all"`: every one |
+| `format` | `"human"` | `"human"`: `0.3.2-alpha`; `"base"`: `0.3.2`, the phase dropped |
+
+The targets follow every mode: a sync, `--bump`, `--set` and `--phase` write the new version; `--check` exits 1 while a target is stale; `--dry-run` writes nothing; `--auto` (the pre-commit hook) updates and stages them with the version file. The version written is the human form, never the build-stamped `__version__` string and never the PEP 440 form.
+
+Only the version strings change: each file is edited in place, so its formatting, key order, line endings (LF or CRLF) and any BOM survive, and a bump is a one-line diff per field. Every edit is cross-checked against a real JSON parse first. A missing field, a non-string value, a key repeated in one object, invalid JSON, or a field the edit cannot locate safely is reported and the file is left untouched; the other targets still sync and the run exits 1, even under `--auto`, so the hook shows the problem. An unknown key in an entry (a typo such as `feild`) is an error, not a silent no-op.
+
+Extra targets are opt-in: a project that declares none sees no change in behaviour or output.
+
+## Usage
+
+### Check if versions are in sync
+
+```bash
+python scripts/sync-versions.py --check
+```
+
+Reports `[OK]` or `[X]` for each managed file. Returns exit code 1 if out of sync.
+
+### Sync without changing version
+
+```bash
+python scripts/sync-versions.py
+```
+
+Updates `__version__` with current git metadata (branch, build count, date, hash). Run this after manual edits to `_version.py`.
+
+### Bump version
+
+```bash
+python scripts/sync-versions.py --bump patch    # 0.3.0 -> 0.3.1
+python scripts/sync-versions.py --bump minor    # 0.3.0 -> 0.4.0
+python scripts/sync-versions.py --bump major    # 0.3.0 -> 1.0.0
+```
+
+### Set version directly
+
+```bash
+python scripts/sync-versions.py --set 1.0.0
+```
+
+### Change phase
+
+```bash
+python scripts/sync-versions.py --phase alpha   # add -alpha suffix
+python scripts/sync-versions.py --phase beta    # add -beta suffix
+python scripts/sync-versions.py --phase none    # clear phase (stable)
+```
+
+### Demote version
+
+```bash
+python scripts/sync-versions.py --demote patch  # 0.3.1 -> 0.3.0
+```
+
+### Dry run
+
+```bash
+python scripts/sync-versions.py --bump minor --dry-run
+```
+
+Shows what would change without modifying any files.
+
+### Git hook mode
+
+```bash
+python scripts/sync-versions.py --auto
+```
+
+Called by the pre-commit hook. Quiet mode, stages modified files, uses today's date.
+
+## PEP 440 Mapping
+
+The `get_pip_version()` function in `_version.py` converts to PEP 440 for PyPI:
+
+| Our format | PEP 440 | Notes |
+|------------|---------|-------|
+| `0.3.0` | `0.3.0` | Stable release |
+| `0.3.0-alpha` | `0.3.0a0` | Alpha pre-release |
+| `0.3.0-beta` | `0.3.0b0` | Beta pre-release |
+| `0.3.0-rc1` | `0.3.0rc1` | Release candidate |
+| `0.3.0` (on dev branch) | `0.3.0.dev5` | Dev build |
+
+## CHANGELOG Management
+
+`sync-versions.py` manages the compare links at the bottom of `CHANGELOG.md`:
+
+```markdown
+[Unreleased]: https://github.com/Org/repo/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Org/repo/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Org/repo/releases/tag/v0.2.0
+```
+
+- `[Unreleased]` always points from the current tag to `HEAD`
+- Each version link compares from the previous tag
+- The first release uses `releases/tag/` format (no prior tag to compare)
+
+The script updates these links automatically. It does **not** modify section headers or content -- you write changelog entries manually.
+
+## Git Hooks Integration
+
+### pre-commit
+
+Runs `sync-versions.py --auto` to update `__version__` with the pending commit's metadata. Also:
+- Blocks private files from public branches
+- Blocks files > 10MB
+
+### post-commit
+
+Runs `sync-versions.py --auto` again to update the commit hash (which isn't known until after the commit).
+
+### pre-push
+
+Does **not** run sync-versions. Instead:
+- Validates Python syntax
+- Runs pytest
+- Checks for debug statements
+
+## Flags Reference
+
+| Flag | Description |
+|------|-------------|
+| `--check` | Verify sync status, exit 1 if out of sync |
+| `--bump PART` | Bump major, minor, or patch before syncing |
+| `--demote PART` | Demote major, minor, or patch |
+| `--set X.Y.Z` | Set version directly |
+| `--phase PHASE` | Set phase (alpha, beta, rc1, none) |
+| `--pre-num N` | Set PRE_RELEASE_NUM explicitly |
+| `--dry-run` | Show changes without modifying files |
+| `--auto` | Git hook mode (quiet, stages files) |
+| `--no-git-ver` | Skip `__version__` string update |
+| `--force`, `-f` | Skip confirmation prompts |
+| `--verbose`, `-v` | Show detailed output |

@@ -1,0 +1,1263 @@
+#!/usr/bin/env python3
+"""
+Synchronize version numbers across all project files.
+
+Single source of truth: <package>/_version.py (MAJOR, MINOR, PATCH, PHASE).
+This script reads those components and propagates to:
+- _version.py __version__ string (git metadata: branch, build, date, hash)
+- CHANGELOG.md compare links at the bottom
+- any extra targets the project declares (opt-in; see docs/sync-versions.md):
+  JSON files with a version field, such as a Claude Code plugin.json,
+  a marketplace.json, a package.json or a browser extension manifest.json
+
+Replaces scripts/update-version.sh -- all version logic lives here.
+Git hooks call this with --auto.
+
+Usage:
+    python scripts/sync-versions.py [OPTIONS]
+
+Options:
+    --check         Only check if versions are in sync (don't modify)
+    --bump PART     Bump version before syncing (major, minor, patch)
+    --demote PART   Demote version before syncing (major, minor, patch)
+    --set X.Y.Z     Set version directly (e.g., --set 0.3.0)
+    --phase PHASE   Set release phase (alpha, beta, rc1) or 'none' to clear
+    --pre-num N     Set PRE_RELEASE_NUM explicitly (rarely needed)
+    --dry-run       Show what would change without modifying files
+    --auto          Git hook mode (quiet, stages files, uses today's date)
+    --no-git-ver    Skip __version__ string update (components only)
+    --force / -f    Skip confirmation prompts
+    --verbose / -v  Show detailed output
+
+Examples:
+    # Check sync status
+    python scripts/sync-versions.py --check
+
+    # Bump patch version and sync everything
+    python scripts/sync-versions.py --bump patch
+
+    # Just sync (no version change) -- useful after manual edits
+    python scripts/sync-versions.py
+
+    # Set phase to alpha, PRE_RELEASE_NUM resets to 1
+    python scripts/sync-versions.py --phase alpha
+
+    # Clear phase for stable release
+    python scripts/sync-versions.py --phase none
+
+    # Git hook mode (called by pre-commit)
+    python scripts/sync-versions.py --auto
+"""
+
+import argparse
+import datetime
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+# --- Project-specific config ---
+# These values are auto-detected from pyproject.toml [tool.repokit-common]
+# if available. Otherwise, edit these defaults for your project.
+# When used as a submodule, the consuming project's pyproject.toml is checked.
+_DEFAULT_VERSION_SOURCE = "$PACKAGE_NAME/_version.py"
+_DEFAULT_CHANGELOG_FILE = "CHANGELOG.md"
+_DEFAULT_REPO_URL = "https://github.com/$GITHUB_ORG/$PROJECT_NAME"
+_DEFAULT_TAG_PREFIX = "v"
+_DEFAULT_TAG_FORMAT = "pep440"  # "pep440" or "human"
+_VALID_TAG_FORMATS = {"pep440", "human"}
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    from repokit_config import (
+        ConfigError as _ConfigError,
+        find_config as _find_config,
+        table_of as _table_of,
+    )
+except ImportError:  # an older vendored copy without the shared helper
+    class _ConfigError(Exception):
+        pass
+
+    def _find_config(start):
+        for d in (start, *start.parents):
+            if (d / "pyproject.toml").is_file():
+                return d / "pyproject.toml"
+        return None
+
+    def _table_of(data, path):
+        return data.get("tool", {}).get("repokit-common", {})
+
+def _read_table():
+    """Return (path, table): the [tool.repokit-common] table and its file.
+
+    The table is {} when no file holds it or it cannot be parsed for want of a
+    TOML parser (warned once). An unparseable file stops with exit 2.
+    """
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            tomllib = None
+
+    # Shared discovery (repokit_config.py, beside this script): the nearest
+    # pyproject.toml holding [tool.repokit-common], or .repokit-common.toml,
+    # walking up from this script's own location and never past the project.
+    candidate = _find_config(Path(__file__).resolve().parent)
+    if candidate is None:
+        return None, {}
+    if not tomllib:
+        print(
+            f"Warning: found {candidate} but cannot read it: no TOML parser "
+            f"is available (use Python 3.11+ or install the tomli package). "
+            f"Using placeholder defaults.",
+            file=sys.stderr,
+        )
+        return candidate, {}
+    # A file that exists but cannot be parsed is not an absent one:
+    # falling back to the placeholder defaults would aim at the wrong
+    # files (or fail later on "$PACKAGE_NAME"). Say which file and why,
+    # in one line, and stop -- quiet when all is well, loud when not.
+    try:
+        with open(candidate, "rb") as f:
+            data = tomllib.load(f)
+    except (tomllib.TOMLDecodeError, OSError) as e:
+        print(f"Error: cannot read {candidate}: {e}", file=sys.stderr)
+        sys.exit(2)
+    # The table; a loose key in .repokit-common.toml stops here (repokit_config.py).
+    try:
+        return candidate, _table_of(data, candidate)
+    except _ConfigError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+
+
+def _load_config(source=None):
+    """Load config from pyproject.toml [tool.repokit-common] or use defaults.
+
+    `source` is a (path, table) pair from _read_table(); left out, the table
+    is read now.
+    """
+    candidate, cfg = source if source is not None else _read_table()
+    if cfg:
+        tag_format = cfg.get("tag-format", _DEFAULT_TAG_FORMAT)
+        if tag_format not in _VALID_TAG_FORMATS:
+            print(
+                f"Warning: unknown tag-format '{tag_format}' "
+                f"in {candidate.name} (expected: {', '.join(sorted(_VALID_TAG_FORMATS))}). "
+                f"Falling back to '{_DEFAULT_TAG_FORMAT}'.",
+                file=sys.stderr,
+            )
+            tag_format = _DEFAULT_TAG_FORMAT
+        return (
+            cfg.get("version-source", _DEFAULT_VERSION_SOURCE),
+            cfg.get("changelog", _DEFAULT_CHANGELOG_FILE),
+            cfg.get("repo-url", _DEFAULT_REPO_URL),
+            cfg.get("tag-prefix", _DEFAULT_TAG_PREFIX),
+            tag_format,
+        )
+    return (_DEFAULT_VERSION_SOURCE, _DEFAULT_CHANGELOG_FILE, _DEFAULT_REPO_URL,
+            _DEFAULT_TAG_PREFIX, _DEFAULT_TAG_FORMAT)
+
+_CONFIG_SOURCE = _read_table()
+VERSION_SOURCE, CHANGELOG_FILE, REPO_URL, TAG_PREFIX, TAG_FORMAT = _load_config(_CONFIG_SOURCE)
+# Opt-in: [[tool.repokit-common.extra-targets]]. Absent, nothing below runs.
+EXTRA_TARGETS = _CONFIG_SOURCE[1].get("extra-targets", [])
+# versioning = "off": the project keeps no version source (a notes repository,
+# a tool that versions itself another way). Every run then does nothing and
+# exits 0, so the hooks stay quiet. Anything but "off" means on.
+VERSIONING = _CONFIG_SOURCE[1].get("versioning", "on")
+
+
+# ---------------------------------------------------------------------------
+# Version source kinds
+# ---------------------------------------------------------------------------
+#
+# The source of truth can be a Python file (MAJOR = 0 ... plus a stamped
+# __version__), a plain text file holding "x.y.z" or "x.y.z-phase" (a VERSION
+# file; repokit-common's own), or a C/C++ header of #define lines
+# (<PREFIX>_VERSION_MAJOR 0 ... _VERSION_PHASE "" ... _VERSION_STRING "0.1.0").
+# The plain and header kinds carry no __version__ stamp, so the git-metadata
+# step leaves them alone; a C project stamps at build time (CMake) instead.
+# Header and plain files are edited on their bytes: only the version text
+# changes, and a BOM, the line endings and every other byte are kept
+# (Dazzle-Locate64's cp1252 .rc lesson).
+
+_HEADER_SUFFIXES = {".h", ".hpp", ".hh", ".hxx"}
+_PLAIN_VERSION = re.compile(rb"^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.]+))?\s*$")
+_DEFINE_NUM = rb"^([ \t]*#define[ \t]+\w+?_VERSION_%s[ \t]+)(\d+)"
+_DEFINE_STR = rb'^([ \t]*#define[ \t]+\w+?_VERSION_%s[ \t]+")([^"\r\n]*)(")'
+
+
+def source_kind(path) -> str:
+    """"python", "c-header" or "plain" for a version-source path."""
+    p = Path(path)
+    if p.suffix == ".py":
+        return "python"
+    if p.suffix.lower() in _HEADER_SUFFIXES:
+        return "c-header"
+    return "plain"
+
+
+def _split_bom(data: bytes) -> tuple[bytes, bytes]:
+    bom = b"\xef\xbb\xbf"
+    return (bom, data[len(bom):]) if data.startswith(bom) else (b"", data)
+
+
+def _read_plain_components(file_path: Path) -> dict:
+    _, body = _split_bom(file_path.read_bytes())
+    first = next((line for line in body.splitlines() if line.strip()), b"")
+    m = _PLAIN_VERSION.match(first.strip())
+    if not m:
+        raise ValueError(f"Could not parse x.y.z[-phase] from {file_path}")
+    phase = m.group(4).decode() if m.group(4) else None
+    return {"major": int(m.group(1)), "minor": int(m.group(2)), "patch": int(m.group(3)),
+            "phase": phase, "pre_release_num": 1, "project_phase": None}
+
+
+def _write_plain_components(file_path: Path, components: dict, dry_run: bool) -> bool:
+    data = file_path.read_bytes()
+    bom, body = _split_bom(data)
+    nl = b"\r\n" if b"\r\n" in body else b"\n"
+    new = bom + format_human_version(components).encode() + nl
+    if new == data:
+        return False
+    if not dry_run:
+        file_path.write_bytes(new)
+    return True
+
+
+_PROJECT_PHASE_DEFINE = rb'^([ \t]*#define[ \t]+\w+?_PROJECT_PHASE[ \t]+")([^"\r\n]*)(")'
+
+
+def _read_header_components(file_path: Path) -> dict:
+    """The same six components Python's _version.py yields. PRE_RELEASE_NUM
+    (#define X_VERSION_PRE_RELEASE_NUM n) and PROJECT_PHASE (#define
+    X_PROJECT_PHASE "alpha") are optional, as their Python lines are."""
+    data = file_path.read_bytes()
+    nums = {}
+    for part in ("MAJOR", "MINOR", "PATCH"):
+        m = re.search(_DEFINE_NUM % part.encode(), data, re.M)
+        if not m:
+            raise ValueError(f"Could not parse #define ..._VERSION_{part} from {file_path}")
+        nums[part.lower()] = int(m.group(2))
+    phase_m = re.search(_DEFINE_STR % b"PHASE", data, re.M)
+    phase = phase_m.group(2).decode("utf-8", "replace") if phase_m and phase_m.group(2) else None
+    pre_m = re.search(_DEFINE_NUM % b"PRE_RELEASE_NUM", data, re.M)
+    proj_m = re.search(_PROJECT_PHASE_DEFINE, data, re.M)
+    return {**nums, "phase": phase,
+            "pre_release_num": int(pre_m.group(2)) if pre_m else 1,
+            "project_phase": proj_m.group(2).decode("utf-8", "replace") if proj_m else None}
+
+
+def _write_header_components(file_path: Path, components: dict, dry_run: bool) -> bool:
+    """Rewrites MAJOR, MINOR, PATCH, PHASE, STRING and -- when the header has
+    the define -- PRE_RELEASE_NUM. PROJECT_PHASE is read-only, as in Python."""
+    data = file_path.read_bytes()
+    new = data
+    for part in ("MAJOR", "MINOR", "PATCH", "PRE_RELEASE_NUM"):
+        key = "pre_release_num" if part == "PRE_RELEASE_NUM" else part.lower()
+        new = re.sub(_DEFINE_NUM % part.encode(),
+                     lambda m, v=components[key]: m.group(1) + str(v).encode(), new, flags=re.M)
+    phase = (components["phase"] or "").encode()
+    new = re.sub(_DEFINE_STR % b"PHASE", lambda m: m.group(1) + phase + m.group(3), new, flags=re.M)
+    new = re.sub(_DEFINE_STR % b"STRING",
+                 lambda m: m.group(1) + format_human_version(components).encode() + m.group(3), new, flags=re.M)
+    if new == data:
+        return False
+    if not dry_run:
+        file_path.write_bytes(new)
+    return True
+# --------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Project root
+# ---------------------------------------------------------------------------
+
+def find_project_root() -> Path:
+    """Find project root by looking for the version source file."""
+    if Path(VERSION_SOURCE).exists():
+        return Path.cwd()
+    # Try git root
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True,
+        )
+        root = Path(result.stdout.strip())
+        if (root / VERSION_SOURCE).exists():
+            return root
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    raise FileNotFoundError(f"Cannot find {VERSION_SOURCE}. Run from project root.")
+
+
+# ---------------------------------------------------------------------------
+# Version component read/write
+# ---------------------------------------------------------------------------
+
+def read_version_components(file_path: Path) -> dict:
+    """Read MAJOR, MINOR, PATCH, PHASE, PRE_RELEASE_NUM, PROJECT_PHASE."""
+    kind = source_kind(file_path)
+    if kind == "plain":
+        return _read_plain_components(file_path)
+    if kind == "c-header":
+        return _read_header_components(file_path)
+    content = file_path.read_text(encoding="utf-8")
+
+    major = re.search(r"^MAJOR\s*=\s*(\d+)", content, re.MULTILINE)
+    minor = re.search(r"^MINOR\s*=\s*(\d+)", content, re.MULTILINE)
+    patch = re.search(r"^PATCH\s*=\s*(\d+)", content, re.MULTILINE)
+
+    if not all([major, minor, patch]):
+        raise ValueError(f"Could not parse MAJOR, MINOR, PATCH from {file_path}")
+
+    # PHASE: extract, strip comments and quotes, normalize empty/None
+    phase_match = re.search(r"^PHASE\s*=\s*(.+)$", content, re.MULTILINE)
+    phase = None
+    if phase_match:
+        raw = phase_match.group(1).strip()
+        raw = re.sub(r"#.*$", "", raw).strip()
+        raw = raw.strip("\"'")
+        if raw and raw.lower() not in ("none", "null", ""):
+            phase = raw
+
+    # PRE_RELEASE_NUM
+    pre_num_match = re.search(r"^PRE_RELEASE_NUM\s*=\s*(\d+)", content, re.MULTILINE)
+    pre_release_num = int(pre_num_match.group(1)) if pre_num_match else 1
+
+    # PROJECT_PHASE (read-only)
+    proj_phase_match = re.search(r'^PROJECT_PHASE\s*=\s*"([^"]*)"', content, re.MULTILINE)
+    project_phase = proj_phase_match.group(1) if proj_phase_match else None
+
+    return {
+        "major": int(major.group(1)),
+        "minor": int(minor.group(1)),
+        "patch": int(patch.group(1)),
+        "phase": phase,
+        "pre_release_num": pre_release_num,
+        "project_phase": project_phase,
+    }
+
+
+def write_version_components(
+    file_path: Path, components: dict, dry_run: bool = False
+) -> bool:
+    """Update MAJOR, MINOR, PATCH, PHASE, PRE_RELEASE_NUM in version file."""
+    kind = source_kind(file_path)
+    if kind == "plain":
+        return _write_plain_components(file_path, components, dry_run)
+    if kind == "c-header":
+        return _write_header_components(file_path, components, dry_run)
+    content = file_path.read_text(encoding="utf-8")
+    original = content
+
+    content = re.sub(
+        r"^(MAJOR\s*=\s*)\d+",
+        f"\\g<1>{components['major']}",
+        content, flags=re.MULTILINE,
+    )
+    content = re.sub(
+        r"^(MINOR\s*=\s*)\d+",
+        f"\\g<1>{components['minor']}",
+        content, flags=re.MULTILINE,
+    )
+    content = re.sub(
+        r"^(PATCH\s*=\s*)\d+",
+        f"\\g<1>{components['patch']}",
+        content, flags=re.MULTILINE,
+    )
+
+    # PHASE: write as quoted string or empty string. Rewrite only the VALUE
+    # and keep whatever follows it (the project's own comment), so a bump
+    # never edits the comment. Earlier versions replaced the rest of the line
+    # with a fixed comment that called the stable value None, although PHASE
+    # is "" when stable.
+    phase_str = f'"{components["phase"]}"' if components["phase"] else '""'
+    content, kept = re.subn(
+        r'^(PHASE\s*=\s*)(?:"[^"\n]*"|\'[^\'\n]*\'|None)([^\n]*)$',
+        lambda m: f"{m.group(1)}{phase_str}{m.group(2)}",
+        content, flags=re.MULTILINE,
+    )
+    if not kept:
+        # A value in some other form (e.g. unquoted): replace the line, with
+        # an accurate comment.
+        content = re.sub(
+            r'^(PHASE\s*=\s*).*$',
+            lambda m: (f"{m.group(1)}{phase_str}  # Per-MINOR feature set: "
+                       f'"" (stable), "alpha", "beta", "rc1", etc.'),
+            content, flags=re.MULTILINE,
+        )
+
+    # PRE_RELEASE_NUM
+    content = re.sub(
+        r"^(PRE_RELEASE_NUM\s*=\s*)\d+",
+        f"\\g<1>{components['pre_release_num']}",
+        content, flags=re.MULTILINE,
+    )
+
+    if content != original:
+        if not dry_run:
+            file_path.write_text(content, encoding="utf-8")
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# __version__ string (git metadata)
+# ---------------------------------------------------------------------------
+
+def get_git_info(root: Path, auto_mode: bool = False) -> dict:
+    """Gather git metadata for the __version__ string."""
+    info = {
+        "branch": "unknown",
+        "build_count": "0",
+        "date": datetime.date.today().strftime("%Y%m%d"),
+        "commit_hash": "unknown0",
+    }
+
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            cwd=str(root), capture_output=True, check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return info
+
+    # Branch
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=str(root), capture_output=True, text=True, check=True,
+        )
+        branch = result.stdout.strip()
+        if branch:
+            info["branch"] = branch.replace("/", "-")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # Build count
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            cwd=str(root), capture_output=True, text=True, check=True,
+        )
+        count = int(result.stdout.strip())
+        if auto_mode:
+            count += 1  # pre-commit: about to create a new commit
+        info["build_count"] = str(count)
+    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        pass
+
+    # Commit hash
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=8", "HEAD"],
+            cwd=str(root), capture_output=True, text=True, check=True,
+        )
+        info["commit_hash"] = result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # Date -- in auto mode always use today; otherwise smart default
+    if not auto_mode:
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=str(root), capture_output=True, text=True, check=True,
+            )
+            modified = result.stdout.strip()
+            if modified:
+                # "Version files": anything named _version.py (as before),
+                # plus the configured version source under any name (e.g. a
+                # root version.py) and the extra targets.
+                version_files = {Path(VERSION_SOURCE).as_posix()}
+                if isinstance(EXTRA_TARGETS, list):
+                    version_files |= {
+                        Path(t["path"]).as_posix() for t in EXTRA_TARGETS
+                        if isinstance(t, dict) and isinstance(t.get("path"), str)
+                    }
+                def _porcelain_path(line):
+                    # "XY path" or "XY old -> new"; the outer strip() above
+                    # can eat the first line's leading space, so split
+                    # rather than slice at a fixed offset.
+                    parts = line.split(None, 1)
+                    path = parts[1] if len(parts) > 1 else ""
+                    return path.split(" -> ")[-1].strip().strip('"')
+
+                other_changes = [
+                    line for line in modified.split("\n")
+                    if "_version.py" not in line
+                    and _porcelain_path(line) not in version_files
+                ]
+                if not other_changes:
+                    # Only version files changed -- use last commit date
+                    result = subprocess.run(
+                        ["git", "log", "-1", "--format=%cd", "--date=format:%Y%m%d"],
+                        cwd=str(root), capture_output=True, text=True, check=True,
+                    )
+                    info["date"] = result.stdout.strip()
+            else:
+                # Clean working dir -- use last commit date
+                result = subprocess.run(
+                    ["git", "log", "-1", "--format=%cd", "--date=format:%Y%m%d"],
+                    cwd=str(root), capture_output=True, text=True, check=True,
+                )
+                info["date"] = result.stdout.strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            pass
+
+    return info
+
+
+def build_version_string(components: dict, git_info: dict) -> str:
+    """Build the full __version__ string.
+
+    Format: MAJOR.MINOR.PATCH[-PHASE]_BRANCH_BUILD-YYYYMMDD-HASH
+    """
+    base = format_human_version(components)
+    return (
+        f"{base}_{git_info['branch']}_{git_info['build_count']}"
+        f"-{git_info['date']}-{git_info['commit_hash']}"
+    )
+
+
+def read_version_string(file_path: Path) -> str | None:
+    """Read the current __version__ value from a file."""
+    content = file_path.read_text(encoding="utf-8")
+    match = re.search(r'__version__\s*=\s*"([^"]+)"', content)
+    return match.group(1) if match else None
+
+
+def write_version_string(
+    file_path: Path, new_version: str, dry_run: bool = False
+) -> bool:
+    """Update the __version__ string in a file."""
+    content = file_path.read_text(encoding="utf-8")
+    original = content
+
+    content = re.sub(
+        r'(__version__\s*=\s*")[^"]+(")',
+        f"\\g<1>{new_version}\\g<2>",
+        content,
+    )
+
+    if content != original:
+        if not dry_run:
+            file_path.write_text(content, encoding="utf-8")
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Version formatting
+# ---------------------------------------------------------------------------
+
+def format_human_version(components: dict) -> str:
+    """Human-readable version (e.g., 0.2.3, 0.2.3-alpha)."""
+    base = f"{components['major']}.{components['minor']}.{components['patch']}"
+    if components["phase"]:
+        return f"{base}-{components['phase']}"
+    return base
+
+
+def to_pep440(components: dict) -> str:
+    """Convert to PEP 440 version string.
+
+    Examples:
+        phase=None           -> "0.2.3"
+        phase="alpha", pre=1 -> "0.2.3a1"
+        phase="beta", pre=2  -> "0.2.3b2"
+        phase="rc1"          -> "0.2.3rc1"
+    """
+    base = f"{components['major']}.{components['minor']}.{components['patch']}"
+    phase = components["phase"]
+    if not phase:
+        return base
+
+    phase_map = {
+        "alpha": f"a{components['pre_release_num']}",
+        "beta": f"b{components['pre_release_num']}",
+    }
+    # rc1, rc2 etc. pass through directly
+    suffix = phase_map.get(phase, phase)
+    return f"{base}{suffix}"
+
+
+def to_tag(components: dict) -> str:
+    """Convert to git tag format, respecting project's tag-format config.
+
+    tag-format options (set in pyproject.toml [tool.repokit-common]):
+      "pep440" (default): v0.2.3a1, v0.2.3b1, v0.2.3rc1, v0.2.3
+      "human":            v0.2.3-alpha, v0.2.3-beta, v0.2.3-rc1, v0.2.3
+    """
+    if TAG_FORMAT == "human":
+        return f"{TAG_PREFIX}{format_human_version(components)}"
+    return f"{TAG_PREFIX}{to_pep440(components)}"
+
+
+def bump_version(components: dict, part: str) -> dict:
+    """Bump the specified version part. Returns new components."""
+    c = dict(components)
+    if part == "major":
+        c["major"] += 1
+        c["minor"] = 0
+        c["patch"] = 0
+    elif part == "minor":
+        c["major"] = c["major"]
+        c["minor"] += 1
+        c["patch"] = 0
+    elif part == "patch":
+        c["patch"] += 1
+    else:
+        raise ValueError(f"Unknown version part: {part}")
+    return c
+
+
+def demote_version(components: dict, part: str) -> dict:
+    """Demote the specified version part. Returns new components."""
+    c = dict(components)
+    if part == "major" and c["major"] > 0:
+        c["major"] -= 1
+        c["minor"] = 0
+        c["patch"] = 0
+    elif part == "minor" and c["minor"] > 0:
+        c["minor"] -= 1
+        c["patch"] = 0
+    elif part == "patch" and c["patch"] > 0:
+        c["patch"] -= 1
+    else:
+        raise ValueError(
+            f"Cannot demote {part} below 0 "
+            f"(current: {c['major']}.{c['minor']}.{c['patch']})"
+        )
+    return c
+
+
+def parse_version_string(version_str: str) -> tuple[int, int, int]:
+    """Parse 'X.Y.Z' into (major, minor, patch)."""
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)$", version_str.strip())
+    if not match:
+        raise ValueError(
+            f"Invalid version format: '{version_str}'. Expected X.Y.Z (e.g., 0.3.0)"
+        )
+    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+
+
+# ---------------------------------------------------------------------------
+# CHANGELOG management
+# ---------------------------------------------------------------------------
+
+def check_changelog_header(root: Path, version_str: str) -> bool:
+    """Check if CHANGELOG.md has a section header for this version."""
+    changelog = root / CHANGELOG_FILE
+    if not changelog.exists():
+        return False
+    content = changelog.read_text(encoding="utf-8")
+    pattern = rf"##\s*\[{re.escape(version_str)}\]"
+    return bool(re.search(pattern, content))
+
+
+def update_changelog_links(
+    root: Path, components: dict, dry_run: bool = False
+) -> bool:
+    """Update or add compare links at the bottom of CHANGELOG.md.
+
+    Manages two things:
+    1. The link for the current version (compare from previous tag)
+    2. The [Unreleased] link (compare from current tag to HEAD)
+
+    Only touches the link-reference block at the bottom of the file.
+    Never modifies section headers or content.
+    """
+    changelog = root / CHANGELOG_FILE
+    if not changelog.exists():
+        return False
+
+    content = changelog.read_text(encoding="utf-8")
+    original = content
+
+    human_ver = format_human_version(components)
+    tag = to_tag(components)
+
+    # Find or update the link for this version
+    # Pattern: [0.2.3]: https://github.com/.../compare/vX...vY
+    link_pattern = rf"^\[{re.escape(human_ver)}\]:.*$"
+    link_match = re.search(link_pattern, content, re.MULTILINE)
+
+    unreleased_pattern = r"^\[Unreleased\]:.*$"
+    if not link_match and check_changelog_header(root, human_ver):
+        # A new version with its heading written and no link yet: add one
+        # after [Unreleased], comparing from the tag the old [Unreleased]
+        # link started at (the previous release). With no previous tag it is
+        # the first release.
+        unreleased_match = re.search(unreleased_pattern, content, re.MULTILINE)
+        prev = None
+        if unreleased_match:
+            prev_match = re.search(r"compare/(.+?)\.\.\.HEAD", unreleased_match.group(0))
+            prev = prev_match.group(1) if prev_match else None
+        if prev and prev != tag:
+            new_link = f"[{human_ver}]: {REPO_URL}/compare/{prev}...{tag}"
+        else:
+            new_link = f"[{human_ver}]: {REPO_URL}/releases/tag/{tag}"
+        if unreleased_match:
+            content = (content[:unreleased_match.end()] + "\n" + new_link
+                       + content[unreleased_match.end():])
+        else:
+            first_link = re.search(r"^\[[\d.]+", content, re.MULTILINE)
+            if first_link:
+                content = content[:first_link.start()] + new_link + "\n" + content[first_link.start():]
+            else:
+                content = content.rstrip("\n") + "\n\n" + new_link + "\n"
+
+    if link_match:
+        # Link exists -- update it with correct tags
+        old_line = link_match.group(0)
+        # Extract the "from" tag from the existing compare URL
+        compare_match = re.search(r"compare/([^.]+(?:\.[^.]+)*)\.\.\.", old_line)
+        from_tag = compare_match.group(1) if compare_match else None
+        if from_tag:
+            new_line = f"[{human_ver}]: {REPO_URL}/compare/{from_tag}...{tag}"
+        else:
+            # No compare URL -- this is the first release, use releases/tag/
+            new_line = f"[{human_ver}]: {REPO_URL}/releases/tag/{tag}"
+
+        if old_line != new_line:
+            content = content.replace(old_line, new_line)
+
+    # Update [Unreleased] link to point from current tag to HEAD
+    unreleased_match = re.search(unreleased_pattern, content, re.MULTILINE)
+    unreleased_line = f"[Unreleased]: {REPO_URL}/compare/{tag}...HEAD"
+
+    if unreleased_match:
+        content = re.sub(
+            unreleased_pattern, unreleased_line, content, flags=re.MULTILINE
+        )
+    else:
+        # Add [Unreleased] link before the first version link
+        first_link = re.search(r"^\[[\d.]+", content, re.MULTILINE)
+        if first_link:
+            content = content[:first_link.start()] + unreleased_line + "\n" + content[first_link.start():]
+
+    if content != original:
+        if not dry_run:
+            changelog.write_text(content, encoding="utf-8")
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Extra targets ([[tool.repokit-common.extra-targets]], opt-in)
+# ---------------------------------------------------------------------------
+#
+# Each entry names one more file that carries the version:
+#
+#   [[tool.repokit-common.extra-targets]]
+#   path   = ".claude-plugin/plugin.json"  # required, relative to the root
+#   type   = "json"      # the only type so far
+#   field  = "version"   # the JSON key holding the version string
+#   match  = "one"       # "one": exactly one such field (default);
+#                        # "first": the first of several; "all": every one
+#   format = "human"     # "human": 0.3.2-alpha (default);
+#                        # "base": 0.3.2 (no phase -- browser manifests)
+#
+# The file is edited in place (only the version strings change), so its
+# formatting, key order, line endings and BOM survive and a bump is a
+# one-line diff. Every edit is cross-checked against a real JSON parse.
+
+_TARGET_KEYS = {"path", "type", "field", "match", "format"}
+_TARGET_TYPES = {"json"}
+_TARGET_MATCHES = {"one", "first", "all"}
+_TARGET_FORMATS = {"human", "base"}
+_UTF8_BOM = b"\xef\xbb\xbf"
+
+
+class TargetError(Exception):
+    """An extra target that cannot be checked or updated safely."""
+
+
+def _target_spec(spec, root: Path) -> dict:
+    """Validate one extra-targets entry; return it with defaults filled in."""
+    if not isinstance(spec, dict):
+        raise TargetError("each extra-targets entry must be a table")
+    unknown = sorted(set(spec) - _TARGET_KEYS)
+    if unknown:
+        raise TargetError(
+            f"unknown key(s) {', '.join(unknown)} "
+            f"(expected: {', '.join(sorted(_TARGET_KEYS))})"
+        )
+    path = spec.get("path")
+    if not isinstance(path, str) or not path.strip():
+        raise TargetError("missing 'path'")
+    s = {
+        "path": path,
+        "type": spec.get("type", "json"),
+        "field": spec.get("field", "version"),
+        "match": spec.get("match", "one"),
+        "format": spec.get("format", "human"),
+    }
+    for key, valid in (("type", _TARGET_TYPES), ("match", _TARGET_MATCHES),
+                       ("format", _TARGET_FORMATS)):
+        if s[key] not in valid:
+            raise TargetError(
+                f"{key} = {s[key]!r} (expected: {', '.join(sorted(valid))})")
+    if not isinstance(s["field"], str) or not s["field"]:
+        raise TargetError("'field' must be a non-empty string")
+    real_root = root.resolve()
+    target = (real_root / path).resolve()
+    try:
+        target.relative_to(real_root)
+    except ValueError:
+        raise TargetError("path is outside the project root") from None
+    s["file"] = target
+    return s
+
+
+def _target_version(spec: dict, components: dict) -> str:
+    """The version string this target receives."""
+    if spec["format"] == "base":
+        return f"{components['major']}.{components['minor']}.{components['patch']}"
+    return format_human_version(components)
+
+
+def _read_json_text(path: Path) -> tuple[bytes, str]:
+    """(bom, text), decoded without newline translation."""
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        raise TargetError("file not found") from None
+    bom = _UTF8_BOM if raw.startswith(_UTF8_BOM) else b""
+    try:
+        return bom, raw[len(bom):].decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise TargetError(f"not UTF-8: {e}") from None
+
+
+def _json_field_spans(text: str, field: str) -> list[tuple[int, int, str]]:
+    """(start, end, value) of each "field": "value" string in the text.
+
+    The regex spans are cross-checked against a real parse: the same values in
+    the same order, every one a string, no key repeated in one object.
+    Anything else is refused rather than guessed at.
+    """
+    parsed = []
+
+    def collect(pairs):
+        keys = [k for k, _ in pairs]
+        if keys.count(field) > 1:
+            raise TargetError(f"'{field}' appears twice in one object")
+        for k, v in pairs:
+            if k == field:
+                if not isinstance(v, str):
+                    raise TargetError(f"'{field}' is not a string ({v!r})")
+                parsed.append(v)
+        return dict(pairs)
+
+    try:
+        json.loads(text, object_pairs_hook=collect)
+    except json.JSONDecodeError as e:
+        raise TargetError(f"invalid JSON: {e}") from None
+
+    pattern = re.compile(
+        r'"' + re.escape(field) + r'"\s*:\s*"((?:[^"\\]|\\.)*)"')
+    spans = [(m.start(1), m.end(1), json.loads(f'"{m.group(1)}"'))
+             for m in pattern.finditer(text)]
+    if [v for _, _, v in spans] != parsed:
+        raise TargetError(f"cannot locate each '{field}' safely")
+    return spans
+
+
+def sync_extra_target(spec, components: dict, root: Path,
+                      check: bool = False, dry_run: bool = False) -> str:
+    """Check or update one extra target. Returns "ok", "stale" (check mode),
+    or "updated" (a write happened, or would have under dry_run).
+
+    Raises TargetError when the target cannot be handled safely; the file is
+    then left untouched.
+    """
+    s = _target_spec(spec, root)
+    version = _target_version(s, components)
+    bom, text = _read_json_text(s["file"])
+    spans = _json_field_spans(text, s["field"])
+    if not spans:
+        raise TargetError(f"no '{s['field']}' field")
+    if s["match"] == "one" and len(spans) > 1:
+        raise TargetError(
+            f"{len(spans)} '{s['field']}' fields; set match = \"all\" or \"first\"")
+    if s["match"] in ("one", "first"):
+        spans = spans[:1]
+
+    if all(v == version for _, _, v in spans):
+        return "ok"
+    if check:
+        return "stale"
+    for start, end, _ in reversed(spans):
+        text = text[:start] + version + text[end:]
+    if not dry_run:
+        s["file"].write_bytes(bom + text.encode("utf-8"))
+    return "updated"
+
+
+# ---------------------------------------------------------------------------
+# Git helpers
+# ---------------------------------------------------------------------------
+
+def git_tag_exists(root: Path, tag: str) -> bool:
+    """Check if a git tag exists in the repository."""
+    try:
+        result = subprocess.run(
+            ["git", "tag", "-l", tag],
+            cwd=str(root), capture_output=True, text=True, check=True,
+        )
+        return tag in result.stdout.strip().split("\n")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def git_stage(root: Path, *files: str) -> None:
+    """Stage files for commit."""
+    try:
+        subprocess.run(
+            ["git", "add"] + list(files),
+            cwd=str(root), capture_output=True, check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=f"Sync versions across {Path(VERSION_SOURCE).parent.name} project files"
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Only check, don't modify"
+    )
+    parser.add_argument(
+        "--bump", choices=["major", "minor", "patch"], help="Bump version part"
+    )
+    parser.add_argument(
+        "--demote", choices=["major", "minor", "patch"], help="Demote version part"
+    )
+    parser.add_argument("--set", metavar="X.Y.Z", help="Set version directly")
+    parser.add_argument(
+        "--phase", metavar="PHASE",
+        help="Set release phase (alpha, beta, rc1) or 'none'/'stable' to clear",
+    )
+    parser.add_argument(
+        "--pre-num", type=int, metavar="N",
+        help="Set PRE_RELEASE_NUM explicitly (rarely needed)",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show changes without modifying"
+    )
+    parser.add_argument(
+        "--auto", action="store_true",
+        help="Git hook mode (quiet, stages files, uses today's date)",
+    )
+    parser.add_argument(
+        "--no-git-ver", action="store_true",
+        help="Skip __version__ string update (components only)",
+    )
+    parser.add_argument(
+        "--force", "-f", action="store_true", help="Skip confirmation prompts"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Verbose output"
+    )
+    args = parser.parse_args()
+
+    quiet = args.auto
+
+    if str(VERSIONING).lower() == "off":
+        if not quiet:
+            print('versioning is off for this project (versioning = "off"); nothing to sync')
+        return 0
+
+    try:
+        root = find_project_root()
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    # Read current version from source of truth
+    components = read_version_components(root / VERSION_SOURCE)
+    current_version = format_human_version(components)
+    components_changed = False
+
+    if args.verbose:
+        print(f"Project root: {root}")
+        print(f"Source: {VERSION_SOURCE}")
+        print(f"Current: {current_version} (PEP 440: {to_pep440(components)})")
+        if components["phase"]:
+            print(f"Phase: {components['phase']} (pre-release num: {components['pre_release_num']})")
+
+    # Handle --phase
+    if args.phase:
+        if args.phase.lower() in ("none", "null", "stable", "release", ""):
+            components["phase"] = None
+        else:
+            # If transitioning from stable/different phase to alpha, reset PRE_RELEASE_NUM
+            if components["phase"] != args.phase:
+                components["pre_release_num"] = 1
+            components["phase"] = args.phase
+        components_changed = True
+
+    # Handle --pre-num
+    if args.pre_num is not None:
+        components["pre_release_num"] = args.pre_num
+        components_changed = True
+
+    # Handle --set, --bump, or --demote (mutually exclusive)
+    version_ops = [args.set, args.bump, args.demote]
+    if sum(1 for op in version_ops if op) > 1:
+        print("Error: Cannot use --set, --bump, and --demote together", file=sys.stderr)
+        return 1
+
+    if args.set:
+        try:
+            new_major, new_minor, new_patch = parse_version_string(args.set)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+        components["major"] = new_major
+        components["minor"] = new_minor
+        components["patch"] = new_patch
+
+        new_version = format_human_version(components)
+
+        if new_major != components["major"] and not args.force and not args.dry_run and not args.check:
+            print(f"\n  WARNING: Major version change: {current_version} -> {new_version}")
+            try:
+                confirm = input("\n  Type 'yes' to confirm: ")
+                if confirm.lower() != "yes":
+                    print("  Aborted.")
+                    return 1
+            except (EOFError, KeyboardInterrupt):
+                print("\n  Aborted.")
+                return 1
+
+        if not quiet:
+            print(f"Setting version: {current_version} -> {new_version}")
+        components_changed = True
+
+    elif args.bump:
+        new_components = bump_version(components, args.bump)
+        new_version = format_human_version(new_components)
+
+        if args.bump == "major" and not args.force and not args.dry_run and not args.check:
+            print(f"\n  WARNING: Major version bump: {current_version} -> {new_version}")
+            try:
+                confirm = input("\n  Type 'yes' to confirm: ")
+                if confirm.lower() != "yes":
+                    print("  Aborted.")
+                    return 1
+            except (EOFError, KeyboardInterrupt):
+                print("\n  Aborted.")
+                return 1
+
+        if not quiet:
+            print(f"Bumping {args.bump}: {current_version} -> {new_version}")
+
+        components["major"] = new_components["major"]
+        components["minor"] = new_components["minor"]
+        components["patch"] = new_components["patch"]
+        components_changed = True
+
+    elif args.demote:
+        try:
+            new_components = demote_version(components, args.demote)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+        new_version = format_human_version(new_components)
+        if not quiet:
+            print(f"Demoting {args.demote}: {current_version} -> {new_version}")
+
+        components["major"] = new_components["major"]
+        components["minor"] = new_components["minor"]
+        components["patch"] = new_components["patch"]
+        components_changed = True
+
+    # Recalculate after any changes
+    current_version = format_human_version(components)
+    pip_version = to_pep440(components)
+    tag = to_tag(components)
+
+    if not quiet:
+        print(f"Version: {current_version}  (PEP 440: {pip_version}, tag: {tag})")
+
+    # Track status
+    all_synced = True
+    files_updated = []
+
+    # --- Write components if changed ---
+    if components_changed and not args.check:
+        updated = write_version_components(root / VERSION_SOURCE, components, args.dry_run)
+        if updated:
+            action = "would update" if args.dry_run else "updated"
+            if not quiet:
+                print(f"  [OK] {VERSION_SOURCE}: components {action}")
+            files_updated.append(VERSION_SOURCE)
+        # A flag that could not land is said, never swallowed: --pre-num on a
+        # source with no PRE_RELEASE_NUM line (any kind) used to exit 0 and
+        # change nothing. The value is read back from the file to decide.
+        if args.pre_num is not None and not args.dry_run:
+            stored = read_version_components(root / VERSION_SOURCE)["pre_release_num"]
+            if stored != args.pre_num:
+                hint = {
+                    "python": "add a line `PRE_RELEASE_NUM = 1` to it",
+                    "c-header": "add `#define <PREFIX>_VERSION_PRE_RELEASE_NUM 1` to it",
+                    "plain": "a one-line VERSION file holds no pre-release number; use a _version.py or a C header for that",
+                }[source_kind(VERSION_SOURCE)]
+                print(f"Warning: --pre-num {args.pre_num} not stored: {VERSION_SOURCE} has no "
+                      f"PRE_RELEASE_NUM; {hint}", file=sys.stderr)
+
+    # --- Sync __version__ string with git metadata (Python sources only; a
+    # plain VERSION or a C header carries no stamp) ---
+    if not args.no_git_ver and source_kind(VERSION_SOURCE) == "python":
+        git_info = get_git_info(root, auto_mode=args.auto)
+        new_ver_string = build_version_string(components, git_info)
+
+        ver_path = root / VERSION_SOURCE
+        current_str = read_version_string(ver_path)
+
+        if current_str != new_ver_string:
+            all_synced = False
+            if args.check:
+                print(f"  [X] {VERSION_SOURCE}: __version__ out of date")
+                if args.verbose:
+                    print(f"       current:  {current_str}")
+                    print(f"       expected: {new_ver_string}")
+            else:
+                updated = write_version_string(ver_path, new_ver_string, args.dry_run)
+                if updated:
+                    action = "would update" if args.dry_run else "updated"
+                    if not quiet:
+                        print(f"  [OK] {VERSION_SOURCE}: __version__ {action}")
+                    if VERSION_SOURCE not in files_updated:
+                        files_updated.append(VERSION_SOURCE)
+        else:
+            if args.verbose:
+                print(f"  [OK] {VERSION_SOURCE}: __version__ in sync")
+
+    # --- Sync CHANGELOG.md compare links ---
+    changelog_path = root / CHANGELOG_FILE
+    if changelog_path.exists():
+        # Check header
+        has_header = check_changelog_header(root, current_version)
+        if not has_header:
+            all_synced = False
+            if args.check:
+                print(f"  [X] {CHANGELOG_FILE}: no ## [{current_version}] header")
+            elif not quiet:
+                print(f"  [!!] {CHANGELOG_FILE}: no ## [{current_version}] header (add manually)")
+
+        # Update compare links
+        if not args.check:
+            updated = update_changelog_links(root, components, args.dry_run)
+            if updated:
+                action = "would update" if args.dry_run else "updated"
+                if not quiet:
+                    print(f"  [OK] {CHANGELOG_FILE}: compare links {action}")
+                files_updated.append(CHANGELOG_FILE)
+        else:
+            # In check mode, verify the current version's link has the right tag
+            content = changelog_path.read_text(encoding="utf-8")
+            human_ver = format_human_version(components)
+            # Check that the link ends with the correct tag (not a substring like v0.2.3a1 matching v0.2.3)
+            link_pattern = rf"^\[{re.escape(human_ver)}\]:.*\.\.\.{re.escape(tag)}$"
+            # Also accept releases/tag/ format (used for first release with no prior tag)
+            release_pattern = rf"^\[{re.escape(human_ver)}\]:.*releases/tag/{re.escape(tag)}$"
+            if not re.search(link_pattern, content, re.MULTILINE) and \
+               not re.search(release_pattern, content, re.MULTILINE):
+                # Check if the tag exists yet -- new repos won't have tags before first release
+                if not git_tag_exists(root, tag):
+                    # Tag doesn't exist yet -- this is expected for unreleased versions
+                    if not quiet:
+                        print(f"  [--] {CHANGELOG_FILE}: [{human_ver}] link references {tag} (tag not yet created, OK)")
+                else:
+                    all_synced = False
+                    print(f"  [X] {CHANGELOG_FILE}: compare link for [{human_ver}] missing or wrong tag (expected {tag})")
+            elif args.verbose:
+                print(f"  [OK] {CHANGELOG_FILE}: compare link for [{human_ver}] correct")
+    else:
+        if args.verbose:
+            print(f"  [--] {CHANGELOG_FILE}: not found (skipped)")
+
+    # --- Sync extra targets ([[tool.repokit-common.extra-targets]]) ---
+    # Opt-in: with no entries configured this block does nothing. A target
+    # that cannot be handled safely is reported (even under --auto) and left
+    # untouched; the others still sync, and the run exits 1.
+    target_errors = 0
+    targets = EXTRA_TARGETS
+    if not isinstance(targets, list):
+        print("  [X] extra-targets: must be an array of tables "
+              "([[tool.repokit-common.extra-targets]])", file=sys.stderr)
+        target_errors += 1
+        targets = []
+    for spec in targets:
+        label = spec.get("path", "?") if isinstance(spec, dict) else "?"
+        try:
+            status = sync_extra_target(spec, components, root,
+                                       check=args.check, dry_run=args.dry_run)
+        except TargetError as e:
+            print(f"  [X] {label}: {e}", file=sys.stderr)
+            target_errors += 1
+            all_synced = False
+            continue
+        if status == "stale":
+            all_synced = False
+            print(f"  [X] {label}: version is not "
+                  f"{_target_version(_target_spec(spec, root), components)}")
+        elif status == "updated":
+            if not quiet:
+                action = "would update" if args.dry_run else "updated"
+                print(f"  [OK] {label}: version {action}")
+            files_updated.append(label)
+        elif args.verbose:
+            print(f"  [OK] {label}: version in sync")
+
+    # Stage files in auto mode
+    if args.auto and files_updated and not args.dry_run:
+        git_stage(root, *files_updated)
+
+    if target_errors and not args.check:
+        if not quiet:
+            print(f"\n{target_errors} extra target(s) could not be synced.")
+        return 1
+
+    # Summary
+    if args.check:
+        if all_synced:
+            if not quiet:
+                print("\nAll versions are in sync.")
+            return 0
+        else:
+            if not quiet:
+                print("\nVersions are out of sync. Run without --check to fix.")
+            return 1
+    elif files_updated:
+        if not quiet:
+            if args.dry_run:
+                print(f"\nDry run: would update {len(files_updated)} file(s)")
+            else:
+                print(f"\nUpdated {len(files_updated)} file(s)")
+    else:
+        if not quiet:
+            print("\nAll versions already in sync.")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
