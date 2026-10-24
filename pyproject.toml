@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ck3-save-migrator"
+dynamic = ["version"]
+description = "Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files"
+readme = "README.md"
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.10"
+authors = [
+    {name = "Dustin", email = "6962246+djdarcy@users.noreply.github.com"},
+]
+keywords = []
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/YOUR_GITHUB_USERNAME/ck3-save-migrator"
+Repository = "https://github.com/YOUR_GITHUB_USERNAME/ck3-save-migrator"
+Issues = "https://github.com/YOUR_GITHUB_USERNAME/ck3-save-migrator/issues"
+
+[project.scripts]
+ck3-save-migrator = "ck3_save_migrator.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "ck3_save_migrator._version.PIP_VERSION"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ck3_save_migrator", "ck3_save_migrator.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The package imports from the project root without an install: the vendored
+# pre-push hook runs `python -P -m pytest`, which keeps the root off sys.path,
+# and the first push (`repokit create --github`) comes before any pip install.
+pythonpath = ["."]
+python_files = "test_*.py"
+python_functions = "test_*"
+python_classes = "Test*"
+
+[tool.repokit-common]
+version-source = "ck3_save_migrator/_version.py"
+changelog = "CHANGELOG.md"
+repo-url = "https://github.com/YOUR_GITHUB_USERNAME/ck3-save-migrator"
+tag-prefix = "v"
+private-patterns = ["private/", "local/", ".env"]

@@ -1,0 +1,17 @@
+# Line endings: git normalises text files to LF in the repository and gives
+# each platform its own on checkout. Files that must keep their bytes are
+# listed as binary.
+* text=auto
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+
+# The vendored git-repokit-common tooling is not this project's language:
+# GitHub's language statistics and diffs treat it as vendored.
+scripts/repokit-common/** linguist-vendored
