@@ -136,9 +136,39 @@ def iter_entries(data: bytes, start: int, end: int) -> Iterator[Block]:
         raise GamestateError(f"unclosed '{{' at offset {open_pos}")
 
 
+_TOP_INDEX: list[tuple[bytes, dict[bytes, list[Block]] | None]] = []   # the last few gamestates' sections
+
+
+def _top_index(data: bytes) -> dict[bytes, list[Block]] | None:
+    """key -> top-level blocks, from one walk that jumps from each section's end to the next (a 220 MB gamestate
+    was being rescanned once per lookup: 174 lookups, 148 of a transplant's 217 seconds). None when a section
+    does not close (the caller then scans the old way). Cached for the last 4 gamestates, by identity."""
+    for d, idx in _TOP_INDEX:
+        if d is data:
+            return idx
+    idx: dict[bytes, list[Block]] | None = {}
+    pos = 0
+    while (m := _TOP_KEY.search(data, pos)) is not None:
+        op = m.end() - 1
+        try:
+            close = match_brace(data, op)
+        except GamestateError:
+            idx = None
+            break
+        idx.setdefault(m.group(1), []).append(Block(m.group(1), m.start(), op, close))
+        pos = close + 1
+    _TOP_INDEX.insert(0, (data, idx))
+    del _TOP_INDEX[4:]
+    return idx
+
+
 def find_sections(data: bytes, key: str | bytes) -> Iterator[Block]:
     """Every top-level ``key={`` block, in file order (top-level keys may repeat)."""
     k = key.encode() if isinstance(key, str) else key
+    idx = _top_index(data)
+    if idx is not None:
+        yield from idx.get(k, [])
+        return
     for m in re.finditer(rb"(?m)^" + re.escape(k) + rb"[ \t]*=[ \t]*\{", data):
         open_pos = m.end() - 1
         yield Block(k, m.start(), open_pos, match_brace(data, open_pos))

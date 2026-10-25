@@ -261,6 +261,10 @@ def r8_religion_transplant(save: CK3Save, ctx, rule):
                 lost.append({"what": "holy_site_barony", "index": h.key.decode(),
                              "type": _str(_raw(ref, h, "holy_site_type")),
                              "barony": ref_titles.get(ref[bar.value_start:bar.value_end].decode())})
+                # the transplant (R14 + R17) may bring this barony in later: R17 re-attaches the site then
+                ctx.state.setdefault("holy_sites_without_barony", []).append(
+                    {"index": h.key.decode(), "barony": ref_titles.get(ref[bar.value_start:bar.value_end].decode()),
+                     "is_active": ref[act.value_start:act.value_end].decode() if act is not None else None})
         for c in kids:
             if c.key == b"total_artifact_rarity":
                 s, e = gs.removal_span(ref, c.start, c.end)

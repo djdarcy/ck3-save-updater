@@ -12,6 +12,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Your campaign's own titles keep their structure. A new title is added under an existing one where 1.20's map puts it there, and nothing of your realm is given to a copied ruler.
 - `lint` reports two objects of the same kind sharing a number, which the game cannot load.
 - Tried on the founding 1.8.1 campaign: one copied kingdom loads and plays two months with no new kind of error and no new object taking a copied object's place; the same copy without the renumbering crashes the game on load, as it should; the whole new map (about 5,700 titles, 3,600 provinces and 6,700 people) reaches the map.
+- Titles your save has that 1.20 removed or moved (R15, with `--old-game-dir`, the game folder of the version your save was made with): each is matched to what 1.20 calls the same land. Where the match is exact, your title takes the 1.20 name and stays with its holder; where 1.20 split or redrew the land, the 1.20 titles and their rulers take it, and every case is listed in the report with what happened to it. Ten baronies that 1.20 moved to another province keep their place on the map and take the name 1.20 gives that place.
+- The new regions now arrive complete: guests at their courts, the relations and opinions among their people, their queued events, every culture 1.20 added, and China's situations (the dynastic cycle). A ruler of 1.20's history whose land your campaign already holds comes in without land, at the court of the one who holds it.
+- Holy sites of the new regions (Angkor, Borobudur, Samarkand, ...) are attached to their places again once those places exist.
+- The 1.20 monastic orders that hold lands in the old world are added as the new version has them, and listed as expansion content; `--no-expansion-orders` leaves them out.
+- `lint` checks the title tree as the game does (unique names; a barony inside its own county; a county's capital barony with a county above it) and that every vassal contract names both people. Its count of rejected `localization_key` fields now matches the game's.
+
+### Changed
+- Large saves migrate much faster: finding a section no longer reads the whole save again each time (a full migration of the founding campaign in both religion shapes went from 11 to 7 minutes).
 
 ## [0.3.0] - 2026-10-25
 

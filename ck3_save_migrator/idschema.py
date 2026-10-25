@@ -313,6 +313,12 @@ FIELDS: dict[str, dict[str, str]] = {
         "holding/levy": "regiment",
     },
 }
+# anonymous pair lists and repeated top-level blocks (Unit 5b): who relates to whom; typed scopes in events
+FIELDS["relations/active_relations"] = {"first": _C, "second": _C,
+                                        # the people an alliance runs through (242 of 242 are character ids)
+                                        "alliances/[]/allied_through_0": _C, "alliances/[]/allied_through_1": _C}
+FIELDS["opinions/active_opinions"] = {"owner": _C, "target": _C}
+FIELDS["triggered_event"] = {}           # its references are typed (scope/.../identity)
 for _sec in SPACES["character"]:
     FIELDS[_sec] = FIELDS["character"]
 FIELDS["vassal_contracts/active"] = FIELDS["vassal_contracts/database"]
@@ -419,3 +425,5 @@ PLAIN_FIELDS: dict[str, frozenset[str]] = {
     "vassal_contracts/database": _plain("levels/#", "levels/*", "subject_standing"),
 }
 PLAIN_FIELDS["vassal_contracts/active"] = PLAIN_FIELDS["vassal_contracts/database"]
+PLAIN_FIELDS["triggered_event"] = _plain("scope/seed")      # a random seed
+PLAIN_FIELDS["opinions/active_opinions"] = _plain("temporary_opinion/value", "temporary_opinion/modify")

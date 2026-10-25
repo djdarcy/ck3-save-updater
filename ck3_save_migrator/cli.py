@@ -179,7 +179,9 @@ def cmd_migrate(args) -> int:
     _check_paths(args, outputs(branch), existence=True)        # before any rule runs
     in_sha = sha256(save.to_bytes())
     ctx = RuleContext(game_dir=find_game_dir(args.game_dir), portraits_version=args.portraits_version,
-                      reference=reference, wos_shape=shapes[0])
+                      reference=reference, wos_shape=shapes[0],
+                      old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
+                      expansion_orders=not args.no_expansion_orders)
     known = None          # what the game and the mods define: read once, shared by both outputs
     lint_errors = 0
 
@@ -296,6 +298,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "or both (default: two outputs, <stem>__wos-faith / __wos-rite, when a reference is "
                         "given; a save without custom faiths yields one output)")
     p.add_argument("--game-dir", help="the game's 'game' folder (default: $CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--old-game-dir",
+                   help="the 'game' folder of the version the save was made with; R15 reads its map to find "
+                        "what the current map calls the land of titles it no longer has")
+    p.add_argument("--no-expansion-orders", action="store_true",
+                   help="R14: leave out the target version's new holy orders that would lease the save's own land "
+                        "(by default they are added as the target game has them, and reported)")
     p.add_argument("--no-lint", action="store_true",
                    help="skip the checks run on each output before it is written (see the lint command)")
     p.add_argument("--lint-mods", choices=("save", "none"), default="save",

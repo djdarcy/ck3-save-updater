@@ -486,3 +486,53 @@ def test_lint_gamestate_runs_the_id_check():
 def test_check_ids_one_slot_under_two_generations():
     found = _ids(_ids_gs(living="5={\n}\n", prunable="16777221={\n}\n"))    # 0x01000005: slot 5, generation 1
     assert found["entry slots are unique in each id space"].count == 1
+
+
+# --------------------------------------------------------------------------- the title tree, contracts
+def _titles_gs(titles: str, contracts: str = "", living: str = "1={\n}\n2={\n}\n") -> bytes:
+    return (f"living={{\n{living}}}\nlanded_titles={{\n\tlanded_titles={{\n{titles}\t}}\n}}\n"
+            f"vassal_contracts={{\n\tactive={{\n{contracts}\t}}\n}}\n").encode()
+
+
+def _checks(g: bytes) -> dict:
+    rep = L.LintReport()
+    L.check_titles(g, rep)
+    L.check_contracts(g, rep)
+    return {f.check: f for f in rep.findings}
+
+
+TREE = ("0={\n\tkey=c_a\n}\n1={\n\tkey=b_a\n\tde_facto_liege=0\n\tde_jure_liege=0\n\tcapital_barony=yes\n}\n"
+        "2={\n\tkey=c_b\n}\n")
+
+
+def test_check_titles_quiet_on_a_sound_tree():
+    assert _checks(_titles_gs(TREE)) == {}
+
+
+def test_check_titles_the_loaders_rules():
+    bad = TREE + ("3={\n\tkey=b_x\n\tde_facto_liege=2\n\tde_jure_liege=0\n}\n"          # de facto != de jure
+                  "4={\n\tkey=b_cap\n\tde_jure_liege=0\n\tcapital_barony=yes\n}\n"     # capital without de facto
+                  "5={\n\tkey=b_lone\n\tholder=1\n}\n"                                 # held orphan (warning)
+                  "6={\n\tkey=c_a\n\tde_jure_liege=99\n}\n")                           # duplicate key, liege missing
+    found = _checks(_titles_gs(bad))
+    assert found["a barony's de facto liege is its de jure county"].count == 1
+    assert found["capital baronies have a county"].examples == ["b_cap: no de facto liege"]
+    assert found["held baronies have a county"].severity == "warn" and found["held baronies have a county"].count == 1
+    assert found["title keys are unique"].examples == ["c_a x2"]
+    assert found["title lieges point at titles that exist"].count == 1
+
+
+def test_check_contracts_needs_both_parties():
+    ok = "7={\n\t\tliege=1\n\t\tvassal=2\n\t}\n"
+    assert _checks(_titles_gs(TREE, contracts=ok)) == {}
+    found = _checks(_titles_gs(TREE, contracts="7={\n\t\tliege=1\n\t}\n8={\n\t\tliege=1\n\t\tvassal=9\n\t}\n"))
+    assert found["vassal contracts name both parties"].count == 2
+
+
+def test_localization_key_is_rejected_only_directly_in_a_title():
+    g = ("landed_titles={\n\tlanded_titles={\n0={\n\tkey=k_a\n\tlocalization_key=K_A\n}\n"
+         "1={\n\tkey=k_b\n\ttitle_name_data={\n\t\tlocalization_key=K_B\n\t}\n}\n\t}\n}\n").encode()
+    rep = L.LintReport()
+    L.check_families(g, rep, L.GameData(), L.SectionIndex(g))
+    f = {x.check: x for x in rep.findings}
+    assert f["Unexpected token: localization_key (in landed_titles)"].count == 1

@@ -185,6 +185,84 @@ def check_ids(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> Non
                   "cannot hold both")
 
 
+_T_FIELD = {k: re.compile(rb"\n\t" + k + rb"=\"?([\w\-']+)\"?") for k in
+            (b"key", b"de_jure_liege", b"de_facto_liege", b"capital_barony", b"holder")}
+
+
+def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """The title tree's own rules, as the 1.20 loader enforces them (each one seen in a load's error.log):
+    keys unique ("Duplicate landed title name"); de jure and de facto lieges name titles that exist; a barony's
+    de facto liege is its de jure county ("Dejure and defacto liege for barony differ"); a capital barony has
+    both lieges ("Capital b_x doesn't have a De Jure / De Facto liege"). A barony without any county is a
+    warning: the game logs only capital baronies, but every orphan is land no county holds."""
+    idx = idx or SectionIndex(g)
+    lt = idx.block("landed_titles/landed_titles")
+    if lt is None:
+        return
+    titles = {}
+    for m in _ENTRY_COL0.finditer(g, lt.open, lt.close):
+        head = g[m.end():m.end() + 1500]
+        head = head[:head.find(b"\n}") + 1] if b"\n}" in head else head
+        f = {k: (x.group(1) if (x := rx.search(head)) else None) for k, rx in _T_FIELD.items()}
+        titles[int(m.group(1))] = f
+    keys = Counter(f[b"key"] for f in titles.values() if f[b"key"])
+    dup = sorted(k.decode() for k, n in keys.items() if n > 1)
+    bad_liege, barony_differs, capital_no_liege, orphan = [], [], [], []
+    for i, f in titles.items():
+        k = (f[b"key"] or b"?").decode()
+        for field in (b"de_jure_liege", b"de_facto_liege"):
+            v = f[field]
+            if v is not None and v.isdigit() and int(v) not in titles:
+                bad_liege.append(f"{k}: {field.decode()}={v.decode()}")
+        if k.startswith("b_"):
+            dj, df = f[b"de_jure_liege"], f[b"de_facto_liege"]
+            if dj and df and dj != df:
+                barony_differs.append(f"{k}: de jure {dj.decode()}, de facto {df.decode()}")
+            if f[b"capital_barony"] == b"yes" and not (dj and df):
+                capital_no_liege.append(f"{k}: {'no de jure liege' if not dj else ''}"
+                                        f"{', ' if not dj and not df else ''}{'no de facto liege' if not df else ''}")
+            elif not dj and f[b"holder"]:
+                orphan.append(k)                     # held land that no county contains
+    rep.add("title keys are unique", "error", [f"{k} x{keys[k.encode()]}" for k in dup],
+            gloss="Two titles carry the same key; the game keeps one name and logs the other as a duplicate")
+    rep.add("title lieges point at titles that exist", "error", bad_liege,
+            gloss="A title's de jure or de facto liege is a number no title in the save has")
+    rep.add("a barony's de facto liege is its de jure county", "error", barony_differs,
+            gloss="The game requires a barony to sit in its own county; it logs this as an assertion")
+    rep.add("capital baronies have a county", "error", capital_no_liege,
+            gloss="A county's capital barony with no county above it (the game logs 'Capital ... doesn't have a "
+                  "De Jure / De Facto liege')")
+    rep.add("held baronies have a county", "warn", orphan,
+            gloss="Held baronies with no county above them; the game does not log these unless they are a capital")
+
+
+def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """A vassal contract binds two people: both its liege and its vassal are named and exist (a contract copied
+    with only one party binds nobody)."""
+    idx = idx or SectionIndex(g)
+    chars: set[bytes] = set()
+    for sec in CHAR_SECTIONS:
+        b = idx.block(sec)
+        if b is not None:
+            chars.update(m.group(1) for m in _ENTRY_COL0.finditer(g, b.open, b.close))
+    bad = []
+    for sec in ("vassal_contracts/active", "vassal_contracts/database"):
+        b = idx.block(sec)
+        if b is None:
+            continue
+        for e in gs.iter_entries(g, *b.body):
+            if not (e.key and e.key.isdigit()):
+                continue
+            body = g[e.open:e.close]
+            for party in (b"liege", b"vassal"):
+                m = re.search(rb"[\n\t ]" + party + rb"=(\d+)", body)
+                if m is None or m.group(1) not in chars:
+                    bad.append(f"{sec} {e.key.decode()}: {party.decode()} "
+                               f"{'missing' if m is None else m.group(1).decode() + ' is not a character'}")
+    rep.add("vassal contracts name both parties", "error", bad,
+            gloss="A vassal contract without its liege or its vassal binds nobody")
+
+
 def _entry_text(g: bytes, start: int) -> bytes:
     op = g.index(b"{", start)
     return g[start:gs.match_brace(g, op) + 1]
@@ -461,6 +539,10 @@ REJECTED_AT = {
     (b"landed_titles", b"localization_key"): "1.20.1.2 error.log: Unexpected token: localization_key",
     (b"landed_titles", b"renamed"): "1.20.1.2 error.log: Unexpected token: renamed (player-renamed titles)",
 }
+# entries rejected only at one depth below the section's entries: 1.20 accepts localization_key inside a title's
+# title_name_data (where it writes it itself) and rejects it directly in the title (where 1.8.1 put it):
+# the 987 load logged 5, the 5 title-level ones, with 3 more inside title_name_data unlogged
+REJECTED_DEPTH = {(b"landed_titles", b"localization_key"): 1}
 # Fields whose value names a database entry the reader looks up ("Failed to read key reference").
 _REF_SCALAR = re.compile(rb'[\n\t ](modifier|type|combat_effect|important_action_type|story_cycle|nickname)'
                          rb'[ \t]*=[ \t]*"?([A-Za-z0-9_][\w.\-]*)"?(?=[\s}])')
@@ -519,7 +601,9 @@ def check_families(g: bytes, rep: LintReport, data: GameData, idx: SectionIndex)
 
     for (section, key), evidence in REJECTED_AT.items():
         b = idx.block(section.decode())
-        n = len(re.findall(rb"[\n\t]" + key + rb"=", g[b.open:b.close])) if b is not None else 0
+        depth = REJECTED_DEPTH.get((section, key))
+        pat = (rb"\n" + b"\t" * depth + key + rb"=") if depth else (rb"[\n\t]" + key + rb"=")
+        n = len(re.findall(pat, g[b.open:b.close])) if b is not None else 0
         if n:
             rep.add(f"Unexpected token: {key.decode()} (in {section.decode()})", "reject", [evidence],
                     gloss=f"A field the current game no longer has ({key.decode()} in {section.decode()}); "
@@ -602,6 +686,8 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     idx = SectionIndex(g)
     check_structure(g, rep)
     check_ids(g, rep, idx)
+    check_titles(g, rep, idx)
+    check_contracts(g, rep, idx)
     check_references(g, rep, idx)
     if keys:
         if isinstance(known, tuple):

@@ -33,7 +33,9 @@ REF = gamestate(
     + title(3, "c_new", "\tde_jure_liege=2\n\tde_facto_liege=1\n\tcapital=3\n\tcoat_of_arms_id=8\n")
     + title(4, "x_x_1", "\tholder=9\n")
     + title(5, "k_lone", "")
-    + title(6, "d_child", "\tde_jure_liege=5\n"),
+    + title(6, "d_child", "\tde_jure_liege=5\n\tde_jure_vassals={ 7 }\n")
+    + title(7, "b_child", "\tde_jure_liege=6\n")
+    + title(8, "d_landless", ""),                      # unheld, no land: left to the engine
     coa="7={\n\tpattern=\"n\"\n}\n8={\n\tpattern=\"m\"\n}\n",
     extra="provinces={\n1={\n}\n2={\n}\n3={\n\tholding={\n\t\ttype=castle_holding\n\t}\n}\n}\n",
 )
@@ -58,15 +60,16 @@ def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
 def test_r14_plans_the_new_titles_and_provinces_only(tmp_path):
     _, _, res = run_r14(tmp_path)
     ex = res["R14"].extra
-    assert ex["titles_planned"] == 3                    # d_new, c_new, d_child: not k_old/d_old/k_lone, not x_x_1
-    assert ex["by_tier"] == {"c": 1, "d": 2} and ex["x_titles_left_out"] == 1
+    assert ex["titles_planned"] == 4                    # d_new, c_new, d_child, b_child: not the save's, not x_x_1
+    assert ex["by_tier"] == {"b": 1, "c": 1, "d": 2} and ex["x_titles_left_out"] == 1
+    assert ex["left_to_the_engine_unheld_landless"] == 1                # d_landless
     assert ex["provinces_planned"] == 1                 # province 3
 
 
 def test_r17_writes_the_titles_with_translated_ids(tmp_path):
     save, _, res = run_r14(tmp_path)
     t = titles_by_key(save.gamestate)
-    assert set(t) == {"k_old", "d_old", "k_lone", "d_new", "c_new", "d_child"}
+    assert set(t) == {"k_old", "d_old", "k_lone", "d_new", "c_new", "d_child", "b_child"}
     d_new_id, d_new = t["d_new"]
     c_new_id, c_new = t["c_new"]
     assert d_new_id == 2 + 3 and c_new_id == 3 + 3      # title base = save max index 2 + 1
@@ -76,6 +79,7 @@ def test_r17_writes_the_titles_with_translated_ids(tmp_path):
     assert b"de_facto_liege" not in c_new               # a new title under a campaign title de facto: dropped
     assert f"capital={c_new_id}".encode() in c_new
     assert res["R17"].extra["dropped"]["landed_titles/landed_titles | de_jure_vassals/*"] == 1
+    assert res["R17"].extra["collisions"] == 0 and "title" in res["R17"].extra["collisions_by_space"]
 
 
 def test_r17_stitches_seams_into_existing_and_new_lists(tmp_path):
@@ -122,6 +126,17 @@ def test_r16_brings_the_holders_and_keeps_their_titles_held(tmp_path):
     t = titles_by_key(save.gamestate)
     assert b"holder=50" in t["d_new"][1]                # character 9 -> 9 + (save max 40 + 1)
     assert 50 in {i for i, _ in T.entries(save.gamestate, "living")}
+
+
+def test_a_displaced_ruler_is_placed_in_the_takers_court():
+    from ck3_save_migrator.transplant import _set_employer
+    has = b"5={\n\tfirst_name=\"A\"\n\tcourt_data={\n\t\temployer=9\n\t}\n}"
+    court = b"5={\n\tfirst_name=\"A\"\n\tcourt_data={\n\t\thost=3\n\t}\n}"
+    bare = b"5={\n\tfirst_name=\"A\"\n}"
+    assert b"\t\temployer=777\n" in _set_employer(has, 777) and b"employer=9" not in _set_employer(has, 777)
+    assert b"court_data={\n\t\temployer=777\n\t\thost=3" in _set_employer(court, 777)
+    out = _set_employer(bare, 777)
+    assert out.endswith(b"\tcourt_data={\n\t\temployer=777\n\t}\n}") and out.count(b"{") == out.count(b"}")
 
 
 def test_without_a_reference_r14_skips_and_r17_has_nothing():

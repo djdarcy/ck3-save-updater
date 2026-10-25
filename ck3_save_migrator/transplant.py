@@ -46,10 +46,17 @@ CARRIED: dict[str, str] = {
     "domicile": "domiciles/database", "clerical_region": "clerical_region_manager/database",
     "tax_slot": "tax_slot_manager/database", "diarchy": "diarchies/database",
     "holy_order": "holy_orders/holy_orders",
+    # China's system state (Unit 5b): the situations, their sub-regions and participant groups
+    "situation": "situation_manager/database", "situation_sub_region": "situation_sub_region_manager/database",
+    "situation_group": "situation_participant_group_manager/database",
 }
+# anonymous pair lists carried when BOTH people are copied (a campaign person never gains a relation the
+# reference's history invented)
+PAIR_LISTS = {"relations/active_relations": (b"first", b"second"), "opinions/active_opinions": (b"owner", b"target")}
 # carried from any copied object; the rest (council tasks, contracts, ...) only from a copied person
 CARRIED_FROM_ANY = frozenset({"house", "dynasty", "culture", "coat_of_arms", "regiment", "domicile",
-                              "clerical_region", "holy_order"})
+                              "clerical_region", "holy_order", "situation", "situation_sub_region",
+                              "situation_group"})
 # objects that bind characters: carried only when every named party is in the output
 REQUIRED: dict[str, tuple[str, ...]] = {"vassal_contract": ("liege", "vassal"), "council_task": ("court_owner",)}
 # the relatives a copied ruler or courtier brings (design: spouse, child, real father; one hop)
@@ -71,12 +78,17 @@ class Report:
     character_lookup_added: int = 0
     sections_created: list[str] = field(default_factory=list)
     not_carried: Counter = field(default_factory=Counter)      # space -> objects left out for a missing party
+    expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
+    collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
+    leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
 
     def as_dict(self) -> dict:
         r = self.rewrite
         return {"planned": {f"{a} {b}": n for (a, b), n in self.planned.items()},
                 "inserted": dict(self.inserted), "sections_created": self.sections_created,
                 "not_carried": dict(self.not_carried),
+                "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
+                "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
                 "coa_next_id": list(self.coa_next_id), "traits_appended": self.traits_appended,
                 "character_lookup_added": self.character_lookup_added,
@@ -86,6 +98,19 @@ class Report:
                 "unknown_types": dict(r.unknown_types), "to_pruned": dict(r.to_pruned)}
 
 
+def _set_employer(text: bytes, employer: int) -> bytes:
+    """A rewritten character entry, placed in ``employer``'s court (an employer it had is replaced)."""
+    emp = f"employer={employer}".encode()
+    m = re.search(rb"\n(\t+)employer=\d+", text)
+    if m:
+        return text[:m.start()] + b"\n" + m.group(1) + emp + text[m.end():]
+    m = re.search(rb"\n\tcourt_data=\{\n", text)
+    if m:
+        return text[:m.end()] + b"\t\t" + emp + b"\n" + text[m.end():]
+    close = text.rstrip().rfind(b"}")
+    return text[:close] + b"\tcourt_data={\n\t\t" + emp + b"\n\t}\n" + text[close:]
+
+
 class Transplant:
     """A plan of reference objects to copy into a save, and the one write that carries it out."""
 
@@ -93,6 +118,8 @@ class Transplant:
         self.save, self.ref = save, ref
         self.tr = tr or T.Translator.build(save, ref)
         self.carry: dict[str, set[int]] = defaultdict(set)     # space -> reference ids to copy
+        self.employer: dict[int, int] = {}       # reference character -> SAVE character whose court they join
+        self.expansion_orders = False             # carry holy orders that lease campaign land (R14's flag)
         self.report = Report()
         self._ent: dict[str, dict[int, gs.Block]] = {}
         self._refs: dict[tuple[str, int], list] = {}
@@ -124,6 +151,24 @@ class Transplant:
                                    for i, e in self.entries(TITLES).items()}
         return self._ent["_tkeys"]
 
+    def save_title_key(self, save_id: int) -> str:
+        if "_skeys" not in self._ent:
+            self._ent["_skeys"] = {i: k.decode() for k, i in T.keyed(self.save, TITLES).items()}
+        return self._ent["_skeys"].get(save_id, "")
+
+    def holy_order_titles(self) -> dict[int, tuple[int | None, list[int]]]:
+        """reference holy order id -> (its own title, the titles it leases)."""
+        out = {}
+        for i, e in self.entries("holy_orders/holy_orders").items():
+            own, leased = None, []
+            for path, sp, v in self.references("holy_orders/holy_orders", i, e):
+                if path == "title":
+                    own = v
+                elif path == "titles/*":
+                    leased.append(v)
+            out[i] = (own, leased)
+        return out
+
     def title_holders(self, titles) -> dict[int, int]:
         """reference title id -> its holder (a reference character id), for the given titles."""
         out = {}
@@ -145,7 +190,7 @@ class Transplant:
         for kind in CHARACTER_KINDS:
             for i, e in self.entries(kind).items():
                 for path, _, v in self.references(kind, i, e):
-                    if path == "court_data/employer":
+                    if path in ("court_data/employer", "court_data/host"):     # courtiers, and guests at court
                         employer[v].append(i)
                     elif path == "family_data/child/*":
                         parents[v].append(i)
@@ -197,6 +242,19 @@ class Transplant:
                 if not all(f in refs and self.keep("character", refs[f]) for f in fields):
                     self.carry[sp].discard(i)
                     self.report.not_carried[sp] += 1
+        # a holy order comes only with its own title and every title it leases: one that leases campaign land
+        # would plant the reference's institution in the campaign's world
+        join = self.tr.spaces["title"].join
+        for i, (own, leased) in self.holy_order_titles().items():
+            if i not in self.carry["holy_order"]:
+                continue
+            ok = own in self.carry["title"] and all(t in self.carry["title"] or (self.expansion_orders and t in join)
+                                                    for t in leased)
+            if not ok:
+                self.carry["holy_order"].discard(i)
+                self.report.not_carried["holy_order"] += 1
+            elif any(t in join for t in leased):
+                self.report.expansion_orders.append(self.title_keys().get(own, str(own)))
         self._closed = True
 
     def _entry(self, sp: str, i: int):
@@ -212,6 +270,8 @@ class Transplant:
         if space in S.IDENTITY:
             return True
         if v in m.join:
+            if space == "title" and path == "de_facto_liege" and self.save_title_key(m.join[v]).startswith("c_"):
+                return True             # a new barony in an existing county: the engine requires de facto = de jure
             if space == "title" and (path == "de_facto_liege" or path.startswith("de_jure_vassals")):
                 return False            # campaign titles keep the campaign's structure (only the seam joins)
             if space == "title" and path in ("landed_data/domain/*", "landed_data/realm_capital",
@@ -234,7 +294,10 @@ class Transplant:
 
         for p in sorted(self.carry["character"]):
             kind, e = self.character(p)
-            payload[kind].append(rewrite(kind, e))
+            text = rewrite(kind, e)
+            if p in self.employer:
+                text = _set_employer(text, self.employer[p])
+            payload[kind].append(text)
         for p in sorted(self.carry["ai"]):
             payload["ai/ai_strategies"].append(rewrite("ai/ai_strategies", self.entries("ai/ai_strategies")[p]))
         for t in sorted(self.carry["title"]):
@@ -266,8 +329,85 @@ class Transplant:
             rep.sections_created.append(kind)
 
         self._seams(ep)
+        self._leases(ep)
+        self._pairs(ep)
+        self._events(ep)
         self._counters_and_lookups(ep)
+        self._collisions()
         return ep
+
+    def _collisions(self) -> None:
+        """A11.4, measured rather than assumed: per space, copied (not joined) objects whose translated slot index
+        is already a slot of the save's own objects. Must be 0."""
+        for sp, ids in self.carry.items():
+            if sp in ("ai",) or sp in S.IDENTITY or sp not in self.tr.spaces:
+                continue
+            m = self.tr.spaces[sp]
+            own = {i & T.LOW for i in T.space_ids(self.save, sp)}
+            hit = sum(1 for i in ids if i not in m.join and (m.translate(i) & T.LOW) in own)
+            self.report.collisions[sp] = hit
+
+    def _pairs(self, ep: gs.EditPass) -> None:
+        """Relations and opinions between two copied people, appended to the save's lists."""
+        copied = self.carry["character"]
+        for kind, (a, b) in PAIR_LISTS.items():
+            try:
+                rblk, sblk = gs.locate(self.ref, kind), gs.locate(self.save, kind)
+            except gs.GamestateError:
+                continue
+            items = []
+            for e in gs.iter_entries(self.ref, *rblk.body):
+                if e.key is not None:
+                    continue
+                body = self.ref[e.open:min(e.close, e.open + 600)]
+                ma = re.search(rb"\n\t+" + a + rb"=(\d+)", body)
+                mb = re.search(rb"\n\t+" + b + rb"=(\d+)", body)
+                if ma and mb and int(ma.group(1)) in copied and int(mb.group(1)) in copied:
+                    items.append(T.rewrite_entry(self.ref, e, kind, self.tr, self.report.rewrite, self.keep))
+            if items:
+                ep.add(gs.Edit(sblk.close, sblk.close, b"".join(b" " + x + b"\n" for x in items), "transplant", kind))
+                self.report.inserted[kind] += len(items)
+
+    def _events(self, ep: gs.EditPass) -> None:
+        """Queued events (``triggered_event``) of copied people whose every reference is in the output."""
+        copied = self.carry["character"]
+        out = []
+        for sec in gs.find_sections(self.ref, "triggered_event"):
+            refs = list(T.references(self.ref, sec, "triggered_event"))
+            if not any(sp == "character" and v in copied for _, sp, v in refs):
+                continue
+            if all(self.keep(sp, v, p) for p, sp, v in refs):
+                out.append(T.rewrite_entry(self.ref, sec, "triggered_event", self.tr, self.report.rewrite,
+                                           self.keep))
+            else:
+                self.report.not_carried["triggered_event"] += 1
+        if out:
+            end = len(self.save)
+            ep.add(gs.Edit(end, end, b"".join(x + b"\n" for x in out), "transplant", "triggered_event"))
+            self.report.inserted["triggered_event"] += len(out)
+
+    def _leases(self, ep: gs.EditPass) -> None:
+        """A carried holy order that leases a campaign title: the campaign title gets ``lessee=<the order's
+        title>``, the link 1.20 writes on a leased title, unless it is already leased."""
+        join = self.tr.spaces["title"].join
+        tm = self.tr.spaces["title"]
+        wanted: dict[int, int] = {}                                 # save title id -> translated order title id
+        for i, (own, leased) in self.holy_order_titles().items():
+            if i in self.carry["holy_order"] and own is not None:
+                for t in leased:
+                    if t in join:
+                        wanted.setdefault(join[t], tm.translate(own))
+        if not wanted:
+            return
+        for sid, e in T.entries(self.save, TITLES):
+            if sid not in wanted:
+                continue
+            if re.search(rb"\n\tlessee=", self.save[e.open:min(e.close, e.open + 8192)]):
+                continue                                            # the campaign's own lease stands
+            at = self.save.rfind(b"\n", 0, e.close) + 1
+            ep.add(gs.Edit(at, at, f"\tlessee={wanted[sid]}\n".encode(), "transplant", "lease"))
+            order_key = next((k for i, k in self.title_keys().items() if tm.translate(i) == wanted[sid]), "?")
+            self.report.leases_added.append(f"{self.save_title_key(sid)} -> {order_key}")
 
     def _target_name(self, kind: str) -> str:
         if kind in self._ent.get("_targets", {}):

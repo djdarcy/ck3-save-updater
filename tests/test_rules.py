@@ -213,7 +213,7 @@ class TestRegistry:
 
     def test_registry_order_is_dependency_order(self):
         assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12",
-                                              "R14", "R16", "R17", "R7"]
+                                              "R15", "R14", "R16", "R17", "R7"]
 
     def test_transplant_rules_are_opt_in_and_bring_the_write_step(self):
         assert "R14" not in [r.id for r in R.select("all")]

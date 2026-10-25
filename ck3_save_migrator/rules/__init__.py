@@ -26,6 +26,9 @@ class RuleContext:
     portraits_version: int | None = None    # R7 sets it only when given
     reference: Path | None = None           # a save written by the target game version (R8-R12 copy from it)
     wos_shape: str = "faith"                # R10: custom faiths become a 'faith' or a 'rite'
+    old_game_dir: Path | None = None        # R15: the save's own version's 'game' folder (its map, for successors)
+    expansion_orders: bool = True           # R14: add the target's new holy orders even where they lease the
+                                            # save's own land (expansion content the engine does not add itself)
     state: dict = field(default_factory=dict)  # facts one rule leaves for a later one (R8 -> R9/R10/R12)
 
 
@@ -67,7 +70,7 @@ from .transplant_1_20 import RULES as _TRANSPLANT  # noqa: E402
 # Registry order is execution order: R11 before R8 (it reads the old layout), R8 before
 # R10/R9/R12 (they read the transplanted databases), the transplant after religion (its translation joins
 # faiths and rites by identity, which R8 established) and written by R17, the version bump last.
-_ORDER = ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R14", "R16", "R17", "R7"]
+_ORDER = ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16", "R17", "R7"]
 _BY_ID = {r.id: r for r in list(_TO_1_20) + list(_RELIGION) + list(_TRANSPLANT)}
 REGISTRY: list[Rule] = [_BY_ID[i] for i in _ORDER]
 # the transplant's planning rules; choosing any of them brings the write step along
