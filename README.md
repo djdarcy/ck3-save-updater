@@ -65,6 +65,20 @@ A custom faith is written two ways by default, as its own faith and as a rite of
 
 Exit codes: 0 done with no error from the migrator itself (the save can still carry thousands of predicted log lines; that is reported, not an error), 1 bad input, 2 refused (the output exists, or would overwrite the input), 3 the written file failed verification, 4 the checks found an error (`migrate` still writes the output so it can be inspected).
 
+### How much it says
+
+Every command takes `-v` and `-q`, and they can be repeated:
+
+- `-v` adds each rule's time and a one-line summary of the new-map transplant;
+- `-vv` adds how long reading and writing the save took;
+- `-q` leaves only the results: what was written, and the checks' verdict;
+- `-qqq` leaves only errors;
+- `-qqqq` prints nothing, so only the exit code tells.
+
+`--show CHANNEL:LEVEL` raises a single part of the output, e.g. `--show transplant:1`. The parts are `rules`, `transplant`, `lint`, `io` and `timing`. Where there is no command line to add flags to (a script, a scheduler), the environment does the same: `CK3SM_VERBOSITY` (a number, or a level name such as `extra`) and `CK3SM_SHOW` (e.g. `transplant:1,timing:1`).
+
+Results go to standard output; warnings, errors and the extra detail go to standard error. The `--report` JSON is the same at every level.
+
 ## Development
 
 ```bash

@@ -28,7 +28,9 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
-dependencies = []
+dependencies = [
+    "dazzle-loglib>=0.3.3",
+]
 
 [project.optional-dependencies]
 dev = [

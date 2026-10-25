@@ -10,8 +10,13 @@ import argparse
 import copy
 import json
 import os
-import sys
+import time
 from pathlib import Path
+
+from dazzle_loglib import (
+    DEFAULT, DIAGNOSTICS, ERROR, EXTRA, MINIMAL, WARNING,
+    ChannelDef, get_output, init_output, parse_channel_spec, resolve_channel_specs, resolve_verbosity,
+)
 
 from ._version import __app_name__, get_display_version
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
@@ -29,22 +34,66 @@ from .savefile import (
 )
 
 
-def eprint(*a) -> None:
-    print(*a, file=sys.stderr)
+# Output goes through dazzle-loglib (docs/cli-integration.md). Levels on its scale: a command's RESULT is MINIMAL
+# (-1, still shown by -q), narration is DEFAULT (0), detail is EXTRA (+1, -v) and DIAGNOSTICS (+2, -vv); errors
+# and warnings go to stderr. At the default verbosity the output is what it was before loglib, byte for byte
+# (tests/test_cli_output.py against a golden recorded from the print-based CLI). The JSON report is the audit
+# record and does not depend on verbosity.
+CHANNELS = [
+    ChannelDef("rules", "Rules applied, their counts; the rules listing", fd="stdout"),
+    ChannelDef("transplant", "The new-map transplant's plan and write counts (R14-R17)", fd="stderr"),
+    ChannelDef("lint", "Pre-launch checks: the verdict and the findings", fd="stdout"),
+    ChannelDef("io", "Reading and writing saves; what was written, sizes, hashes", fd="stdout"),
+    ChannelDef("timing", "Wall time per rule", fd="stderr"),
+]
+
+
+def say(level: int, text: str, channel: str, err: bool = False) -> None:
+    """One line of output on ``channel``; ``err`` sends it to stderr whatever the channel's destination."""
+    get_output().emit(level, text, channel=channel, file="stderr" if err else None)
+
+
+def add_verbosity_flags(parser: argparse.ArgumentParser) -> None:
+    """The one place the verbosity flags are declared (loglib's recipe); called for every sub-command."""
+    parser.add_argument("-v", "--verbose", action="count", default=0,
+                        help="more detail (repeatable: -v progress and timing, -vv reads/writes)")
+    parser.add_argument("-q", "--quiet", action="count", default=0,
+                        help="less (repeatable: -q results only, -qqq errors only, -qqqq nothing)")
+    parser.add_argument("--show", action="append", metavar="CHANNEL[:LEVEL]", type=parse_channel_spec,
+                        default=[], help="raise one channel, e.g. --show transplant:1 "
+                                         "(channels: rules, transplant, lint, io, timing)")
+
+
+def read_save_logged(path):
+    t = time.perf_counter()
+    save = read_save(path)
+    say(DIAGNOSTICS, f"read {path}: {sum(len(m.data) for m in save.members):,} bytes inflated in "
+                     f"{time.perf_counter() - t:.1f}s", "io", err=True)
+    return save
+
+
+def run_rules_timed(save, rules, ctx):
+    """run_rules, one rule at a time, with each rule's wall time on the timing channel (+1)."""
+    out = []
+    for r in rules:
+        t = time.perf_counter()
+        out += run_rules(save, [r], ctx)
+        say(EXTRA, f"  {r.id:3} {r.name:22} {time.perf_counter() - t:6.1f}s", "timing", err=True)
+    return out
 
 
 def cmd_inspect(args) -> int:
-    save = read_save(args.save)
+    save = read_save_logged(args.save)
     h = save.header
     newline = "CRLF" if h.newline == b"\r\n" else "LF"   # outside the f-string: 3.10/3.11 forbid backslashes there
-    print(f"file      : {save.source}")
-    print(f"header    : {h.raw.rstrip().decode('ascii')}  (kind {h.kind:02x} {save.kind_name}, "
-          f"meta length {h.meta_len:,}, newline {newline})")
-    print(f"meta block: {len(save.meta):,} bytes")
+    say(MINIMAL, f"file      : {save.source}", "io")
+    say(MINIMAL, f"header    : {h.raw.rstrip().decode('ascii')}  (kind {h.kind:02x} {save.kind_name}, "
+                 f"meta length {h.meta_len:,}, newline {newline})", "io")
+    say(MINIMAL, f"meta block: {len(save.meta):,} bytes", "io")
     for m in save.members:
-        print(f"member    : {m.name}  {len(m.data):,} bytes inflated")
+        say(MINIMAL, f"member    : {m.name}  {len(m.data):,} bytes inflated", "io")
     for w in save.warnings:
-        print(f"WARNING   : {w}")
+        say(MINIMAL, f"WARNING   : {w}", "io")
     return 0
 
 
@@ -104,25 +153,32 @@ def branch_path(path: Path, shape: str) -> Path:
 
 
 def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: str, lint_rep=None) -> None:
+    t = time.perf_counter()
     result = write_save(save, out, force=args.force, recompress=args.recompress, dry_run=args.dry_run)
+    say(DIAGNOSTICS, f"{'built' if result.dry_run else 'wrote'} {out}: {result.size:,} bytes, verified, in "
+                     f"{time.perf_counter() - t:.1f}s", "io", err=True)
     tag = "[dry-run] would write" if result.dry_run else "wrote"
     how = "input bytes reused verbatim" if result.verbatim else "re-deflated"
-    print(f"{tag}: {out}")
-    print(f"  rules applied : {len(results)}" + (f"  (wos shape: {ctx.wos_shape})" if any(r.id == 'R10' for r in results) else ""))
+    say(MINIMAL, f"{tag}: {out}", "io")
+    say(DEFAULT, f"  rules applied : {len(results)}" + (f"  (wos shape: {ctx.wos_shape})"
+                                                        if any(r.id == 'R10' for r in results) else ""), "rules")
     for r in results:
         note = f"  ({r.extra['skipped']})" if "skipped" in r.extra else ""
-        print(f"    {r.id:3} {r.name:22} matched {r.matched:>8,}  edited {r.edited:>8,}{note}")
-    print(f"  size          : {result.size:,} bytes ({how})")
-    print(f"  meta length   : {result.meta_len:,}")
-    print(f"  sha256        : {result.sha256}")
-    print(f"  gamestate sha : {result.gamestate_sha256}")
-    print("  verified      : re-read, meta copies equal, length field correct")
+        say(DEFAULT, f"    {r.id:3} {r.name:22} matched {r.matched:>8,}  edited {r.edited:>8,}{note}", "rules")
+    for r in results:
+        if r.id in ("R14", "R15", "R16", "R17") and "skipped" not in r.extra:
+            say(EXTRA, f"  {r.id} {r.name}: {_transplant_summary(r)}", "transplant")
+    say(DEFAULT, f"  size          : {result.size:,} bytes ({how})", "io")
+    say(DEFAULT, f"  meta length   : {result.meta_len:,}", "io")
+    say(DEFAULT, f"  sha256        : {result.sha256}", "io")
+    say(DEFAULT, f"  gamestate sha : {result.gamestate_sha256}", "io")
+    say(DEFAULT, "  verified      : re-read, meta copies equal, length field correct", "io")
     if lint_rep is not None:
         print_lint(lint_rep)
         if not result.dry_run:
             lint_path = out.with_suffix(".lint.json")      # X.migrated.ck3 -> X.migrated.lint.json
             lint_path.write_text(json.dumps(lint_rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
-            print(f"  lint report   : {lint_path}")
+            say(DEFAULT, f"  lint report   : {lint_path}", "io")
     if report_path:
         report = {
             "tool": f"{__app_name__} {get_display_version()}",
@@ -136,7 +192,26 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "lint": lint_rep.as_dict() if lint_rep is not None else None,
         }
         Path(report_path).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"  report        : {report_path}")
+        say(DEFAULT, f"  report        : {report_path}", "io")
+
+
+def _transplant_summary(r) -> str:
+    """One line per transplant rule for -v: the counts a reader checks first (the full record is the report)."""
+    e = r.extra
+    if r.id == "R14":
+        return (f"{e.get('titles_planned', 0):,} titles, {e.get('provinces_planned', 0):,} provinces planned; "
+                f"{e.get('left_to_the_engine_unheld_landless', 0):,} unheld landless titles left to the game")
+    if r.id == "R15":
+        by = e.get("by_class", {})
+        return ", ".join(f"{n} {k}" for k, n in sorted(by.items())) or "nothing to settle"
+    if r.id == "R16":
+        return (f"{e.get('rulers', 0):,} rulers, {e.get('courtiers', 0):,} courtiers, {e.get('family', 0):,} "
+                f"relatives, {e.get('displaced_landless', 0):,} displaced")
+    ins = e.get("inserted", {})
+    hs = e.get("holy_sites", {})
+    return (f"{sum(ins.values()):,} entries written, {e.get('dropped_total', 0):,} links dropped, "
+            f"{e.get('seams', 0):,} seams, collisions {e.get('collisions', 0)}, "
+            f"holy sites re-attached {hs.get('reattached', 0)}")
 
 
 def _check_paths(args, outputs: list[tuple[Path, str | None]], *, existence: bool) -> None:
@@ -171,9 +246,9 @@ def cmd_migrate(args) -> int:
 
     # path guards before the save is even read: every output this run could write
     _check_paths(args, outputs(False) + (outputs(True) if may_branch else []), existence=False)
-    save = read_save(args.save)
+    save = read_save_logged(args.save)
     for w in save.warnings:
-        eprint(f"WARNING: {w}")
+        say(WARNING, f"WARNING: {w}", "io", err=True)
     # one output per custom-faith shape only when there is a custom faith to shape; otherwise one plain output
     branch = may_branch and bool(custom_faith_names(save.gamestate))
     _check_paths(args, outputs(branch), existence=True)        # before any rule runs
@@ -199,44 +274,47 @@ def cmd_migrate(args) -> int:
         return rep
 
     if not branch:
-        results = run_rules(save, rules, ctx)
+        results = run_rules_timed(save, rules, ctx)
         _emit(args, save, results, out, args.report, ctx, in_sha, lint_of(save))
     else:
         # both shapes: run the shared rules once, branch at R10
-        shared = run_rules(save, rules[:split], ctx)
+        shared = run_rules_timed(save, rules[:split], ctx)
         for shape in shapes:
             s2 = copy.deepcopy(save)
             c2 = copy.copy(ctx)
             c2.state = copy.deepcopy(ctx.state)
             c2.wos_shape = shape
-            results = shared + run_rules(s2, rules[split:], c2)
+            results = shared + run_rules_timed(s2, rules[split:], c2)
             _emit(args, s2, results, branch_path(out, shape),
                   str(branch_path(Path(args.report), shape)) if args.report else None, c2, in_sha, lint_of(s2))
     if lint_errors:
-        eprint(f"ERROR: lint found {lint_errors} error(s) in the output; it was written so it can be inspected "
-               "(see the lint lines above)")
+        say(ERROR, f"ERROR: lint found {lint_errors} error(s) in the output; it was written so it can be inspected "
+                   "(see the lint lines above)", "lint", err=True)
         return 4
     return 0
 
 
-def print_lint(rep, indent: str = "  ") -> None:
-    print(f"{indent}lint          : {rep.errors} error(s), {rep.count('warn')} warning(s), "
-          f"{rep.count('reject')} family(ies) 1.20 will log, {rep.count('info')} info")
+def print_lint(rep, indent: str = "  ", level: int = DEFAULT) -> None:
+    """The lint verdict and findings. ``level`` is DEFAULT inside migrate (narration) and MINIMAL for the lint
+    command, where they are the result; the finding details stay at the same level for now (they may move to
+    EXTRA once the plain output has been seen, director 2026-10-25)."""
+    say(level, f"{indent}lint          : {rep.errors} error(s), {rep.count('warn')} warning(s), "
+               f"{rep.count('reject')} family(ies) 1.20 will log, {rep.count('info')} info", "lint")
     missing = rep.stats.get("mods_not_installed")
     if missing:
-        print(f"{indent}  {len(missing)} mod(s) the save lists are not installed, so these checks leave them out: "
-              f"{', '.join(missing)}")
+        say(DEFAULT, f"{indent}  {len(missing)} mod(s) the save lists are not installed, so these checks leave "
+                     f"them out: {', '.join(missing)}", "lint")
     order = {"error": 0, "warn": 1, "reject": 2, "info": 3}
     for f in sorted(rep.findings, key=lambda f: order.get(f.severity, 9)):
-        print(f"{indent}  {f.severity.upper():6} {f.gloss or f.check}: {f.count:,}")
+        say(level, f"{indent}  {f.severity.upper():6} {f.gloss or f.check}: {f.count:,}", "lint")
         if f.gloss:     # the game's own wording (the check's name) stays visible, so it can be found in error.log
-            print(f"{indent}          {'game log' if f.severity == 'reject' else 'check'}: {f.check}")
+            say(level, f"{indent}          {'game log' if f.severity == 'reject' else 'check'}: {f.check}", "lint")
         for ex in f.examples[:5 if f.severity != 'info' else 12]:
-            print(f"{indent}          {ex}")
+            say(level, f"{indent}          {ex}", "lint")
         if f.note and f.severity != "info":
-            print(f"{indent}          ({f.note})")
+            say(level, f"{indent}          ({f.note})", "lint")
     for s in rep.skipped:
-        print(f"{indent}  skipped: {s}")
+        say(DEFAULT, f"{indent}  skipped: {s}", "lint")
 
 
 def run_lint(save, args, reference_path: Path | None):
@@ -251,22 +329,22 @@ def run_lint(save, args, reference_path: Path | None):
 
 
 def cmd_lint(args) -> int:
-    save = read_save(args.save)
+    save = read_save_logged(args.save)
     for w in save.warnings:
-        eprint(f"WARNING: {w}")
+        say(WARNING, f"WARNING: {w}", "io", err=True)
     rep = run_lint(save, args, find_reference(args.reference))
-    print(f"lint: {save.source}")
-    print_lint(rep)
+    say(MINIMAL, f"lint: {save.source}", "lint")
+    print_lint(rep, level=MINIMAL)
     if args.json:
         Path(args.json).write_text(json.dumps(rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
-        print(f"  report        : {args.json}")
+        say(DEFAULT, f"  report        : {args.json}", "io")
     return 4 if rep.errors else 0
 
 
 def cmd_rules(args) -> int:
     for r in REGISTRY:
         flag = "" if r.default else "  (opt-in)"
-        print(f"{r.id:3} {r.name:22} since {r.since:28} {r.description}{flag}")
+        say(MINIMAL, f"{r.id:3} {r.name:22} since {r.since:28} {r.description}{flag}", "rules")
     return 0
 
 
@@ -327,19 +405,26 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
+    # the verbosity flags on every sub-command (on the sub-parsers only: argparse lets a sub-parser's defaults
+    # overwrite the main parser's values, so `-v migrate` would be silently reset)
+    for sp in sub.choices.values():
+        add_verbosity_flags(sp)
     return parser
 
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    init_output(verbosity=resolve_verbosity(args.verbose, args.quiet, env_var="CK3SM_VERBOSITY"),
+                channels=resolve_channel_specs([f"{s.name}:{s.level}" for s in args.show], env_var="CK3SM_SHOW"),
+                channel_defs=CHANNELS, strict_channels=True)
     try:
         return args.func(args)
     except (OutputExistsError, InPlaceError) as exc:     # before ValueError: InPlaceError is one
-        eprint(f"ERROR: {exc}")
+        say(ERROR, f"ERROR: {exc}", "io", err=True)
         return 2
     except (FileNotFoundError, SaveFormatError, ValueError) as exc:
-        eprint(f"ERROR: {exc}")
+        say(ERROR, f"ERROR: {exc}", "io", err=True)
         return 1
     except VerifyError as exc:
-        eprint(f"ERROR: verification failed, nothing written: {exc}")
+        say(ERROR, f"ERROR: verification failed, nothing written: {exc}", "io", err=True)
         return 3

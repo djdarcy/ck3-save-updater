@@ -29,7 +29,7 @@ PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 PROJECT_PHASE = ""  # "prealpha", "alpha", "beta", "stable", or ""
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.3.0_main_10-20261025-81123538"
+__version__ = "0.3.0_main_11-20261025-0dd757ee"
 __app_name__ = "ck3-save-migrator"
 
 
