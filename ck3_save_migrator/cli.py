@@ -1,6 +1,7 @@
 """Command-line entry point for ck3-save-migrator (the `ck3-save-migrator` command).
 
-Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed.
+Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
+4 lint found an error (migrate: the output is still written, for inspection).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import sys
 from pathlib import Path
 
 from ._version import __app_name__, get_display_version
+from .lint import listed_workshop_mods, lint_gamestate, load_game_data
 from .rules import REGISTRY, RuleContext, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -55,8 +57,20 @@ GAME_DIR_CANDIDATES = (
 
 
 def find_game_dir(explicit: str | None) -> Path | None:
-    """--game-dir, else $CK3_GAME_DIR, else the usual Steam locations."""
-    for cand in (explicit, os.environ.get("CK3_GAME_DIR"), *GAME_DIR_CANDIDATES):
+    """--game-dir, else $CK3_GAME_DIR, else the usual Steam locations. ``none`` (flag or variable) means no game
+    folder: the rules and checks that need one skip."""
+    env = os.environ.get("CK3_GAME_DIR")
+    given, source = (explicit, "--game-dir") if explicit is not None else (env, "CK3_GAME_DIR")
+    if given:
+        if given.lower() == "none":
+            return None
+        p = Path(given).expanduser()
+        if (p / "common" / "landed_titles").is_dir():
+            return p
+        # a folder that was named but is not a game folder is refused, never swapped for a discovered one
+        raise FileNotFoundError(f"{source} {given} is not the game's 'game' folder "
+                                f"(expected {p / 'common' / 'landed_titles'})")
+    for cand in GAME_DIR_CANDIDATES:
         if cand and (Path(cand).expanduser() / "common" / "landed_titles").is_dir():
             return Path(cand).expanduser()
     return None
@@ -68,11 +82,13 @@ DEV_REFERENCE = Path("private/data/originals/reference-1.20/ref_1_20_987_10_27.c
 def find_reference(explicit: str | None) -> Path | None:
     """--reference, else $CK3_REFERENCE_SAVE, else this project's 987 reference save when run from the repo.
 
-    ``--reference none`` means no reference (R8-R12 skip), whatever the environment holds.
+    ``--reference none`` means no reference (R8-R12 skip), whatever the environment holds; with no flag,
+    ``CK3_REFERENCE_SAVE=none`` means the same.
     """
-    if explicit is not None and explicit.lower() == "none":
+    env = os.environ.get("CK3_REFERENCE_SAVE")
+    if (explicit if explicit is not None else env or "").lower() == "none":
         return None
-    for cand in (explicit, os.environ.get("CK3_REFERENCE_SAVE"), str(DEV_REFERENCE)):
+    for cand in (explicit, env, str(DEV_REFERENCE)):
         if cand and Path(cand).is_file():
             return Path(cand)
     return None
@@ -87,7 +103,7 @@ def branch_path(path: Path, shape: str) -> Path:
     return path.with_name(f"{path.stem}__wos-{shape}{path.suffix}")
 
 
-def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: str) -> None:
+def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: str, lint_rep=None) -> None:
     result = write_save(save, out, force=args.force, recompress=args.recompress, dry_run=args.dry_run)
     tag = "[dry-run] would write" if result.dry_run else "wrote"
     how = "input bytes reused verbatim" if result.verbatim else "re-deflated"
@@ -101,6 +117,12 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
     print(f"  sha256        : {result.sha256}")
     print(f"  gamestate sha : {result.gamestate_sha256}")
     print("  verified      : re-read, meta copies equal, length field correct")
+    if lint_rep is not None:
+        print_lint(lint_rep)
+        if not result.dry_run:
+            lint_path = out.with_suffix(".lint.json")      # X.migrated.ck3 -> X.migrated.lint.json
+            lint_path.write_text(json.dumps(lint_rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+            print(f"  lint report   : {lint_path}")
     if report_path:
         report = {
             "tool": f"{__app_name__} {get_display_version()}",
@@ -111,6 +133,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
             "lost": [x for r in results for x in r.extra.get("lost", [])],
             "rules": [r.as_dict() for r in results],
+            "lint": lint_rep.as_dict() if lint_rep is not None else None,
         }
         Path(report_path).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
         print(f"  report        : {report_path}")
@@ -157,20 +180,85 @@ def cmd_migrate(args) -> int:
     in_sha = sha256(save.to_bytes())
     ctx = RuleContext(game_dir=find_game_dir(args.game_dir), portraits_version=args.portraits_version,
                       reference=reference, wos_shape=shapes[0])
+    known = None          # what the game and the mods define: read once, shared by both outputs
+    lint_errors = 0
+
+    def lint_of(s):
+        nonlocal known, lint_errors
+        if args.no_lint:
+            return None
+        if known is None:
+            ref_g = read_save(reference).gamestate if reference else None
+            mods, missing = listed_workshop_mods(save.meta, ctx.game_dir) if args.lint_mods == "save" else ([], [])
+            known = load_game_data(ctx.game_dir, ref_g, mods, mods_missing=missing,
+                                   reference_name=str(reference) if reference else None)
+        rep = lint_gamestate(s.gamestate, known=known)
+        lint_errors += rep.errors
+        return rep
+
     if not branch:
-        _emit(args, save, run_rules(save, rules, ctx), out, args.report, ctx, in_sha)
-        return 0
-    # both shapes: run the shared rules once, branch at R10
-    shared = run_rules(save, rules[:split], ctx)
-    for shape in shapes:
-        s2 = copy.deepcopy(save)
-        c2 = copy.copy(ctx)
-        c2.state = copy.deepcopy(ctx.state)
-        c2.wos_shape = shape
-        results = shared + run_rules(s2, rules[split:], c2)
-        _emit(args, s2, results, branch_path(out, shape),
-              str(branch_path(Path(args.report), shape)) if args.report else None, c2, in_sha)
+        results = run_rules(save, rules, ctx)
+        _emit(args, save, results, out, args.report, ctx, in_sha, lint_of(save))
+    else:
+        # both shapes: run the shared rules once, branch at R10
+        shared = run_rules(save, rules[:split], ctx)
+        for shape in shapes:
+            s2 = copy.deepcopy(save)
+            c2 = copy.copy(ctx)
+            c2.state = copy.deepcopy(ctx.state)
+            c2.wos_shape = shape
+            results = shared + run_rules(s2, rules[split:], c2)
+            _emit(args, s2, results, branch_path(out, shape),
+                  str(branch_path(Path(args.report), shape)) if args.report else None, c2, in_sha, lint_of(s2))
+    if lint_errors:
+        eprint(f"ERROR: lint found {lint_errors} error(s) in the output; it was written so it can be inspected "
+               "(see the lint lines above)")
+        return 4
     return 0
+
+
+def print_lint(rep, indent: str = "  ") -> None:
+    print(f"{indent}lint          : {rep.errors} error(s), {rep.count('warn')} warning(s), "
+          f"{rep.count('reject')} family(ies) 1.20 will log, {rep.count('info')} info")
+    missing = rep.stats.get("mods_not_installed")
+    if missing:
+        print(f"{indent}  {len(missing)} mod(s) the save lists are not installed, so these checks leave them out: "
+              f"{', '.join(missing)}")
+    order = {"error": 0, "warn": 1, "reject": 2, "info": 3}
+    for f in sorted(rep.findings, key=lambda f: order.get(f.severity, 9)):
+        print(f"{indent}  {f.severity.upper():6} {f.gloss or f.check}: {f.count:,}")
+        if f.gloss:     # the game's own wording (the check's name) stays visible, so it can be found in error.log
+            print(f"{indent}          {'game log' if f.severity == 'reject' else 'check'}: {f.check}")
+        for ex in f.examples[:5 if f.severity != 'info' else 12]:
+            print(f"{indent}          {ex}")
+        if f.note and f.severity != "info":
+            print(f"{indent}          ({f.note})")
+    for s in rep.skipped:
+        print(f"{indent}  skipped: {s}")
+
+
+def run_lint(save, args, reference_path: Path | None):
+    game_dir = find_game_dir(getattr(args, "game_dir", None))
+    if getattr(args, "no_keys", False):
+        return lint_gamestate(save.gamestate, keys=False)
+    reference = read_save(reference_path).gamestate if reference_path else None
+    mods, missing = listed_workshop_mods(save.meta, game_dir) if getattr(args, "mods", "save") == "save" else ([], [])
+    data = load_game_data(game_dir, reference, mods, mods_missing=missing,
+                          reference_name=str(reference_path) if reference_path else None)
+    return lint_gamestate(save.gamestate, known=data)
+
+
+def cmd_lint(args) -> int:
+    save = read_save(args.save)
+    for w in save.warnings:
+        eprint(f"WARNING: {w}")
+    rep = run_lint(save, args, find_reference(args.reference))
+    print(f"lint: {save.source}")
+    print_lint(rep)
+    if args.json:
+        Path(args.json).write_text(json.dumps(rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"  report        : {args.json}")
+    return 4 if rep.errors else 0
 
 
 def cmd_rules(args) -> int:
@@ -208,7 +296,26 @@ def build_parser() -> argparse.ArgumentParser:
                         "or both (default: two outputs, <stem>__wos-faith / __wos-rite, when a reference is "
                         "given; a save without custom faiths yields one output)")
     p.add_argument("--game-dir", help="the game's 'game' folder (default: $CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--no-lint", action="store_true",
+                   help="skip the checks run on each output before it is written (see the lint command)")
+    p.add_argument("--lint-mods", choices=("save", "none"), default="save",
+                   help="which mods the lint assumes will be active when the save loads: the Workshop mods the "
+                        "save lists (default; those installed), or none (a vanilla load)")
     p.set_defaults(func=cmd_migrate)
+
+    p = sub.add_parser("lint", help="check a 1.20-layout save before loading it: structure, cross-references, "
+                                    "unknown keys (exit 4 when an error is found)")
+    p.add_argument("save")
+    p.add_argument("--reference", help="a save written by the target game version, for the key-name check "
+                   "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference; 'none' to skip)")
+    p.add_argument("--game-dir", help="the game's 'game' folder (default: $CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--no-keys", action="store_true",
+                   help="skip the checks that need game data: key names and what 1.20 will log")
+    p.add_argument("--mods", choices=("save", "none"), default="save",
+                   help="which mods to assume active when the save loads: the Workshop mods the save lists "
+                        "(default; those installed), or none (a vanilla load)")
+    p.add_argument("--json", help="write the findings to this JSON file")
+    p.set_defaults(func=cmd_lint)
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)

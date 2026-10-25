@@ -10,9 +10,9 @@ readme = "README.md"
 license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Dustin", email = "6962246+djdarcy@users.noreply.github.com"},
+    {name = "Dustin Darcy", email = "6962246+djdarcy@users.noreply.github.com"},
 ]
-keywords = []
+keywords = ["crusader-kings-3", "ck3", "paradox", "save-game", "savegame", "migration", "converter", "modding"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Environment :: Console",
@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
     "Topic :: Utilities",
 ]
 
@@ -39,6 +40,7 @@ dev = [
 Homepage = "https://github.com/djdarcy/ck3-save-migrator"
 Repository = "https://github.com/djdarcy/ck3-save-migrator"
 Issues = "https://github.com/djdarcy/ck3-save-migrator/issues"
+Changelog = "https://github.com/djdarcy/ck3-save-migrator/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ck3-save-migrator = "ck3_save_migrator.cli:main"

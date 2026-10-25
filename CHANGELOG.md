@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-25
+
+### Added
+- `lint <save>`: checks a save before you load it and reports what the game will still complain about. Findings come in four kinds:
+  - **errors**: something the game reads by number is broken (a brace that does not close, a faith or rite that points nowhere, a character without a rite). The migration rules write these, so an error means a rule did not finish its job.
+  - **warnings**: links the migration does not write that point at nothing (a spouse who is no longer in the save, a county without a culture). Old saves often carry some of these already.
+  - **what the game will log**: each kind of error 1.20 writes to its error log when it reads the save (portrait DNA of the wrong length, settings it no longer accepts, references to modifiers, perks or events it no longer has, titles it no longer defines, dynasty names it cannot find), with a predicted number of lines and examples. Cultures the game's own scripts ask for but the save lacks are listed by name.
+  - **unknown names**: setting names that neither the game nor the save's mods know.
+- `migrate` now runs the same checks on every output by default and prints them. It writes them next to the output as `<name>.lint.json` and adds them to `--report`. `--no-lint` skips the checks.
+- `--lint-mods save|none` (on `migrate`) and `--mods save|none` (on `lint`): whether the checks assume the save's own Workshop mods will be active when it loads (the default, for those installed) or a load with no mods. Mods the save lists that are not installed are named, and the report records which game folder, reference save and mod folders the checks used.
+- Every finding is described in plain words first; for what the game will log, the game's own log wording follows, so it can be found in the game's error log.
+- Exit code 4: the checks found an error. `migrate` still writes the output so it can be inspected.
+
+### Changed
+- The test suite no longer finds the real game install or the project's reference save by itself; a test that needs one names it. `CK3_GAME_DIR=none` and `CK3_REFERENCE_SAVE=none` now turn the automatic search off for anyone, the same as `--reference none`.
+- A game folder named with `--game-dir` or `CK3_GAME_DIR` that is not the game's `game` folder is now refused with a message naming what was expected, instead of being silently replaced by the installed game.
+- The README's version badge now follows the repository's latest tag by itself.
+- Package metadata: author name, keywords, a games classifier and a link to this changelog.
+
 ## [0.2.1] - 2026-10-25
 
 ### Fixed
@@ -48,7 +67,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/djdarcy/ck3-save-migrator/releases/tag/v0.1.0
