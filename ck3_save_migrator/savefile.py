@@ -24,6 +24,7 @@ import hashlib
 import io
 import os
 import re
+import time
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -306,6 +307,23 @@ def verify_bytes(data: bytes, expected_gamestate_sha: str) -> CK3Save:
     return back
 
 
+REPLACE_ATTEMPTS = 20
+REPLACE_DELAY = 0.1   # seconds between attempts: about 2 s in all
+
+
+def _replace(src: Path, dst: Path) -> None:
+    """os.replace, retried on PermissionError: on Windows a scanner or indexer can hold a just-written file
+    for a moment (seen as WinError 5 replacing an output written a few ms earlier). The last error is raised."""
+    for attempt in range(REPLACE_ATTEMPTS):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == REPLACE_ATTEMPTS - 1:
+                raise
+            time.sleep(REPLACE_DELAY)
+
+
 def write_save(save: CK3Save, out: str | os.PathLike, *, force: bool = False, recompress: bool = False,
                dry_run: bool = False) -> WriteResult:
     """Serialise ``save`` to ``out``: never in place, atomic, verified before it lands.
@@ -335,7 +353,7 @@ def write_save(save: CK3Save, out: str | os.PathLike, *, force: bool = False, re
             f.flush()
             os.fsync(f.fileno())
         verify_bytes(tmp.read_bytes(), expected)   # what reached the disk, not what we meant to write
-        os.replace(tmp, out_p)
+        _replace(tmp, out_p)
     finally:
         if tmp.exists():
             tmp.unlink()

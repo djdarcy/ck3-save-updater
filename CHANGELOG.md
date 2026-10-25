@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-25
+
+### Fixed
+- Writing a migrated save no longer fails at random on Windows with "Access is denied" when another program (an antivirus scanner or the search indexer) briefly holds the output file: the final step that puts the finished file in place is retried for up to about two seconds before giving up with the original error.
+
 ## [0.2.0] - 2026-10-24
 
 The first working version: a save written by Crusader Kings III 1.8 can be rewritten so that 1.20 loads it.
@@ -43,6 +48,7 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/djdarcy/ck3-save-migrator/releases/tag/v0.1.0

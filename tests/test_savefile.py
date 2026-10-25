@@ -231,6 +231,39 @@ class TestWrite:
         sf.write_save(save, out, force=True)
         assert out.read_bytes().startswith(b"SAV0102")
 
+    def test_replace_retried_while_file_held(self, tmp_path, monkeypatch):
+        """Windows can hold a just-written output for a moment (WinError 5); the replace is retried."""
+        save = sf.read_save(write(tmp_path, build_ck3()))
+        out = write(tmp_path, b"old", "out.ck3")
+        real, calls, sleeps = sf.os.replace, {"n": 0}, []
+
+        def held_twice(src, dst):
+            calls["n"] += 1
+            if calls["n"] <= 2:
+                raise PermissionError(5, "Access is denied", str(dst))
+            return real(src, dst)
+        monkeypatch.setattr(sf.os, "replace", held_twice)
+        monkeypatch.setattr(sf.time, "sleep", sleeps.append)
+        sf.write_save(save, out, force=True)
+        assert calls["n"] == 3 and sleeps == [sf.REPLACE_DELAY] * 2
+        assert out.read_bytes().startswith(b"SAV0102")
+        assert not list(tmp_path.glob("*.tmp"))
+
+    def test_replace_gives_up_with_the_original_error(self, tmp_path, monkeypatch):
+        save = sf.read_save(write(tmp_path, build_ck3()))
+        out = write(tmp_path, b"keep me", "out.ck3")
+        calls = {"n": 0}
+
+        def always_held(src, dst):
+            calls["n"] += 1
+            raise PermissionError(5, f"held {calls['n']}", str(dst))
+        monkeypatch.setattr(sf.os, "replace", always_held)
+        monkeypatch.setattr(sf.time, "sleep", lambda s: None)
+        with pytest.raises(PermissionError, match=f"held {sf.REPLACE_ATTEMPTS}"):
+            sf.write_save(save, out, force=True)
+        assert calls["n"] == sf.REPLACE_ATTEMPTS
+        assert out.read_bytes() == b"keep me" and not list(tmp_path.glob("*.tmp"))
+
     def test_failed_disk_verify_leaves_nothing(self, tmp_path, monkeypatch):
         save = sf.read_save(write(tmp_path, build_ck3()))
         real = sf.verify_bytes
