@@ -62,12 +62,16 @@ class Rule:
 
 from .to_1_20 import RULES as _TO_1_20  # noqa: E402
 from .religion_1_20 import RULES as _RELIGION  # noqa: E402
+from .transplant_1_20 import RULES as _TRANSPLANT  # noqa: E402
 
 # Registry order is execution order: R11 before R8 (it reads the old layout), R8 before
-# R10/R9/R12 (they read the transplanted databases), the version bump last.
-_ORDER = ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R7"]
-_BY_ID = {r.id: r for r in list(_TO_1_20) + list(_RELIGION)}
+# R10/R9/R12 (they read the transplanted databases), the transplant after religion (its translation joins
+# faiths and rites by identity, which R8 established) and written by R17, the version bump last.
+_ORDER = ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R14", "R16", "R17", "R7"]
+_BY_ID = {r.id: r for r in list(_TO_1_20) + list(_RELIGION) + list(_TRANSPLANT)}
 REGISTRY: list[Rule] = [_BY_ID[i] for i in _ORDER]
+# the transplant's planning rules; choosing any of them brings the write step along
+_TRANSPLANT_PLANNERS = {"R14", "R15", "R16"}
 
 
 def select(spec: str | None, *, include_off: tuple[str, ...] = ()) -> list[Rule]:
@@ -87,6 +91,8 @@ def select(spec: str | None, *, include_off: tuple[str, ...] = ()) -> list[Rule]
         rule = next((r for r in REGISTRY if tok.lower() in (r.id.lower(), r.name.lower())), None)
         if rule is not None:
             chosen.add(rule.id)
+    if chosen & _TRANSPLANT_PLANNERS:
+        chosen.add("R17")
     return [r for r in REGISTRY if r.id in chosen]
 
 

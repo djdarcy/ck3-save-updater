@@ -166,11 +166,13 @@ def main(run_name: str, args: list[str]) -> int:
                     stop_reason = "crash dump"
                     time.sleep(10)
                     break
-            if time.time() - last_shot >= SHOT_EVERY:
+            # the game window only, never the screen: until the window exists there is no shot. (The old
+            # fallback to -Screen captured the whole desktop as each run's first image; 2026-10-25.)
+            if hwnd and time.time() - last_shot >= SHOT_EVERY:
                 shot_n += 1
                 out = run / "shots" / f"{shot_n:03d}__{int(elapsed):04d}s.png"
                 try:
-                    target = ["-Hwnd", f"0x{hwnd:x}"] if hwnd else ["-Screen"]
+                    target = ["-Hwnd", f"0x{hwnd:x}"]
                     r = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                         "-File", str(SHOT), *target, "-Out", str(out)],
                                        capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)

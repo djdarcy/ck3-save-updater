@@ -146,6 +146,50 @@ def check_structure(g: bytes, rep: LintReport) -> None:
     rep.add("braces balance", "error", bad)
 
 
+def check_ids(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """Every entry id is unique in its id space, and so is its 24-bit slot index.
+
+    A CK3 id is a slot index (low 24 bits) plus a generation (top byte); two objects of one space may not share
+    a slot, whatever their generations. The three character sections are one space. 1.20 itself writes every
+    ``dead_unprunable`` entry twice, byte-identical; such a repeat is not a collision.
+    """
+    from .idschema import SPACES
+    idx = idx or SectionIndex(g)
+    dup_ids, dup_slots = [], []
+    for space, sections in SPACES.items():
+        seen: dict[int, tuple[str, int]] = {}
+        slots: dict[int, int] = {}
+        for sec in sections:
+            b = idx.block(sec)
+            if b is None:
+                continue
+            for m in _ENTRY_COL0.finditer(g, b.open, b.close):
+                i = int(m.group(1))
+                prev = seen.get(i)
+                if prev is not None:
+                    same = prev[0] == sec and _entry_text(g, prev[1]) == _entry_text(g, m.start())
+                    if not same:
+                        dup_ids.append(f"{space}: {i} in {prev[0]} and {sec}")
+                    continue
+                seen[i] = (sec, m.start())
+                s = i & 0xFFFFFF
+                if s in slots and slots[s] != i:
+                    dup_slots.append(f"{space}: {slots[s]} and {i} share slot {s}")
+                slots.setdefault(s, i)
+    rep.add("entry ids are unique in each id space", "error", dup_ids,
+            gloss="Two objects of the same kind carry the same number; the game keeps one and the other's links "
+                  "point at the wrong object")
+    rep.add("entry slots are unique in each id space", "error", dup_slots,
+            "an id is a 24-bit slot index plus a generation in the top byte",
+            gloss="Two objects of the same kind occupy the same slot under different generations; the game "
+                  "cannot hold both")
+
+
+def _entry_text(g: bytes, start: int) -> bytes:
+    op = g.index(b"{", start)
+    return g[start:gs.match_brace(g, op) + 1]
+
+
 def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
     idx = idx or SectionIndex(g)
     rites, faiths = _db(g, idx, "rites/database"), _db(g, idx, "faiths/database")
@@ -557,6 +601,7 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     rep = LintReport()
     idx = SectionIndex(g)
     check_structure(g, rep)
+    check_ids(g, rep, idx)
     check_references(g, rep, idx)
     if keys:
         if isinstance(known, tuple):

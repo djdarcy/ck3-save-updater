@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- The new map regions, opt-in and still in progress: `--rules R14,R16` brings the lands, provinces and people that 1.20 added after your save's version (East and Southeast Asia, Tibet, Japan, ...) in from a save written by 1.20 at your campaign's date (`--reference`). R14 takes the titles and provinces your save has never had; R16 takes their rulers, courts and close families, with their houses, cultures and the objects they own; a write step (R17) runs after them by itself. Without them, 1.20 leaves those titles unheld and hands them to the player. Not yet part of `--rules all`.
+- Every object copied in gets a new number that cannot clash with anything in your save, while everything it points at keeps pointing at the right thing. The game numbers its objects by slot, and the copied ones take free slots above your save's own. Where your save already has the same thing (a title, a culture, a dynasty, a historical character), the copy points at yours instead of bringing a second one. Links to things that are not brought along are removed rather than left pointing at nothing.
+- Your campaign's own titles keep their structure. A new title is added under an existing one where 1.20's map puts it there, and nothing of your realm is given to a copied ruler.
+- `lint` reports two objects of the same kind sharing a number, which the game cannot load.
+- Tried on the founding 1.8.1 campaign: one copied kingdom loads and plays two months with no new kind of error and no new object taking a copied object's place; the same copy without the renumbering crashes the game on load, as it should; the whole new map (about 5,700 titles, 3,600 provinces and 6,700 people) reaches the map.
+
 ## [0.3.0] - 2026-10-25
 
 ### Added

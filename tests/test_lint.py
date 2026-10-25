@@ -449,3 +449,40 @@ class TestDiscoveryNone:
         assert cli.find_reference(str(paths[1])) == paths[1]
         monkeypatch.setenv("CK3_REFERENCE_SAVE", str(paths[1]))
         assert cli.find_reference("none") is None and cli.find_reference(None) == paths[1]
+
+
+# --------------------------------------------------------------------------- id spaces
+def _ids_gs(living: str = "", dead: str = "", prunable: str = "") -> bytes:
+    return (f"living={{\n{living}}}\ndead_unprunable={{\n{dead}}}\n"
+            f"characters={{\n\tdead_prunable={{\n{prunable}\t}}\n}}\n").encode()
+
+
+def _ids(g: bytes) -> dict:
+    rep = L.LintReport()
+    L.check_ids(g, rep)
+    return {f.check: f for f in rep.findings}
+
+
+def test_check_ids_clean_save_has_no_finding():
+    assert _ids(_ids_gs(living="1={\n}\n16777218={\n}\n", dead="3={\n}\n")) == {}
+
+
+def test_check_ids_same_id_in_two_character_sections():
+    found = _ids(_ids_gs(living="5={\n}\n", dead="5={\n}\n"))
+    assert found["entry ids are unique in each id space"].severity == "error"
+
+
+def test_check_ids_byte_identical_repeat_is_how_1_20_writes():
+    assert _ids(_ids_gs(dead="7={\n\tx=1\n}\n7={\n\tx=1\n}\n")) == {}
+    assert "entry ids are unique in each id space" in _ids(_ids_gs(dead="7={\n\tx=1\n}\n7={\n\tx=2\n}\n"))
+
+
+def test_lint_gamestate_runs_the_id_check():
+    rep = L.lint_gamestate(_ids_gs(living="5={\n}\n", dead="5={\n}\n"), keys=False)
+    assert "entry ids are unique in each id space" in {f.check for f in rep.findings}
+    assert rep.errors >= 1
+
+
+def test_check_ids_one_slot_under_two_generations():
+    found = _ids(_ids_gs(living="5={\n}\n", prunable="16777221={\n}\n"))    # 0x01000005: slot 5, generation 1
+    assert found["entry slots are unique in each id space"].count == 1
