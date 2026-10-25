@@ -1,0 +1,37 @@
+{
+  "repokit_managed": true,
+  "generated_by": "repokit",
+  "version": "0.9.5",
+  "created_at": "2026-10-24T19:20:56.281702Z",
+  "project_name": "ck3-save-migrator",
+  "language": "python",
+  "languages": [
+    "python"
+  ],
+  "archetype": "python/pypi",
+  "layers": [
+    "python",
+    "python/pypi"
+  ],
+  "branch_strategy": "main-only",
+  "private_branch": null,
+  "private_mode": "nested",
+  "repokit_common": true,
+  "license": "gpl-3.0-or-later",
+  "extras": [
+    "funding",
+    "dependabot",
+    "stale",
+    "pr-template",
+    "release-template",
+    "roadmap",
+    "platform-support",
+    "vscode-settings",
+    "placeholders"
+  ],
+  "description": "Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files",
+  "author": {
+    "name": "",
+    "email": ""
+  }
+}
