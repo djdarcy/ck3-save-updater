@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-26
+
+### Fixed
+- 1.20 redrew county borders, so 194 of the founding campaign's baronies now belong to a different county than in 1.8.1. The game used to re-seat each one under its new county on load and give it to that county's holder, or to no one. A moved barony now belongs to its 1.20 county and its baron keeps it, as a vassal of the new county's holder.
+- What the game's own rules will not allow is now listed in the report, with the reason, instead of disappearing on load: a barony whose count also holds land outside its new county (one person cannot have two lieges), a barony that is the capital of its new county (a county's holder always holds its capital), and a new barony of a copied ruler inside one of your counties, which goes to your count. On the founding campaign, the baronies that still change hands on load are exactly the ones the report lists.
+- New-map baronies on provinces the old map had left empty used to lose their holders on load; they now arrive with their 1.20 holding, buildings and garrison. Provinces of your own that your campaign never built stay as they were and are counted in the report.
+- A previous release note said the campaign's mercenary leaders had no government; that was a measuring error, and they do.
+
+### Added
+- The transplant's report names every barony it re-parents or leaves to the game, and counts the empty provinces it fills.
+
 ## [0.3.1] - 2026-10-26
 
 ### Fixed
@@ -94,7 +105,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...v0.2.1

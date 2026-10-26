@@ -232,6 +232,123 @@ def test_r17_registers_carried_game_start_objects_and_their_coat_names(tmp_path)
     assert names == {b"k_old": b"0", b"d_new": d_new_coat, b"2000": dyn_coat}
 
 
+def test_1c_a_baron_keeps_a_barony_1_20_put_in_a_new_county_and_a_mixed_holder_is_named(tmp_path):
+    """Step 1c (director 2026-10-26 04:45): a campaign barony whose 1.20 county is another one moves there, de
+    jure and de facto, and its baron keeps it as a vassal of the 1.20 county's holder (the contract's liege). A
+    holder who also holds land outside that county (a count) cannot: the barony is left and named (ruling (c))."""
+    save_body = gamestate(
+        living=char(40, "\tlanded_data={\n\t\tdomain={ 0 2 }\n\t\tvassal_contracts={ 0 }\n\t}\n") + char(41),
+        titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 2 }\n")
+        + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n")
+        + title(2, "b_y", "\tholder=40\n\tde_jure_liege=0\n\tde_facto_liege=0\n"),
+        title_index=3,
+        extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=41\n\t\t\tliege=40\n"
+              "\t\t}\n\t}\n}\n",
+    )
+    ref_body = gamestate(
+        living=char(9, "\tlanded_data={\n\t\tdomain={ 3 }\n\t\tvassal_contracts={ }\n\t}\n"),
+        titles=title(0, "c_a", "")
+        + title(1, "b_x", "\tde_jure_liege=3\n\tde_facto_liege=3\n")
+        + title(2, "b_y", "\tde_jure_liege=3\n\tde_facto_liege=3\n")
+        + title(3, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 2 }\n"),
+        extra="provinces={\n1={\n}\n}\n",
+    )
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    ex = res["R17"].extra
+    assert ex["reparent_cases"] == {"baron only": 1, "mixed": 1} and ex["contracts_moved"] == 1
+    assert [x["barony"] for x in ex["reparent_left"]] == ["b_y"]
+    g = save.gamestate
+    t = titles_by_key(g)
+    c_new_id, c_new = t["c_new"]
+    holder = int(re.search(rb"holder=(\d+)", c_new).group(1))
+    assert f"de_jure_liege={c_new_id}".encode() in t["b_x"][1] and f"de_facto_liege={c_new_id}".encode() in t["b_x"][1]
+    assert b"de_jure_liege=0" in t["b_y"][1]                                  # mixed: untouched
+    assert b"de_jure_vassals={ 2 }" in t["c_a"][1]                            # b_x left its old county's list
+    lst = re.search(rb"de_jure_vassals=\{([^}]*)\}", c_new).group(1).split()
+    assert lst == [b"1"]                                                      # the new county lists b_x only
+    c = gs.locate(g, "vassal_contracts/active")
+    assert f"liege={holder}".encode() in g[c.open:c.close] and b"liege=40" not in g[c.open:c.close]
+    # a liege lists his vassals' contracts; the engine deletes a contract its liege does not list (re-save of
+    # e2e_1c3, 2026-10-26): contract 0 leaves 40's list and joins the new liege's
+    living = {i: g[e.start:e.end] for i, e in T.entries(g, "living")}
+    assert re.search(rb"vassal_contracts=\{\s*\}", living[40])
+    assert re.search(rb"vassal_contracts=\{\s*0\s*\}", living[holder])
+
+
+def test_1c_a_capital_barony_is_named_not_moved(tmp_path):
+    """Ruling A: the game gives a county's capital barony to the county's holder, so a lone baron whose barony is
+    the capital of its 1.20 county cannot keep it; the case is named (re-save of e2e_1c4: 11 of 18 lost)."""
+    save_body = gamestate(
+        living=char(40) + char(41),
+        titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 }\n")
+        + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n"),
+        title_index=2, extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "c_a", "") + title(1, "b_x", "\tde_jure_liege=2\n\tcapital_barony=yes\n")
+        + title(2, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 }\n"),
+        extra="provinces={\n1={\n}\n}\n")
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    assert ex["reparent_cases"] == {"capital": 1}
+    assert ex["reparent_left"][0]["barony"] == "b_x" and "capital" in ex["reparent_left"][0]["reason"]
+    assert b"de_jure_liege=0" in titles_by_key(save.gamestate)["b_x"][1]
+
+
+def test_1c_a_copied_barony_on_an_empty_campaign_province_gets_the_reference_holding(tmp_path):
+    """Ruling B: a copied barony on a province the campaign kept with no holding brings the reference's province
+    entry (b_luoshan, province 8985: city baron stripped on load). A campaign barony the campaign never built stays
+    unbuilt and is counted."""
+    game = tmp_path / "game"
+    (game / "common" / "landed_titles").mkdir(parents=True)
+    (game / "common" / "landed_titles" / "00_t.txt").write_text(
+        "c_new = { b_new = { province = 1 } }\nc_old = { b_old = { province = 2 } }\n", encoding="utf-8")
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "c_old", "\tholder=40\n\tde_jure_vassals={ 1 }\n") + title(1, "b_old", "\tde_jure_liege=0\n"),
+        title_index=2, extra="provinces={\n\t1={\n\t\tholding={\n\t\t\tincome=0\n\t\t}\n\t}\n"
+                             "\t2={\n\t\tholding={\n\t\t\tincome=0\n\t\t}\n\t}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "c_old", "") + title(1, "b_old", "\tde_jure_liege=0\n")
+        + title(2, "c_new", "\tholder=9\n\tde_jure_vassals={ 3 }\n") + title(3, "b_new", "\tholder=9\n\tde_jure_liege=2\n"),
+        extra="provinces={\n1={\n\tholding={\n\t\ttype=city_holding\n\t}\n}\n"
+              "2={\n\tholding={\n\t\ttype=castle_holding\n\t}\n}\n}\n")
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3", game_dir=game)
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    assert res["R14"].extra["provinces_given_a_holding"] == 1
+    assert res["R14"].extra["unbuilt_in_the_campaign_built_in_a_fresh_1_20_game"] == 1
+    assert res["R17"].extra["provinces_filled"] == 1
+    prov = {i: save.gamestate[e.start:e.end] for i, e in T.entries(save.gamestate, "provinces")}
+    assert b"city_holding" in prov[1] and b"castle_holding" not in prov[2]
+
+
+def test_1c_a_copied_barony_in_a_campaign_county_whose_holder_holds_land_elsewhere_is_named(tmp_path):
+    """The mirror of the mixed case: a copied barony inside a campaign county, held by a copied ruler who holds land
+    outside that county, goes with the county to its campaign holder on load (4 on the re-save of e2e_1c5)."""
+    save_body = gamestate(living=char(40), titles=title(0, "c_a", "\tholder=40\n"), title_index=1,
+                          extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "c_a", "\tde_jure_vassals={ 1 }\n") + title(1, "b_n", "\tholder=9\n\tde_jure_liege=0\n")
+        + title(2, "c_far", "\tholder=9\n"),
+        extra="provinces={\n1={\n}\n}\n")
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    assert ex["reparent_cases"] == {"goes with its county": 1}
+    (row,) = ex["reparent_left"]
+    assert row["barony"] == "b_n" and row["goes to"] == 40 and "campaign holder 40" in row["reason"]
+
+
 def test_a_displaced_ruler_is_placed_in_the_takers_court():
     from ck3_save_migrator.transplant import _set_employer
     has = b"5={\n\tfirst_name=\"A\"\n\tcourt_data={\n\t\temployer=9\n\t}\n}"

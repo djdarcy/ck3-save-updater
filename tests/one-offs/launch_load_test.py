@@ -178,6 +178,15 @@ def main(run_name: str, args: list[str]) -> int:
         note("abort: hardware DX11 device creation fails system-wide; restart the graphics driver or reboot first")
         timeline.close()
         return 3
+    # injected DLLs the game loads from its own folder (ReShade is dxgi.dll): recorded per run for crash triage
+    for dll in ("dxgi.dll", "d3d11.dll", "dinput8.dll"):
+        p = EXE.parent / dll
+        if p.exists():
+            st = p.stat()
+            note(f"injected dll present: {dll} {st.st_size} bytes, modified "
+                 f"{time.strftime('%Y-%m-%d %H:%M', time.localtime(st.st_mtime))}")
+        else:
+            note(f"injected dll absent: {dll}")
     note(f"launch: {' '.join(cmd)}")
     proc = subprocess.Popen(cmd, cwd=str(EXE.parent))
     note(f"pid {proc.pid}")

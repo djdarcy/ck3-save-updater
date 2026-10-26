@@ -23,6 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from ck3_save_migrator import savefile as sf  # noqa: E402
 from ck3_save_migrator import translate as T  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from shape_diff import load as _load_any  # noqa: E402  (also reads the game's plain-text re-saves)
+
 TITLE = re.compile(r"\b(b_[\w\-']+)\s*=\s*\{")
 
 
@@ -49,9 +52,9 @@ def holders(a) -> None:
     a campaign character (one the input already had), and none by the player.
     A11.2: every such title the reference holds is held in the output by the reference's holder, translated.
     """
-    inp = sf.read_save(a.input).gamestate
-    out = sf.read_save(a.out).gamestate
-    ref = sf.read_save(a.reference).gamestate
+    inp = _load_any(a.input)
+    out = _load_any(a.out)          # our output, or the game's re-save of it (A11 re-checked after the load)
+    ref = _load_any(a.reference)
     tr = T.Translator.build(inp, ref)
     cm = tr.spaces["character"]
     campaign = T.space_ids(inp, "character")
@@ -87,6 +90,14 @@ def holders(a) -> None:
     print(f"titles new to the save: {len(new):,}; held in the output {sum(1 for k in new if oh[k] is not None):,}")
     print(f"A11.1 player ({player}) holds new: {len(by_player)} {by_player[:10]}")
     print(f"A11.1 campaign characters hold new: {len(by_campaign)} {by_campaign[:10]}")
+    if a.named:                         # step 1c: the transplant report's named cases are not mismatches
+        named = set()
+        for r in json.loads(Path(a.named).read_text(encoding="utf-8")).get("rules", []):
+            named |= {x["barony"] for x in r.get("extra", {}).get("reparent_left", [])}
+        print(f"A11.2 named in the report (reparent_left), not counted: "
+              f"{sorted(k for k, *_ in mismatch if k in named) + sorted(k for k in missing if k in named)}")
+        mismatch = [m for m in mismatch if m[0] not in named]
+        missing = [k for k in missing if k not in named]
     print(f"A11.2 reference-held new titles unheld in the output: {len(missing)} {missing[:10]}")
     print(f"A11.2 held by someone else than the reference's holder: {len(mismatch)} {mismatch[:10]}")
     print(f"player_holds_new: {len(by_player)}  ref_held_mismatch: {len(mismatch) + len(missing)}")
@@ -100,6 +111,7 @@ def main():
     ap.add_argument("--original")
     ap.add_argument("--input", help="the migrated save the transplant ran on (for --holders)")
     ap.add_argument("--reference", help="the 1.20 reference save (for --holders)")
+    ap.add_argument("--named", help="the transplant's report.json: its named 1c cases are not counted (--holders)")
     ap.add_argument("--game-dir")
     ap.add_argument("--renames", help="a migrate report with R15's table")
     a = ap.parse_args()

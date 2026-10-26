@@ -17,7 +17,9 @@ g = load(sys.argv[1])
 split = int(sys.argv[2]) if len(sys.argv) > 2 else 1 << 62
 titles = dict(T.entries(g, "landed_titles/landed_titles"))
 lb = gs.locate(g, "living")
-living = set(int(x) for x in re.findall(rb"(?m)^\t*(\d+)=\{", g[lb.open:lb.close]))
+chars = {int(e.key): g[e.start:e.end] for e in gs.iter_entries(g, lb.open + 1, lb.close)
+         if e.key is not None and e.key.isdigit()}
+living = set(chars)
 out = Counter()
 ex = {}
 for i, e in T.entries(g, "mercenary_company_manager/mercenary_companies"):
@@ -41,12 +43,12 @@ for i, e in T.entries(g, "mercenary_company_manager/mercenary_companies"):
         ex.setdefault((side, "holder not living"), (i, int(h.group(1))))
     else:
         hid = h.group(1)
-        m = re.search(rb"(?m)^\t*" + hid + rb"=\{", g[lb.open:lb.close])
-        s = lb.open + m.start()
-        ce = gs.match_brace(g, lb.open + m.end() - 1)
-        body_c = g[s:ce]
+        # a top-level entry only: a regex over the section can also match the id nested in other entries
+        body_c = chars.get(int(hid), b"")
         dom = re.search(rb"domain=\{([^}]*)\}", body_c)
-        gov = re.search(rb"government=(\w+)", body_c)
+        # 1.8.1 quotes the value (government="mercenary_government"), 1.20 does not. 2026-10-26 04:45: an
+        # unquoted-only pattern read all 473 campaign leaders as "no gov", a false finding reported once
+        gov = re.search(rb"government=\"?(\w+)", body_c)
         ok_dom = bool(dom and t.group(1) in dom.group(1).split())
         k = (side, "led", "domain ok" if ok_dom else "domain LACKS title", gov.group(1).decode() if gov else "no gov")
         out[k] += 1

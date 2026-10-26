@@ -22,6 +22,8 @@ from ..transplant import TITLES, Transplant
 from ..savefile import CK3Save
 from .religion_1_20 import reference_gamestate
 
+_HOLDING = re.compile(rb"holding=\{[^}]*?type=")     # a province entry that has a holding (1.8.1 or 1.20 form)
+
 
 def transplant_of(save: CK3Save, ctx) -> Transplant:
     """The context's shared transplant plan (built on first use, against the save as the earlier rules left it)."""
@@ -59,10 +61,28 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     new -= landless
     if not ctx.expansion_orders:
         new -= ho_campaign
-    save_provinces = {i for i, _ in T.entries(save.gamestate, "provinces")}
-    provinces = set(t.entries("provinces")) - save_provinces
+    save_provinces = {i: e for i, e in T.entries(save.gamestate, "provinces")}
+    provinces = set(t.entries("provinces")) - set(save_provinces)
     t.add("title", new, "R14")
     t.add("province", provinces, "R14")
+    # ruling B (director 2026-10-26 13:3x): a copied barony on a province the campaign kept with NO holding gets
+    # the reference's province entry (the copied holder had nothing to hold, and the engine strips him on load:
+    # b_luoshan, province 8985). A campaign barony the campaign never built stays unbuilt, counted.
+    unbuilt = 0
+    if ctx.game_dir is not None:
+        from .. import deadtitles as D
+        _, prov_of = D.title_tree(ctx.game_dir / "common" / "landed_titles")
+        new_baronies = {prov_of[ref_keys[i]] for i in new if ref_keys[i].startswith("b_") and ref_keys[i] in prov_of}
+        refp = t.entries("provinces")
+        for p, e in save_provinces.items():
+            r = refp.get(p)
+            if r is None or _HOLDING.search(save.gamestate[e.start:min(e.end, e.start + 1500)]) or \
+                    not _HOLDING.search(t.ref[r.start:min(r.end, r.start + 1500)]):
+                continue
+            if p in new_baronies:
+                t.fill_provinces.add(p)
+            else:
+                unbuilt += 1
     tiers = {}
     for i in new:
         tiers[ref_keys[i][0]] = tiers.get(ref_keys[i][0], 0) + 1
@@ -72,6 +92,8 @@ def r14_new_titles(save: CK3Save, ctx, rule):
                               "holy_order_titles_leasing_campaign_land": sorted(ref_keys[i] for i in ho_campaign),
                               "expansion_orders": "added" if ctx.expansion_orders else "left out",
                               "provinces_planned": len(provinces),
+                              "provinces_given_a_holding": len(t.fill_provinces),
+                              "unbuilt_in_the_campaign_built_in_a_fresh_1_20_game": unbuilt,
                               "x_titles_left_out": sum(1 for k in ref_keys.values() if k.startswith("x_"))})
 
 
