@@ -106,6 +106,8 @@ class Report:
     reparent_left: list = field(default_factory=list)          # the cases not re-parented, named
     contracts_moved: int = 0                                   # baron-only vassals now bound to the 1.20 holder
     provinces_filled: int = 0                                  # ruling B: empty campaign provinces given a holding
+    settled: list = field(default_factory=list)                # step 1c-bis: one row per settled barony
+    settled_landless_rulers: list = field(default_factory=list)  # displaced copied rulers left with no title
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
@@ -119,6 +121,7 @@ class Report:
                 "registered": dict(self.registered), "name_map_added": dict(self.name_map_added),
                 "reparent_cases": dict(self.reparent_cases), "reparent_left": self.reparent_left,
                 "contracts_moved": self.contracts_moved, "provinces_filled": self.provinces_filled,
+                "settled": self.settled, "settled_landless_rulers": self.settled_landless_rulers,
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
@@ -164,6 +167,33 @@ def _edit_landed_list(text: bytes, key: bytes, add=(), drop=frozenset()) -> byte
         return text
     return text[:ld.end()] + b"\t\t" + key + b"={ " + b" ".join(str(a).encode() for a in add) + b" }\n" + \
         text[ld.end():]
+
+
+def _set_landed_scalar(text: bytes, key: bytes, value: int | None) -> bytes:
+    """A character entry with ``landed_data/<key>`` set to ``value``, or the line removed when ``value`` is None."""
+    ld = re.search(rb"\n\tlanded_data=\{\n", text)
+    if not ld:
+        return text
+    m = re.compile(rb"\n\t\t" + key + rb"=\d+").search(text, ld.start())
+    if m:
+        return text[:m.start()] + (b"\n\t\t" + key + b"=" + str(value).encode() if value is not None else b"") + \
+            text[m.end():]
+    if value is None:
+        return text
+    return text[:ld.end()] + b"\t\t" + key + b"=" + str(value).encode() + b"\n" + text[ld.end():]
+
+
+def _set_title_field(text: bytes, key: bytes, value: int | None) -> bytes:
+    """A title entry with its depth-1 ``<key>=`` set to ``value`` (inserted after ``key=``), or removed (None)."""
+    m = re.search(rb"\n\t" + key + rb"=\d+", text)
+    if m:
+        return text[:m.start()] + (b"\n\t" + key + b"=" + str(value).encode() if value is not None else b"") + \
+            text[m.end():]
+    if value is None:
+        return text
+    k = re.search(rb"\n\tkey=[^\n]*", text)
+    at = k.end() if k else text.find(b"\n")
+    return text[:at] + b"\n\t" + key + b"=" + str(value).encode() + text[at:]
 
 
 class Transplant:
@@ -473,8 +503,21 @@ class Transplant:
             return self._ent["_moves"]
         plan = self.reparent_plan()
         head = self._ent["_reparent_head"]
+        settled = self.settled_baronies()
+        settle = self.settle_plan()
         new_liege = {}
         for b, (_, want, case) in plan.items():
+            if b in settled:                        # 1c-bis: the county came to the campaign
+                c, fate = settled[b]
+                d = settle[c]
+                if fate == "vassal":
+                    new_liege[head[b][1]] = d["new"]
+                elif fate == "count" and d["branch"].startswith("family"):
+                    lt = d["liege_title"]
+                    lh = head.get(lt, ("", None, None))[1] if lt is not None else None
+                    if lh is not None and lh != head[b][1]:
+                        new_liege[head[b][1]] = lh
+                continue                            # "landless": the contract is removed, not moved
             if case == "baron only":
                 x = self.county_holder(want, head)
                 if x is not None and x != head[b][1]:
@@ -494,6 +537,174 @@ class Transplant:
         self._ent["_moves"] = out
         return out
 
+    # -- step 1c-bis: a moved campaign barony under a copied county ---------
+    def _save_chars(self) -> dict[int, gs.Block]:
+        if "_save_chars" not in self._ent:
+            out = {}
+            for sec in CHARACTER_KINDS:
+                try:
+                    blk = gs.locate(self.save, sec)
+                except gs.GamestateError:
+                    continue
+                for e in gs.iter_entries(self.save, blk.open + 1, blk.close):
+                    if e.key is not None and e.key.isdigit():
+                        out.setdefault(int(e.key), e)
+            self._ent["_save_chars"] = out
+        return self._ent["_save_chars"]
+
+    def _family(self) -> callable:
+        """The family test (djdarcy 2026-10-26): a character whose house or dynasty is the player's, or whose
+        spouse's (current or former) is. ``family_test.py`` also follows descent from the dynasty's founder; the
+        save names no founder generically, so that branch is not tested here (both family barons on the founding
+        save match by their own house)."""
+        chars = self._save_chars()
+        hd = {}
+        for i, e in T.entries(self.save, "dynasties/dynasty_house"):
+            m = re.search(rb"\n\t*dynasty=(\d+)", self.save[e.start:min(e.end, e.start + 2000)])
+            hd[i] = int(m.group(1)) if m else None
+
+        def body(c):
+            e = chars.get(c)
+            return self.save[e.start:e.end] if e is not None else b""
+
+        def kin(c):
+            m = re.search(rb"\n\tdynasty_house=(\d+)", body(c))
+            h = int(m.group(1)) if m else None
+            return h, hd.get(h)
+
+        pm = re.search(rb"currently_played_characters=\{\s*(\d+)", self.save)
+        player = int(pm.group(1)) if pm else None
+        ph, pd = kin(player) if player is not None else (None, None)
+
+        def spouses(c):
+            out = []
+            for f in (b"spouse", b"primary_spouse", b"former_spouses"):
+                for m in re.finditer(rb"\n\t+" + f + rb"=(?:\{([^}]*)\}|(\d+))", body(c)):
+                    out += [int(x) for x in (m.group(1) or m.group(2)).split() if x.isdigit()]
+            return out
+
+        def family(c):
+            if player is None or (ph is None and pd is None):
+                return ""
+            for who in [c] + spouses(c):
+                h, d = kin(who)
+                if (h is not None and h == ph) or (d is not None and d == pd):
+                    return "own house or dynasty" if who == c else "spouse's house or dynasty"
+            return ""
+        return family
+
+    def settle_plan(self) -> dict[int, dict]:
+        """Step 1c-bis (transplant DWP 16:45 addendum; director rulings 2026-10-26 17:3x). For each COPIED county
+        a moved campaign barony belongs to in 1.20: the county goes to the campaign. A baron of the player's
+        family is promoted to its count; otherwise the holder of the barony's old county takes it and the baron
+        stays his vassal (a baron who IS the old count simply gains the county). A capital barony goes with the
+        county: a carried capital held by the displaced ruler, or a campaign capital whose baron is not the new
+        count (that baron becomes landless at the new count's court: no built barony is free in these counties).
+        The displaced copied ruler loses the county; landless if he holds nothing else, at the new holder's
+        court. Copied barons in the county stay barons, vassals of the new holder.
+        ref county id -> {"new", "branch", "liege_title", "x", "baronies": {save barony: fate}, "capital",
+        "carried_vassals"}."""
+        if "_settle" in self._ent:
+            return self._ent["_settle"]
+        plan = self.reparent_plan()
+        head = self._ent["_reparent_head"]
+        tm, cm = self.tr.spaces["title"], self.tr.spaces["character"]
+        family = self._family()
+        sdf = {}
+        for i, e in T.entries(self.save, TITLES):
+            m = re.search(rb"\n\tde_facto_liege=(\d+)", self.save[e.open:min(e.close, e.open + 4096)])
+            if m:
+                sdf[i] = int(m.group(1))
+        chars = self._save_chars()
+
+        def primary(c):
+            e = chars.get(c)
+            m = re.search(rb"\n\t\tdomain=\{\s*(\d+)", self.save[e.start:e.end]) if e is not None else None
+            return int(m.group(1)) if m else None
+
+        ref_field = {}
+        for r, e in self.entries(TITLES).items():
+            b = self.ref[e.open:min(e.close, e.open + 4096)]
+            ref_field[r] = (int(m.group(1)) if (m := re.search(rb"\n\tde_jure_liege=(\d+)", b)) else None,
+                            int(m.group(1)) if (m := re.search(rb"\n\tholder=(\d+)", b)) else None,
+                            b"\n\tcapital_barony=yes" in b)
+        by_county: dict[int, list[int]] = defaultdict(list)
+        for s, (old, want, case) in plan.items():
+            if want[0] != "ref" or want[1] not in self.carry["title"] or case not in ("baron only", "capital",
+                                                                                      "mixed"):
+                continue
+            if self.county_holder(want, head) is None:
+                continue
+            by_county[want[1]].append(s)
+        out = {}
+        for c, baronies in sorted(by_county.items()):
+            x = ref_field[c][1]
+            barons = {s: head[s][1] for s in baronies}
+            olds = {plan[s][0] for s in baronies}
+            old_counts = {head[o][1] for o in olds if o is not None}
+            fam = [h for s, h in sorted(barons.items()) if family(h)]
+            capital_save = next((s for s in baronies if ref_field.get(self._ref_of(s), (0, 0, False))[2]), None)
+            if fam:
+                # the family baron holding the capital first, else the first by barony
+                new = barons[capital_save] if capital_save is not None and barons[capital_save] in fam else fam[0]
+                branch = f"family baron promoted ({family(new)})"
+                h = next(iter(old_counts)) if len(old_counts) == 1 else None
+                p = primary(h) if h is not None else None
+                liege = p if p is not None and head.get(p, ("",))[0][:1] in ("d", "k", "e") else \
+                    sdf.get(next(iter(olds)) if len(olds) == 1 else None)
+            elif len(old_counts) == 1:
+                new = next(iter(old_counts))
+                branch = "the old count takes it" + (" (a moved barony of his own came too)"
+                                                     if new in barons.values() else "")
+                liege = sdf.get(next(iter(olds)))
+            else:
+                continue                                # no single old count: left as 1c names it
+            fates = {}
+            for s, h in barons.items():
+                if h == new:
+                    fates[s] = "count"
+                elif s == capital_save:
+                    fates[s] = "landless"
+                else:
+                    fates[s] = "vassal"
+            cap_ref = next((r for r, (dj, hh, cap) in ref_field.items() if dj == c and cap), None)
+            carried_cap = cap_ref if cap_ref is not None and cap_ref not in tm.join and \
+                ref_field[cap_ref][1] == x else None
+            # copied barons of the county other than the displaced ruler: their contracts go to the new holder
+            vassals = {ref_field[r][1] for r, (dj, hh, cap) in ref_field.items()
+                       if dj == c and hh is not None and hh != x and r not in tm.join}
+            contracts = []
+            for i in self.carry["vassal_contract"]:
+                b = self.ref[self.entries(CARRIED["vassal_contract"])[i].start:
+                             self.entries(CARRIED["vassal_contract"])[i].end]
+                v = re.search(rb"\n\t+vassal=(\d+)", b)
+                lg = re.search(rb"\n\t+liege=(\d+)", b)
+                if v and lg and int(v.group(1)) in vassals and int(lg.group(1)) == x:
+                    contracts.append(i)
+            # the displaced ruler's own other baronies in the county stay his (director 2026-10-26 18:0x: the game
+            # leaves them with him on load; "we keep the new players"); named
+            x_kept = sorted(r for r, (dj, hh, cap) in ref_field.items()
+                            if dj == c and hh == x and r != carried_cap and r not in tm.join)
+            out[c] = {"new": new, "branch": branch, "liege_title": liege, "x": x, "baronies": fates,
+                      "capital": carried_cap, "carried_contracts": sorted(contracts), "x_kept": x_kept,
+                      "old_county": next(iter(olds)) if len(olds) == 1 else None}
+        self._ent["_settle"] = out
+        return out
+
+    def _ref_of(self, save_title: int) -> int | None:
+        if "_from_save" not in self._ent:
+            self._ent["_from_save"] = {s: r for r, s in self.tr.spaces["title"].join.items()}
+        return self._ent["_from_save"].get(save_title)
+
+    def reparented(self, s: int) -> bool:
+        """Is campaign barony ``s`` moved to its 1.20 county: a 1c case, or one step 1c-bis settles."""
+        case = self.reparent_plan().get(s, (None, None, ""))[2]
+        return case in REPARENTED or s in self.settled_baronies()
+
+    def settled_baronies(self) -> dict[int, tuple[int, str]]:
+        """save barony id -> (ref county id, fate) for every barony step 1c-bis settles."""
+        return {s: (c, fate) for c, d in self.settle_plan().items() for s, fate in d["baronies"].items()}
+
     def _out_title(self, want: tuple[str, int]) -> int:
         return want[1] if want[0] == "save" else self.tr.spaces["title"].translate(want[1])
 
@@ -503,8 +714,7 @@ class Transplant:
         if space in S.IDENTITY:
             return True
         if v in m.join:
-            if space == "title" and path.startswith("de_jure_vassals") and \
-                    self.reparent_plan().get(m.join[v], (None, None, ""))[2] in REPARENTED:
+            if space == "title" and path.startswith("de_jure_vassals") and self.reparented(m.join[v]):
                 return True             # a campaign barony 1.20 put in this new county comes with it (step 1c)
             if space == "title" and path == "de_facto_liege" and self.save_title_key(m.join[v]).startswith("c_"):
                 return True             # a new barony in an existing county: the engine requires de facto = de jure
@@ -529,9 +739,36 @@ class Transplant:
             return T.rewrite_entry(self.ref, e, kind, self.tr, rep.rewrite, self.keep)
 
         cm = self.tr.spaces["character"]
+        tmap, kmap = self.tr.spaces["title"], self.tr.spaces["vassal_contract"]
         gains: dict[int, list[int]] = defaultdict(list)          # copied liege (output id) -> contracts it gains
         for cid, _, _, x in self.contract_moves():
             gains[x].append(cid)
+        # step 1c-bis, the copied side: the displaced ruler loses the county (and its carried capital) and those
+        # barons' contracts; with nothing left he goes to the new holder's court (R16's employer path)
+        settle = self.settle_plan()
+        x_drop: dict[int, set[int]] = defaultdict(set)           # copied ruler (ref) -> titles (output ids) lost
+        x_vc: dict[int, set[int]] = defaultdict(set)             # copied ruler (ref) -> contracts (output ids) lost
+        x_new: dict[int, int] = {}
+        title_set: dict[int, tuple[int, int | None, bool]] = {}  # ref title -> (new holder, de facto liege, county?)
+        contract_liege: dict[int, int] = {}                      # ref contract -> new liege (save id)
+        for c, d in settle.items():
+            x = d["x"]
+            x_drop[x].add(tmap.translate(c))
+            title_set[c] = (d["new"], d["liege_title"], True)
+            if d["capital"] is not None:
+                x_drop[x].add(tmap.translate(d["capital"]))
+                title_set[d["capital"]] = (d["new"], None, False)
+            x_vc[x] |= {kmap.translate(i) for i in d["carried_contracts"]}
+            for i in d["carried_contracts"]:
+                contract_liege[i] = d["new"]
+            x_new.setdefault(x, d["new"])
+        for x, lost in x_drop.items():
+            ch = self.character(x)
+            m = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.ref[ch[1].start:ch[1].end]) if ch else None
+            held = {tmap.translate(int(t)) for t in (m.group(1).split() if m else [])}
+            if held <= lost and x not in self.employer:
+                self.employer[x] = x_new[x]
+                self.report.settled_landless_rulers.append(cm.translate(x))
         for p in sorted(self.carry["character"]):
             kind, e = self.character(p)
             text = rewrite(kind, e)
@@ -539,6 +776,14 @@ class Transplant:
                 text = _set_employer(text, self.employer[p])
             if cm.translate(p) in gains:            # step 1c: a campaign baron's contract, now this ruler's
                 text = _edit_landed_list(text, b"vassal_contracts", add=gains.pop(cm.translate(p)))
+            if p in x_drop:
+                text = _edit_landed_list(text, b"domain", drop=x_drop[p])
+                text = _edit_landed_list(text, b"vassal_contracts", drop=x_vc[p])
+                rc = re.search(rb"\n\t\trealm_capital=(\d+)", text)
+                if rc and int(rc.group(1)) in x_drop[p]:
+                    left = re.search(rb"\n\t\tdomain=\{([^}]*)\}", text)
+                    ids = left.group(1).split() if left else []
+                    text = _set_landed_scalar(text, b"realm_capital", int(ids[0]) if ids else None)
             payload[kind].append(text)
         self._ent["_gains_left"] = gains            # lieges that are campaign people: edited in place (_reparent)
         for p in sorted(self.carry["ai"]):
@@ -553,6 +798,11 @@ class Transplant:
                 nxt[m.group(1)] = max(nxt.get(m.group(1), 0), int(m.group(2)) + 1)
         for t in sorted(self.carry["title"]):
             text = rewrite(TITLES, self.entries(TITLES)[t])
+            if t in title_set:                      # step 1c-bis: the county (or its capital) comes to the campaign
+                holder, liege, county = title_set[t]
+                text = _set_title_field(text, b"holder", holder)
+                if county:
+                    text = _set_title_field(text, b"de_facto_liege", liege)
             k = self.title_keys().get(t, "").encode()
             m = _RUNTIME_KEY.match(k)
             if m and k in used:
@@ -580,7 +830,11 @@ class Transplant:
                     rep.provinces_filled += 1
         for sp, kind in CARRIED.items():
             for i in sorted(self.carry[sp]):
-                payload[kind].append(rewrite(kind, self.entries(kind)[i]))
+                text = rewrite(kind, self.entries(kind)[i])
+                if sp == "vassal_contract" and i in contract_liege:     # 1c-bis: a copied baron's new liege
+                    text = re.sub(rb"(\n\t+liege=)\d+", lambda m: m.group(1) + str(contract_liege[i]).encode(),
+                                  text, count=1)
+                payload[kind].append(text)
         created = []
         for kind, items in payload.items():
             body = b"".join(x + b"\n" for x in items)
@@ -754,7 +1008,7 @@ class Transplant:
                 children[tm.join[int(m.group(1))]].append(tm.translate(t))
                 self.report.seams += 1
         for b, (old, want, case) in sorted(self.reparent_plan().items()):
-            if case not in REPARENTED:
+            if not self.reparented(b):
                 continue
             if old is not None:
                 removed[old].add(b)
@@ -829,9 +1083,10 @@ class Transplant:
         head = self._ent["_reparent_head"]
         rep = self.report
         stitles = dict(T.entries(self.save, TITLES)) if plan else {}
+        settled = self.settled_baronies()
         for b, (old, want, case) in sorted(plan.items()):
-            rep.reparent_cases[case] += 1
-            if case not in REPARENTED:
+            rep.reparent_cases["settled (1c-bis)" if b in settled else case] += 1
+            if not self.reparented(b):
                 rep.reparent_left.append({"barony": head[b][0], "county now": self.save_title_key(old) if old
                                           else None, "county in 1.20": self.title_keys().get(want[1], "")
                                           if want[0] == "ref" else self.save_title_key(want[1]),
@@ -853,45 +1108,100 @@ class Transplant:
                     at = self.save.rfind(b"\n", 0, e.close) + 1
                     ep.add(gs.Edit(at, at, b"\t" + fld + b"=" + new + b"\n", "transplant", "1c " + fld.decode()))
         self._name_mirror_cases(head)
-        moves = self.contract_moves()
-        if not moves:
-            return
-        # the contract's liege, the old liege's list (the id leaves) and a campaign new liege's list (it joins);
-        # a copied new liege got it as its entry was written (edits)
-        lists: dict[int, tuple[set[int], list[int]]] = defaultdict(lambda: (set(), []))
-        for cid, start, old, new in moves:
+        # campaign characters' entries, each edited once: contract lists, domains, court (1c and 1c-bis)
+        ops: dict[int, dict] = defaultdict(lambda: {"vc_drop": set(), "vc_add": [], "dom_drop": set(),
+                                                    "dom_add": [], "employer": None})
+        for cid, start, old, new in self.contract_moves():
             close = gs.match_brace(self.save, start)
             lg = re.search(rb"\n\t+liege=(\d+)", self.save[start:close])
             ep.add(gs.Edit(start + lg.start(1), start + lg.end(1), str(new).encode(), "transplant", "1c contract"))
-            lists[old][0].add(cid)
+            ops[old]["vc_drop"].add(cid)
             rep.contracts_moved += 1
         for x, cids in self._ent.get("_gains_left", {}).items():
-            lists[x][1].extend(cids)
-        lb = {}
-        for sec in CHARACTER_KINDS:
-            try:
-                blk = gs.locate(self.save, sec)
-            except gs.GamestateError:
-                continue
-            for ent in gs.iter_entries(self.save, blk.open + 1, blk.close):
-                if ent.key is not None and ent.key.isdigit() and int(ent.key) in lists:
-                    lb[int(ent.key)] = ent
-        for c, (drop, add) in lists.items():
-            ent = lb.get(c)
+            ops[x]["vc_add"].extend(cids)
+        self._settle_save_side(ep, stitles, head, ops)
+        chars = self._save_chars()
+        for c, op in ops.items():
+            ent = chars.get(c)
             if ent is None:
                 continue
             text = self.save[ent.start:ent.end]
-            m = _landed_list(text, b"vassal_contracts")
-            new = _edit_landed_list(text, b"vassal_contracts", add=add, drop=drop)
-            if m:                                   # replace the list only, the rest of the entry untouched
-                head_len = m.start()
-                tail_len = len(text) - m.end()
-                ep.add(gs.Edit(ent.start + m.start(), ent.start + m.end(),
-                               new[head_len:len(new) - tail_len], "transplant", "1c liege contracts"))
-            elif new != text:
-                ld = re.search(rb"\n\tlanded_data=\{\n", text)
-                ins = new[ld.end():len(new) - (len(text) - ld.end())]
-                ep.add(gs.Edit(ent.start + ld.end(), ent.start + ld.end(), ins, "transplant", "1c liege contracts"))
+            new = _edit_landed_list(text, b"vassal_contracts", add=op["vc_add"], drop=op["vc_drop"])
+            if op["dom_add"] or op["dom_drop"]:
+                new = _edit_landed_list(new, b"domain", add=op["dom_add"], drop=op["dom_drop"])
+                rc = re.search(rb"\n\t\trealm_capital=(\d+)", new)
+                left = re.search(rb"\n\t\tdomain=\{([^}]*)\}", new)
+                ids = left.group(1).split() if left else []
+                if rc and int(rc.group(1)) in op["dom_drop"]:
+                    new = _set_landed_scalar(new, b"realm_capital", int(ids[0]) if ids else None)
+            if op["employer"] is not None:
+                new = _set_employer(new, op["employer"])
+            if new != text:
+                ep.add(gs.Edit(ent.start, ent.end, new, "transplant", "1c character"))
+
+    def _settle_save_side(self, ep: gs.EditPass, stitles: dict, head: dict, ops: dict) -> None:
+        """Step 1c-bis, the campaign side: the new holder gains the county (and a carried capital, and a capital a
+        landless baron gives up) in his domain and the copied barons' contracts in his list; a capital baron who
+        is not the new count gives his barony to him, loses his contract and goes to his court. Report rows."""
+        settle = self.settle_plan()
+        if not settle:
+            return
+        rep = self.report
+        tm, km = self.tr.spaces["title"], self.tr.spaces["vassal_contract"]
+        contracts = {}
+        for path in ("vassal_contracts/database", "vassal_contracts/active"):
+            try:
+                for i, e in T.entries(self.save, path):
+                    v = re.search(rb"\n\t+vassal=(\d+)", self.save[e.open:e.close])
+                    lg = re.search(rb"\n\t+liege=(\d+)", self.save[e.open:e.close])
+                    if v:
+                        contracts[int(v.group(1))] = (i, e, int(lg.group(1)) if lg else None)
+            except T.TranslationError:
+                continue
+        for c, d in settle.items():
+            new, c_out = d["new"], tm.translate(c)
+            ops[new]["dom_add"].append(c_out)
+            if d["capital"] is not None:
+                ops[new]["dom_add"].append(tm.translate(d["capital"]))
+            ops[new]["vc_add"].extend(km.translate(i) for i in d["carried_contracts"])
+            for s, fate in sorted(d["baronies"].items()):
+                baron = head[s][1]
+                if fate == "landless":
+                    e = stitles[s]
+                    m = re.search(rb"\n\tholder=(\d+)", self.save[e.open:e.close])
+                    if m:
+                        ep.add(gs.Edit(e.open + m.start(1), e.open + m.end(1), str(new).encode(), "transplant",
+                                       "1c-bis capital holder"))
+                    ops[baron]["dom_drop"].add(s)
+                    ops[new]["dom_add"].append(s)
+                    ops[baron]["employer"] = new
+                    ct = contracts.get(baron)
+                    if ct is not None:
+                        i, ce, lg = ct
+                        a, b = gs.removal_span(self.save, ce.start, ce.end)
+                        ep.add(gs.Edit(a, b, b"", "transplant", "1c-bis contract removed"))
+                        if lg is not None:
+                            ops[lg]["vc_drop"].add(i)
+                elif fate == "count" and baron != (head.get(d["old_county"], ("", None, None))[1]):
+                    ops[baron]["dom_add"].append(c_out)          # a promoted family baron (already added if new)
+                rep.settled.append({
+                    "barony": head[s][0], "old county": self.save_title_key(d["old_county"]) if d["old_county"]
+                    else None, "old count": head.get(d["old_county"], ("", None, None))[1],
+                    "new county": self.title_keys().get(c, ""), "old holder": self.tr.spaces["character"]
+                    .translate(d["x"]), "new holder": new, "branch": d["branch"], "baron": baron,
+                    "baron's fate": {"count": "holds the county", "vassal": f"keeps the barony, vassal of {new}",
+                                     "landless": f"landless at {new}'s court: capital of the county; no built "
+                                                 "barony free in it"}[fate]})
+            for r in d["x_kept"]:
+                rep.settled.append({
+                    "barony": self.title_keys().get(r, ""), "old county": None, "old count": None,
+                    "new county": self.title_keys().get(c, ""), "old holder": self.tr.spaces["character"]
+                    .translate(d["x"]), "new holder": self.tr.spaces["character"].translate(d["x"]),
+                    "branch": d["branch"], "baron": self.tr.spaces["character"].translate(d["x"]),
+                    "baron's fate": "held by the displaced ruler, left with him"})
+        # de-duplicate: a promoted baron is also "new"
+        for op in ops.values():
+            op["dom_add"] = list(dict.fromkeys(op["dom_add"]))
 
     def _counters_and_lookups(self, ep: gs.EditPass) -> None:
         rep = self.report

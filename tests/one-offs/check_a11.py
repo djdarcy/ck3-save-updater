@@ -91,9 +91,25 @@ def holders(a) -> None:
     print(f"A11.1 player ({player}) holds new: {len(by_player)} {by_player[:10]}")
     print(f"A11.1 campaign characters hold new: {len(by_campaign)} {by_campaign[:10]}")
     if a.named:                         # step 1c: the transplant report's named cases are not mismatches
-        named = set()
+        named, settled = set(), set()
         for r in json.loads(Path(a.named).read_text(encoding="utf-8")).get("rules", []):
             named |= {x["barony"] for x in r.get("extra", {}).get("reparent_left", [])}
+            settled |= {x["new county"] for x in r.get("extra", {}).get("settled", [])}
+        # step 1c-bis: a settled county, and a barony of it (its carried capital), goes to the campaign by rule
+        ref_dj = {}
+        for _, e in T.entries(ref, "landed_titles/landed_titles"):
+            m = re.search(rb"\n\tde_jure_liege=(\d+)", ref[e.open:min(e.close, e.open + 4096)])
+            ref_dj[T._depth0(ref, e, T._KEY)] = int(m.group(1)) if m else None
+        ref_key = {i: T._depth0(ref, e, T._KEY) for i, e in T.entries(ref, "landed_titles/landed_titles")}
+        settled_b = {s.encode() for s in settled}
+        for k in list(oh):
+            if k in settled_b or ref_key.get(ref_dj.get(k)) in settled_b:
+                named.add(k.decode())
+        print(f"A11 settled by 1c-bis (counties {len(settled)}), counted as named")
+        inherit = sorted(k for k, _ in by_campaign if k in named)
+        by_campaign = [(k, h) for k, h in by_campaign if k not in named]
+        print(f"A11.1 campaign characters hold new, by the report's rules: {len(inherit)}; NOT named: "
+              f"{len(by_campaign)} {by_campaign[:10]}")
         print(f"A11.2 named in the report (reparent_left), not counted: "
               f"{sorted(k for k, *_ in mismatch if k in named) + sorted(k for k in missing if k in named)}")
         mismatch = [m for m in mismatch if m[0] not in named]

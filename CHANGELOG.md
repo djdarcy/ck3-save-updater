@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-26
+
+### Fixed
+- Where 1.20 drew a new county around baronies your campaign held, that county now goes to your campaign rather than staying with the ruler 1.20's history gave it. A baron of the player's family (the player's house or dynasty, or a spouse's) is promoted to count of it; otherwise the count who held those baronies in your campaign takes the new county, and his barons stay his vassals. Barons whom 1.20's history put in the county keep their baronies, as vassals of the new count.
+- The ruler who loses the county keeps the rest of his lands; one left with nothing joins the new count's court.
+- A baron whose barony is the capital of the new county, when someone else becomes its count, gives the barony to the new count and joins his court (a county's holder always holds its capital, and none of these counties has a built barony free). Each such case is listed in the report.
+- On the founding campaign, the game's own load now moves only the baronies the report names (6, down from 29).
+
+### Added
+- The transplant's report has a row for every barony it settles: the old county and its count, the new county, who held it and who holds it now, and what happened to the baron.
+
 ## [0.3.2] - 2026-10-26
 
 ### Fixed
@@ -105,7 +116,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...v0.3.0

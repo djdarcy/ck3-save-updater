@@ -232,60 +232,175 @@ def test_r17_registers_carried_game_start_objects_and_their_coat_names(tmp_path)
     assert names == {b"k_old": b"0", b"d_new": d_new_coat, b"2000": dyn_coat}
 
 
-def test_1c_a_baron_keeps_a_barony_1_20_put_in_a_new_county_and_a_mixed_holder_is_named(tmp_path):
+def test_1c_a_baron_keeps_a_barony_1_20_put_in_a_new_county(tmp_path):
     """Step 1c (director 2026-10-26 04:45): a campaign barony whose 1.20 county is another one moves there, de
-    jure and de facto, and its baron keeps it as a vassal of the 1.20 county's holder (the contract's liege). A
-    holder who also holds land outside that county (a count) cannot: the barony is left and named (ruling (c))."""
+    jure and de facto, and its baron keeps it as a vassal of the 1.20 county's holder: the contract's liege, and
+    the contract leaves the old liege's list and joins the new one's. Here the two moved baronies come from two
+    old counts, so 1c-bis (which needs one old count) leaves the copied county with its copied holder."""
     save_body = gamestate(
-        living=char(40, "\tlanded_data={\n\t\tdomain={ 0 2 }\n\t\tvassal_contracts={ 0 }\n\t}\n") + char(41),
-        titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 2 }\n")
+        living=char(40, "\tlanded_data={\n\t\tdomain={ 0 }\n\t\tvassal_contracts={ 0 }\n\t}\n") + char(41)
+        + char(42, "\tlanded_data={\n\t\tdomain={ 2 }\n\t\tvassal_contracts={ 1 }\n\t}\n") + char(43),
+        titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 }\n")
         + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n")
-        + title(2, "b_y", "\tholder=40\n\tde_jure_liege=0\n\tde_facto_liege=0\n"),
-        title_index=3,
+        + title(2, "c_b", "\tholder=42\n\tde_jure_vassals={ 3 }\n")
+        + title(3, "b_z", "\tholder=43\n\tde_jure_liege=2\n\tde_facto_liege=2\n"),
+        title_index=4,
         extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=41\n\t\t\tliege=40\n"
-              "\t\t}\n\t}\n}\n",
+              "\t\t}\n\t\t1={\n\t\t\tvassal=43\n\t\t\tliege=42\n\t\t}\n\t}\n}\n",
     )
     ref_body = gamestate(
-        living=char(9, "\tlanded_data={\n\t\tdomain={ 3 }\n\t\tvassal_contracts={ }\n\t}\n"),
-        titles=title(0, "c_a", "")
-        + title(1, "b_x", "\tde_jure_liege=3\n\tde_facto_liege=3\n")
-        + title(2, "b_y", "\tde_jure_liege=3\n\tde_facto_liege=3\n")
-        + title(3, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 2 }\n"),
+        living=char(9, "\tlanded_data={\n\t\tdomain={ 4 }\n\t\tvassal_contracts={ }\n\t}\n"),
+        titles=title(0, "c_a", "") + title(1, "b_x", "\tde_jure_liege=4\n") + title(2, "c_b", "")
+        + title(3, "b_z", "\tde_jure_liege=4\n") + title(4, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 3 }\n"),
         extra="provinces={\n1={\n}\n}\n",
     )
     save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
     ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
     ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
-    ex = res["R17"].extra
-    assert ex["reparent_cases"] == {"baron only": 1, "mixed": 1} and ex["contracts_moved"] == 1
-    assert [x["barony"] for x in ex["reparent_left"]] == ["b_y"]
+    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    assert ex["reparent_cases"] == {"baron only": 2} and ex["contracts_moved"] == 2 and ex["settled"] == []
     g = save.gamestate
     t = titles_by_key(g)
     c_new_id, c_new = t["c_new"]
     holder = int(re.search(rb"holder=(\d+)", c_new).group(1))
     assert f"de_jure_liege={c_new_id}".encode() in t["b_x"][1] and f"de_facto_liege={c_new_id}".encode() in t["b_x"][1]
-    assert b"de_jure_liege=0" in t["b_y"][1]                                  # mixed: untouched
-    assert b"de_jure_vassals={ 2 }" in t["c_a"][1]                            # b_x left its old county's list
-    lst = re.search(rb"de_jure_vassals=\{([^}]*)\}", c_new).group(1).split()
-    assert lst == [b"1"]                                                      # the new county lists b_x only
+    assert re.search(rb"de_jure_vassals=\{\s*\}", t["c_a"][1])                # b_x left its old county's list
+    assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", c_new).group(1).split()) == [b"1", b"3"]
     c = gs.locate(g, "vassal_contracts/active")
-    assert f"liege={holder}".encode() in g[c.open:c.close] and b"liege=40" not in g[c.open:c.close]
-    # a liege lists his vassals' contracts; the engine deletes a contract its liege does not list (re-save of
-    # e2e_1c3, 2026-10-26): contract 0 leaves 40's list and joins the new liege's
+    assert g[c.open:c.close].count(f"liege={holder}".encode()) == 2
     living = {i: g[e.start:e.end] for i, e in T.entries(g, "living")}
+    assert re.search(rb"vassal_contracts=\{\s*\}", living[40]) and re.search(rb"vassal_contracts=\{\s*\}", living[42])
+    assert re.search(rb"vassal_contracts=\{\s*0 1\s*\}", living[holder])
+
+
+def _settle_fixture(tmp_path, player_house=None, capital=False, copied_baron=False, ruler_barony=False):
+    """c_a (40, also holding b_y) and its baron 41 (b_x) on the campaign side; 1.20 puts b_x and b_y in the copied
+    county c_new of the copied ruler 9, whose only title it is. ``copied_baron``: 1.20's history also has its own
+    baron 10 on b_w in c_new, a vassal of 9 (contract 0)."""
+    house = "\tdynasty_house=5\n" if player_house else ""
+    save_body = gamestate(
+        living=char(39, house) + char(40, "\tlanded_data={\n\t\tdomain={ 0 2 }\n\t\tvassal_contracts={ 0 }\n\t}\n")
+        + char(41, house + "\tlanded_data={\n\t\tdomain={ 1 }\n\t}\n"),
+        titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 2 }\n")
+        + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n")
+        + title(2, "b_y", "\tholder=40\n\tde_jure_liege=0\n\tde_facto_liege=0\n"),
+        title_index=3, houses='5={\n\tdynasty=7\n}\n' if player_house else "",
+        extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=41\n\t\t\tliege=40\n"
+              "\t\t}\n\t}\n}\ncurrently_played_characters={ 39 }\n",
+    )
+    cap = "\tcapital_barony=yes\n" if capital else ""
+    if copied_baron:
+        living = (char(9, "\tlanded_data={\n\t\tdomain={ 3 }\n\t\tvassal_contracts={ 0 }\n\t\trealm_capital=3\n\t}\n")
+                  + char(10, "\tlanded_data={\n\t\tdomain={ 4 }\n\t}\n"))
+        more = title(4, "b_w", "\tholder=10\n\tde_jure_liege=3\n\tde_facto_liege=3\n")
+        lst, contracts = "1 2 4", "vassal_contracts={\n\tdatabase={\n\t\t0={\n\t\t\tvassal=10\n\t\t\tliege=9\n\t\t}\n\t}\n}\n"
+    elif ruler_barony:                                  # 9 also holds b_v, a barony of c_new
+        living = char(9, "\tlanded_data={\n\t\tdomain={ 3 4 }\n\t\tvassal_contracts={ }\n\t\trealm_capital=3\n\t}\n")
+        more, lst, contracts = title(4, "b_v", "\tholder=9\n\tde_jure_liege=3\n\tde_facto_liege=3\n"), "1 2 4", ""
+    else:
+        living = char(9, "\tlanded_data={\n\t\tdomain={ 3 }\n\t\tvassal_contracts={ }\n\t\trealm_capital=3\n\t}\n")
+        more, lst, contracts = "", "1 2", ""
+    ref_body = gamestate(
+        living=living,
+        titles=title(0, "c_a", "") + title(1, "b_x", "\tde_jure_liege=3\n" + cap)
+        + title(2, "b_y", "\tde_jure_liege=3\n") + title(3, "c_new", f"\tholder=9\n\tde_jure_vassals={{ {lst} }}\n")
+        + more,
+        extra="provinces={\n1={\n}\n}\n" + contracts,
+    )
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    g = save.gamestate
+    return ex, g, titles_by_key(g), {i: g[e.start:e.end] for i, e in T.entries(g, "living")}
+
+
+def test_1c_bis_the_old_count_takes_the_copied_county_and_its_ruler_goes_to_his_court(tmp_path):
+    """Step 1c-bis (djdarcy's rule, transplant DWP 16:45): the copied county goes to the campaign. No baron is of
+    the player's family, so the barony's old count (40) takes it; his baron (41) stays his vassal; the old count's
+    own moved barony (b_y, the "mixed" case) simply comes with him. The copied ruler 9 loses his only title and
+    goes to the new holder's court."""
+    ex, g, t, living = _settle_fixture(tmp_path)
+    assert ex["reparent_cases"] == {"settled (1c-bis)": 2} and ex["reparent_left"] == []
+    assert {r["barony"]: (r["branch"], r["baron's fate"]) for r in ex["settled"]} == {
+        "b_x": ("the old count takes it (a moved barony of his own came too)", "keeps the barony, vassal of 40"),
+        "b_y": ("the old count takes it (a moved barony of his own came too)", "holds the county")}
+    c_new_id, c_new = t["c_new"]
+    assert b"holder=40" in c_new and b"de_facto_liege" not in c_new          # c_a has no de facto liege
+    for b in ("b_x", "b_y"):
+        assert f"de_jure_liege={c_new_id}".encode() in t[b][1] and f"de_facto_liege={c_new_id}".encode() in t[b][1]
+    assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", c_new).group(1).split()) == [b"1", b"2"]
+    assert ex["contracts_moved"] == 0 and re.search(rb"vassal_contracts=\{\s*0\s*\}", living[40])
+    assert re.search(rf"domain=\{{[^}}]*\b{c_new_id}\b".encode(), living[40])
+    (ruler,) = ex["settled_landless_rulers"]
+    assert b"employer=40" in living[ruler] and re.search(rb"domain=\{\s*\}", living[ruler])
+    assert b"realm_capital" not in living[ruler]
+
+
+def test_1c_bis_a_baron_of_the_players_family_is_promoted(tmp_path):
+    """A baron of the player's house is promoted to count of the copied county; the old count keeps his own."""
+    ex, g, t, living = _settle_fixture(tmp_path, player_house=True)
+    assert {r["branch"] for r in ex["settled"]} == {"family baron promoted (own house or dynasty)"}
+    c_new_id, c_new = t["c_new"]
+    assert b"holder=41" in c_new and b"holder=40" in t["c_a"][1]
+    assert re.search(rf"domain=\{{[^}}]*\b{c_new_id}\b".encode(), living[41])
+    (ruler,) = ex["settled_landless_rulers"]
+    assert b"employer=41" in living[ruler]
+
+
+def test_1c_bis_a_copied_baron_in_the_county_becomes_the_new_counts_vassal(tmp_path):
+    """Ruling Q2 (director 17:3x): a baron 1.20's history put in the county stays a baron, now a vassal of the new
+    (campaign) count: his contract names the new count, and it leaves the displaced ruler's list for his."""
+    ex, g, t, living = _settle_fixture(tmp_path, copied_baron=True)
+    assert b"holder=40" in t["c_new"][1]
+    b_w = t["b_w"][1]
+    baron = int(re.search(rb"holder=(\d+)", b_w).group(1))
+    c = gs.locate(g, "vassal_contracts/active")
+    body = g[c.open:c.close]
+    m = re.search(rb"\n\t*(\d+)=\{\s*vassal=" + str(baron).encode() + rb"\s*liege=(\d+)", body)
+    assert m and int(m.group(2)) == 40, body
+    cid = m.group(1)
+    assert re.search(rb"vassal_contracts=\{[^}]*\b" + cid + rb"\b", living[40])
+    (ruler,) = ex["settled_landless_rulers"]                 # 9, whose only title c_new was
+    assert not re.search(rb"vassal_contracts=\{[^}]*\b" + cid + rb"\b", living[ruler])
+
+
+def test_1c_bis_a_barony_the_displaced_ruler_holds_in_the_county_stays_his_and_is_named(tmp_path):
+    """Director 2026-10-26 18:0x: the displaced ruler's own other barony in the county is left with him (the game
+    keeps it with him on load), and the report names it; he keeps it, so he is not landless."""
+    ex, g, t, living = _settle_fixture(tmp_path, ruler_barony=True)
+    rows = {r["barony"]: r for r in ex["settled"]}
+    assert rows["b_v"]["baron's fate"] == "held by the displaced ruler, left with him"
+    ruler = rows["b_v"]["old holder"]
+    assert f"holder={ruler}".encode() in t["b_v"][1] and b"holder=40" in t["c_new"][1]
+    assert ex["settled_landless_rulers"] == [] and b"employer=40" not in living[ruler]
+    assert re.search(rf"realm_capital={t['b_v'][0]}".encode(), living[ruler])     # his capital moves to b_v
+
+
+def test_1c_bis_a_capital_baron_who_is_not_the_new_count_goes_landless_to_his_court(tmp_path):
+    """Ruling Q1 (director 17:3x): the county's holder always holds its capital barony and no built barony is free,
+    so a capital baron who is not the new count gives his barony to him, loses his contract, and joins his court."""
+    ex, g, t, living = _settle_fixture(tmp_path, capital=True)
+    rows = {r["barony"]: r for r in ex["settled"]}
+    assert "landless" in rows["b_x"]["baron's fate"]
+    assert b"holder=40" in t["b_x"][1]
+    assert b"employer=40" in living[41] and re.search(rb"domain=\{\s*\}", living[41])
+    c = gs.locate(g, "vassal_contracts/active")
+    assert b"vassal=41" not in g[c.open:c.close]
     assert re.search(rb"vassal_contracts=\{\s*\}", living[40])
-    assert re.search(rb"vassal_contracts=\{\s*0\s*\}", living[holder])
+    assert re.search(rb"domain=\{[^}]*\b1\b", living[40])
 
 
 def test_1c_a_capital_barony_is_named_not_moved(tmp_path):
     """Ruling A: the game gives a county's capital barony to the county's holder, so a lone baron whose barony is
-    the capital of its 1.20 county cannot keep it; the case is named (re-save of e2e_1c4: 11 of 18 lost)."""
+    the capital of its 1.20 county cannot keep it; the case is named (re-save of e2e_1c4: 11 of 18 lost). The
+    1.20 county here is a CAMPAIGN county (held by 42), so 1c-bis does not apply: the game's rule stands."""
     save_body = gamestate(
-        living=char(40) + char(41),
+        living=char(40) + char(41) + char(42),
         titles=title(0, "c_a", "\tholder=40\n\tde_jure_vassals={ 1 }\n")
-        + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n"),
-        title_index=2, extra="provinces={\n1={\n}\n}\n")
+        + title(1, "b_x", "\tholder=41\n\tde_jure_liege=0\n\tde_facto_liege=0\n")
+        + title(2, "c_new", "\tholder=42\n"),
+        title_index=3, extra="provinces={\n1={\n}\n}\n")
     ref_body = gamestate(
         living=char(9),
         titles=title(0, "c_a", "") + title(1, "b_x", "\tde_jure_liege=2\n\tcapital_barony=yes\n")
