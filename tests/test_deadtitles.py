@@ -63,3 +63,17 @@ def test_apply_renames_and_removes_with_references(tmp_path):
     assert set(res.removed) == {"c_split", "b_waste", "b_s1", "b_keep"}
     c_a2 = dict(T.entries(out, "landed_titles/landed_titles"))[0]
     assert b"heir={ 5 }" in out[c_a2.start:c_a2.end]    # a title's heirs are characters: title 5's removal leaves them
+
+
+def test_county_records_follow_renames_and_removals(tmp_path):
+    """county_manager/counties is keyed by the county's title KEY: a renamed county's record takes the new key, a
+    removed county's record goes (census 2026-10-26: 11 records left under dead keys, 16 stale)."""
+    save = SAVE + (b"county_manager={\n\tcounties={\n\t\tc_a={\n\t\t\tculture=1\n\t\t}\n"
+                   b"\t\tc_split={\n\t\t\tculture=2\n\t\t}\n\t}\n}\n")
+    old, new = dirs(tmp_path)
+    ep = gs.EditPass()
+    res = D.apply(save, D.classify(save, old, new), ep)
+    out = ep.apply(save)
+    b = gs.locate(out, "county_manager/counties")
+    assert {e.key for e in gs.iter_entries(out, *b.body)} == {b"c_a2"}
+    assert (res.county_records_renamed, res.county_records_removed) == (1, 1)

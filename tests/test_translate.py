@@ -152,6 +152,17 @@ def test_two_reference_objects_joining_one_save_object_are_refused():
         T.Translator.build(save, ref)
 
 
+def test_named_history_ids_are_whole_keys():
+    """A named history id (han_1176) is its own key, never the number inside it (census 2026-10-26: the unanchored
+    regex read han_1176=5552 as 1176, joining the wrong people)."""
+    save = gamestate(living=char(30), lookup="\t1176=30\n")
+    ref = gamestate(living=char(7) + char(8), lookup="\than_1176=7\n\t1176=8\n")
+    assert T.character_lookup(ref) == {"han_1176": 7, "1176": 8}
+    tr = T.Translator.build(save, ref)
+    assert tr.id("character", 8) == 30                  # the numeric history id joins
+    assert tr.id("character", 7) != 30                  # the named one is a different person: not joined to 30
+
+
 def test_a_nested_key_is_not_the_entry_key():
     save = gamestate(titles=title(3, "k_real"))
     ref = gamestate(titles="0={\n\tvariables={\n\t\tkey=k_fake\n\t}\n\tkey=k_real\n}\n")

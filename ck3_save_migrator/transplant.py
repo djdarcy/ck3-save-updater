@@ -52,6 +52,8 @@ CARRIED: dict[str, str] = {
 }
 # anonymous pair lists carried when BOTH people are copied (a campaign person never gains a relation the
 # reference's history invented)
+# entries carried because they point at a carried owner (nothing points at them): space -> (kind, owner field)
+OWNED: dict[str, tuple[str, bytes]] = {"regiment": ("armies/regiments", b"owner")}
 PAIR_LISTS = {"relations/active_relations": (b"first", b"second"), "opinions/active_opinions": (b"owner", b"target")}
 # carried from any copied object; the rest (council tasks, contracts, ...) only from a copied person
 CARRIED_FROM_ANY = frozenset({"house", "dynasty", "culture", "coat_of_arms", "regiment", "domicile",
@@ -64,6 +66,7 @@ FAMILY = ("family_data/spouse", "family_data/primary_spouse", "family_data/child
           "family_data/former_spouses/*", "family_data/betrothed", "family_data/concubine",
           "family_data/concubinist")
 TITLES = "landed_titles/landed_titles"
+COUNTIES = "county_manager/counties"
 
 
 @dataclass
@@ -78,6 +81,7 @@ class Report:
     character_lookup_added: int = 0
     sections_created: list[str] = field(default_factory=list)
     not_carried: Counter = field(default_factory=Counter)      # space -> objects left out for a missing party
+    owner_carried: Counter = field(default_factory=Counter)    # space -> objects carried for their carried owner
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
@@ -86,7 +90,7 @@ class Report:
         r = self.rewrite
         return {"planned": {f"{a} {b}": n for (a, b), n in self.planned.items()},
                 "inserted": dict(self.inserted), "sections_created": self.sections_created,
-                "not_carried": dict(self.not_carried),
+                "not_carried": dict(self.not_carried), "owner_carried": dict(self.owner_carried),
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
@@ -143,6 +147,16 @@ class Transplant:
         if k not in self._refs:
             self._refs[k] = list(T.references(self.ref, e, kind))
         return self._refs[k]
+
+    def county_records(self) -> dict[str, gs.Block]:
+        """The reference's county_manager records, by county title key."""
+        if "_counties" not in self._ent:
+            try:
+                b = gs.locate(self.ref, COUNTIES)
+                self._ent["_counties"] = {e.key.decode(): e for e in gs.iter_entries(self.ref, *b.body) if e.key}
+            except gs.GamestateError:
+                self._ent["_counties"] = {}
+        return self._ent["_counties"]
 
     def title_keys(self) -> dict[int, str]:
         """reference title id -> key."""
@@ -232,6 +246,18 @@ class Transplant:
                     self.carry[rsp].add(v)
                     seen.add((rsp, v))
                     frontier.append((rsp, v))
+        # owner back-references (R16's closure amended 2026-10-26): an entry that points at a carried owner while
+        # nothing points at it comes too, e.g. a copied ruler's men-at-arms (regiment owner=<character>, measured:
+        # 3,626 of the reference's 16,519 regiments, every value a living character)
+        for sp, (kind, fld) in OWNED.items():
+            join = self.tr.spaces[sp].join
+            for i, e in self.entries(kind).items():
+                if i in self.carry[sp] or i in join:
+                    continue
+                m = re.search(rb"[\n\t]" + fld + rb"=(\d+)", self.ref[e.start:min(e.end, e.start + 2000)])
+                if m and int(m.group(1)) in self.carry["character"]:
+                    self.carry[sp].add(i)
+                    self.report.owner_carried[sp] += 1
         self.carry["ai"] = {p for p in self.carry["character"] if p in self.entries("ai/ai_strategies")}
         # an object that binds two parties is carried only when both are in the output (a vassal contract
         # carried with its liege but without its vassal binds nobody); the references to it are then dropped
@@ -302,6 +328,13 @@ class Transplant:
             payload["ai/ai_strategies"].append(rewrite("ai/ai_strategies", self.entries("ai/ai_strategies")[p]))
         for t in sorted(self.carry["title"]):
             payload[TITLES].append(rewrite(TITLES, self.entries(TITLES)[t]))
+        # a database keyed BY a copied record: every carried county brings its county_manager record (R16's
+        # closure amended 2026-10-26: forward references, databases keyed by a copied record, owner back-references)
+        records = self.county_records()
+        for t in sorted(self.carry["title"]):
+            e = records.get(self.title_keys().get(t, ""))
+            if e is not None:
+                payload[COUNTIES].append(rewrite(COUNTIES, e))
         for pv in sorted(self.carry["province"]):
             payload["provinces"].append(rewrite("provinces", self.entries("provinces")[pv]))
         for sp, kind in CARRIED.items():

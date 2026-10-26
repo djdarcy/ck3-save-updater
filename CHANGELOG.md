@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-26
+
+### Fixed
+- A named history id (`han_1176=5552`) was read as the number inside it, so 2,460 of the reference's history ids were lost or overwritten and 583 character matches the new-map transplant should have made were missed. History ids are now read whole.
+- Every county the transplant brings in now gets its county record (culture, faith or rite, development), the record the game reads for epidemics, buildings and tournaments. Without it a migrated save filled the game's error log with "culture trigger [Failed context switch]" within a minute of play. The count now equals a fresh 1.20 game's. A county renamed by the map matching keeps its record under the new name; a removed county's record is dropped.
+- `lint` reports a held county with no county record.
+- `-v` and `-q` count the same whether they come before or after the command.
+
 ### Added
 - The new map regions, opt-in and still in progress: `--rules R14,R16` brings the lands, provinces and people that 1.20 added after your save's version (East and Southeast Asia, Tibet, Japan, ...) in from a save written by 1.20 at your campaign's date (`--reference`). R14 takes the titles and provinces your save has never had; R16 takes their rulers, courts and close families, with their houses, cultures and the objects they own; a write step (R17) runs after them by itself. Without them, 1.20 leaves those titles unheld and hands them to the player. Not yet part of `--rules all`.
 - Every object copied in gets a new number that cannot clash with anything in your save, while everything it points at keeps pointing at the right thing. The game numbers its objects by slot, and the copied ones take free slots above your save's own. Where your save already has the same thing (a title, a culture, a dynasty, a historical character), the copy points at yours instead of bringing a second one. Links to things that are not brought along are removed rather than left pointing at nothing.

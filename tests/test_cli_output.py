@@ -76,6 +76,13 @@ def test_verbose_adds_timing_and_io(saves, capsys):
     assert "rules applied" in out                        # the default narration is still there
 
 
+def test_verbosity_flags_work_before_and_after_the_sub_command():
+    parse = cli.build_parser().parse_args
+    for argv, want in ((["-v", "rules"], 1), (["rules", "-v"], 1), (["-v", "rules", "-v"], 2), (["-q", "rules"], -1)):
+        a = parse(argv)
+        assert (a.top_verbose + a.verbose) - (a.top_quiet + a.quiet) == want, argv
+
+
 def test_every_emitted_channel_is_declared():
     src = Path(cli.__file__).read_text(encoding="utf-8")
     used = set(re.findall(r'channel="(\w+)"', src)) | set(re.findall(r"say\([^)]*?, \"(\w+)\"", src))

@@ -234,6 +234,17 @@ def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
                   "De Jure / De Facto liege')")
     rep.add("held baronies have a county", "warn", orphan,
             gloss="Held baronies with no county above them; the game does not log these unless they are a capital")
+    # INV-1 (census 2026-10-26): every HELD county has its county_manager record (development, culture, rite).
+    # Vanilla 1.20 at 987: 4,703 county titles, the 3,476 held ones each with a record, the unheld ones without.
+    cm = idx.block("county_manager/counties")
+    if cm is not None:
+        # any indent (inserted records sit at column 0); keys have hyphens (c_al-arid)
+        records = set(re.findall(rb"(?m)^[ \t]*(c_[^\s={}]+)=\{", g[cm.open:cm.close]))
+        no_record = sorted(f[b"key"].decode() for f in titles.values()
+                           if f[b"key"] and f[b"key"].startswith(b"c_") and f[b"holder"] and f[b"key"] not in records)
+        rep.add("held counties have a county record", "error", no_record,
+                gloss="A held county with no county_manager record has no culture, faith or development; the game "
+                      "then fails every script that asks for them (seen as 'culture trigger [Failed context switch]')")
 
 
 def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:

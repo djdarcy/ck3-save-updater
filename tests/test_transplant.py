@@ -49,6 +49,21 @@ def run_r14(tmp_path: Path):
     return save, ctx, {r.id: r for r in res}
 
 
+def test_r17_carries_the_county_record_of_a_carried_county(tmp_path):
+    """county_manager/counties is keyed BY the county's title key: a carried county brings its record; a joined
+    (campaign) county does not get the reference's (census 2026-10-26: 910 new-map counties arrived without one)."""
+    cm = b"county_manager={\n\tcounties={\n%s\t}\n}\n"
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE + cm % b""))
+    ref = REF + cm % (b"\t\tc_new={\n\t\t\tdevelopment=7\n\t\t}\n\t\tk_old={\n\t\t\tdevelopment=3\n\t\t}\n")
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref
+    R.run_rules(save, R.select("R14"), ctx)
+    g = save.gamestate
+    b = gs.locate(g, "county_manager/counties")
+    got = {e.key: g[e.start:e.end] for e in gs.iter_entries(g, *b.body)}
+    assert set(got) == {b"c_new"} and b"development=7" in got[b"c_new"]
+
+
 def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
     out = {}
     for i, e in T.entries(g, "landed_titles/landed_titles"):

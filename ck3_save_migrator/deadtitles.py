@@ -247,6 +247,28 @@ class Applied:
     renamed: dict[str, str] = field(default_factory=dict)
     removed: list[str] = field(default_factory=list)
     references_removed: Counter = field(default_factory=Counter)   # field name -> count
+    county_records_renamed: int = 0
+    county_records_removed: int = 0
+
+
+def _county_records(save: bytes, res: Applied, ep) -> None:
+    """The per-county record (county_manager/counties) is keyed by the county's title KEY, so it follows R15: a
+    renamed county's record takes the new key; a removed county's record goes. (Census 2026-10-26: 11 renamed
+    campaign counties kept their record under the dead key, and 16 stale records stayed.)"""
+    from . import gamestate as gs
+    try:
+        b = gs.locate(save, "county_manager/counties")
+    except gs.GamestateError:
+        return
+    gone = {k for k in res.removed if k.startswith("c_")}
+    for e in gs.iter_entries(save, *b.body):
+        k = e.key.decode() if e.key else ""
+        if k in res.renamed and k.startswith("c_"):
+            ep.add(gs.Edit(e.start, e.start + len(e.key), res.renamed[k].encode(), "R15", f"county record {k}"))
+            res.county_records_renamed += 1
+        elif k in gone:
+            ep.delete_block(save, e, "R15", f"county record {k} (removed county)")
+            res.county_records_removed += 1
 
 
 def apply(save: bytes, mappings: list[Mapping], ep) -> Applied:
@@ -269,6 +291,7 @@ def apply(save: bytes, mappings: list[Mapping], ep) -> Applied:
             ep.delete_block(save, e, "R15", f"remove {m.key} ({m.cls})")
             removed_ids[m.save_id] = m.key
             res.removed.append(m.key)
+    _county_records(save, res, ep)
     if not removed_ids:
         return res
     ids = b"|".join(str(i).encode() for i in removed_ids)

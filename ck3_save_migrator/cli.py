@@ -53,15 +53,20 @@ def say(level: int, text: str, channel: str, err: bool = False) -> None:
     get_output().emit(level, text, channel=channel, file="stderr" if err else None)
 
 
-def add_verbosity_flags(parser: argparse.ArgumentParser) -> None:
-    """The one place the verbosity flags are declared (loglib's recipe); called for every sub-command."""
-    parser.add_argument("-v", "--verbose", action="count", default=0,
+def add_verbosity_flags(parser: argparse.ArgumentParser, top: bool = False) -> None:
+    """The one place the verbosity flags are declared (loglib's recipe), on the main parser AND every
+    sub-command, feeding one chain: `-v migrate`, `migrate -v` and `-v migrate -v` (= -vv) all work.
+
+    The main parser's copies write to their own fields (``top_*``) and main() adds the two: with one shared
+    field, argparse would let the sub-command's default (0) overwrite a `-v` given before the sub-command."""
+    p = "top_" if top else ""
+    parser.add_argument("-v", "--verbose", action="count", default=0, dest=p + "verbose",
                         help="more detail (repeatable: -v progress and timing, -vv reads/writes)")
-    parser.add_argument("-q", "--quiet", action="count", default=0,
+    parser.add_argument("-q", "--quiet", action="count", default=0, dest=p + "quiet",
                         help="less (repeatable: -q results only, -qqq errors only, -qqqq nothing)")
     parser.add_argument("--show", action="append", metavar="CHANNEL[:LEVEL]", type=parse_channel_spec,
-                        default=[], help="raise one channel, e.g. --show transplant:1 "
-                                         "(channels: rules, transplant, lint, io, timing)")
+                        default=[], dest=p + "show", help="raise one channel, e.g. --show transplant:1 "
+                                                          "(channels: rules, transplant, lint, io, timing)")
 
 
 def read_save_logged(path):
@@ -405,8 +410,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
-    # the verbosity flags on every sub-command (on the sub-parsers only: argparse lets a sub-parser's defaults
-    # overwrite the main parser's values, so `-v migrate` would be silently reset)
+    # the verbosity flags before and after the sub-command, one chain (see add_verbosity_flags)
+    add_verbosity_flags(parser, top=True)
     for sp in sub.choices.values():
         add_verbosity_flags(sp)
     return parser
@@ -414,8 +419,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
-    init_output(verbosity=resolve_verbosity(args.verbose, args.quiet, env_var="CK3SM_VERBOSITY"),
-                channels=resolve_channel_specs([f"{s.name}:{s.level}" for s in args.show], env_var="CK3SM_SHOW"),
+    shows = args.top_show + args.show
+    init_output(verbosity=resolve_verbosity(args.top_verbose + args.verbose, args.top_quiet + args.quiet,
+                                            env_var="CK3SM_VERBOSITY"),
+                channels=resolve_channel_specs([f"{s.name}:{s.level}" for s in shows], env_var="CK3SM_SHOW"),
                 channel_defs=CHANNELS, strict_channels=True)
     try:
         return args.func(args)

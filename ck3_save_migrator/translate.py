@@ -131,13 +131,21 @@ def founding_houses(g: bytes) -> dict[tuple[int, bytes], int]:
     return out
 
 
-def character_lookup(g: bytes) -> dict[int, int]:
-    """history id -> character id, from the top-level ``character_lookup``."""
+_LOOKUP_LINE = re.compile(rb"^[ \t]*([^\s={}]+)=(\d+)[ \t]*$", re.M)
+
+
+def character_lookup(g: bytes) -> dict[str, int]:
+    """history id -> character id, from the top-level ``character_lookup``.
+
+    History ids are whole keys, numeric (``100=18301``) or named (``han_1176=5552``, ``abbasid_concubines_1=13000``),
+    so each line is matched whole and the key kept as written. (An unanchored ``(\\d+)=(\\d+)`` read ``han_1176=5552``
+    as ``1176``: 2,460 of the 1.20 reference's history ids were lost or overwritten, census 2026-10-26.)
+    """
     try:
         b = gs.find_section(g, "character_lookup")
     except gs.GamestateError:
         return {}
-    return {int(a): int(c) for a, c in re.findall(rb"(\d+)=(\d+)", g[b.open + 1:b.close])}
+    return {a.decode(): int(c) for a, c in _LOOKUP_LINE.findall(g[b.open + 1:b.close])}
 
 
 def traits_lookup(g: bytes) -> list[str]:

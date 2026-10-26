@@ -70,6 +70,51 @@ def send_to_back(hwnd: int) -> None:
     ctypes.windll.user32.SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE)
 
 
+def post_console(hwnd: int, command: str) -> None:
+    """Type a console command into the game window by POSTED messages (no focus taken): the console key (`),
+    the command's characters, Enter, and the console key again to close it. Needs -debug_mode."""
+    import ctypes
+    import time as _t
+    user32 = ctypes.windll.user32
+    WM_KEYDOWN, WM_KEYUP, WM_CHAR = 0x0100, 0x0101, 0x0102
+    VK_OEM_3, VK_RETURN = 0xC0, 0x0D
+
+    def key(vk: int, ch: str | None = None) -> None:
+        scan = user32.MapVirtualKeyW(vk, 0)
+        user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 1 | (scan << 16))
+        if ch is not None:
+            user32.PostMessageW(hwnd, WM_CHAR, ord(ch), 1 | (scan << 16))
+        user32.PostMessageW(hwnd, WM_KEYUP, vk, 1 | (scan << 16) | (0xC0 << 24))
+        _t.sleep(0.05)
+
+    key(VK_OEM_3)
+    _t.sleep(0.5)
+    for ch in command:
+        user32.PostMessageW(hwnd, WM_CHAR, ord(ch), 1)
+        _t.sleep(0.02)
+    key(VK_RETURN, "\r")
+    _t.sleep(0.5)
+    key(VK_OEM_3)
+
+
+KEYS = {"space": 0x20, "plus": 0x6B, "minus": 0x6D, "1": 0x31, "2": 0x32, "3": 0x33, "4": 0x34, "5": 0x35,
+        "enter": 0x0D, "escape": 0x1B}
+
+
+def post_key(hwnd: int, name: str) -> None:
+    """One key press (down, char where printable, up) posted to the game window; no focus taken."""
+    import ctypes
+    import time as _t
+    user32 = ctypes.windll.user32
+    vk = KEYS[name]
+    scan = user32.MapVirtualKeyW(vk, 0)
+    user32.PostMessageW(hwnd, 0x0100, vk, 1 | (scan << 16))
+    if name in ("space", "1", "2", "3", "4", "5"):
+        user32.PostMessageW(hwnd, 0x0102, ord(" " if name == "space" else name), 1 | (scan << 16))
+    user32.PostMessageW(hwnd, 0x0101, vk, 1 | (scan << 16) | (0xC0 << 24))
+    _t.sleep(0.3)
+
+
 def tail_new(path: Path, pos: dict) -> list[str]:
     if not path.exists():
         return []
@@ -89,6 +134,19 @@ def tail_new(path: Path, pos: dict) -> list[str]:
 def main(run_name: str, args: list[str]) -> int:
     # game logs carry names like "Bolesław"; a cp1252 console would kill the watcher mid-run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # harness options (not passed to the game): --h-console=CMD types CMD into the debug console once, a few
+    # seconds after the 'In Game' idler; repeatable, sent in order
+    consoles = [a.split("=", 1)[1] for a in args if a.startswith("--h-console=")]
+    # --h-key=NAME: keys posted once, in order, after the console commands (space, plus, 1-5, ...)
+    keys = [a.split("=", 1)[1] for a in args if a.startswith("--h-key=")]
+    # --h-max=SECONDS: run length cap (default 15 min); --h-guard-autosave: back up the user's autosave*.ck3 first
+    # and restore any that changed when the run ends (a long run writes the yearly autosave)
+    global MAX_SECONDS
+    MAX_SECONDS = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--h-max=")), MAX_SECONDS)
+    guard = "--h-guard-autosave" in args
+    args = [a for a in args if not a.startswith("--h-")]
+    keys_sent = False
+    in_game_at = None
     stamp = dt.datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
     run = PROJECT / "private" / "data" / "runs" / f"{stamp}__{run_name}"
     (run / "shots").mkdir(parents=True)
@@ -103,6 +161,15 @@ def main(run_name: str, args: list[str]) -> int:
         timeline.flush()
 
     crashes_before = {p.name for p in CRASHES.iterdir()} if CRASHES.exists() else set()
+    saves_dir = DOCS / "save games"
+    guarded: dict[str, str] = {}
+    if guard:
+        import hashlib
+        (run / "autosave-guard").mkdir()
+        for f in saves_dir.glob("autosave*.ck3"):
+            shutil.copy2(f, run / "autosave-guard" / f.name)
+            guarded[f.name] = hashlib.sha256(f.read_bytes()).hexdigest()
+        note(f"autosave guard: {len(guarded)} file(s) copied and hashed")
     # a wedged GPU driver makes ck3.exe die at "Failed creating DX11 device" before touching any save
     probe = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("d3d11_probe.py"))],
                            capture_output=True, text=True)
@@ -159,6 +226,18 @@ def main(run_name: str, args: list[str]) -> int:
                             note(f"error.log: {line[:300]}")
                     elif tags and tags != ["VERSION"]:
                         note(f"{name} {'/'.join(dict.fromkeys(tags))}: {line[:300]}")
+                        if "Setting idler 'In Game'" in line and in_game_at is None:
+                            in_game_at = time.time()
+            if consoles and in_game_at and hwnd and time.time() - in_game_at > 8:
+                cmd_txt = consoles.pop(0)
+                note(f"console (posted, no focus): {cmd_txt}")
+                post_console(hwnd, cmd_txt)
+                in_game_at = time.time()          # the next command waits another 8 s
+            elif keys and not consoles and not keys_sent and in_game_at and hwnd and time.time() - in_game_at > 8:
+                for k in keys:
+                    post_key(hwnd, k)
+                note(f"keys (posted, no focus): {' '.join(keys)}")
+                keys_sent = True
             if CRASHES.exists():
                 new = {p.name for p in CRASHES.iterdir()} - crashes_before
                 if new:
@@ -190,6 +269,23 @@ def main(run_name: str, args: list[str]) -> int:
             for p in CRASHES.iterdir():
                 if p.name not in crashes_before:
                     shutil.copytree(p, run / "crashes" / p.name, dirs_exist_ok=True)
+        if guard:
+            import hashlib
+            proc.poll() is None and proc.terminate()      # the game must be gone before its files are put back
+            time.sleep(3)
+            for f in saves_dir.glob("autosave*.ck3"):
+                h = hashlib.sha256(f.read_bytes()).hexdigest()
+                if f.name not in guarded:
+                    shutil.move(str(f), str(run / f.name))              # new: the soak's own save, kept as evidence
+                    note(f"autosave guard: new {f.name} moved to the run folder")
+                elif h != guarded[f.name]:
+                    shutil.copy2(f, run / f"soak__{f.name}")            # keep the game's version too
+                    shutil.copy2(run / "autosave-guard" / f.name, f)    # and restore the user's
+                    note(f"autosave guard: {f.name} changed; the game's copy kept as soak__{f.name}, the user's restored")
+            for name, h in guarded.items():
+                cur = saves_dir / name
+                ok = cur.exists() and hashlib.sha256(cur.read_bytes()).hexdigest() == h
+                note(f"autosave guard: {name} {'verified' if ok else 'NOT VERIFIED -- restore from ' + str(run / 'autosave-guard')}")
         timeline.close()
         print(f"run folder: {run}")
     return 0 if rc in (None, 0) else 1

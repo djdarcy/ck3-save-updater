@@ -322,6 +322,10 @@ FIELDS["triggered_event"] = {}           # its references are typed (scope/.../i
 for _sec in SPACES["character"]:
     FIELDS[_sec] = FIELDS["character"]
 FIELDS["vassal_contracts/active"] = FIELDS["vassal_contracts/database"]
+# the per-county record (development, control, culture, rite), keyed by the county's title KEY (c_middlesex), not
+# an id; its rite is identity (R8 copied the religion databases whole). Census 2026-10-26: 910 new-map counties
+# arrived without one, and the engine then gives them culture=none.
+FIELDS["county_manager/counties"] = {"culture": "culture"}
 
 _DATE = re.compile(rb"^-?\d+\.\d+\.\d+$")
 
