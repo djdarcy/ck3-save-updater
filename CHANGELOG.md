@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Every county the transplant brings in now gets its county record (culture, faith or rite, development), the record the game reads for epidemics, buildings and tournaments. Without it a migrated save filled the game's error log with "culture trigger [Failed context switch]" within a minute of play. The count now equals a fresh 1.20 game's. A county renamed by the map matching keeps its record under the new name; a removed county's record is dropped.
 - `lint` reports a held county with no county record.
 - `-v` and `-q` count the same whether they come before or after the command.
+- A copied ruler's men-at-arms come with them (433 regiments on the founding campaign), and the new regions get the mercenary companies a fresh 1.20 game has (167, with their titles and regiments). A copied title whose runtime name the campaign already uses is renumbered so no name points at two titles.
+- The copied cultures, history dynasties and history houses are added to the game's start-of-game lists, and the copied coats of arms keep their names; a name the campaign already has keeps the campaign's coat.
+- `lint` warns when a copied culture is missing from the game's list of cultures.
+- The version the tool reports is now 0.3.1; the first 0.3.1 tag pointed at a tree that still said 0.3.0.
 
 ### Added
 - The new map regions, opt-in and still in progress: `--rules R14,R16` brings the lands, provinces and people that 1.20 added after your save's version (East and Southeast Asia, Tibet, Japan, ...) in from a save written by 1.20 at your campaign's date (`--reference`). R14 takes the titles and provinces your save has never had; R16 takes their rulers, courts and close families, with their houses, cultures and the objects they own; a write step (R17) runs after them by itself. Without them, 1.20 leaves those titles unheld and hands them to the player. Not yet part of `--rules all`.
@@ -90,7 +94,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.1.0...v0.2.0

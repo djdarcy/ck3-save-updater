@@ -536,3 +536,20 @@ def test_localization_key_is_rejected_only_directly_in_a_title():
     L.check_families(g, rep, L.GameData(), L.SectionIndex(g))
     f = {x.check: x for x in rep.findings}
     assert f["Unexpected token: localization_key (in landed_titles)"].count == 1
+
+
+# --------------------------------------------------------------------------- the game-start registries
+def test_template_cultures_unregistered_is_a_warning_and_untemplated_ones_are_fine():
+    """INV-6 (census 2026-10-26): a templated culture missing from template_cultures is named; a culture with no
+    template (a hybrid or divergent one) never is. Measured on real saves: reference 0, pre-fix output 55."""
+    def g(listed: str) -> bytes:
+        return ("culture_manager={\n\ttemplate_cultures={ " + listed + " }\n\tcultures={\n"
+                "0={\n\t\t\tculture_template=\"irish\"\n}\n1={\n\t\t\tculture_template=\"han\"\n}\n"
+                "2={\n\t\t\tname=\"Anglo-Irish\"\n}\n\t}\n}\n").encode()
+    rep = L.LintReport()
+    L.check_registries(g("0"), rep)
+    (f,) = rep.findings
+    assert (f.check, f.severity, f.count, f.examples) == ("template cultures are registered", "warn", 1, ["han (1)"])
+    rep = L.LintReport()
+    L.check_registries(g("0 1"), rep)
+    assert rep.findings == []

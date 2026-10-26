@@ -7,6 +7,7 @@ province, and their coats. Nothing here needs the gitignored real data.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ck3_save_migrator import gamestate as gs
@@ -15,7 +16,7 @@ from ck3_save_migrator import savefile as sf
 from ck3_save_migrator import translate as T
 from ck3_save_migrator.transplant import Transplant
 from tests.fixtures.make_ck3 import DEFAULT_META, build_ck3
-from tests.test_translate import char, gamestate, title
+from tests.test_translate import char, culture, gamestate, title
 
 SAVE = gamestate(
     living=char(40),
@@ -62,6 +63,44 @@ def test_r17_carries_the_county_record_of_a_carried_county(tmp_path):
     b = gs.locate(g, "county_manager/counties")
     got = {e.key: g[e.start:e.end] for e in gs.iter_entries(g, *b.body)}
     assert set(got) == {b"c_new"} and b"development=7" in got[b"c_new"]
+
+
+def test_r17_carries_a_company_for_its_carried_county_and_renumbers_a_taken_x_key(tmp_path):
+    """A mercenary company points at its home county and nothing points at it: it comes when its county does, with
+    its own x_mc_ title. Runtime x_ keys are numbered per save, so a key the campaign already has takes the next
+    free number of its prefix (e2e 2026-10-26: x_mc_6 named both 12116 and 30389). A company whose county stays
+    behind is not carried."""
+    mc = "mercenary_company_manager={\n\tmercenary_companies={\n%s\t}\n}\n"
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "k_old", "\tde_jure_vassals={ 1 }\n\tcoat_of_arms_id=0\n") + title(1, "d_old", "\tde_jure_liege=0\n")
+        + title(2, "k_lone", "") + title(3, "x_mc_1", "") + title(4, "x_mc_7", ""),
+        coa="0={\n\tpattern=\"a\"\n}\n5={\n\tpattern=\"b\"\n}\n", coa_next=6, title_index=5,
+        extra="provinces={\n1={\n\tholding={\n\t\ttype=\"castle_holding\"\n\t}\n}\n2={\n}\n}\n" + mc % "",
+    )
+    # the companies: 0 lives in c_new (carried), 1 in d_old (the campaign's): only 0 comes
+    # x_mc_1 is led by its captain, person 11, who must come with it (soak 2026-10-26: unheld company titles)
+    titles9 = title(9, "x_mc_1", "\tholder=11\n") + title(10, "x_mc_2", "")
+    ref = REF.replace(b"8={\n\tkey=d_landless\n}\n", b"8={\n\tkey=d_landless\n}\n" + titles9.encode(), 1)
+    ref = ref.replace(b'9={\n\tfirst_name="P9"\n}\n', b'9={\n\tfirst_name="P9"\n}\n' + char(11).encode(), 1)
+    assert titles9.encode() in ref and char(11).encode() in ref
+    ref += (mc % "\t\t0={\n\t\t\ttitle=9\n\t\t\tcounty=3\n\t\t}\n\t\t1={\n\t\t\ttitle=10\n\t\t\tcounty=1\n\t\t}\n").encode()
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref
+    res = {r.id: r for r in R.run_rules(save, R.select("R14"), ctx)}
+    ex = res["R17"].extra
+    assert ex["owner_carried"] == {"mercenary": 1, "captain": 1}
+    assert ex["runtime_keys_renamed"] == {"x_mc_1": "x_mc_8"}          # past the campaign's highest, x_mc_7
+    t = titles_by_key(save.gamestate)
+    assert {"x_mc_1", "x_mc_7", "x_mc_8"} <= set(t) and "x_mc_2" not in t
+    assert b"holder=52" in t["x_mc_8"][1]                              # the captain 11 -> 11 + (save max 40 + 1)
+    assert 52 in {i for i, _ in T.entries(save.gamestate, "living")}
+    g = save.gamestate
+    b = gs.locate(g, "mercenary_company_manager/mercenary_companies")
+    comps = [g[e.start:e.end] for e in gs.iter_entries(g, *b.body)]
+    assert len(comps) == 1
+    assert f"title={t['x_mc_8'][0]}".encode() in comps[0] and f"county={t['c_new'][0]}".encode() in comps[0]
 
 
 def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
@@ -141,6 +180,56 @@ def test_r16_brings_the_holders_and_keeps_their_titles_held(tmp_path):
     t = titles_by_key(save.gamestate)
     assert b"holder=50" in t["d_new"][1]                # character 9 -> 9 + (save max 40 + 1)
     assert 50 in {i for i, _ in T.entries(save.gamestate, "living")}
+
+
+def test_r17_registers_carried_game_start_objects_and_their_coat_names(tmp_path):
+    """The game-start lists (template_cultures, static_dynasties, static_dynasty_houses) name every object the game
+    made from its definitions; a carried one the reference lists is appended, a joined one is not (it is the
+    campaign's already). The coat name map gains the carried coats' names; a name the campaign has keeps its coat
+    (census defects 5-8, 2026-10-26)."""
+    ref = (REF.replace(b'9={\n\tfirst_name="P9"\n}\n', b'9={\n\tfirst_name="P9"\n\tculture=1\n\tdynasty_house=3\n}\n', 1)
+           .replace(b"culture_manager={\n\tcultures={\n", b"culture_manager={\n\ttemplate_cultures={ 0 1 }\n\tcultures={\n"
+                    + culture(0, "irish").encode() + culture(1, "han").encode(), 1)
+           .replace(b"dynasties={\n\tdynasty_house={\n", b"dynasties={\n\tstatic_dynasties={ 2 }\n"
+                    b"\tstatic_dynasty_houses={ 3 }\n\tdynasty_house={\n3={\n\tkey=\"house_x\"\n\tdynasty=2\n}\n", 1)
+           .replace(b"\tdynasties={\n\t}", b"\tdynasties={\n2={\n\tkey=2000\n\tcoat_of_arms_id=9\n}\n\t}", 1)
+           .replace(b"coat_of_arms={\n\tcoat_of_arms_manager_database={\n", b"coat_of_arms={\n"
+                    b"\tcoat_of_arms_manager_name_map={\n\t\tk_old=0\n\t\td_new=7\n\t\t2000=9\n\t}\n"
+                    b"\tcoat_of_arms_manager_database={\n9={\n\tpattern=\"d\"\n}\n", 1))
+    assert ref.count(b"template_cultures") == ref.count(b"static_dynasties") == ref.count(b"2000=9") == 1
+    body = (SAVE.replace(b"culture_manager={\n\tcultures={\n", b"culture_manager={\n\ttemplate_cultures={ 0 }\n"
+                         b"\tcultures={\n" + culture(0, "irish").encode(), 1)
+            .replace(b"dynasties={\n\tdynasty_house={\n", b"dynasties={\n\tstatic_dynasties={ }\n"
+                     b"\tstatic_dynasty_houses={ }\n\tdynasty_house={\n", 1)
+            .replace(b"coat_of_arms={\n", b"coat_of_arms={\n\tcoat_of_arms_manager_name_map={\n\t\tk_old=0\n\t}\n", 1))
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref
+    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    ex = res["R17"].extra
+    assert ex["registered"] == {"culture_manager/template_cultures": 1, "dynasties/static_dynasties": 1,
+                                "dynasties/static_dynasty_houses": 1}
+    assert ex["name_map_added"] == {"title": 1, "other": 1}
+    g = save.gamestate
+
+    def ids(path):
+        b = gs.locate(g, path)
+        return [int(x) for x in g[b.open + 1:b.close].split()]
+
+    def id_of(path, needle):
+        return next(i for i, e in T.entries(g, path) if needle in g[e.start:e.end])
+
+    han, dyn, house = (id_of("culture_manager/cultures", b'"han"'), id_of("dynasties/dynasties", b"key=2000"),
+                       id_of("dynasties/dynasty_house", b'"house_x"'))
+    assert ids("culture_manager/template_cultures") == [0, han]          # irish joined: listed once
+    assert ids("dynasties/static_dynasties") == [dyn] and ids("dynasties/static_dynasty_houses") == [house]
+    nm = gs.locate(g, "coat_of_arms/coat_of_arms_manager_name_map")
+    names = dict(re.findall(rb"([^\s={}]+)=(\d+)", g[nm.open + 1:nm.close]))
+    t = titles_by_key(g)
+    d_new_coat = re.search(rb"coat_of_arms_id=(\d+)", t["d_new"][1]).group(1)
+    dyn_coat = re.search(rb"coat_of_arms_id=(\d+)", g[dict(T.entries(g, "dynasties/dynasties"))[dyn].start:
+                                                      dict(T.entries(g, "dynasties/dynasties"))[dyn].end]).group(1)
+    assert names == {b"k_old": b"0", b"d_new": d_new_coat, b"2000": dyn_coat}
 
 
 def test_a_displaced_ruler_is_placed_in_the_takers_court():

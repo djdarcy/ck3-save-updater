@@ -42,6 +42,7 @@ CARRIED: dict[str, str] = {
     "vassal_contract": "vassal_contracts/database", "memory": "character_memory_manager/database",
     "artifact": "artifacts/artifacts", "coat_of_arms": "coat_of_arms/coat_of_arms_manager_database",
     "regiment": "armies/regiments",
+    "story": "stories/active", "mercenary": "mercenary_company_manager/mercenary_companies",
     # 1.20 systems the save does not have yet (their spaces are absent, so their ids carry over unchanged)
     "domicile": "domiciles/database", "clerical_region": "clerical_region_manager/database",
     "tax_slot": "tax_slot_manager/database", "diarchy": "diarchies/database",
@@ -52,8 +53,15 @@ CARRIED: dict[str, str] = {
 }
 # anonymous pair lists carried when BOTH people are copied (a campaign person never gains a relation the
 # reference's history invented)
-# entries carried because they point at a carried owner (nothing points at them): space -> (kind, owner field)
-OWNED: dict[str, tuple[str, bytes]] = {"regiment": ("armies/regiments", b"owner")}
+# entries carried because they point at a carried owner (nothing points at them):
+# space -> (kind, owner field, the owner's space)
+OWNED: dict[str, tuple[str, bytes, str]] = {
+    "regiment": ("armies/regiments", b"owner", "character"),       # a copied ruler's men-at-arms
+    "story": ("stories/active", b"owner", "character"),            # a copied person's story (Tai migrations, ...)
+    # djdarcy 2026-10-26: the new regions get the companies the 1.20 game has; a company sits in a county and
+    # brings its runtime x_ title and its regiments (below)
+    "mercenary": ("mercenary_company_manager/mercenary_companies", b"county", "title"),
+}
 PAIR_LISTS = {"relations/active_relations": (b"first", b"second"), "opinions/active_opinions": (b"owner", b"target")}
 # carried from any copied object; the rest (council tasks, contracts, ...) only from a copied person
 CARRIED_FROM_ANY = frozenset({"house", "dynasty", "culture", "coat_of_arms", "regiment", "domicile",
@@ -67,6 +75,14 @@ FAMILY = ("family_data/spouse", "family_data/primary_spouse", "family_data/child
           "family_data/concubinist")
 TITLES = "landed_titles/landed_titles"
 COUNTIES = "county_manager/counties"
+# the lists of objects the game made from its own definitions at game start (ascending ids; measured 2026-10-26 in
+# the reference and the campaign: neither is positional, the reference lists 0..n-1): a carried object the
+# reference lists is listed in the output too (census defects 5-7)
+REGISTRIES: dict[str, str] = {"culture_manager/template_cultures": "culture", "dynasties/static_dynasties": "dynasty",
+                              "dynasties/static_dynasty_houses": "house"}
+NAME_MAP = "coat_of_arms/coat_of_arms_manager_name_map"
+_RUNTIME_KEY = re.compile(rb"^(x_(?:[a-z]+_)?)(\d+)$")      # x_mc_6 -> (x_mc_, 6); x_12 -> (x_, 12)
+_PAIR = re.compile(rb"(?m)^[ \t]*([^\s={}]+)=(\d+)[ \t]*$")    # a whole-line key=number pair (name map)
 
 
 @dataclass
@@ -82,6 +98,9 @@ class Report:
     sections_created: list[str] = field(default_factory=list)
     not_carried: Counter = field(default_factory=Counter)      # space -> objects left out for a missing party
     owner_carried: Counter = field(default_factory=Counter)    # space -> objects carried for their carried owner
+    runtime_keys_renamed: dict = field(default_factory=dict)   # carried x_ title key -> the free key it took
+    registered: Counter = field(default_factory=Counter)       # registry list -> carried ids appended
+    name_map_added: Counter = field(default_factory=Counter)   # "title" / "other" -> coat name-map pairs appended
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
@@ -91,6 +110,8 @@ class Report:
         return {"planned": {f"{a} {b}": n for (a, b), n in self.planned.items()},
                 "inserted": dict(self.inserted), "sections_created": self.sections_created,
                 "not_carried": dict(self.not_carried), "owner_carried": dict(self.owner_carried),
+                "runtime_keys_renamed": self.runtime_keys_renamed,
+                "registered": dict(self.registered), "name_map_added": dict(self.name_map_added),
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
@@ -231,33 +252,65 @@ class Transplant:
         frontier = [(sp, i) for sp in ("character", "title", "province") for i in self.carry[sp]]
         frontier += [(sp, i) for sp in CARRIED for i in self.carry[sp]]
         seen = set(frontier)
-        while frontier:
-            sp, i = frontier.pop()
-            got = self._entry(sp, i)
-            if got is None:
-                continue
-            kind, e = got
-            for _, rsp, v in self.references(kind, i, e):
-                if rsp not in CARRIED or v in self.tr.spaces[rsp].join or (rsp, v) in seen:
+
+        def forward(frontier):
+            while frontier:
+                sp, i = frontier.pop()
+                got = self._entry(sp, i)
+                if got is None:
                     continue
-                if rsp not in CARRIED_FROM_ANY and sp != "character":
-                    continue
-                if v in self.entries(CARRIED[rsp]):
-                    self.carry[rsp].add(v)
-                    seen.add((rsp, v))
-                    frontier.append((rsp, v))
+                kind, e = got
+                for _, rsp, v in self.references(kind, i, e):
+                    if rsp not in CARRIED or v in self.tr.spaces[rsp].join or (rsp, v) in seen:
+                        continue
+                    if rsp not in CARRIED_FROM_ANY and sp != "character":
+                        continue
+                    if v in self.entries(CARRIED[rsp]):
+                        self.carry[rsp].add(v)
+                        seen.add((rsp, v))
+                        frontier.append((rsp, v))
+
+        forward(frontier)
+        before = {sp: set(ids) for sp, ids in self.carry.items()}
         # owner back-references (R16's closure amended 2026-10-26): an entry that points at a carried owner while
         # nothing points at it comes too, e.g. a copied ruler's men-at-arms (regiment owner=<character>, measured:
         # 3,626 of the reference's 16,519 regiments, every value a living character)
-        for sp, (kind, fld) in OWNED.items():
+        company_titles: list[int] = []
+        for sp, (kind, fld, owner_sp) in OWNED.items():
             join = self.tr.spaces[sp].join
             for i, e in self.entries(kind).items():
                 if i in self.carry[sp] or i in join:
                     continue
-                m = re.search(rb"[\n\t]" + fld + rb"=(\d+)", self.ref[e.start:min(e.end, e.start + 2000)])
-                if m and int(m.group(1)) in self.carry["character"]:
-                    self.carry[sp].add(i)
-                    self.report.owner_carried[sp] += 1
+                text = self.ref[e.start:min(e.end, e.start + 2000)]
+                m = re.search(rb"[\n\t]" + fld + rb"=(\d+)", text)
+                if not (m and int(m.group(1)) in self.carry[owner_sp]):
+                    continue
+                self.carry[sp].add(i)
+                self.report.owner_carried[sp] += 1
+                if sp == "mercenary":           # the company's own x_ title and its regiments come with it
+                    t = re.search(rb"[\n\t]title=(\d+)", text)
+                    if t:
+                        self.carry["title"].add(int(t.group(1)))
+                        company_titles.append(int(t.group(1)))
+                    r = re.search(rb"[\n\t]regiments=\{([^}]*)\}", text)
+                    for rid in (r.group(1).split() if r else []):
+                        self.carry["regiment"].add(int(rid))
+        # a company's captain holds its x_ title and leads it: carried as R16 carries a ruler (the captain, the
+        # court, close family). Without them the title is unheld and every trigger on the company's leader fails
+        # (soak 2026-10-26 03:42: "mercenary_company_leader [Failed context switch]" 2,543 in five minutes)
+        if company_titles:
+            cj = set(self.tr.spaces["character"].join)
+            people = self.people_closure(set(self.title_holders(company_titles).values()))
+            for group, label in (("rulers", "captain"), ("courtiers", "company court"), ("family", "company family")):
+                new = people[group] - cj - self.carry["character"]
+                self.carry["character"] |= new
+                if new:
+                    self.report.owner_carried[label] += len(new)
+        # what the owner pass added has forward references of its own (an x_ title's holder, ...): follow them
+        added = [(sp, i) for sp, ids in self.carry.items() for i in ids - before.get(sp, set())
+                 if sp in ("character", "title", "province") or sp in CARRIED]
+        seen.update(added)
+        forward(added)
         self.carry["ai"] = {p for p in self.carry["character"] if p in self.entries("ai/ai_strategies")}
         # an object that binds two parties is carried only when both are in the output (a vassal contract
         # carried with its liege but without its vassal binds nobody); the references to it are then dropped
@@ -326,8 +379,26 @@ class Transplant:
             payload[kind].append(text)
         for p in sorted(self.carry["ai"]):
             payload["ai/ai_strategies"].append(rewrite("ai/ai_strategies", self.entries("ai/ai_strategies")[p]))
+        # runtime titles (x_mc_6, x_x_12) are numbered per save, so a carried one may reuse a key the campaign has:
+        # it takes the next free number of its prefix (e2e 2026-10-26: x_mc_6 named both 12116 and 30389)
+        used = set(T.keyed(self.save, TITLES))
+        nxt: dict[bytes, int] = {}
+        for k in used:
+            m = _RUNTIME_KEY.match(k)
+            if m:
+                nxt[m.group(1)] = max(nxt.get(m.group(1), 0), int(m.group(2)) + 1)
         for t in sorted(self.carry["title"]):
-            payload[TITLES].append(rewrite(TITLES, self.entries(TITLES)[t]))
+            text = rewrite(TITLES, self.entries(TITLES)[t])
+            k = self.title_keys().get(t, "").encode()
+            m = _RUNTIME_KEY.match(k)
+            if m and k in used:
+                new = m.group(1) + str(nxt.get(m.group(1), 1)).encode()
+                nxt[m.group(1)] = nxt.get(m.group(1), 1) + 1
+                text = re.sub(rb'([\n\t]key=)"?' + re.escape(k) + rb'"?(?=\s)', lambda x: x.group(1) + new, text, count=1)
+                rep.runtime_keys_renamed[k.decode()] = new.decode()
+                k = new
+            used.add(k)
+            payload[TITLES].append(text)
         # a database keyed BY a copied record: every carried county brings its county_manager record (R16's
         # closure amended 2026-10-26: forward references, databases keyed by a copied record, owner back-references)
         records = self.county_records()
@@ -366,8 +437,46 @@ class Transplant:
         self._pairs(ep)
         self._events(ep)
         self._counters_and_lookups(ep)
+        self._registries(ep)
         self._collisions()
         return ep
+
+    def _registries(self, ep: gs.EditPass) -> None:
+        """The game-start lists (REGISTRIES) and the coat name map gain the carried objects the reference lists.
+        A save without the list is left alone; a name-map key the campaign has keeps the campaign's coat."""
+        for path, sp in REGISTRIES.items():
+            try:
+                rb_, sb = gs.locate(self.ref, path), gs.locate(self.save, path)
+            except gs.GamestateError:
+                continue
+            m = self.tr.spaces[sp]
+            listed = {int(x) for x in self.ref[rb_.open + 1:rb_.close].split()}
+            have = {int(x) for x in self.save[sb.open + 1:sb.close].split()}
+            adds = sorted(m.translate(i) for i in self.carry[sp] & listed if i not in m.join)
+            adds = [i for i in adds if i not in have]
+            if adds:
+                ep.add(gs.Edit(sb.close, sb.close, (" ".join(map(str, adds)) + " ").encode(), "transplant", path))
+                self.report.registered[path] = len(adds)
+        try:
+            rn, sn = gs.locate(self.ref, NAME_MAP), gs.locate(self.save, NAME_MAP)
+        except gs.GamestateError:
+            return
+        coa = self.tr.spaces["coat_of_arms"]
+        have = {k for k, _ in _PAIR.findall(self.save[sn.open + 1:sn.close])}
+        titles = {k.encode() for k in self.title_keys().values()}
+        lines = []
+        for k, v in _PAIR.findall(self.ref[rn.open + 1:rn.close]):
+            c = int(v)
+            if c not in self.carry["coat_of_arms"] or c in coa.join:
+                continue
+            k = self.report.runtime_keys_renamed.get(k.decode(), k.decode()).encode()
+            if k in have:
+                continue
+            lines.append(b"\t\t" + k + b"=" + str(coa.translate(c)).encode() + b"\n")
+            self.report.name_map_added["title" if k in titles else "other"] += 1
+        if lines:
+            at = self.save.rfind(b"\n", 0, sn.close) + 1
+            ep.add(gs.Edit(at, at, b"".join(lines), "transplant", NAME_MAP))
 
     def _collisions(self) -> None:
         """A11.4, measured rather than assumed: per space, copied (not joined) objects whose translated slot index

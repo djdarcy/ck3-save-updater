@@ -247,6 +247,27 @@ def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
                       "then fails every script that asks for them (seen as 'culture trigger [Failed context switch]')")
 
 
+def check_registries(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """INV-6 (census 2026-10-26): every culture made from a game template is on ``template_cultures``, the list of
+    the cultures the game made from its definitions (vanilla 1.20 at 987: 244 of 244). A warning: whether the
+    game resolves ``culture:<key>`` through the list is not measured yet."""
+    idx = idx or SectionIndex(g)
+    tl, cu = idx.block("culture_manager/template_cultures"), idx.block("culture_manager/cultures")
+    if tl is None or cu is None:
+        return
+    listed = {int(x) for x in g[tl.open + 1:tl.close].split() if x.isdigit()}
+    missing = []
+    for e in gs.iter_entries(g, cu.open + 1, cu.close):
+        if e.key is None or not e.key.isdigit() or int(e.key) in listed:
+            continue
+        m = re.search(rb"\n\t*culture_template=\"?([\w\-']+)", g[e.open:min(e.close, e.open + 2000)])
+        if m:
+            missing.append(f"{m.group(1).decode()} ({e.key.decode()})")
+    rep.add("template cultures are registered", "warn", sorted(missing),
+            gloss="Cultures made from a game template but missing from the game's list of them; scripts that "
+                  "name the culture may not find it")
+
+
 def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
     """A vassal contract binds two people: both its liege and its vassal are named and exist (a contract copied
     with only one party binds nobody)."""
@@ -699,6 +720,7 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_ids(g, rep, idx)
     check_titles(g, rep, idx)
     check_contracts(g, rep, idx)
+    check_registries(g, rep, idx)
     check_references(g, rep, idx)
     if keys:
         if isinstance(known, tuple):
