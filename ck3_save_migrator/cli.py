@@ -276,6 +276,7 @@ def cmd_migrate(args) -> int:
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
     known = None          # what the game and the mods define: read once, shared by both outputs
+    ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
     lint_errors = 0
 
     def lint_of(s):
@@ -283,11 +284,14 @@ def cmd_migrate(args) -> int:
         if args.no_lint:
             return None
         if known is None:
-            ref_g = read_save(reference).gamestate if reference else None
+            ref_g = ref_gamestate[0] = read_save(reference).gamestate if reference else None
             mods, missing = listed_workshop_mods(save.meta, ctx.game_dir) if args.lint_mods == "save" else ([], [])
             known = load_game_data(ctx.game_dir, ref_g, mods, mods_missing=missing,
                                    reference_name=str(reference) if reference else None)
-        rep = lint_gamestate(s.gamestate, known=known)
+        # the fresh-game title comparison only when the transplant ran: without R14 the save lacks every title the
+        # target version added, by the user's choice, and that is not an error in the output
+        transplanted = any(r.id == "R14" for r in rules)
+        rep = lint_gamestate(s.gamestate, known=known, reference=ref_gamestate[0] if transplanted else None)
         lint_errors += rep.errors
         return rep
 
@@ -360,7 +364,7 @@ def run_lint(save, args, reference_path: Path | None):
     mods, missing = listed_workshop_mods(save.meta, game_dir) if getattr(args, "mods", "save") == "save" else ([], [])
     data = load_game_data(game_dir, reference, mods, mods_missing=missing,
                           reference_name=str(reference_path) if reference_path else None)
-    return lint_gamestate(save.gamestate, known=data)
+    return lint_gamestate(save.gamestate, known=data, reference=reference)
 
 
 def cmd_lint(args) -> int:

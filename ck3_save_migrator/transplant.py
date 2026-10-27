@@ -110,6 +110,9 @@ class Report:
     provinces_filled: int = 0                                  # ruling B: empty campaign provinces given a holding
     settled: list = field(default_factory=list)                # step 1c-bis: one row per settled barony
     settled_landless_rulers: list = field(default_factory=list)  # displaced copied rulers left with no title
+    kept_by_holder: list = field(default_factory=list)         # R15 held titles: successors given to the holder
+    kept_relinked: list = field(default_factory=list)          # lieges and contracts re-pointed so realms agree
+    kept_skipped: list = field(default_factory=list)           # successors not given (not carried, settled, contested)
     orphans_reparented: list = field(default_factory=list)     # S3: "<title> -> <its 1.20 de jure parent>"
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
@@ -125,6 +128,8 @@ class Report:
                 "reparent_cases": dict(self.reparent_cases), "reparent_left": self.reparent_left,
                 "contracts_moved": self.contracts_moved, "provinces_filled": self.provinces_filled,
                 "settled": self.settled, "settled_landless_rulers": self.settled_landless_rulers,
+                "kept_by_holder": self.kept_by_holder, "kept_skipped": self.kept_skipped,
+                "kept_relinked": self.kept_relinked,
                 "orphans_reparented": self.orphans_reparented,
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
@@ -167,8 +172,14 @@ def _edit_landed_list(text: bytes, key: bytes, add=(), drop=frozenset()) -> byte
         ids = [x for x in have if int(x) not in drop] + [str(a).encode() for a in add if str(a).encode() not in have]
         return text[:m.start()] + b"\n" + m.group(1) + key + b"={ " + b" ".join(ids) + b" }" + text[m.end():]
     ld = re.search(rb"\n\tlanded_data=\{\n", text)
-    if not add or not ld:
+    if not add:
         return text
+    if not ld:                  # a character with no landed_data (a landless campaign holder regaining land, R15)
+        close = text.rstrip().rfind(b"}")
+        if close < 0:
+            return text
+        return text[:close] + b"\tlanded_data={\n\t\t" + key + b"={ " + b" ".join(str(a).encode() for a in add) + \
+            b" }\n\t}\n" + text[close:]
     return text[:ld.end()] + b"\t\t" + key + b"={ " + b" ".join(str(a).encode() for a in add) + b" }\n" + \
         text[ld.end():]
 
@@ -236,6 +247,9 @@ class Transplant:
         # step 1c ruling B (R14's plan): campaign provinces with no holding whose 1.20 barony is carried; their
         # entry is replaced by the reference's (holding, buildings, levy, garrison)
         self.fill_provinces: set[int] = set()
+        # held titles R15 removed because 1.20 split or redrew their land (R15 records them, R14 hands them over):
+        # rows {key, holder, successors, old_liege_key}; their successors go to the holder (holdings_plan)
+        self.r15_kept: list[dict] = []
         self.report = Report()
         self._ent: dict[str, dict[int, gs.Block]] = {}
         self._refs: dict[tuple[str, int], list] = {}
@@ -730,6 +744,216 @@ class Transplant:
         self._ent["_settle"] = out
         return out
 
+    def holdings_plan(self) -> dict:
+        """djdarcy 2026-10-27 (~06:30): "any titles that were in play that are still existent in the game that were
+        present in our original game should be upgraded if possible so the correct holder still has their title."
+        For each held title R15 removed because 1.20 split or redrew its land (``self.r15_kept``), its successors
+        -- carried from the reference -- go to the campaign holder instead of the reference's holder, with the
+        county's capital barony when the displaced ruler held it. Lieges follow the game's convention (see
+        ``_primary_first``): the holder's primary is his highest title; a title below it takes the primary as de
+        facto liege, a title at or above it takes the primary's own liege; a barony keeps its county. The displaced
+        ruler's vassal contracts for land under a regained title move to the holder; a displaced ruler left with
+        nothing joins the holder's court. The holder's own titles whose liege R15 stripped point at his primary.
+        Returns {"titles": {ref id: (holder, liege out id | None, set_liege)}, "x_drop": {ref char: {out ids}},
+        "x_new": {ref char: holder}, "contracts": {ref contract: (holder, ref char)}, "holders": {holder:
+        {"dom_add": [out ids], "liege_fix": {save title: out liege | None}}}}."""
+        if "_holdings" in self._ent:
+            return self._ent["_holdings"]
+        out = {"titles": {}, "x_drop": defaultdict(set), "x_new": {}, "contracts": {}, "holders": {},
+               "repoint": {}, "contract_moves": {}, "relinked": []}
+        self._ent["_holdings"] = out
+        if not self.r15_kept:
+            return out
+        tm = self.tr.spaces["title"]
+        keys = self.title_keys()
+        by_key = {k: i for i, k in keys.items()}
+        settled = set(self.settle_plan())
+        ref = {}                                   # ref title -> (de jure, holder, capital barony?, de facto)
+        for r, e in self.entries(TITLES).items():
+            b = self.ref[e.open:min(e.close, e.open + 4096)]
+            ref[r] = (int(m.group(1)) if (m := re.search(rb"\n\tde_jure_liege=(\d+)", b)) else None,
+                      int(m.group(1)) if (m := re.search(rb"\n\tholder=(\d+)", b)) else None,
+                      b"\n\tcapital_barony=yes" in b,
+                      int(m.group(1)) if (m := re.search(rb"\n\tde_facto_liege=(\d+)", b)) else None)
+        claims, src = defaultdict(set), {}
+        for row in self.r15_kept:
+            for s in row["successors"]:
+                r = by_key.get(s)
+                why = ("not in the reference" if r is None else "not carried" if r not in self.carry["title"]
+                       else "settled by the redrawn-county rule" if r in settled else None)
+                if why:
+                    self.report.kept_skipped.append({"title": s, "from": row["key"], "why": why})
+                    continue
+                claims[r].add(row["holder"])
+                src.setdefault(r, row)
+        regained: dict[int, int] = {}
+        for r, hs in claims.items():
+            if len(hs) > 1:
+                self.report.kept_skipped.append({"title": keys[r], "from": src[r]["key"],
+                                                 "why": f"claimed by {len(hs)} campaign holders"})
+                continue
+            regained[r] = next(iter(hs))
+        for r, h in list(regained.items()):         # a count holds his county's capital barony
+            if keys[r].startswith("c_"):
+                cap = next((c for c, f in ref.items() if f[0] == r and f[2]), None)
+                if cap is not None and cap not in regained and cap in self.carry["title"] and cap not in settled \
+                        and ref[cap][1] == ref[r][1]:
+                    regained[cap], src[cap] = h, src[r]
+        chars = self._save_chars()
+        sdf: dict[int, int | None] = {}
+        sdh: dict[int, int | None] = {}                          # save title -> its holder
+        for i, e in T.entries(self.save, TITLES):
+            b = self.save[e.open:min(e.close, e.open + 4096)]
+            m = re.search(rb"\n\tde_facto_liege=(\d+)", b)
+            sdf[i] = int(m.group(1)) if m else None
+            m = re.search(rb"\n\tholder=(\d+)", b)
+            sdh[i] = int(m.group(1)) if m else None
+        save_id_of = {self.save_title_key(i): i for i in sdf}
+        svc: dict[int, tuple[int, int, str]] = {}                # vassal (save char) -> (contract, liege, section)
+        for path in ("vassal_contracts/active", "vassal_contracts/database"):
+            try:
+                for i, e in T.entries(self.save, path):
+                    b = self.save[e.open:e.close]
+                    v, lg = re.search(rb"\n\t+vassal=(\d+)", b), re.search(rb"\n\t+liege=(\d+)", b)
+                    if v and lg:
+                        svc.setdefault(int(v.group(1)), (i, int(lg.group(1)), path))
+            except T.TranslationError:
+                continue
+        settle = self.settle_plan()
+        rank = lambda k: TIER_RANK.get(k[:1], 0)                 # noqa: E731
+        by_holder: dict[int, list[int]] = defaultdict(list)
+        for r, h in regained.items():
+            by_holder[h].append(r)
+        info: dict[int, dict] = {}                               # holder -> his realm after the hand-back
+        for h, rs in sorted(by_holder.items()):
+            e = chars.get(h)
+            dom = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.save[e.start:e.end]) if e is not None else None
+            existing = [int(x) for x in dom.group(1).split()] if dom else []
+            order = {r: (src[r]["successors"].index(keys[r]) if keys[r] in src[r]["successors"] else 99) for r in rs}
+            rs = sorted(rs, key=lambda r: (-rank(keys[r]), order[r], r))
+            items = [("save", s, self.save_title_key(s)) for s in existing] + [("ref", r, keys[r]) for r in rs]
+            top = max(rank(k) for _, _, k in items)
+            prim = next(it for it in items if rank(it[2]) == top)
+            info[h] = {"rs": rs, "existing": existing, "top": top, "prim": prim, "prim_key": prim[2],
+                       "prim_out": prim[1] if prim[0] == "save" else tm.translate(prim[1])}
+
+        def primary_of(c: int) -> tuple[int | None, str]:
+            """A campaign character's primary title after the hand-back: (output id, key)."""
+            if c in info:
+                return info[c]["prim_out"], info[c]["prim_key"]
+            ce = chars.get(c)
+            d = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.save[ce.start:ce.end]) if ce is not None else None
+            first = int(d.group(1).split()[0]) if d and d.group(1).split() else None
+            return (first, self.save_title_key(first)) if first is not None else (None, "")
+
+        def final_holder(r: int) -> int | None:
+            """Who holds a reference title after the plans, when that is a campaign character (else None)."""
+            if r in regained:
+                return regained[r]
+            if r in settle:
+                return settle[r]["new"]
+            j = tm.join.get(r)
+            return sdh.get(j) if j is not None else None
+
+        for h, d in info.items():
+            rs, existing, top, prim, prim_out = d["rs"], d["existing"], d["top"], d["prim"], d["prim_out"]
+            rows = sorted({row["key"]: row for row in (src[r] for r in rs)}.values(), key=lambda row: -rank(row["key"]))
+            fallback = next((save_id_of[row["old_liege_key"]] for row in rows
+                             if row["old_liege_key"] in save_id_of), None)
+            if prim[0] == "save":
+                plg = sdf.get(prim[1]) if sdf.get(prim[1]) is not None else fallback
+            else:
+                old = existing[0] if existing else None
+                plg = sdf[old] if old is not None and sdf.get(old) is not None else fallback
+            # the realm must agree with the contract (play5 2026-10-27: a count handed his county back with no liege
+            # while his contract still bound him, and a baron under a county now held by another, crashed 989.1.1):
+            # a ruler bound by a contract takes a title of that liege as his primary's liege; a baron's contract
+            # follows his county's holder, since a barony's liege is always its county
+            ct = svc.get(h)
+            if ct is not None and top > TIER_RANK["b"] and (plg is None or sdh.get(plg) != ct[1]):
+                lp, lk = primary_of(ct[1])
+                if lp is not None and rank(lk) > top:
+                    out["relinked"].append({"holder": h, "title": prim[2], "liege": lk, "why": "his contract's liege"})
+                    plg = lp
+                else:
+                    self.report.kept_skipped.append({"title": prim[2], "from": src[rs[0]]["key"],
+                                                     "why": f"contract liege {ct[1]} holds nothing above it"})
+            if ct is not None and top == TIER_RANK["b"] and prim[0] == "ref" and ref[prim[1]][0] is not None:
+                ch = final_holder(ref[prim[1]][0])
+                if ch is not None and ch not in (ct[1], h):
+                    out["contract_moves"][ct[0]] = (ct[1], ch, ct[2])
+                    out["relinked"].append({"holder": h, "title": prim[2], "liege": keys.get(ref[prim[1]][0]),
+                                            "why": f"contract moved from {ct[1]} to the county's holder {ch}"})
+                elif ch is None:
+                    self.report.kept_skipped.append({"title": prim[2], "from": src[rs[0]]["key"],
+                                                     "why": "its county's holder is not a campaign character"})
+            liege_for = lambda k: prim_out if rank(k) < top else plg      # noqa: E731
+            for r in rs:
+                if keys[r].startswith("b_"):
+                    out["titles"][r] = (h, None, False)
+                else:
+                    out["titles"][r] = (h, plg if (prim[0] == "ref" and r == prim[1]) else liege_for(keys[r]), True)
+                x = ref[r][1]
+                if x is not None and x in self.carry["character"]:
+                    out["x_drop"][x].add(tm.translate(r))
+                    out["x_new"].setdefault(x, h)
+                self.report.kept_by_holder.append({
+                    "title": keys[r], "from": src[r]["key"], "holder": h,
+                    "displaced": self.tr.spaces["character"].translate(x) if x is not None else None,
+                    "liege": None if out["titles"][r][1] is None else self.output_title_key(out["titles"][r][1])})
+            fix = {}
+            for s in existing:
+                k = self.save_title_key(s)
+                if k.startswith("b_"):
+                    continue
+                if prim[0] == "save" and s == prim[1]:
+                    if sdf.get(s) is None and plg is not None:
+                        fix[s] = plg                    # his primary lost its liege to R15
+                    continue
+                want = liege_for(k)
+                if want is not None and (sdf.get(s) is None or (prim[0] == "ref" and s == (existing[0] if existing
+                                                                                         else None))):
+                    fix[s] = want                       # stripped by R15, or his old primary under the new one
+            out["holders"][h] = {"dom_add": [tm.translate(r) for r in rs], "liege_fix": fix}
+        # the displaced ruler's vassals under a regained title: their contracts move to the holder
+        regained_from: dict[int, dict[int, int]] = defaultdict(dict)      # ref char -> {ref title: holder}
+        for r, h in regained.items():
+            if ref[r][1] is not None:
+                regained_from[ref[r][1]][r] = h
+        titles_of: dict[int, list[int]] = defaultdict(list)
+        for t, f in ref.items():
+            if f[1] is not None:
+                titles_of[f[1]].append(t)
+        vc = self.entries(CARRIED["vassal_contract"]) if self.carry["vassal_contract"] else {}
+        for i in sorted(self.carry["vassal_contract"]):
+            b = self.ref[vc[i].start:vc[i].end]
+            v, lg = re.search(rb"\n\t+vassal=(\d+)", b), re.search(rb"\n\t+liege=(\d+)", b)
+            if not (v and lg) or int(lg.group(1)) not in regained_from:
+                continue
+            got = regained_from[int(lg.group(1))]
+            h = next((got[ref[t][3]] for t in titles_of.get(int(v.group(1)), []) if ref[t][3] in got), None)
+            if h is not None:
+                out["contracts"][i] = (h, int(lg.group(1)))
+        # the displaced ruler keeps the titles he still has, but one whose de facto liege was a title of his now
+        # handed back would make him a vassal of its new holder with no contract (play5: c_tiande under d_langshan):
+        # it takes the liege above, past every handed-back title, so his own contract still describes him
+        for x in sorted(out["x_drop"]):
+            for t in titles_of.get(x, []):
+                lg = ref[t][3]
+                if t in regained or t in settle or lg not in regained or t not in self.carry["title"] \
+                        or keys.get(t, "").startswith("b_"):
+                    continue
+                while lg is not None and lg in regained:
+                    lg = ref[lg][3]
+                if lg is not None and not (lg in self.carry["title"] or lg in tm.join):
+                    lg = None
+                out["repoint"][t] = tm.translate(lg) if lg is not None else None
+                out["relinked"].append({"holder": self.tr.spaces["character"].translate(x), "title": keys.get(t),
+                                        "liege": keys.get(lg) if lg is not None else None,
+                                        "why": "its liege title was handed back"})
+        self.report.kept_relinked = out["relinked"]
+        return out
+
     def _ref_of(self, save_title: int) -> int | None:
         if "_from_save" not in self._ent:
             self._ent["_from_save"] = {s: r for r, s in self.tr.spaces["title"].join.items()}
@@ -830,6 +1054,16 @@ class Transplant:
             for i in d["carried_contracts"]:
                 contract_liege[i] = d["new"]
             x_new.setdefault(x, d["new"])
+        # R15's held titles (djdarcy 2026-10-27): the successors go to the campaign holder, through the same path
+        hp = self.holdings_plan()
+        for r, (holder, liege, set_liege) in hp["titles"].items():
+            title_set[r] = (holder, liege, set_liege)
+        for x, lost in hp["x_drop"].items():
+            x_drop[x] |= lost
+            x_new.setdefault(x, hp["x_new"][x])
+        for i, (holder, x) in hp["contracts"].items():
+            contract_liege[i] = holder
+            x_vc[x].add(kmap.translate(i))
         for x, lost in x_drop.items():
             ch = self.character(x)
             m = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.ref[ch[1].start:ch[1].end]) if ch else None
@@ -866,11 +1100,13 @@ class Transplant:
                 nxt[m.group(1)] = max(nxt.get(m.group(1), 0), int(m.group(2)) + 1)
         for t in sorted(self.carry["title"]):
             text = rewrite(TITLES, self.entries(TITLES)[t])
-            if t in title_set:                      # step 1c-bis: the county (or its capital) comes to the campaign
-                holder, liege, county = title_set[t]
+            if t in title_set:                      # 1c-bis and R15's held titles: the title comes to the campaign
+                holder, liege, set_liege = title_set[t]
                 text = _set_title_field(text, b"holder", holder)
-                if county:
+                if set_liege:                       # never on a barony: its de facto liege is its county
                     text = _set_title_field(text, b"de_facto_liege", liege)
+            elif t in hp["repoint"]:                # a displaced ruler's title whose liege was handed back
+                text = _set_title_field(text, b"de_facto_liege", hp["repoint"][t])
             k = self.title_keys().get(t, "").encode()
             m = _RUNTIME_KEY.match(k)
             if m and k in used:
@@ -1232,6 +1468,7 @@ class Transplant:
         for x, cids in self._ent.get("_gains_left", {}).items():
             ops[x]["vc_add"].extend(cids)
         self._settle_save_side(ep, stitles, head, ops)
+        self._kept_save_side(ep, ops)
         chars = self._save_chars()
         for c, op in ops.items():
             ent = chars.get(c)
@@ -1251,6 +1488,44 @@ class Transplant:
                 new = _set_employer(new, op["employer"])
             if new != text:
                 ep.add(gs.Edit(ent.start, ent.end, new, "transplant", "1c character"))
+
+    def _kept_save_side(self, ep: gs.EditPass, ops: dict) -> None:
+        """R15's held titles, the campaign side: the holder gains the regained titles in his domain (primary first,
+        by the ops pass) and the moved contracts in his list; his own titles whose de facto liege R15 stripped, or
+        his old primary under a new one, point where holdings_plan says."""
+        hp = self.holdings_plan()
+        if not hp["holders"]:
+            return
+        km = self.tr.spaces["vassal_contract"]
+        for h, d in hp["holders"].items():
+            ops[h]["dom_add"].extend(d["dom_add"])
+        for i, (h, _x) in hp["contracts"].items():
+            ops[h]["vc_add"].append(km.translate(i))
+        for i, (old, new, path) in sorted(hp["contract_moves"].items()):   # a baron's contract follows his county
+            e = dict(T.entries(self.save, path)).get(i)
+            m = re.search(rb"(\n\t+liege=)(\d+)", self.save[e.open:e.close]) if e is not None else None
+            if m is None:
+                continue
+            ep.add(gs.Edit(e.open + m.start(2), e.open + m.end(2), str(new).encode(), "transplant",
+                           "R15 kept: contract liege"))
+            ops[old]["vc_drop"].add(i)
+            ops[new]["vc_add"].append(i)
+        stitles = dict(T.entries(self.save, TITLES))
+        for h, d in hp["holders"].items():
+            for s, liege in sorted(d["liege_fix"].items()):
+                e = stitles.get(s)
+                if e is None:
+                    continue
+                m = re.search(rb"\n\tde_facto_liege=(\d+)", self.save[e.open:e.close])
+                if m and liege is not None:
+                    ep.add(gs.Edit(e.open + m.start(1), e.open + m.end(1), str(liege).encode(), "transplant",
+                                   "R15 kept: de facto liege"))
+                elif m is None and liege is not None:
+                    at = self.save.rfind(b"\n", 0, e.close) + 1
+                    ep.add(gs.Edit(at, at, f"\tde_facto_liege={liege}\n".encode(), "transplant",
+                                   "R15 kept: de facto liege"))
+        for op in ops.values():
+            op["dom_add"] = list(dict.fromkeys(op["dom_add"]))
 
     def _settle_save_side(self, ep: gs.EditPass, stitles: dict, head: dict, ops: dict) -> None:
         """Step 1c-bis, the campaign side: the new holder gains the county (and a carried capital, and a capital a

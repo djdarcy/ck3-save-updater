@@ -230,6 +230,108 @@ class TestR20:
         assert res.matched == 0 and res.edited == 0 and asave.gamestate == before
 
 
+# --------------------------------------------------------------------------- R22
+UNITS = (b"units={\n"
+         b"\t1744830531={\n\t\ttype=army\n\t\tlocation=9542\n\t\tprev=9539\n\t\tpath={ 9541 }\n\t\ttotal_cost=4.5\n"
+         b"\t\tmovement_progress=1.2\n\t\towner=5\n\t\tarmy=7\n\t}\n"
+         b"\t2={\n\t\ttype=army\n\t\tlocation=9508\n\t\tprev=9507\n\t\towner=6\n\t\tarmy=8\n\t}\n"
+         b"\t3={\n\t\ttype=army\n\t\tlocation=9600\n\t\tprev=9601\n\t\towner=6\n\t\tarmy=9\n\t}\n"
+         b"}\n")
+MAP = ("impassable_mountains = LIST { 10468 9542 }\nimpassable_seas = RANGE { 9600 9601 }\n"
+       "sea_zones = RANGE { 632 641 }\n")
+
+
+class TestR22:
+    @pytest.fixture
+    def usave(self, tmp_path):
+        p = tmp_path / "units.ck3"
+        p.write_bytes(build_ck3(meta=RULES_META, body=RULES_BODY + UNITS))
+        return sf.read_save(p)
+
+    @pytest.fixture
+    def game(self, tmp_path):
+        g = make_game_dir(tmp_path / "g")
+        (g / "map_data").mkdir(parents=True, exist_ok=True)
+        (g / "map_data" / "default.map").write_text(MAP, encoding="utf-8")
+        return g
+
+    def test_moves_a_unit_off_an_impassable_province_to_where_it_came_from(self, usave, game):
+        """2026-10-27: an army on province 9542, land in 1.8.1 and impassable mountains in 1.20, crashed the game
+        when its owner was a landed ruler (989.1.1, ck3+0xb064e8). It goes back to its prev province, its
+        unfinished path dropped; a unit on passable land stays; one whose prev is impassable too is reported."""
+        res = R.run_rules(usave, R.select("R22"), R.RuleContext(game_dir=game))[0]
+        assert res.extra["moved"] == [{"unit": 1744830531, "from": 9542, "to": 9539}]
+        assert res.extra["left"] == [{"unit": 3, "location": 9600}]
+        g = usave.gamestate
+        unit = g[g.index(b"1744830531={"):g.index(b"\t2={")]
+        assert b"location=9539" in unit and b"path=" not in unit and b"total_cost" not in unit
+        assert b"movement_progress" not in unit and b"prev=9539" in unit and b"owner=5" in unit
+        assert b"location=9508" in g                                      # passable: untouched
+
+    def test_clears_the_old_holding_its_pools_regiments_and_siege(self, tmp_path, game):
+        """2026-10-27: moving the army alone did not stop the 989.1.1 crash: the save kept 1.8.1's castle on 9542,
+        with its levy and garrison pools, a regiment drawing on one, and a siege of it. A 1.20 game has an empty
+        holding there. The holding becomes that, the fort goes, the pools go, a regiment drawing only on them goes
+        and leaves its army's list, one drawing on others too loses just that chunk, and the siege goes."""
+        prov = (b"provinces={\n\t9542={\n\t\tholding={\n\t\t\ttype=\"castle_holding\"\n\t\t\tbuildings={ {\n"
+                b"\t\t\t\t\ttype=\"castle_01\"\n\t\t\t\t}\n }\n\t\t\tlevy=50\n\t\t\tgarrison=51\n\t\t\tincome=0.5\n"
+                b"\t\t}\n\t\tfort_level=2\n\t\twinter_severity=0.2\n\t}\n"
+                b"\t9539={\n\t\tholding={\n\t\t\ttype=\"church_holding\"\n\t\t\tlevy=60\n\t\t}\n\t\tfort_level=1\n\t}\n}\n")
+        armies = (b"armies={\n\tregiments={\n\t\t50={\n\t\t\torigin=9542\n\t\t\tmax=174\n\t\t}\n"
+                  b"\t\t51={\n\t\t\torigin=9542\n\t\t\tsize=250\n\t\t\tsource=garrison\n\t\t}\n"
+                  b"\t\t60={\n\t\t\torigin=9539\n\t\t\tmax=100\n\t\t}\n\t}\n"
+                  b"\tarmy_regiments={\n\t\t70={\n\t\t\tchunks={ {\n\t\t\t\t\tregiment=50\n\t\t\t\t}\n }\n"
+                  b"\t\t\tarmy=80\n\t\t}\n"
+                  b"\t\t71={\n\t\t\tchunks={ {\n\t\t\t\t\tregiment=50\n\t\t\t\t}\n {\n\t\t\t\t\tregiment=60\n"
+                  b"\t\t\t\t}\n }\n\t\t\tarmy=80\n\t\t}\n\t}\n"
+                  b"\tarmies={\n\t\t80={\n\t\t\tregiments={ 70 71 }\n\t\t\tunit=1744830531\n\t\t}\n\t}\n}\n")
+        sieges = (b"sieges={\n\tsieges={\n\t\t90={\n\t\t\tprovince=9542\n\t\t\tprogress=188\n\t\t}\n"
+                  b"\t\t91={\n\t\t\tprovince=9539\n\t\t\tprogress=3\n\t\t}\n\t}\n}\n")
+        p = tmp_path / "prov.ck3"
+        p.write_bytes(build_ck3(meta=RULES_META, body=RULES_BODY + UNITS + prov + armies + sieges))
+        s = sf.read_save(p)
+        res = R.run_rules(s, R.select("R22"), R.RuleContext(game_dir=game))[0]
+        ex = res.extra
+        assert ex["holdings"] == [9542] and ex["pools"] == [50, 51] and ex["regiments"] == [70]
+        assert ex["chunks"] == 1 and ex["sieges"] == [90]
+        g = s.gamestate
+        p9542 = g[g.index(b"\t9542={"):g.index(b"\t9539={")]
+        assert b"type=" not in p9542 and b"levy=" not in p9542 and b"fort_level" not in p9542
+        assert b"income=0\n" in p9542 and b"winter_severity=0.2" in p9542
+        assert b"church_holding" in g and b"fort_level=1" in g                    # a passable province stays
+        assert b"\t\t50={" not in g and b"\t\t51={" not in g and b"\t\t60={" in g
+        assert b"\t\t70={" not in g and b"regiments={ 71 }" in g
+        r71 = g[g.index(b"\t\t71={"):g.index(b"\tarmies={\n\t\t80")]
+        assert b"regiment=50" not in r71 and b"regiment=60" in r71
+        assert b"\t\t90={" not in g and b"\t\t91={" in g
+        assert R.run_rules(s, R.select("R22"), R.RuleContext(game_dir=game))[0].edited == 0     # idempotent
+
+    def test_aims_a_council_task_at_a_passable_barony_of_its_court_owner(self, tmp_path, game):
+        """The 989.1.1 crash itself: 50350018's task_increase_control aimed at 9542; when the game appointed a
+        councillor at New Year it filed the task under the province, whose title link was stale. The task is aimed
+        at the province of the court owner's first barony that the map lets anyone stand on."""
+        (game / "common" / "landed_titles").mkdir(parents=True, exist_ok=True)
+        (game / "common" / "landed_titles" / "00_test.txt").write_text(
+            "c_x = {\n\tb_gone = { province = 9542 }\n\tb_keep = { province = 9541 }\n}\n", encoding="utf-8")
+        body = (b"landed_titles={\n\tlanded_titles={\n0={\n\tkey=b_gone\n\tholder=5\n}\n1={\n\tkey=b_keep\n"
+                b"\tholder=5\n}\n\t}\n}\n"
+                b"living={\n5={\n\tfirst_name=\"P5\"\n\tlanded_data={\n\t\tdomain={ 0 1 }\n\t}\n}\n}\n"
+                b"council_task_manager={\n\tactive={\n\t\t83888785={\n\t\t\ttype=\"task_increase_control\"\n"
+                b"\t\t\tcourt_owner=5\n\t\t\ttarget={\n\t\t\t\ttype=prov\n\t\t\t\tidentity=9542\n\t\t\t}\n\t\t}\n"
+                b"\t\t7={\n\t\t\ttype=\"task_collect_taxes\"\n\t\t\tcourt_owner=5\n\t\t}\n\t}\n}\n")
+        p = tmp_path / "task.ck3"
+        p.write_bytes(build_ck3(meta=RULES_META, body=body))
+        s = sf.read_save(p)
+        res = R.run_rules(s, R.select("R22"), R.RuleContext(game_dir=game))[0]
+        assert res.extra["tasks"] == [{"task": 83888785, "from": 9542, "to": 9541}]
+        assert b"identity=9541" in s.gamestate and b"identity=9542" not in s.gamestate
+
+    def test_without_a_game_folder_it_changes_nothing(self, usave):
+        before = usave.gamestate
+        res = R.run_rules(usave, R.select("R22"), R.RuleContext())[0]
+        assert res.edited == 0 and "skipped" in res.extra and usave.gamestate == before
+
+
 # --------------------------------------------------------------------------- R6
 class TestR6:
     def test_dead_titles_reported(self, save, tmp_path):
@@ -287,7 +389,7 @@ class TestRegistry:
             assert r.name and r.since and r.description and r.apply.__doc__
 
     def test_registry_order_is_dependency_order(self):
-        assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9",
+        assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
                                               "R12", "R15", "R14", "R16", "R17", "R7"]
 
     def test_transplant_rules_are_opt_in_and_bring_the_write_step(self):
@@ -297,7 +399,7 @@ class TestRegistry:
 
     def test_all_rules_compose(self, save, tmp_path):
         res = R.run_rules(save, R.select("all"), R.RuleContext(game_dir=make_game_dir(tmp_path / "g")))
-        assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9", "R12",
+        assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12",
                                        "R7"]
         assert all("skipped" in r.extra for r in res if r.id in ("R8", "R10", "R9", "R12"))   # no reference
         sf.write_save(save, tmp_path / "o.ck3")
@@ -321,7 +423,7 @@ class TestCLI:
                 "--game-dir", str(game), "--reference", "none", "-o", str(tmp_path / "out.ck3"))
         assert r.returncode == 0, r.stderr
         rep = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
-        assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9",
+        assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
                                                    "R12", "R7"]
         assert not list(tmp_path.glob("*__wos-*"))          # no reference -> no branch, one output
         assert rep["rules"][0]["edited"] == 2 and rep["output_sha256"] == sf.sha256((tmp_path / "out.ck3").read_bytes())
@@ -364,7 +466,7 @@ def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prereq
     """S1 (director 2026-10-26 00:45): ``all,R14,R15,R16`` is the defaults plus the transplant, in registry order,
     with the write step (R17) brought along; such a selection lacks no prerequisite."""
     ids = [r.id for r in R.select("all,R14,R15,R16")]
-    assert ids == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16",
+    assert ids == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16",
                    "R17", "R7"]
     assert R.missing_prerequisites(R.select("all,R14,R15,R16")) == []
 

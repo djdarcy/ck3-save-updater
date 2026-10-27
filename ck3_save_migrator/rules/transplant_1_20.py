@@ -24,6 +24,14 @@ from .religion_1_20 import reference_gamestate
 
 _HOLDING = re.compile(rb"holding=\{[^}]*?type=")     # a province entry that has a holding (1.8.1 or 1.20 form)
 
+# Reference titles the engine is measured to create by itself in a migrated campaign, so a copy would duplicate it
+# ("Duplicate landed title name", 2026-10-25). Measured key by key in the game's own saves of the migrated founding
+# campaign at 990.1.1 and 1003.1.1: of the 340 titles 1.20 defines that the save lacked, only this one appeared. Why
+# the engine creates it is not known (not from history files, not from a holy order). Any other title a fresh game
+# has is carried, empty if the fresh game has it empty (DWP 2026-10-27 05-49-04, option B; djdarcy: carry only
+# what a fresh game has, as it has it).
+ENGINE_CREATED = frozenset({"d_knights_hospitaller"})
+
 
 def transplant_of(save: CK3Save, ctx) -> Transplant:
     """The context's shared transplant plan (built on first use, against the save as the earlier rules left it)."""
@@ -42,15 +50,19 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     if ctx.reference is None:
         return _skip(rule, "no reference save (--reference): the new titles come from a 1.20 save")
     t = transplant_of(save, ctx)
+    t.r15_kept = ctx.state.get("r15_kept", [])        # held titles R15 removed: their successors go to the holder
     save_keys = set(T.keyed(save.gamestate, TITLES))
     ref_keys = t.title_keys()
     new = {i for i, k in ref_keys.items() if k.encode() not in save_keys and not k.startswith("x_")}
-    # left to the engine: an unheld title with no land under it (it creates missing definitions itself, and a
-    # copy can collide with a campaign construct of the same name: d_knights_hospitaller)
+    # every title a fresh 1.20 game has is carried, held or not: an unheld titular title (h_roman_empire, the
+    # monastic orders, e_carthage ...) is how "not yet created, can be earned" is written, and the game's scripts
+    # name them (2026-10-27: 252 of 323 named 845 times; the engine created 1 of them in 16 years of play). Only the
+    # titles the engine is measured to create itself are left to it.
+    engine = {i for i in new if ref_keys[i] in ENGINE_CREATED}
     held = t.title_holders(new)
-    landless = {i for i in new if ref_keys[i][0] in "dkeh" and i not in held
-                and not any(p.startswith("de_jure_vassals") for p, _, _ in
-                            t.references(TITLES, i, t.entries(TITLES)[i]))}
+    unheld_titular = {i for i in new - engine if ref_keys[i][0] in "dkeh" and i not in held
+                      and not any(p.startswith("de_jure_vassals") for p, _, _ in
+                                  t.references(TITLES, i, t.entries(TITLES)[i]))}
     # a holy order that leases campaign land: 1.20 does not add these to an old save by itself (two months of
     # play on the migrated save created none of the 12), so they are expansion content -- added "as is" with
     # their leases unless --no-expansion-orders, and reported either way
@@ -58,7 +70,7 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     ho_campaign = {own for own, leased in t.holy_order_titles().values()
                    if own is not None and any(x in join for x in leased)}
     t.expansion_orders = ctx.expansion_orders
-    new -= landless
+    new -= engine
     if not ctx.expansion_orders:
         new -= ho_campaign
     save_provinces = {i: e for i, e in T.entries(save.gamestate, "provinces")}
@@ -88,7 +100,8 @@ def r14_new_titles(save: CK3Save, ctx, rule):
         tiers[ref_keys[i][0]] = tiers.get(ref_keys[i][0], 0) + 1
     return rule.result(matched=len(new) + len(provinces),
                        extra={"titles_planned": len(new), "by_tier": dict(sorted(tiers.items())),
-                              "left_to_the_engine_unheld_landless": len(landless),
+                              "unheld_titular_carried": len(unheld_titular),
+                              "left_to_the_engine": sorted(ref_keys[i] for i in engine),
                               "holy_order_titles_leasing_campaign_land": sorted(ref_keys[i] for i in ho_campaign),
                               "expansion_orders": "added" if ctx.expansion_orders else "left out",
                               "provinces_planned": len(provinces),
@@ -133,6 +146,22 @@ def r15_dead_titles(save: CK3Save, ctx, rule):
     _, conversion = defined_title_keys(ctx.game_dir)
     maps = D.classify(save.gamestate, ctx.old_game_dir / "common" / "landed_titles",
                       ctx.game_dir / "common" / "landed_titles", set(conversion))
+    # djdarcy 2026-10-27 (~06:30): "any titles that were in play that are still existent in the game that were
+    # present in our original game should be upgraded if possible so the correct holder still has their title."
+    # A held title R15 removes because 1.20 split or redrew its land: its successors go to the campaign holder
+    # (the transplant does it, Transplant.holdings_plan). Recorded here, before the removal, with the title's old
+    # de facto liege (by key), which the removal strips.
+    blocks = dict(T.entries(save.gamestate, TITLES))
+    key_of = {i: (k.decode() if (k := T._depth0(save.gamestate, e, T._KEY)) else "") for i, e in blocks.items()}
+    kept = []
+    for m in maps:
+        if m.holder is None or m.cls != "unclean" or not m.successors:
+            continue
+        e = blocks[m.save_id]
+        df = re.search(rb"\n\tde_facto_liege=(\d+)", save.gamestate[e.open:min(e.close, e.open + 4096)])
+        kept.append({"key": m.key, "holder": m.holder, "successors": list(m.successors),
+                     "old_liege_key": key_of.get(int(df.group(1))) if df else None})
+    ctx.state["r15_kept"] = kept
     ep = gs.EditPass()
     applied = D.apply(save.gamestate, maps, ep)
     ep.apply_to(save)

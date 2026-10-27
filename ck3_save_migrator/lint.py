@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from bisect import bisect_right
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -345,6 +345,118 @@ def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
             gloss="A vassal contract without its liege or its vassal binds nobody")
 
 
+def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """A ruler's realm agrees with his contracts: a count or higher who holds his primary title, and whose primary
+    has a de facto liege held by another living character, has a vassal contract with that character (in
+    vassal_contracts/active or /database, where 1.20 writes them). Measured 2026-10-27: play5 crashed at 989.1.1 with
+    two such counts (handed-back titles left their old ruler's counts under the new holder, uncontracted); the same
+    save without them, and the 1.20 game's own fresh save, have none. A baron in that state, and a domain that lists
+    a title someone else holds, are warnings: the campaign's own saves carry some and run."""
+    idx = idx or SectionIndex(g)
+    lt, living = idx.block("landed_titles/landed_titles"), idx.block("living")
+    if lt is None or living is None:
+        return
+    titles: dict[bytes, dict] = {}
+    for m in _ENTRY_COL0.finditer(g, lt.open, lt.close):
+        end = g.find(b"\n}", m.end(), lt.close)             # the title's own body: a short title must not read the next
+        b = g[m.end():min(end if end > 0 else lt.close, m.end() + 4096)]
+        titles[m.group(1)] = {k: (x.group(1) if (x := _T_FIELD[k].search(b)) else None)
+                              for k in (b"key", b"holder", b"de_facto_liege")}
+    key = lambda t: (titles.get(t, {}).get(b"key") or t).decode()       # noqa: E731
+    doms: dict[bytes, list[bytes]] = {}
+    for m in _ENTRY_COL0.finditer(g, living.open, living.close):
+        end = g.find(b"\n}", m.end(), living.close)
+        d = _DOMAIN.search(g, m.end(), end if end > 0 else living.close)
+        doms[m.group(1)] = d.group(1).split() if d else []
+    lieges: dict[bytes, set[bytes]] = defaultdict(set)
+    for sec in ("vassal_contracts/active", "vassal_contracts/database"):
+        b = idx.block(sec)
+        for e in gs.iter_entries(g, *b.body) if b is not None else []:
+            body = g[e.open:e.close]
+            v, lg = re.search(rb"[\n\t ]vassal=(\d+)", body), re.search(rb"[\n\t ]liege=(\d+)", body)
+            if v and lg:
+                lieges[v.group(1)].add(lg.group(1))
+    bad, barons, foreign = [], [], []
+    for c, ts in doms.items():
+        foreign += [f"{c.decode()} lists {key(t)}" for t in ts if titles.get(t, {}).get(b"holder") != c]
+        if not ts or titles.get(ts[0], {}).get(b"holder") != c:
+            continue
+        lg = titles[ts[0]][b"de_facto_liege"]
+        lh = titles.get(lg, {}).get(b"holder") if lg else None
+        if lh is None or lh == c or lh not in doms or lh in lieges.get(c, ()):
+            continue
+        row = f"{c.decode()} ({key(ts[0])}) under {key(lg)} of {lh.decode()}, contracts with " \
+              f"{sorted(x.decode() for x in lieges.get(c, ())) or 'nobody'}"
+        (barons if _TIER_RANK.get(key(ts[0])[:1], 0) == 1 else bad).append(row)
+    rep.add("a vassal ruler has a contract with his liege", "error", bad,
+            gloss="A count or higher is a vassal of his primary title's de facto liege; without a contract with "
+                  "that liege the game's realm code works on a contract that is not there (play5 crashed at 989.1.1)")
+    rep.add("a baron has a contract with his county's holder", "warn", barons,
+            gloss="A barony's liege is its county; a baron bound to someone else is out of step with his realm")
+    rep.add("a ruler's domain lists only titles he holds", "warn", foreign)
+
+
+def check_units_passable(g: bytes, rep: LintReport, game_dir: Path, idx: SectionIndex | None = None) -> None:
+    """Nothing in the save lives on, or is aimed at, a province the target map makes impassable: a map unit, a
+    holding with a type or soldier pools, a soldier pool raised there, a siege, a council task's target. 1.20 writes
+    none (its fresh save at the founding date: 0). 2026-10-27: 1.8.1 land in the Ordos (9542, 9532) became
+    impassable mountains; the founding save kept a castle there, its pools, a siege, an army, and two council tasks
+    aimed at it, and crashed at 989.1.1 (ck3+0xb064e8) when a councillor was appointed to one of the tasks. R22
+    clears them."""
+    from .mapdata import impassable_provinces
+    bad_map = impassable_provinces(Path(game_dir))
+    if not bad_map:
+        return
+    idx = idx or SectionIndex(g)
+    bad = []
+
+    def entries(path):
+        b = idx.block(path)
+        return gs.iter_entries(g, *b.body) if b is not None else []
+
+    for e in entries("units"):
+        loc = re.search(rb"\n\t+location=(\d+)", g[e.open:e.close])
+        if e.key and loc and int(loc.group(1)) in bad_map:
+            bad.append(f"unit {e.key.decode()} on province {loc.group(1).decode()}")
+    for e in entries("provinces"):
+        if e.key and e.key.isdigit() and int(e.key) in bad_map:
+            h = re.search(rb"\n\t\tholding=\{", g[e.open:e.close])
+            if h:
+                hb = g[e.open + h.end():g.find(b"\n\t\t}", e.open + h.end(), e.close)]
+                if b"type=" in hb or re.search(rb"\n\t+(?:levy|garrison)=", hb):
+                    bad.append(f"province {e.key.decode()} keeps an old holding")
+    for e in entries("armies/regiments"):
+        o = re.search(rb"\n\t+origin=(\d+)", g[e.open:e.close])
+        if e.key and o and int(o.group(1)) in bad_map:
+            bad.append(f"soldier pool {e.key.decode()} raised on province {o.group(1).decode()}")
+    for e in entries("sieges/sieges"):
+        pv = re.search(rb"\n\t+province=(\d+)", g[e.open:e.close])
+        if e.key and pv and int(pv.group(1)) in bad_map:
+            bad.append(f"siege {e.key.decode()} of province {pv.group(1).decode()}")
+    for e in entries("council_task_manager/active"):
+        t = re.search(rb"\n\t+target=\{\s*type=prov\s+identity=(\d+)", g[e.open:e.close])
+        if e.key and t and int(t.group(1)) in bad_map:
+            bad.append(f"council task {e.key.decode()} aimed at province {t.group(1).decode()}")
+    rep.add("nothing lives on a province the new map made impassable", "error", bad,
+            gloss="Something on, or aimed at, a province the new map made impassable; the game crashes when it "
+                  "files it under that province")
+
+
+def check_meta(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """The metadata the launcher and loader read first is well formed: every entry of meta_data has a key.
+    2026-10-27: a playset fit replaced `mods={...}` from the key instead of the brace and left a bare `{ ... }`; the
+    game answered "Failed to load SaveGame" and lint said nothing."""
+    idx = idx or SectionIndex(g)
+    b = idx.block("meta_data")
+    if b is None:
+        return
+    kids = list(gs.iter_children(g, *b.body))
+    keyless = [g[c.start:min(c.end, c.start + 60)].decode("utf-8", "replace").split("\n")[0] for c in kids
+               if c.key is None]
+    rep.add("meta_data entries all have a key", "error", keyless,
+            gloss="A bare value or block in the save's metadata; the game refuses to load it")
+
+
 def _entry_text(g: bytes, start: int) -> bytes:
     op = g.index(b"{", start)
     return g[start:gs.match_brace(g, op) + 1]
@@ -510,6 +622,31 @@ def check_ai(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None
     rep.add("AI war plans and strategies point at things that exist", "error", dangling,
             gloss="A war plan whose coordinator is gone, or a strategy listing a plan that is gone; the game "
                   "crashes loading it")
+
+
+def check_reference_titles(g: bytes, rep: LintReport, reference: bytes, idx: SectionIndex | None = None) -> None:
+    """Every title a fresh game of the target version has (the reference save) exists in the save, held or not
+    (2026-10-27: the migrated founding save lacked 323, all unheld and titular in the fresh game, among them
+    h_roman_empire; the game's scripts name 252 of them and fail on each). Runtime x_ titles are a game's own and
+    are not compared; a title the engine is measured to create itself is listed as info, not an error."""
+    from .rules.transplant_1_20 import ENGINE_CREATED     # here, not at the top: the rules import lint's helpers
+    idx = idx or SectionIndex(g)
+    lt = idx.block("landed_titles/landed_titles")
+    try:
+        rlt = gs.locate(reference, "landed_titles/landed_titles")
+    except gs.GamestateError:
+        return
+    if lt is None:
+        return
+    key = re.compile(rb'\n\tkey="?([^"\s]+)"?')
+    have = set(key.findall(g, lt.open, lt.close))
+    want = {k for k in key.findall(reference, rlt.open, rlt.close) if not k.startswith(b"x_")}
+    missing = sorted(k.decode() for k in want - have)
+    rep.add("titles a fresh game has exist in the save", "error", [k for k in missing if k not in ENGINE_CREATED],
+            limit=12, gloss="Titles the target version's fresh game has (most of them empty, waiting to be created or "
+                            "earned) that the save lacks; the game's scripts that name them fail")
+    rep.add("titles the game creates by itself", "info", [k for k in missing if k in ENGINE_CREATED],
+            gloss="Titles the fresh game has that the engine is measured to create in a migrated save; left to it")
 
 
 def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -941,7 +1078,13 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_companies(g, rep, idx)
     check_armies(g, rep, idx)
     check_ai(g, rep, idx)
+    if reference is not None:
+        check_reference_titles(g, rep, reference, idx)
     check_contracts(g, rep, idx)
+    check_realms(g, rep, idx)
+    check_meta(g, rep, idx)
+    if game_dir is not None:
+        check_units_passable(g, rep, game_dir, idx)
     check_registries(g, rep, idx)
     check_references(g, rep, idx)
     if keys:

@@ -36,7 +36,7 @@ REF = gamestate(
     + title(5, "k_lone", "")
     + title(6, "d_child", "\tde_jure_liege=5\n\tde_jure_vassals={ 7 }\n")
     + title(7, "b_child", "\tde_jure_liege=6\n")
-    + title(8, "d_landless", ""),                      # unheld, no land: left to the engine
+    + title(8, "d_landless", ""),                      # unheld, no land: carried empty, as a fresh game has it
     coa="7={\n\tpattern=\"n\"\n}\n8={\n\tpattern=\"m\"\n}\n",
     extra="provinces={\n1={\n}\n2={\n}\n3={\n\tholding={\n\t\ttype=castle_holding\n\t}\n}\n}\n",
 )
@@ -149,16 +149,136 @@ def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
 def test_r14_plans_the_new_titles_and_provinces_only(tmp_path):
     _, res = run_r14(tmp_path)
     ex = res["R14"].extra
-    assert ex["titles_planned"] == 4                    # d_new, c_new, d_child, b_child: not the save's, not x_x_1
-    assert ex["by_tier"] == {"b": 1, "c": 1, "d": 2} and ex["x_titles_left_out"] == 1
-    assert ex["left_to_the_engine_unheld_landless"] == 1                # d_landless
+    assert ex["titles_planned"] == 5        # d_new, c_new, d_child, b_child, d_landless: not the save's, not x_x_1
+    assert ex["by_tier"] == {"b": 1, "c": 1, "d": 3} and ex["x_titles_left_out"] == 1
+    assert ex["unheld_titular_carried"] == 1 and ex["left_to_the_engine"] == []      # d_landless is carried
     assert ex["provinces_planned"] == 1                 # province 3
+
+
+def test_r14_carries_an_unheld_titular_title_empty_but_not_one_the_engine_creates(tmp_path):
+    """2026-10-27 (DWP 05-49-04, option B): a fresh 1.20 game keeps empty records for the titles nobody holds yet
+    (h_roman_empire, the monastic orders); scripts name them, and the engine created 1 of 323 in 16 years of play.
+    So they are carried, empty as the reference has them -- nobody is handed a title (djdarcy: "we don't want to
+    create titles that weren't meant to be used or that players need to earn"). A title the engine is measured to
+    create itself (d_knights_hospitaller) is left to it, or the load logs a duplicate (2026-10-25)."""
+    hosp = title(20, "d_knights_hospitaller", "\tdate=9999.1.1\n")
+    ref = REF.replace(b"8={\n\tkey=d_landless\n}\n", b"8={\n\tkey=d_landless\n\tdate=9999.1.1\n}\n" + hosp.encode(), 1)
+    save, res = migrate(tmp_path, SAVE, ref, "R14")
+    t = titles_by_key(save.gamestate)
+    assert "d_landless" in t and b"holder" not in t["d_landless"][1]     # carried, held by nobody
+    assert b"date=9999.1.1" in t["d_landless"][1]                       # in the reference's never-created state
+    assert "d_knights_hospitaller" not in t                             # the engine makes its own
+    ex = res["R14"].extra
+    assert ex["left_to_the_engine"] == ["d_knights_hospitaller"] and ex["unheld_titular_carried"] == 1
+    ref_keys = set(titles_by_key(DEFAULT_META + ref))
+    assert set(t) <= ref_keys | {"k_old", "d_old", "k_lone"}            # nothing the reference lacks is created
+
+
+def test_r15_held_title_successors_go_to_the_campaign_holder(tmp_path):
+    """djdarcy 2026-10-27: "any titles that were in play that are still existent in the game that were present in
+    our original game should be upgraded if possible so the correct holder still has their title." A held title
+    R15 removed because 1.20 split it (recorded as ctx.state["r15_kept"]) hands its successor to the campaign holder,
+    not the reference's: the holder gains it in his domain (made when he has none), and as his only title it takes
+    the old title's de facto liege. The report names the title, its origin and the displaced ruler."""
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + REF
+    ctx.state["r15_kept"] = [{"key": "d_gone", "holder": 40, "successors": ["d_new"], "old_liege_key": "k_old"}]
+    res = {r.id: r for r in R.run_rules(save, R.select("R14"), ctx)}
+    t = titles_by_key(save.gamestate)
+    d_new_id, d_new = t["d_new"]
+    assert b"holder=40" in d_new and b"de_facto_liege=0" in d_new      # the campaign holder; k_old as liege
+    living = bodies(save.gamestate, "living")
+    assert f"domain={{ {d_new_id} }}".encode() in living[40]            # landed_data made for him
+    (row,) = res["R17"].extra["kept_by_holder"]
+    assert row["title"] == "d_new" and row["from"] == "d_gone" and row["holder"] == 40 and row["liege"] == "k_old"
+    assert res["R17"].extra["kept_skipped"] == []
+
+
+def _kept(tmp_path, save_body, ref_body, kept, rules="R14"):
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ctx.state["r15_kept"] = kept
+    return save, {r.id: r for r in R.run_rules(save, R.select(rules), ctx)}
+
+
+def test_r15_held_title_takes_its_holders_contract_liege_when_the_old_liege_is_gone(tmp_path):
+    """play5 (2026-10-27) crashed at 989.1.1: c_tengger went back to its campaign holder with no de facto liege
+    while his vassal contract still bound him to his liege. A holder bound by a contract takes that liege's primary
+    title as his regained primary's liege, when the old liege title is gone from the save."""
+    save_body = gamestate(
+        living=char(40) + char(41, "\tlanded_data={\n\t\tdomain={ 0 }\n\t\tvassal_contracts={ 0 }\n\t}\n"),
+        titles=title(0, "k_old", "\tholder=41\n\tde_jure_vassals={ 1 }\n") + title(1, "d_old", "\tde_jure_liege=0\n"),
+        title_index=2,
+        extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=40\n\t\t\tliege=41\n"
+              "\t\t}\n\t}\n}\n",
+    )
+    save, res = _kept(tmp_path, save_body, REF,
+                      [{"key": "d_gone", "holder": 40, "successors": ["d_new"], "old_liege_key": None}])
+    t = titles_by_key(save.gamestate)
+    assert b"holder=40" in t["d_new"][1] and b"de_facto_liege=0" in t["d_new"][1]     # under 41's k_old
+    assert res["R17"].extra["kept_relinked"][0]["why"] == "his contract's liege"
+
+
+def test_r15_displaced_rulers_own_title_skips_the_handed_back_liege(tmp_path):
+    """play5: the copied ruler who held d_langshan kept c_tiande under it; with d_langshan handed back, c_tiande
+    made him a vassal of the campaign holder with no contract. His title takes the liege above the handed-back one
+    (here d_new's own de facto liege, the carried d_landless)."""
+    ref = REF.replace(b"\tholder=9\n\tcoat_of_arms_id=7\n", b"\tholder=9\n\tde_facto_liege=8\n\tcoat_of_arms_id=7\n", 1)
+    ref = ref.replace(b"\tde_facto_liege=1\n\tcapital=3\n", b"\tholder=9\n\tde_facto_liege=2\n\tcapital=3\n", 1)
+    assert b"de_facto_liege=8" in ref and b"de_facto_liege=2" in ref
+    save, res = _kept(tmp_path, SAVE, ref,
+                      [{"key": "d_gone", "holder": 40, "successors": ["d_new"], "old_liege_key": None}], "R14,R16")
+    t = titles_by_key(save.gamestate)
+    assert b"holder=40" in t["d_new"][1]
+    c_new = t["c_new"][1]
+    assert int(re.search(rb"holder=(\d+)", c_new).group(1)) != 40                    # still the copied ruler's
+    assert f"de_facto_liege={t['d_landless'][0]}".encode() in c_new                   # not d_new, now 40's
+    assert any(r["title"] == "c_new" for r in res["R17"].extra["kept_relinked"])
+
+
+def test_r15_baron_contract_follows_the_county_holder(tmp_path):
+    """play5: b_taihe went back to its campaign baron, but its county had gone to another campaign ruler while the
+    baron's contract still named his old liege. A barony's liege is always its county, so the contract follows:
+    its liege becomes the county's holder, and it leaves the old liege's list for the new one's."""
+    save_body = gamestate(
+        living=char(40) + char(41, "\tlanded_data={\n\t\tdomain={ 0 }\n\t\tvassal_contracts={ 0 }\n\t}\n") + char(42),
+        titles=title(0, "k_old", "\tholder=41\n\tde_jure_vassals={ 1 }\n") + title(1, "d_old", "\tde_jure_liege=0\n"),
+        title_index=2,
+        extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=40\n\t\t\tliege=41\n"
+              "\t\t}\n\t}\n}\n",
+    )
+    ref = REF.replace(b"8={\n\tkey=d_landless\n}\n",
+                      b"8={\n\tkey=d_landless\n}\n9={\n\tkey=b_new\n\tde_jure_liege=3\n\tholder=9\n}\n", 1)
+    ref = ref.replace(b"\tde_facto_liege=1\n\tcapital=3\n", b"\tholder=9\n\tcapital=3\n", 1)
+    save, res = _kept(tmp_path, save_body, ref,
+                      [{"key": "c_gone", "holder": 42, "successors": ["c_new"], "old_liege_key": None},
+                       {"key": "b_gone", "holder": 40, "successors": ["b_new"], "old_liege_key": None}])
+    g = save.gamestate
+    t = titles_by_key(g)
+    assert b"holder=42" in t["c_new"][1] and b"holder=40" in t["b_new"][1]
+    c = gs.locate(g, "vassal_contracts/active")
+    assert b"liege=42" in g[c.open:c.close] and b"liege=41" not in g[c.open:c.close]
+    living = bodies(g, "living")
+    assert re.search(rb"vassal_contracts=\{\s*\}", living[41])
+    assert re.search(rb"vassal_contracts=\{\s*0\s*\}", living[42])
+
+
+def test_r15_held_title_successor_not_in_the_reference_is_skipped_and_named(tmp_path):
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + REF
+    ctx.state["r15_kept"] = [{"key": "d_gone", "holder": 40, "successors": ["d_nowhere"], "old_liege_key": None}]
+    res = {r.id: r for r in R.run_rules(save, R.select("R14"), ctx)}
+    assert res["R17"].extra["kept_skipped"] == [{"title": "d_nowhere", "from": "d_gone", "why": "not in the reference"}]
+    assert b"holder=40" not in save.gamestate
 
 
 def test_r17_writes_the_titles_with_translated_ids(tmp_path):
     save, res = run_r14(tmp_path)
     t = titles_by_key(save.gamestate)
-    assert set(t) == {"k_old", "d_old", "k_lone", "d_new", "c_new", "d_child", "b_child"}
+    assert set(t) == {"k_old", "d_old", "k_lone", "d_new", "c_new", "d_child", "b_child", "d_landless"}
     d_new_id, d_new = t["d_new"]
     c_new_id, c_new = t["c_new"]
     assert d_new_id == 2 + 3 and c_new_id == 3 + 3      # title base = save max index 2 + 1

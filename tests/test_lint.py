@@ -642,11 +642,117 @@ def test_ai_plans_and_strategies_must_point_at_things_that_exist():
                                   "war plan 20: coordinator 11 does not exist"]
 
 
+def test_titles_a_fresh_game_has_must_exist_in_the_save():
+    """2026-10-27: the migrated founding save lacked 323 titles the fresh 1.20 game has (h_roman_empire among them);
+    scripts naming them fail. The check compares by key; runtime x_ titles are not compared; a title the engine
+    creates by itself (d_knights_hospitaller) is info, not an error."""
+    def lt(*keys):
+        return ("landed_titles={\n\tlanded_titles={\n" + "".join(f"{i}={{\n\tkey={k}\n}}\n" for i, k in enumerate(keys))
+                + "\t}\n}\n").encode()
+    ref = lt("k_old", "h_roman_empire", "x_mc_3", "d_knights_hospitaller")
+    rep = L.LintReport()
+    L.check_reference_titles(lt("k_old"), rep, ref)
+    found = {f.check: f for f in rep.findings}
+    assert found["titles a fresh game has exist in the save"].examples == ["h_roman_empire"]
+    assert found["titles a fresh game has exist in the save"].severity == "error"
+    assert found["titles the game creates by itself"].severity == "info"
+    rep = L.LintReport()
+    L.check_reference_titles(lt("k_old", "h_roman_empire"), rep, ref)
+    assert "titles a fresh game has exist in the save" not in {f.check for f in rep.findings}
+
+
 def test_check_contracts_needs_both_parties():
     ok = "7={\n\t\tliege=1\n\t\tvassal=2\n\t}\n"
     assert _checks(_titles_gs(TREE, contracts=ok)) == {}
     found = _checks(_titles_gs(TREE, contracts="7={\n\t\tliege=1\n\t}\n8={\n\t\tliege=1\n\t\tvassal=9\n\t}\n"))
     assert found["vassal contracts name both parties"].count == 2
+
+
+def _realms(g: bytes) -> dict:
+    rep = L.LintReport()
+    L.check_realms(g, rep)
+    return {f.check: f for f in rep.findings}
+
+
+REALM = ("0={\n\tkey=d_top\n\tholder=1\n}\n1={\n\tkey=c_low\n\tholder=2\n\tde_facto_liege=0\n}\n"
+         "2={\n\tkey=b_low\n\tholder=3\n\tde_facto_liege=1\n\tde_jure_liege=1\n}\n")
+REALM_PEOPLE = ("1={\n\tlanded_data={\n\t\tdomain={ 0 }\n\t}\n}\n2={\n\tlanded_data={\n\t\tdomain={ 1 }\n\t}\n}\n"
+                "3={\n\tlanded_data={\n\t\tdomain={ 2 }\n\t}\n}\n")
+
+
+def test_check_realms_a_count_under_a_liege_needs_a_contract_with_him():
+    """play5 (2026-10-27) crashed at 989.1.1 with two counts under a handed-back duchy and no contract with its new
+    holder. A count whose primary's de facto liege is held by another living character must have a contract with
+    him (active or database); a baron in that state is a warning only."""
+    ok = "7={\n\t\tvassal=2\n\t\tliege=1\n\t}\n8={\n\t\tvassal=3\n\t\tliege=2\n\t}\n"
+    assert _realms(_titles_gs(REALM, contracts=ok, living=REALM_PEOPLE)) == {}
+    found = _realms(_titles_gs(REALM, contracts="8={\n\t\tvassal=3\n\t\tliege=1\n\t}\n", living=REALM_PEOPLE))
+    assert found["a vassal ruler has a contract with his liege"].severity == "error"
+    assert found["a vassal ruler has a contract with his liege"].count == 1          # c_low, contract with nobody
+    assert found["a baron has a contract with his county's holder"].severity == "warn"   # b_low bound to 1, not 2
+    db = ("living={\n" + REALM_PEOPLE + "}\nlanded_titles={\n\tlanded_titles={\n" + REALM + "\t}\n}\n"
+          "vassal_contracts={\n\tdatabase={\n" + ok + "\t}\n}\n").encode()
+    assert _realms(db) == {}                                                       # 1.20 writes database too
+
+
+def test_check_realms_reads_each_title_only_to_its_own_end():
+    """A short title with no de facto liege must not borrow the next title's (first run on play5: 83 false rows,
+    'a kingdom under a duchy')."""
+    titles = ("0={\n\tkey=c_a\n\tholder=1\n}\n"                                   # independent: no liege of its own
+              "1={\n\tkey=c_b\n\tholder=2\n\tde_facto_liege=2\n}\n2={\n\tkey=d_top\n\tholder=3\n}\n")
+    people = ("1={\n\tlanded_data={\n\t\tdomain={ 0 }\n\t}\n}\n2={\n\tlanded_data={\n\t\tdomain={ 1 }\n\t}\n}\n"
+              "3={\n\tlanded_data={\n\t\tdomain={ 2 }\n\t}\n}\n")
+    found = _realms(_titles_gs(titles, contracts="7={\n\t\tvassal=2\n\t\tliege=3\n\t}\n", living=people))
+    assert found == {}                                   # c_a must not read c_b's de_facto_liege=2
+
+
+def test_check_meta_needs_keyed_entries_and_the_mod_list():
+    """2026-10-27: a playset fit left a bare `{ ... }` where `mods={ ... }` was; the game refused the save."""
+    good = b'meta_data={\n\tversion="1.20.1.2"\n\tmods={ "mod/a.mod" }\n\tgame_rules={\n\t}\n}\n'
+    rep = L.LintReport()
+    L.check_meta(good, rep)
+    assert rep.findings == []
+    bad = b'meta_data={\n\tversion="1.20.1.2"\n\t{ "mod/a.mod" }\n\tgame_rules={\n\t}\n}\n'
+    rep = L.LintReport()
+    L.check_meta(bad, rep)
+    found = {f.check: f for f in rep.findings}
+    assert found["meta_data entries all have a key"].severity == "error"
+    assert found["meta_data entries all have a key"].count == 1
+
+
+def test_check_units_passable_flags_a_unit_on_new_mountains(tmp_path):
+    """2026-10-27: an army on province 9542 (1.20's impassable_mountains) crashed the game at 989.1.1."""
+    (tmp_path / "map_data").mkdir()
+    (tmp_path / "map_data" / "default.map").write_text("impassable_mountains = LIST { 9542 }\n", encoding="utf-8")
+    g = b"units={\n\t1={\n\t\tlocation=9542\n\t}\n\t2={\n\t\tlocation=9539\n\t}\n}\n"
+    rep = L.LintReport()
+    L.check_units_passable(g, rep, tmp_path)
+    (f,) = rep.findings
+    assert f.check == "nothing lives on a province the new map made impassable" and f.severity == "error"
+    assert f.count == 1
+    rep = L.LintReport()
+    L.check_units_passable(g.replace(b"location=9542", b"location=9541"), rep, tmp_path)
+    assert rep.findings == []
+
+
+def test_check_impassable_sees_holdings_pools_sieges_and_council_tasks(tmp_path):
+    """The crash itself was a council task aimed at 9542 (a councillor appointed at New Year), not the army."""
+    (tmp_path / "map_data").mkdir()
+    (tmp_path / "map_data" / "default.map").write_text("impassable_mountains = LIST { 9542 }\n", encoding="utf-8")
+    g = (b"provinces={\n\t9542={\n\t\tholding={\n\t\t\ttype=\"castle_holding\"\n\t\t\tlevy=50\n\t\t}\n\t}\n"
+         b"\t9539={\n\t\tholding={\n\t\t\ttype=\"church_holding\"\n\t\t}\n\t}\n}\n"
+         b"armies={\n\tregiments={\n\t\t50={\n\t\t\torigin=9542\n\t\t}\n\t}\n}\n"
+         b"sieges={\n\tsieges={\n\t\t90={\n\t\t\tprovince=9542\n\t\t}\n\t}\n}\n"
+         b"council_task_manager={\n\tactive={\n\t\t83888785={\n\t\t\ttype=\"task_increase_control\"\n"
+         b"\t\t\ttarget={\n\t\t\t\ttype=prov\n\t\t\t\tidentity=9542\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    rep = L.LintReport()
+    L.check_units_passable(g, rep, tmp_path)
+    (f,) = rep.findings
+    assert f.count == 4 and any("council task 83888785" in x for x in f.examples)
+    empty = b"provinces={\n\t9542={\n\t\tholding={\n\t\t\tincome=0\n\t\t}\n\t}\n}\n"
+    rep = L.LintReport()
+    L.check_units_passable(empty, rep, tmp_path)
+    assert rep.findings == []                                             # the empty 1.20 form is fine
 
 
 def test_localization_key_is_rejected_only_directly_in_a_title():

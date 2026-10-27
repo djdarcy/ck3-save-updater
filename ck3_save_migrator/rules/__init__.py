@@ -73,7 +73,7 @@ from .transplant_1_20 import RULES as _TRANSPLANT  # noqa: E402
 # Registry order is execution order: R11 before R8 (it reads the old layout), R8 before
 # R10/R9/R12 (they read the transplanted databases), the transplant after religion (its translation joins
 # faiths and rites by identity, which R8 established) and written by R17, the version bump last.
-_ORDER = ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16", "R17", "R7"]
+_ORDER = ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16", "R17", "R7"]
 _BY_ID = {r.id: r for r in list(_TO_1_20) + list(_RELIGION) + list(_TRANSPLANT)}
 REGISTRY: list[Rule] = [_BY_ID[i] for i in _ORDER]
 # the transplant's planning rules; choosing any of them brings the write step along

@@ -332,8 +332,165 @@ def r20_unrun_war_coordinators(save: CK3Save, ctx, rule) -> object:
                               "war_plans": sorted(int(k) for k in dropped_plans), "strategy_lists": lists})
 
 
+# --------------------------------------------------------------------------- R22
+_UNIT_LOC = re.compile(rb"\n\t+location=(\d+)")
+_UNIT_PREV = re.compile(rb"\n\t+prev=(\d+)")
+_UNIT_MOVE = re.compile(rb"\n\t+(?:path=\{[^}]*\}|total_cost=[\d.]+|movement_progress=[\d.]+)")
+
+
+_POOL_REF = re.compile(rb"\n\t+(?:levy|garrison)=(\d+)")
+_TASK_TARGET = re.compile(rb"\n\t+target=\{\s*type=prov\s+identity=(\d+)")
+_TITLE_KEY_LINE = re.compile(rb"(?m)^(\d+)=\{\n\tkey=\"?([\w\-']+)")
+_CHUNK_POOL = re.compile(rb"[\n\t ]regiment=(\d+)")
+
+
+def _locate_or_none(d: bytes, path: str):
+    try:
+        return gs.locate(d, path)
+    except gs.GamestateError:
+        return None
+
+
+def r22_impassable_provinces(save: CK3Save, ctx, rule) -> object:
+    """Clear what the old map left on provinces the target map makes impassable.
+
+    1.20's map rework made 1.8.1 land impassable (1,204 provinces; 9542 and 9532 in the Ordos among them). A 1.20
+    game has an empty holding there (no type, no levy or garrison); the founding save kept the old ones: a castle on
+    9542 and a tribal holding on 9532 with their buildings, fort, and levy and garrison soldier pools, a siege of the
+    castle, and an army standing on it. When the game files such a holding's pools under its province (when the
+    holder changes: R15's hand-back does that) the province has no barony and the game crashes (2026-10-27, 989.1.1,
+    ck3+0xb064e8: the write through the province's +0x848 pointer; moving the army alone did not stop it).
+
+    So, on each impassable province: the holding becomes the empty one 1.20 writes (``income=0``) and the fort level
+    goes; its soldier pools (and any pool whose origin is there) are deleted, with the army-regiment chunks that draw
+    on them (a regiment left with none is deleted and leaves its army's list); a siege there is deleted; a map unit
+    there goes back to its ``prev`` province when that is passable, dropping any unfinished path (one with no
+    passable ``prev`` is reported and left).
+    """
+    if ctx.game_dir is None:
+        return rule.result(matched=0, edited=0, extra={"skipped": "no --game-dir: the target map is unknown"})
+    from ..mapdata import impassable_provinces
+    bad = impassable_provinces(Path(ctx.game_dir))
+    d = save.gamestate
+    p = gs.EditPass()
+    ex = {"holdings": [], "pools": [], "regiments": [], "chunks": 0, "sieges": [], "moved": [], "left": []}
+    pools: set[bytes] = set()
+    pb = _locate_or_none(d, "provinces")
+    for e in gs.iter_entries(d, *pb.body) if pb is not None else []:
+        if not (e.key and e.key.isdigit()) or int(e.key) not in bad:
+            continue
+        for c in gs.iter_children(d, *e.body):
+            if c.key == b"holding" and c.block is not None:
+                h = d[c.block.open:c.block.end]
+                if b"type=" not in h and _POOL_REF.search(h) is None:
+                    continue                                  # already the empty 1.20 form
+                pools.update(m.group(1) for m in _POOL_REF.finditer(h))
+                ind = d[d.rfind(b"\n", 0, c.start) + 1:c.start]
+                p.add(gs.Edit(c.block.open, c.block.end, b"{\n" + ind + b"\tincome=0\n" + ind + b"}", rule.name,
+                              f"province {e.key.decode()} holding"))
+                ex["holdings"].append(int(e.key))
+            elif c.key == b"fort_level":
+                s, t = gs.removal_span(d, c.start, c.end)
+                p.add(gs.Edit(s, t, b"", rule.name, f"province {e.key.decode()} fort"))
+    rp = _locate_or_none(d, "armies/regiments")
+    for e in gs.iter_entries(d, *rp.body) if rp is not None else []:
+        o = re.search(rb"\n\t+origin=(\d+)", d[e.open:e.close])
+        if e.key in pools or (o and int(o.group(1)) in bad):
+            pools.add(e.key)
+            p.delete_block(d, e, rule.name, f"pool {e.key.decode()}")
+            ex["pools"].append(int(e.key))
+    gone_regs: dict[bytes, bytes] = {}                      # army regiment -> its army
+    ar = _locate_or_none(d, "armies/army_regiments")
+    for e in gs.iter_entries(d, *ar.body) if ar is not None and pools else []:
+        ch = next((c for c in gs.iter_children(d, *e.body) if c.key == b"chunks" and c.block is not None), None)
+        if ch is None:
+            continue
+        items = [c for c in gs.iter_children(d, *ch.block.body) if c.block is not None]
+        drop = [c for c in items if (m := _CHUNK_POOL.search(d, c.block.open, c.block.close)) and m.group(1) in pools]
+        if not drop:
+            continue
+        if len(drop) == len(items):
+            army = re.search(rb"\n\t+army=(\d+)", d[e.open:e.close])
+            gone_regs[e.key] = army.group(1) if army else b""
+            p.delete_block(d, e, rule.name, f"regiment {e.key.decode()}")
+            ex["regiments"].append(int(e.key))
+        else:
+            for c in drop:
+                s, t = gs.removal_span(d, c.start, c.end)
+                p.add(gs.Edit(s, t, b"", rule.name, f"regiment {e.key.decode()} chunk"))
+            ex["chunks"] += len(drop)
+    aa = _locate_or_none(d, "armies/armies")
+    if aa is not None and gone_regs:
+        armies = set(gone_regs.values())
+        for e in gs.iter_entries(d, *aa.body):
+            if e.key not in armies:
+                continue
+            m = re.search(rb"\n\t+regiments=\{([^}]*)\}", d[e.open:e.close])
+            if m:
+                ids = m.group(1).split()
+                kept = [i for i in ids if i not in gone_regs]
+                if len(kept) != len(ids):
+                    a = e.open + m.start(1)
+                    p.add(gs.Edit(a, e.open + m.end(1), b" " + b" ".join(kept) + b" ", rule.name,
+                                  f"army {e.key.decode()} regiments"))
+    sb = _locate_or_none(d, "sieges/sieges")
+    for e in gs.iter_entries(d, *sb.body) if sb is not None else []:
+        pv = re.search(rb"\n\t+province=(\d+)", d[e.open:e.close])
+        if e.key and pv and int(pv.group(1)) in bad:
+            p.delete_block(d, e, rule.name, f"siege {e.key.decode()}")
+            ex["sieges"].append(int(e.key))
+    # a council task aimed at such a province (the crash itself: 50350018's task_increase_control on 9542, filed
+    # under the province when a councillor is appointed) is aimed at a passable province of its court owner
+    ct = _locate_or_none(d, "council_task_manager/active")
+    aimed = []
+    for e in gs.iter_entries(d, *ct.body) if ct is not None else []:
+        m = _TASK_TARGET.search(d, e.open, e.close)
+        if e.key and m and int(m.group(1)) in bad:
+            co = re.search(rb"\n\t+court_owner=(\d+)", d[e.open:e.close])
+            aimed.append((e, m, co.group(1) if co else None))
+    if aimed:
+        from ..mapdata import barony_provinces
+        bprov = barony_provinces(Path(ctx.game_dir))
+        lt = _locate_or_none(d, "landed_titles/landed_titles")
+        keys = {m.group(1): m.group(2).decode() for m in _TITLE_KEY_LINE.finditer(d, lt.open, lt.close)} \
+            if lt is not None else {}
+        lv = _locate_or_none(d, "living")
+        doms = {}
+        for e in gs.iter_entries(d, *lv.body) if lv is not None else []:
+            dm = re.search(rb"\n\t\tdomain=\{([^}]*)\}", d[e.open:e.close])
+            if dm:
+                doms[e.key] = dm.group(1).split()
+        for e, m, co in aimed:
+            to = next((bprov[keys[t]] for t in doms.get(co, []) if keys.get(t, "").startswith("b_")
+                       and bprov.get(keys[t]) is not None and bprov[keys[t]] not in bad), None)
+            if to is None:
+                ex["tasks_left"] = ex.get("tasks_left", []) + [int(e.key)]
+                continue
+            p.add(gs.Edit(m.start(1), m.end(1), str(to).encode(), rule.name, f"council task {e.key.decode()}"))
+            ex.setdefault("tasks", []).append({"task": int(e.key), "from": int(m.group(1)), "to": to})
+    ub = _locate_or_none(d, "units")
+    for e in gs.iter_entries(d, *ub.body) if ub is not None else []:
+        t = d[e.start:e.end]
+        loc = _UNIT_LOC.search(t)
+        if not (e.key and loc) or int(loc.group(1)) not in bad:
+            continue
+        prev = _UNIT_PREV.search(t)
+        to = int(prev.group(1)) if prev and int(prev.group(1)) not in bad else None
+        if to is None:
+            ex["left"].append({"unit": int(e.key), "location": int(loc.group(1))})
+            continue
+        new = _UNIT_MOVE.sub(b"", t[:loc.start(1)] + str(to).encode() + t[loc.end(1):])
+        p.add(gs.Edit(e.start, e.end, new, rule.name, f"unit {e.key.decode()}"))
+        ex["moved"].append({"unit": int(e.key), "from": int(loc.group(1)), "to": to})
+    p.count(rule.name).matched = len(ex["holdings"]) + len(ex["pools"]) + len(ex["sieges"]) + len(ex["moved"]) \
+        + len(ex["left"]) + len(ex.get("tasks", [])) + len(ex.get("tasks_left", []))
+    p.apply_to(save)
+    c = p.count(rule.name)
+    return rule.result(matched=c.matched, edited=c.edited, extra=ex)
+
+
 # --------------------------------------------------------------------------- R6
-_TITLE_DEF = re.compile(rb"(?<![\w.])([hekdcb]_[\w\-']+)\s*=\s*\{")
+_TITLE_DEF =re.compile(rb"(?<![\w.])([hekdcb]_[\w\-']+)\s*=\s*\{")
 _LOOKUP_LINE = re.compile(r"^\s*([\w\-']+)\s*=\s*([\w\-']+)", re.M)
 
 
@@ -454,6 +611,9 @@ RULES = [
     Rule("R20", "unrun-war-coordinators", UNKNOWN_SINCE,
          "drop AI war coordinators that were never run (no stance, supply limit 0) and their war plans",
          r20_unrun_war_coordinators),
+    Rule("R22", "impassable-provinces", "1.18.0 (map rework; exact major unverified)",
+         "clear old holdings, soldier pools and sieges from provinces the target map makes impassable; move units off",
+         r22_impassable_provinces),
     Rule("R6", "dead-titles-report", "1.18.0 (map rework; exact major unverified)",
          "report titles the game no longer defines (no edit)", r6_dead_titles),
     Rule("R7", "version-bump", "n/a",

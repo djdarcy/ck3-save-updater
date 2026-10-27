@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-10-27
+
+### Fixed
+- The migrated save lacked 323 titles a new 1.20 game has at the same date, all of them empty and waiting to be created or earned: the Roman and Indian hegemonies, empires such as Carthage, and the monastic and military orders. The game's own scripts name most of them (restoring the Roman Empire, faction demands, clothing), so those features could not work, and portrait mods logged errors. The new-map transplant now carries every title the new game has, empty as the new game has it; nobody is given a title. The one title the game creates by itself in a migrated campaign (the Knights Hospitaller) is left to it.
+- Titles a campaign character held where 1.20 split or redrew the land (on the old eastern edge: Xia, the Ordos, Gansu, Ustyurt) used to go to the new game's rulers, leaving several campaign rulers with nothing. Their holder now keeps the new titles for that land, with the vassals under them; the new game's ruler who loses everything joins his court.
+- Handing those titles back left some realms out of step with their vassal contracts: a ruler given his county back with no liege while still bound to one, a new-game ruler's counts left under a duchy he no longer held, and a baron bound to his old count while his barony sat in another man's county. Each now agrees: the ruler takes his contract's liege, the counts take the liege above the lost duchy, and the baron's contract moves to his county's holder.
+
+- The migrated campaign crashed on 1 January 989 once the held titles went back to their holders. 1.20's new map made some 1.8.1 land impassable mountains (in the Ordos), but the save kept what stood there: a castle and a tribal holding with their soldiers, a siege of the castle, an army on it, and two council tasks aimed at it. With its ruler landed again, the game appointed a councillor to one of those tasks at New Year, filed it under the province, and crashed. A new rule (R22, on by default, needs `--game-dir`) clears them: the holding becomes the empty one a new game has, its soldiers and the siege go, the army steps back to where it came from, and the council tasks aim at a province of their ruler's own.
+
+### Added
+- `lint` with `--game-dir`: nothing may stand on, or be aimed at, a province the new map made impassable (an error).
+- `lint` with `--reference`: every title the reference (a new game at the campaign's date) has must exist in the save. Inside `migrate`, the check runs when the new-map transplant ran.
+- `lint` checks that a count or higher under a liege has a vassal contract with that liege (an error), and warns when a baron's contract names someone other than his county's holder, or a domain lists a title someone else holds.
+- `lint` checks the save's metadata: every entry has a key (an error; a bare block there makes the game refuse the save).
+
 ## [0.3.6] - 2026-10-27
 
 ### Fixed
@@ -157,8 +172,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.6...HEAD
-[0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...v0.3.6
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.7...HEAD
+[0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...v0.3.7
+[0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...1564d12
 [0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...1d61473
 [0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...e0a6ab3
 [0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/4d6ca3b...8e9309c

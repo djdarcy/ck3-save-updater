@@ -9,7 +9,10 @@ with its sha256; the restore is checked against it and the script fails loudly i
 `MIGRATE_TEST__<folder name>.mod` descriptor (path= the folder) into the game's mod folder for the run and moving
 it to the recoverable trash with `dz safedel` afterwards. Repeatable; loaded after the three portrait mods.
 
-Usage: python -I tests/one-offs/with_portrait_mods.py <tag> [--also <folder> ...] -- <command ...>
+--mod <mod/ugc_N.mod>: also enable an installed mod by its descriptor (2026-10-27: the first-play playset's load
+test). Repeatable; loaded after the three portrait mods, in the order given.
+
+Usage: python -I tests/one-offs/with_portrait_mods.py <tag> [--mod <descriptor> ...] [--also <folder> ...] -- <command ...>
 """
 from __future__ import annotations
 
@@ -30,6 +33,11 @@ def main() -> int:
     cut = sys.argv.index("--")
     cmd = sys.argv[cut + 1:]
     also = [Path(sys.argv[i + 1]).resolve() for i in range(2, cut) if sys.argv[i] == "--also"]
+    # --mod <mod/ugc_N.mod>: also enable an installed mod by its descriptor, after the portrait mods, in order
+    extra = [sys.argv[i + 1] for i in range(2, cut) if sys.argv[i] == "--mod"]
+    for m in extra:
+        if not (DLC.parent / m).exists():
+            raise SystemExit(f"{m}: no such descriptor in {DLC.parent / 'mod'}")
     descriptors = []
     for folder in also:
         text = (folder / "descriptor.mod").read_text(encoding="utf-8")
@@ -47,14 +55,14 @@ def main() -> int:
     if hashlib.sha256((bdir / "dlc_load.json").read_bytes()).hexdigest() != sha:
         raise SystemExit("backup did not verify; nothing changed")
     cfg = json.loads(original)
-    cfg["enabled_mods"] = MODS + [f"mod/{d.name}" for d in descriptors]
+    cfg["enabled_mods"] = MODS + extra + [f"mod/{d.name}" for d in descriptors]
     DLC.write_text(json.dumps(cfg), encoding="utf-8")
     print(f"[mods] enabled {cfg['enabled_mods']}; backup {bdir}")
     try:
         rc = subprocess.call(cmd)
     finally:
         for d in descriptors:
-            subprocess.call(["dz", "safedel", str(d)])
+            subprocess.call(["dz", "safedel", "--yes", str(d)])     # without --yes it prompts, and aborts unattended
             print(f"[mods] {d.name} moved to the recoverable trash: {'yes' if not d.exists() else 'NO, still there'}")
         DLC.write_bytes(original)
         ok = hashlib.sha256(DLC.read_bytes()).hexdigest() == sha
