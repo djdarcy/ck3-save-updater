@@ -101,6 +101,8 @@ A packaged performance mod is planned; until then these are the workarounds. [Up
 - [Output and verbosity](docs/output-and-verbosity.md): `-v`, `-q`, `--show`, and where each kind of output goes.
 - [Reports](docs/reports.md): what the `--report` JSON contains.
 - [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
+- [The reference save](docs/reference-save.md): making a 1.20 save at your campaign's date, with `reference-mod`.
+- [Troubleshooting](docs/troubleshooting.md): what the common messages mean and what to do.
 - [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
 - [soak](docs/soak.md): load a save in the game and watch it (starts the game).
