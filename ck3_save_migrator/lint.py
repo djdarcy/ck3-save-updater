@@ -189,6 +189,43 @@ _T_FIELD = {k: re.compile(rb"\n\t" + k + rb"=\"?([\w\-']+)\"?") for k in
             (b"key", b"de_jure_liege", b"de_facto_liege", b"capital_barony", b"holder")}
 
 
+_TIER_RANK = {"b": 1, "c": 2, "d": 3, "k": 4, "e": 5}
+_DOMAIN = re.compile(rb"\n\t\tdomain=\{([^}]*)\}")
+
+
+def check_primary_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """A ruler's primary title (the first entry of landed_data/domain) is his highest-tier title. When 1.20 makes a
+    ruler independent it gives his other titles the primary as liege if the primary outranks them, else the
+    primary's own liege, and never moves a barony off its county: a count whose primary is his barony gets his
+    county made its own liege, and the game's "which kingdom" routine then loops forever (measured 2026-10-27: the
+    987.11.8 freeze, decompiled in the vault). A first entry with no tier letter (a runtime x_ title) is not judged:
+    the campaign's own saves carry one."""
+    idx = idx or SectionIndex(g)
+    lt, living = idx.block("landed_titles/landed_titles"), idx.block("living")
+    if lt is None or living is None:
+        return
+    key = {}
+    for m in _ENTRY_COL0.finditer(g, lt.open, lt.close):
+        k = _T_FIELD[b"key"].search(g, m.end(), min(lt.close, m.end() + 600))
+        if k:
+            key[m.group(1)] = k.group(1).decode()
+    bad = []
+    for m in _ENTRY_COL0.finditer(g, living.open, living.close):
+        end = g.find(b"\n}", m.end(), living.close)
+        d = _DOMAIN.search(g, m.end(), end if end > 0 else living.close)
+        if not d:
+            continue
+        ids = d.group(1).split()
+        ranks = [_TIER_RANK.get(key.get(i, "?")[:1], 0) for i in ids]
+        if ids and ranks[0] and ranks[0] < max(ranks):
+            top = ids[ranks.index(max(ranks))]
+            bad.append(f"{m.group(1).decode()}: primary {key.get(ids[0], ids[0].decode())}, "
+                       f"holds {key.get(top, top.decode())}")
+    rep.add("a ruler's primary title is his highest title", "error", bad,
+            gloss="The first title in a ruler's domain is his primary; when it is outranked by another title he "
+                  "holds (a count whose primary is his barony), the game can make a title its own liege and freeze")
+
+
 def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
     """The title tree's own rules, as the 1.20 loader enforces them (each one seen in a load's error.log):
     keys unique ("Duplicate landed title name"); de jure and de facto lieges name titles that exist; a barony's
@@ -298,6 +335,59 @@ def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
 def _entry_text(g: bytes, start: int) -> bytes:
     op = g.index(b"{", start)
     return g[start:gs.match_brace(g, op) + 1]
+
+
+_COMPANY_FIELD = {k: re.compile(rb"\n\t+" + k + rb"=(\d+)") for k in (b"title", b"county")}
+
+
+def check_companies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """Mercenary companies and their titles, as 1.20 keeps them (measured 2026-10-27).
+
+    A company whose title no longer exists crashes the game's yearly company pass (an access violation writing into
+    the shared "none" title); the game itself destroys a company title when its captain dies without a valid heir
+    (destroy_if_invalid_heir) and can leave the company pointing at it, so run this on the game's own re-saves too.
+    The title must name its company back (``mercenary=<company id>``) when it names one at all. Every runtime (x_)
+    title must be registered in ``landed_titles/dynamic_templates``: the game rejects an unregistered key at load
+    ("is not a valid title template") whatever its number, and destroys the title in play."""
+    idx = idx or SectionIndex(g)
+    comps, lt = idx.block("mercenary_company_manager/mercenary_companies"), idx.block("landed_titles/landed_titles")
+    if comps is None or lt is None:
+        return
+    titles = {}
+    for m in _ENTRY_COL0.finditer(g, lt.open, lt.close):
+        end = g.find(b"\n}", m.end(), lt.close)
+        head = g[m.end():end if end > 0 else min(lt.close, m.end() + 2000)]
+        k = _T_FIELD[b"key"].search(head)
+        mc = re.search(rb"\n\tmercenary=(\d+)", head)
+        titles[m.group(1)] = (k.group(1).decode() if k else "?", mc.group(1) if mc else None)
+    dangling, no_backlink = [], []
+    for e in gs.iter_entries(g, *comps.body):
+        if not (e.key and e.key.isdigit()):
+            continue
+        body = g[e.start:e.end]
+        t = _COMPANY_FIELD[b"title"].search(body)
+        if not t:
+            continue
+        tid = t.group(1)
+        if tid not in titles:
+            dangling.append(f"company {e.key.decode()}: title {tid.decode()} does not exist")
+            continue
+        key, back = titles[tid]
+        if back is not None and back != e.key:          # 1.8-era titles carry no mercenary= (the game adds it)
+            no_backlink.append(f"company {e.key.decode()}: its title {key} names mercenary={back.decode() if back else '-'}")
+    # every runtime title must be registered: 1.20 rejects an x_ key missing from landed_titles/dynamic_templates
+    # ("... is not a valid title template") and destroys the title in play (measured 2026-10-27: 167 carried company
+    # titles unregistered, 134 destroyed within a year, their companies left dangling, then the crash)
+    dt = idx.block("landed_titles/dynamic_templates")
+    registered = set(re.findall(rb'key="?([^"\s}]+)', g[dt.open:dt.close])) if dt else set()
+    unregistered = sorted(k for k, _ in titles.values() if k.startswith("x_") and k.encode() not in registered)
+    rep.add("a runtime title is registered in dynamic_templates", "error", unregistered,
+            gloss="An x_ title whose key is not in landed_titles/dynamic_templates; the game rejects it at load and "
+                  "destroys it in play, leaving whatever points at it dangling")
+    rep.add("a mercenary company's title exists", "error", dangling,
+            gloss="A company whose title is gone; the game's yearly pass over companies crashes on it")
+    rep.add("a mercenary company's title names the company back", "error", no_backlink,
+            gloss="A company title's mercenary= must be the company's own id")
 
 
 def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -725,6 +815,8 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_structure(g, rep)
     check_ids(g, rep, idx)
     check_titles(g, rep, idx)
+    check_primary_titles(g, rep, idx)
+    check_companies(g, rep, idx)
     check_contracts(g, rep, idx)
     check_registries(g, rep, idx)
     check_references(g, rep, idx)

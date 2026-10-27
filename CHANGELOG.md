@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-27
+
+### Fixed
+- A migrated save could freeze the game a few days into play. When the new-map transplant gave a redrawn county to a baron of the player's family, the county was listed after his barony, so the barony stayed his primary title; when the game later made him independent it set the county as its own liege, and a routine that looks up a title's kingdom then looped forever. The county now becomes his primary title. Found by tracing the frozen game in a debugger; the founding save froze on 8 November 987 and now plays through it.
+
+### Added
+- `lint`: a ruler's primary title (the first title of his domain) must be his highest title; any other order is an error.
+- `lint`: mercenary company checks: every runtime (`x_`) title must be registered in the save's runtime title list, which the game requires (an unregistered one is rejected at load and destroyed in play); a company's title must exist (a company left pointing at a destroyed title crashes the game's yearly pass, so this check is worth running on the game's own autosaves too); a company title that names its company must name the right one.
+- `savediff`, a save-aware comparison library inside the package (`ck3_save_migrator/_vendor/savediff/`), not yet used by any command: it reads a text save's sections, counts each section's entries, reads the keys entries carry, and translates ids between saves. Standard library only, kept liftable into its own package, with tests that it gives the same results as the probe it was lifted from.
+- A hand-run checklist for the coming 0.4.0 (`tests/checklists/v0.4.0__Epic__playable-campaign.md`), including the real-campaign steps.
+
+### Known
+- The new-map transplant carries mercenary companies without registering their titles in the save's runtime title list; the game then destroys most of those titles within a year and crashes. The fix is proven on a copy of the founding save and goes into the next version.
+
 ## [0.3.4] - 2026-10-26
 
 ### Changed
@@ -131,8 +145,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.4...HEAD
-[0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...v0.3.4
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...v0.3.5
+[0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...e0a6ab3
 [0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/4d6ca3b...8e9309c
 [0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...4d6ca3b
 [0.3.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...v0.3.1

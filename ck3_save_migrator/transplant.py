@@ -171,6 +171,30 @@ def _edit_landed_list(text: bytes, key: bytes, add=(), drop=frozenset()) -> byte
         text[ld.end():]
 
 
+TIER_RANK = {"b": 1, "c": 2, "d": 3, "k": 4, "e": 5}
+
+
+def _primary_first(text: bytes, key_of) -> bytes:
+    """A character entry whose ``landed_data/domain`` starts with its highest-tier title.
+
+    The first domain entry is the ruler's primary title. 1.20, making a ruler independent, gives each other title
+    the primary as liege when the primary outranks it, else the primary's own liege, and never moves a barony off
+    its county; so a count whose primary title is his barony gets his county made its own liege, and the game's
+    "which kingdom" routine then loops forever (the 987.11.8 freeze of 2026-10-27, decompiled in the vault). A
+    domain whose first title has no tier letter (a runtime ``x_`` title) is left as it is: the campaign's own saves
+    carry one, and the game keeps it."""
+    m = _landed_list(text, b"domain")
+    if not m:
+        return text
+    ids = m.group(2).split()
+    ranks = [TIER_RANK.get(key_of(int(x))[:1], 0) for x in ids]
+    if not ids or ranks[0] == 0 or ranks[0] >= max(ranks):
+        return text
+    top = ranks.index(max(ranks))
+    ids = [ids[top]] + ids[:top] + ids[top + 1:]
+    return text[:m.start()] + b"\n" + m.group(1) + b"domain={ " + b" ".join(ids) + b" }" + text[m.end():]
+
+
 def _set_landed_scalar(text: bytes, key: bytes, value: int | None) -> bytes:
     """A character entry with ``landed_data/<key>`` set to ``value``, or the line removed when ``value`` is None."""
     ld = re.search(rb"\n\tlanded_data=\{\n", text)
@@ -255,6 +279,17 @@ class Transplant:
         if "_skeys" not in self._ent:
             self._ent["_skeys"] = {i: k.decode() for k, i in T.keyed(self.save, TITLES).items()}
         return self._ent["_skeys"].get(save_id, "")
+
+    def output_title_key(self, out_id: int) -> str:
+        """The key of a title by its id in the output: a campaign title's own key, else the key of the reference
+        title that translates to that id (a copied title)."""
+        k = self.save_title_key(out_id)
+        if k:
+            return k
+        if "_okeys" not in self._ent:
+            m = self.tr.spaces["title"]
+            self._ent["_okeys"] = {m.translate(r): key for r, key in self.title_keys().items()}
+        return self._ent["_okeys"].get(out_id, "")
 
     def holy_order_titles(self) -> dict[int, tuple[int | None, list[int]]]:
         """reference holy order id -> (its own title, the titles it leases)."""
@@ -1175,6 +1210,7 @@ class Transplant:
             new = _edit_landed_list(text, b"vassal_contracts", add=op["vc_add"], drop=op["vc_drop"])
             if op["dom_add"] or op["dom_drop"]:
                 new = _edit_landed_list(new, b"domain", add=op["dom_add"], drop=op["dom_drop"])
+                new = _primary_first(new, self.output_title_key)      # a promoted baron's county is his primary
                 rc = re.search(rb"\n\t\trealm_capital=(\d+)", new)
                 left = re.search(rb"\n\t\tdomain=\{([^}]*)\}", new)
                 ids = left.group(1).split() if left else []

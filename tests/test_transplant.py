@@ -42,23 +42,30 @@ REF = gamestate(
 )
 
 
+def migrate(tmp_path: Path, save_body: bytes, ref_body: bytes, rules: str = "R14,R16", **ctx_kw):
+    """Run ``rules`` on a synthetic save with a synthetic same-date reference: (the migrated save, {id: result}).
+    ``ctx_kw`` goes to the RuleContext (game_dir=, expansion_orders=)."""
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3", **ctx_kw)
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    return save, {r.id: r for r in R.run_rules(save, R.select(rules), ctx)}
+
+
 def run_r14(tmp_path: Path):
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + REF
-    res = R.run_rules(save, R.select("R14"), ctx)
-    return save, ctx, {r.id: r for r in res}
+    return migrate(tmp_path, SAVE, REF, "R14")
+
+
+def bodies(g: bytes, path: str) -> dict[int, bytes]:
+    """id -> entry bytes of a database (``living``, ``provinces``, ...)."""
+    return {i: g[e.start:e.end] for i, e in T.entries(g, path)}
 
 
 def test_r17_carries_the_county_record_of_a_carried_county(tmp_path):
     """county_manager/counties is keyed BY the county's title key: a carried county brings its record; a joined
     (campaign) county does not get the reference's (census 2026-10-26: 910 new-map counties arrived without one)."""
     cm = b"county_manager={\n\tcounties={\n%s\t}\n}\n"
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE + cm % b""))
     ref = REF + cm % (b"\t\tc_new={\n\t\t\tdevelopment=7\n\t\t}\n\t\tk_old={\n\t\t\tdevelopment=3\n\t\t}\n")
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref
-    R.run_rules(save, R.select("R14"), ctx)
+    save, _ = migrate(tmp_path, SAVE + cm % b"", ref, "R14")
     g = save.gamestate
     b = gs.locate(g, "county_manager/counties")
     got = {e.key: g[e.start:e.end] for e in gs.iter_entries(g, *b.body)}
@@ -85,10 +92,7 @@ def test_r17_carries_a_company_for_its_carried_county_and_renumbers_a_taken_x_ke
     ref = ref.replace(b'9={\n\tfirst_name="P9"\n}\n', b'9={\n\tfirst_name="P9"\n}\n' + char(11).encode(), 1)
     assert titles9.encode() in ref and char(11).encode() in ref
     ref += (mc % "\t\t0={\n\t\t\ttitle=9\n\t\t\tcounty=3\n\t\t}\n\t\t1={\n\t\t\ttitle=10\n\t\t\tcounty=1\n\t\t}\n").encode()
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref
-    res = {r.id: r for r in R.run_rules(save, R.select("R14"), ctx)}
+    save, res = migrate(tmp_path, save_body, ref, "R14")
     ex = res["R17"].extra
     assert ex["owner_carried"] == {"mercenary": 1, "captain": 1}
     assert ex["runtime_keys_renamed"] == {"x_mc_1": "x_mc_8"}          # past the campaign's highest, x_mc_7
@@ -112,7 +116,7 @@ def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
 
 
 def test_r14_plans_the_new_titles_and_provinces_only(tmp_path):
-    _, _, res = run_r14(tmp_path)
+    _, res = run_r14(tmp_path)
     ex = res["R14"].extra
     assert ex["titles_planned"] == 4                    # d_new, c_new, d_child, b_child: not the save's, not x_x_1
     assert ex["by_tier"] == {"b": 1, "c": 1, "d": 2} and ex["x_titles_left_out"] == 1
@@ -121,7 +125,7 @@ def test_r14_plans_the_new_titles_and_provinces_only(tmp_path):
 
 
 def test_r17_writes_the_titles_with_translated_ids(tmp_path):
-    save, _, res = run_r14(tmp_path)
+    save, res = run_r14(tmp_path)
     t = titles_by_key(save.gamestate)
     assert set(t) == {"k_old", "d_old", "k_lone", "d_new", "c_new", "d_child", "b_child"}
     d_new_id, d_new = t["d_new"]
@@ -137,7 +141,7 @@ def test_r17_writes_the_titles_with_translated_ids(tmp_path):
 
 
 def test_r17_stitches_seams_into_existing_and_new_lists(tmp_path):
-    save, _, res = run_r14(tmp_path)
+    save, res = run_r14(tmp_path)
     t = titles_by_key(save.gamestate)
     assert b"de_jure_vassals={ 1 5 }" in t["k_old"][1]          # d_new (5) appended to the list
     assert f"de_jure_vassals={{ {t['d_child'][0]} }}".encode() in t["k_lone"][1]   # list created
@@ -145,7 +149,7 @@ def test_r17_stitches_seams_into_existing_and_new_lists(tmp_path):
 
 
 def test_r17_carries_coats_and_raises_the_counter(tmp_path):
-    save, _, res = run_r14(tmp_path)
+    save, res = run_r14(tmp_path)
     t = titles_by_key(save.gamestate)
     assert b"coat_of_arms_id=13" in t["d_new"][1] and b"coat_of_arms_id=14" in t["c_new"][1]   # base 6
     coats = {i for i, _ in T.entries(save.gamestate, "coat_of_arms/coat_of_arms_manager_database")}
@@ -155,7 +159,7 @@ def test_r17_carries_coats_and_raises_the_counter(tmp_path):
 
 
 def test_r17_inserts_provinces_and_entries_at_column_zero(tmp_path):
-    save, _, _ = run_r14(tmp_path)
+    save, _ = run_r14(tmp_path)
     g = save.gamestate
     assert {i for i, _ in T.entries(g, "provinces")} == {1, 2, 3}
     for key in (b"\n3={", b"\n5={", b"\n6={", b"\n13={"):
@@ -164,7 +168,7 @@ def test_r17_inserts_provinces_and_entries_at_column_zero(tmp_path):
 
 
 def test_the_campaign_entries_stay_byte_identical_apart_from_the_seams(tmp_path):
-    save, _, _ = run_r14(tmp_path)
+    save, _ = run_r14(tmp_path)
     before = titles_by_key(DEFAULT_META + SAVE)
     after = titles_by_key(save.gamestate)
     assert after["d_old"][1] == before["d_old"][1]
@@ -172,10 +176,7 @@ def test_the_campaign_entries_stay_byte_identical_apart_from_the_seams(tmp_path)
 
 
 def test_r16_brings_the_holders_and_keeps_their_titles_held(tmp_path):
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + REF
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    save, res = migrate(tmp_path, SAVE, REF)
     assert res["R16"].extra["rulers"] == 1 and res["R16"].matched == 1
     t = titles_by_key(save.gamestate)
     assert b"holder=50" in t["d_new"][1]                # character 9 -> 9 + (save max 40 + 1)
@@ -202,10 +203,7 @@ def test_r17_registers_carried_game_start_objects_and_their_coat_names(tmp_path)
             .replace(b"dynasties={\n\tdynasty_house={\n", b"dynasties={\n\tstatic_dynasties={ }\n"
                      b"\tstatic_dynasty_houses={ }\n\tdynasty_house={\n", 1)
             .replace(b"coat_of_arms={\n", b"coat_of_arms={\n\tcoat_of_arms_manager_name_map={\n\t\tk_old=0\n\t}\n", 1))
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    save, res = migrate(tmp_path, body, ref)
     ex = res["R17"].extra
     assert ex["registered"] == {"culture_manager/template_cultures": 1, "dynasties/static_dynasties": 1,
                                 "dynasties/static_dynasty_houses": 1}
@@ -254,10 +252,8 @@ def test_1c_a_baron_keeps_a_barony_1_20_put_in_a_new_county(tmp_path):
         + title(3, "b_z", "\tde_jure_liege=4\n") + title(4, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 3 }\n"),
         extra="provinces={\n1={\n}\n}\n",
     )
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    save, res = migrate(tmp_path, save_body, ref_body)
+    ex = res["R17"].extra
     assert ex["reparent_cases"] == {"baron only": 2} and ex["contracts_moved"] == 2 and ex["settled"] == []
     g = save.gamestate
     t = titles_by_key(g)
@@ -268,7 +264,7 @@ def test_1c_a_baron_keeps_a_barony_1_20_put_in_a_new_county(tmp_path):
     assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", c_new).group(1).split()) == [b"1", b"3"]
     c = gs.locate(g, "vassal_contracts/active")
     assert g[c.open:c.close].count(f"liege={holder}".encode()) == 2
-    living = {i: g[e.start:e.end] for i, e in T.entries(g, "living")}
+    living = bodies(g, "living")
     assert re.search(rb"vassal_contracts=\{\s*\}", living[40]) and re.search(rb"vassal_contracts=\{\s*\}", living[42])
     assert re.search(rb"vassal_contracts=\{\s*0 1\s*\}", living[holder])
 
@@ -307,12 +303,9 @@ def _settle_fixture(tmp_path, player_house=None, capital=False, copied_baron=Fal
         + more,
         extra="provinces={\n1={\n}\n}\n" + contracts,
     )
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    save, res = migrate(tmp_path, save_body, ref_body)
     g = save.gamestate
-    return ex, g, titles_by_key(g), {i: g[e.start:e.end] for i, e in T.entries(g, "living")}
+    return res["R17"].extra, g, titles_by_key(g), bodies(g, "living")
 
 
 def test_1c_bis_the_old_count_takes_the_copied_county_and_its_ruler_goes_to_his_court(tmp_path):
@@ -346,6 +339,27 @@ def test_1c_bis_a_baron_of_the_players_family_is_promoted(tmp_path):
     assert re.search(rf"domain=\{{[^}}]*\b{c_new_id}\b".encode(), living[41])
     (ruler,) = ex["settled_landless_rulers"]
     assert b"employer=41" in living[ruler]
+
+
+def test_1c_bis_a_promoted_baron_gets_the_county_as_his_primary_title(tmp_path):
+    """The first domain entry is the primary title. A promoted baron's county must come before his barony: with the
+    barony first, 1.20 making him independent sets the county's liege to the county itself, and its "which kingdom"
+    routine loops forever (the 987.11.8 freeze of 2026-10-27, c_kuzeytorg)."""
+    ex, g, t, living = _settle_fixture(tmp_path, player_house=True)
+    c_new_id = t["c_new"][0]
+    dom = re.search(rb"domain=\{([^}]*)\}", living[41]).group(1).split()
+    assert dom[0] == str(c_new_id).encode() and b"1" in dom          # the county first, the barony b_x kept
+
+
+def test_a_domain_starting_with_a_runtime_title_is_left_alone():
+    from ck3_save_migrator.transplant import _primary_first
+    keys = {1: "b_a", 2: "c_a", 7: "x_x_762", 8: "e_big"}.get
+    promoted = b"5={\n\tlanded_data={\n\t\tdomain={ 1 2 }\n\t}\n}"
+    assert b"domain={ 2 1 }" in _primary_first(promoted, lambda i: keys(i, ""))
+    ruler = b"5={\n\tlanded_data={\n\t\tdomain={ 7 8 }\n\t}\n}"                # the campaign's own x_ primary
+    assert _primary_first(ruler, lambda i: keys(i, "")) == ruler
+    already = b"5={\n\tlanded_data={\n\t\tdomain={ 2 1 }\n\t}\n}"
+    assert _primary_first(already, lambda i: keys(i, "")) == already
 
 
 def test_1c_bis_a_copied_baron_in_the_county_becomes_the_new_counts_vassal(tmp_path):
@@ -406,10 +420,8 @@ def test_1c_a_capital_barony_is_named_not_moved(tmp_path):
         titles=title(0, "c_a", "") + title(1, "b_x", "\tde_jure_liege=2\n\tcapital_barony=yes\n")
         + title(2, "c_new", "\tholder=9\n\tde_jure_vassals={ 1 }\n"),
         extra="provinces={\n1={\n}\n}\n")
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    save, res = migrate(tmp_path, save_body, ref_body)
+    ex = res["R17"].extra
     assert ex["reparent_cases"] == {"capital": 1}
     assert ex["reparent_left"][0]["barony"] == "b_x" and "capital" in ex["reparent_left"][0]["reason"]
     assert b"de_jure_liege=0" in titles_by_key(save.gamestate)["b_x"][1]
@@ -434,14 +446,11 @@ def test_1c_a_copied_barony_on_an_empty_campaign_province_gets_the_reference_hol
         + title(2, "c_new", "\tholder=9\n\tde_jure_vassals={ 3 }\n") + title(3, "b_new", "\tholder=9\n\tde_jure_liege=2\n"),
         extra="provinces={\n1={\n\tholding={\n\t\ttype=city_holding\n\t}\n}\n"
               "2={\n\tholding={\n\t\ttype=castle_holding\n\t}\n}\n}\n")
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3", game_dir=game)
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    save, res = migrate(tmp_path, save_body, ref_body, game_dir=game)
     assert res["R14"].extra["provinces_given_a_holding"] == 1
     assert res["R14"].extra["unbuilt_in_the_campaign_built_in_a_fresh_1_20_game"] == 1
     assert res["R17"].extra["provinces_filled"] == 1
-    prov = {i: save.gamestate[e.start:e.end] for i, e in T.entries(save.gamestate, "provinces")}
+    prov = bodies(save.gamestate, "provinces")
     assert b"city_holding" in prov[1] and b"castle_holding" not in prov[2]
 
 
@@ -455,10 +464,8 @@ def test_1c_a_copied_barony_in_a_campaign_county_whose_holder_holds_land_elsewhe
         titles=title(0, "c_a", "\tde_jure_vassals={ 1 }\n") + title(1, "b_n", "\tholder=9\n\tde_jure_liege=0\n")
         + title(2, "c_far", "\tholder=9\n"),
         extra="provinces={\n1={\n}\n}\n")
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    save, res = migrate(tmp_path, save_body, ref_body)
+    ex = res["R17"].extra
     assert ex["reparent_cases"] == {"goes with its county": 1}
     (row,) = ex["reparent_left"]
     assert row["barony"] == "b_n" and row["goes to"] == 40 and "campaign holder 40" in row["reason"]
@@ -480,10 +487,8 @@ def test_s3_a_campaign_title_whose_old_parent_died_joins_its_1_20_parent(tmp_pat
         + title(2, "k_camp", "\tde_jure_vassals={ 1 3 }\n") + title(3, "d_c", "\tde_jure_liege=4\n")
         + title(4, "k_new", "\tholder=9\n\tde_jure_vassals={ 0 3 }\n"),
         extra="provinces={\n1={\n}\n}\n")
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    save, res = migrate(tmp_path, save_body, ref_body)
+    ex = res["R17"].extra
     assert sorted(ex["orphans_reparented"]) == ["d_a -> k_new", "d_b -> k_camp"]
     t = titles_by_key(save.gamestate)
     k_new_id, k_new = t["k_new"]
@@ -504,10 +509,7 @@ def _lease_run(tmp_path, expansion: bool):
         + title(3, "d_order", "\tholder=9\n\tholy_order=0\n"),
         extra="provinces={\n1={\n}\n}\nholy_orders={\n\tholy_orders={\n\t\t0={\n\t\t\ttitle=3\n"
               "\t\t\ttitles={ 0 1 }\n\t\t\tfounder=9\n\t\t}\n\t}\n}\n")
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3", expansion_orders=expansion)
-    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    save, res = migrate(tmp_path, save_body, ref_body, expansion_orders=expansion)
     return save, res["R17"].extra, DEFAULT_META + save_body
 
 
@@ -534,11 +536,8 @@ def test_s10_no_expansion_orders_writes_no_lease_and_leaves_the_campaign_titles_
 def test_the_transplant_on_its_own_output_writes_nothing(tmp_path):
     """S11 (director 2026-10-26 00:45): every rule is idempotent on its own output; R14 and R16 run again on what
     R17 wrote plan nothing, and R17 edits 0."""
-    save, ctx, res = run_r14(tmp_path)
-    again = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save.gamestate[len(DEFAULT_META):]))
-    ctx2 = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx2.state["reference_gamestate"] = DEFAULT_META + REF
-    res2 = {r.id: r for r in R.run_rules(again, R.select("R14,R16"), ctx2)}
+    save, _ = run_r14(tmp_path)
+    _, res2 = migrate(tmp_path, save.gamestate[len(DEFAULT_META):], REF)
     assert res2["R14"].extra["titles_planned"] == 0 and res2["R14"].extra["provinces_planned"] == 0
     assert res2["R17"].edited == 0
 
@@ -562,11 +561,8 @@ def test_r16_plans_only_the_situation_types_the_save_lacks(tmp_path):
     them again; it now plans only the types the save does not have (a 1.8.1 save has none, so all of them)."""
     sit = "situation_manager={\n\tdatabase={\n%s\t}\n}\n"
     one = "\t\t%d={\n\t\t\ttype=%s\n\t\t}\n"
-    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE + (sit % (one % (0, "dynastic_cycle"))).encode()))
-    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
-    ctx.state["reference_gamestate"] = DEFAULT_META + REF + (
-        sit % (one % (0, "dynastic_cycle") + one % (1, "the_great_steppe"))).encode()
-    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    save, res = migrate(tmp_path, SAVE + (sit % (one % (0, "dynastic_cycle"))).encode(),
+                        REF + (sit % (one % (0, "dynastic_cycle") + one % (1, "the_great_steppe"))).encode())
     assert res["R17"].extra["planned"]["R16 situation"] == 1
     g = save.gamestate
     b = gs.locate(g, "situation_manager/database")

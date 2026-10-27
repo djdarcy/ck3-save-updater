@@ -19,6 +19,7 @@ from ck3_save_migrator import gamestate as gs
 from ck3_save_migrator import lint as L
 from ck3_save_migrator import rules as R
 from ck3_save_migrator import savefile as sf
+from ck3_save_migrator.idschema import IDENTITY, SPACES
 from tests.fixtures.make_ck3 import build_ck3
 from tests.fixtures.religion import OLD_BODY, OLD_META, REF_BODY, REF_META
 
@@ -522,6 +523,41 @@ def test_check_titles_the_loaders_rules():
     assert found["title lieges point at titles that exist"].count == 1
 
 
+def test_a_ruler_whose_primary_title_is_outranked_is_an_error():
+    """The first domain entry is the primary title; a count whose primary is his barony froze the game on 987.11.8
+    (2026-10-27). A runtime x_ title first, as the campaign's own saves carry, is not judged."""
+    titles = TREE + "7={\n\tkey=x_x_1\n}\n8={\n\tkey=e_big\n}\n"
+    living = ("1={\n\tlanded_data={\n\t\tdomain={ 1 0 }\n\t}\n}\n"        # b_a then c_a: the freeze's shape
+              "2={\n\tlanded_data={\n\t\tdomain={ 0 1 }\n\t}\n}\n"        # c_a first: sound
+              "3={\n\tlanded_data={\n\t\tdomain={ 7 8 }\n\t}\n}\n")       # x_ first: not judged
+    rep = L.LintReport()
+    L.check_primary_titles(_titles_gs(titles, living=living), rep)
+    found = {f.check: f for f in rep.findings}
+    f = found["a ruler's primary title is his highest title"]
+    assert f.severity == "error" and f.examples == ["1: primary b_a, holds c_a"]
+
+
+def test_company_checks_dangling_title_unregistered_runtime_title_and_wrong_backlink():
+    """2026-10-27: an unregistered x_ title is rejected at load and destroyed in play; its company then points at a
+    title that no longer exists, and the game's yearly company pass crashes on it."""
+    g = (b"landed_titles={\n\tdynamic_templates={ { key=\"x_mc_0\" tier=duchy dyn=yes } }\n\tlanded_titles={\n"
+         b"10={\n\tkey=x_mc_0\n\tmercenary=0\n}\n"            # registered, names company 0: sound
+         b"11={\n\tkey=x_mc_1821\n\tmercenary=1\n}\n"         # not registered
+         b"12={\n\tkey=x_mc_2\n\tmercenary=9\n}\n"            # names the wrong company (and unregistered)
+         b"13={\n\tkey=x_mc_3\n}\n"                           # 1.8-era: no mercenary= at all (fine on that count)
+         b"\t}\n}\n"
+         b"mercenary_company_manager={\n\tmercenary_companies={\n"
+         b"\t\t0={\n\t\t\ttitle=10\n\t\t}\n\t\t1={\n\t\t\ttitle=11\n\t\t}\n\t\t2={\n\t\t\ttitle=12\n\t\t}\n"
+         b"\t\t3={\n\t\t\ttitle=13\n\t\t}\n\t\t4={\n\t\t\ttitle=99\n\t\t}\n\t}\n}\n")
+    rep = L.LintReport()
+    L.check_companies(g, rep)
+    found = {f.check: f for f in rep.findings}
+    assert found["a mercenary company's title exists"].examples == ["company 4: title 99 does not exist"]
+    assert found["a runtime title is registered in dynamic_templates"].examples == ["x_mc_1821", "x_mc_2", "x_mc_3"]
+    assert found["a mercenary company's title names the company back"].examples == [
+        "company 2: its title x_mc_2 names mercenary=9"]
+
+
 def test_check_contracts_needs_both_parties():
     ok = "7={\n\t\tliege=1\n\t\tvassal=2\n\t}\n"
     assert _checks(_titles_gs(TREE, contracts=ok)) == {}
@@ -536,6 +572,28 @@ def test_localization_key_is_rejected_only_directly_in_a_title():
     L.check_families(g, rep, L.GameData(), L.SectionIndex(g))
     f = {x.check: x for x in rep.findings}
     assert f["Unexpected token: localization_key (in landed_titles)"].count == 1
+
+
+# --------------------------------------------------------------------------- transplant collisions (S16)
+def _nested(path: str, body: str) -> bytes:
+    parts = path.split("/")
+    text = body
+    for depth, name in reversed(list(enumerate(parts))):
+        text = "\t" * depth + name + "={\n" + text + "\t" * depth + "}\n"
+    return text.encode()
+
+
+@pytest.mark.parametrize("space", sorted(s for s in SPACES if s not in IDENTITY))
+def test_a_slot_collision_in_any_transplant_space_is_a_lint_error(space):
+    """S16 (director 2026-10-26): a transplant collision (a copied object on a slot the save's own object holds) is
+    reported, never refused, under the house rule: lint errors, and migrate writes the output and exits 4. That
+    holds only if lint checks every id space the transplant counts collisions in: here, two entries sharing slot 1
+    (generations 0 and 1) in each such space's first section."""
+    from ck3_save_migrator.idschema import SPACES
+    g = _nested(SPACES[space][0], "1={\n}\n16777217={\n}\n")
+    found = _ids(g)
+    f = found.get("entry slots are unique in each id space")
+    assert f is not None and f.severity == "error", (space, sorted(found))
 
 
 # --------------------------------------------------------------------------- a half migration (S1)

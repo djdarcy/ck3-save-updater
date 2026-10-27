@@ -6,7 +6,7 @@ Example:
   python -I launch_load_test.py baseline-orig-1.8.1 -debug_mode "-loadsave=MIGRATE_TEST__Beidh_987_10_27__orig_1.8.1.ck3"
 
 Writes everything to <project>/private/data/runs/<timestamp>__<run-name>/:
-  cmdline.txt, timeline.txt (what we saw when), shots/*.png (periodic screen captures),
+  cmdline.txt, timeline.txt (what we saw when), shots/*.webp (periodic screen captures, WebP quality 90),
   logs/ (copy of the game's logs folder at the end), crashes/ (any new crash folders).
 Stops when the process exits, when a crash dump appears, after MAX_SECONDS, or when
 the user creates the file STOP in the run folder. Never touches the save files.
@@ -29,6 +29,10 @@ PROJECT = Path(r"C:\code\ck3-save-migrator")
 SHOT = Path(os.environ["USERPROFILE"]) / ".claude" / "skills" / "screenshot" / "shot.ps1"
 MAX_SECONDS = 15 * 60
 SHOT_EVERY = 20
+# a bare "bash" from Python can resolve to WSL's (System32\bash.exe), which cannot run our scripts: name Git Bash
+GIT_BASH = next((p for p in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe")
+                 if Path(p).exists()), "bash")
+TMP_SHOT = Path(os.environ.get("TEMP", str(Path.home()))) / "ck3_launch_last_shot.png"   # overwritten each shot
 POLL = 2
 
 # log lines worth timestamping as they appear
@@ -144,6 +148,13 @@ def main(run_name: str, args: list[str]) -> int:
     global MAX_SECONDS
     MAX_SECONDS = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--h-max=")), MAX_SECONDS)
     guard = "--h-guard-autosave" in args
+    # --h-keepalive: after the keys are sent, compare the date area of each shot with the previous one; the date
+    # moves several times a second at speed, so an unchanged date means the game paused itself (on a message or
+    # an event, as the 2026-10-26 soaks found) and one space is posted to unpause it. Every press is noted, so a
+    # run that keeps pressing has hung rather than paused.
+    keepalive = "--h-keepalive" in args
+    last_date_sig = None
+    stuck_presses = 0        # consecutive keepalive presses that did not move the date
     args = [a for a in args if not a.startswith("--h-")]
     keys_sent = False
     in_game_at = None
@@ -258,14 +269,42 @@ def main(run_name: str, args: list[str]) -> int:
             # fallback to -Screen captured the whole desktop as each run's first image; 2026-10-25.)
             if hwnd and time.time() - last_shot >= SHOT_EVERY:
                 shot_n += 1
-                out = run / "shots" / f"{shot_n:03d}__{int(elapsed):04d}s.png"
+                # shot.ps1 writes PNG; it goes to one temp file overwritten every shot, and the run keeps a WebP
+                # (quality 90: about 7% of the PNG's size, 2026-10-27, djdarcy: the PNGs were eating the disk)
+                tmp_png = TMP_SHOT
+                out = run / "shots" / f"{shot_n:03d}__{int(elapsed):04d}s.webp"
                 try:
                     target = ["-Hwnd", f"0x{hwnd:x}"]
+                    if tmp_png.exists():
+                        tmp_png.unlink()                 # our own scratch file from the previous shot
                     r = subprocess.run(["pwsh", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
-                                        "-File", str(SHOT), *target, "-Out", str(out)],
+                                        "-File", str(SHOT), *target, "-Out", str(tmp_png)],
                                        capture_output=True, text=True, timeout=30, stdin=subprocess.DEVNULL)
-                    if not out.exists():
+                    if not tmp_png.exists():
                         note(f"shot failed: {(r.stdout + r.stderr).strip()[:300]}")
+                    else:
+                        from PIL import Image, ImageChops, ImageStat
+                        im = Image.open(tmp_png).convert("RGB")
+                        im.save(out, "WEBP", quality=90, method=4)
+                        if keepalive and keys_sent:
+                            # the date text only (not the speed icon or the animated bar beside it), compared with
+                            # a tolerance: exact bytes never matched because of small animations
+                            w, h = im.size
+                            date = im.crop((int(w * 0.65), int(h * 0.94), int(w * 0.83), int(h * 0.985))).convert("L")
+                            if last_date_sig is not None and last_date_sig.size == date.size and \
+                                    ImageStat.Stat(ImageChops.difference(date, last_date_sig)).mean[0] < 2.0:
+                                stuck_presses += 1
+                                if stuck_presses == 3:
+                                    # three presses changed nothing: a frozen simulation, not a pause; record it
+                                    cap = subprocess.run([GIT_BASH, str(Path(__file__).with_name("ck3_freeze_capture.sh")),
+                                                          str(run / f"freeze_{shot_n:03d}")],
+                                                         capture_output=True, text=True, timeout=180)
+                                    note("freeze capture: " + cap.stdout.strip().replace("\n", " | ")[:400])
+                                post_key(hwnd, "space")
+                                note("keepalive: the date did not move since the last shot; space posted")
+                            else:
+                                stuck_presses = 0
+                            last_date_sig = date
                 except subprocess.TimeoutExpired:
                     note("shot failed: shot.ps1 timed out after 30s")
                 last_shot = time.time()
