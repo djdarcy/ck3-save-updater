@@ -159,7 +159,7 @@ def r15_dead_titles(save: CK3Save, ctx, rule):
             continue
         e = blocks[m.save_id]
         df = re.search(rb"\n\tde_facto_liege=(\d+)", save.gamestate[e.open:min(e.close, e.open + 4096)])
-        kept.append({"key": m.key, "holder": m.holder, "successors": list(m.successors),
+        kept.append({"key": m.key, "holder": m.holder, "successors": list(m.successors), "id": m.save_id,
                      "old_liege_key": key_of.get(int(df.group(1))) if df else None})
     ctx.state["r15_kept"] = kept
     ep = gs.EditPass()
@@ -242,8 +242,41 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     ep = t.edits()
     ep.apply_to(save)
     rep = t.report.as_dict()
+    rep["kept_scopes_remapped"] = _remap_kept_scopes(save, t)
     rep["holy_sites"] = _reattach_holy_sites(save, ctx)
     return rule.result(matched=sum(t.report.inserted.values()), edited=len(ep.edits), extra=rep)
+
+
+_LT_SCOPE = re.compile(rb"(type=lt\s+identity=)(\d+)")
+
+
+def _remap_kept_scopes(save: CK3Save, t) -> dict:
+    """Stored title scopes (``type=lt identity=<id>``: character variables, lists, event scopes) that named a held
+    title R15 removed now name its successor, the one its holder regained (else the first successor the output
+    has). 2026-10-27: the hand-back left 113 such scopes dangling on the founding campaign (``title1``..,
+    ``chronicle_primary_title``), read by no script in the 1.20 playset but by mods the campaign used; djdarcy:
+    "if it does make sense for us to remap to keep events active that were active before it might be worth a check
+    to see if we can migrate successfully so we don't break old quests". Only ids that name no title in the output
+    are touched, so a live title's id is never rewritten."""
+    remap = t.kept_scope_remap()
+    if not remap:
+        return {"scopes": 0, "titles": {}}
+    g = save.gamestate
+    live = {i for i, _ in T.entries(g, TITLES)}
+    hits: dict[str, int] = {}
+
+    def sub(m: re.Match) -> bytes:
+        i = int(m.group(2))
+        if i in live or i not in remap:
+            return m.group(0)
+        new, key = remap[i]
+        hits[key] = hits.get(key, 0) + 1
+        return m.group(1) + str(new).encode()
+
+    out = _LT_SCOPE.sub(sub, g)
+    if hits:
+        save.set_gamestate(out)
+    return {"scopes": sum(hits.values()), "titles": hits}
 
 
 def _reattach_holy_sites(save: CK3Save, ctx) -> dict:

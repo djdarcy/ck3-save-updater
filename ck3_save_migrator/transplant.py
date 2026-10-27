@@ -954,6 +954,27 @@ class Transplant:
         self.report.kept_relinked = out["relinked"]
         return out
 
+    def kept_scope_remap(self) -> dict[int, tuple[int, str]]:
+        """Old save id of each held title R15 removed -> (output id of its successor, old key): the successor its
+        holder regained in the hand-back, else the first successor the output has. For re-pointing stored scopes
+        that named the old title (``_remap_kept_scopes`` in R17)."""
+        out: dict[int, tuple[int, str]] = {}
+        if not self.r15_kept:
+            return out
+        tm = self.tr.spaces["title"]
+        by_key = {k: i for i, k in self.title_keys().items()}
+        regained = self.holdings_plan()["titles"]
+        for row in self.r15_kept:
+            if row.get("id") is None:
+                continue
+            refs = [by_key.get(s) for s in row["successors"]]
+            pick = next((r for r in refs if r is not None and r in regained), None)
+            if pick is None:
+                pick = next((r for r in refs if r is not None and (r in self.carry["title"] or r in tm.join)), None)
+            if pick is not None:
+                out[int(row["id"])] = (tm.translate(pick), row["key"])
+        return out
+
     def _ref_of(self, save_title: int) -> int | None:
         if "_from_save" not in self._ent:
             self._ent["_from_save"] = {s: r for r, s in self.tr.spaces["title"].join.items()}

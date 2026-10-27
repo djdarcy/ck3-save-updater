@@ -265,6 +265,26 @@ def test_r15_baron_contract_follows_the_county_holder(tmp_path):
     assert re.search(rb"vassal_contracts=\{\s*0\s*\}", living[42])
 
 
+def test_r15_scopes_naming_the_removed_title_name_its_successor(tmp_path):
+    """2026-10-27: the hand-back left 113 stored scopes (character variables like ``title1``) naming the held titles
+    R15 removed. djdarcy: "if it does make sense for us to remap to keep events active that were active before it
+    might be worth a check to see if we can migrate successfully so we don't break old quests". A scope that names
+    the removed title (save id 9 here, gone from the output) names the successor its holder regained; a scope that
+    names a live title is left alone."""
+    var = ("\tvariables={\n\t\tdata={ {\n\t\t\t\tflag=\"title1\"\n\t\t\t\tdata={\n\t\t\t\t\ttype=lt\n"
+           "\t\t\t\t\tidentity=99\n\t\t\t\t}\n\t\t\t}\n {\n\t\t\t\tflag=\"home\"\n\t\t\t\tdata={\n\t\t\t\t\ttype=lt\n"
+           "\t\t\t\t\tidentity=0\n\t\t\t\t}\n\t\t\t}\n }\n\t}\n")
+    save_body = SAVE.replace(char(40).encode(), (char(40) + char(41, var)).encode(), 1)
+    assert b"identity=99" in save_body
+    save, res = _kept(tmp_path, save_body, REF,
+                      [{"key": "d_gone", "holder": 40, "successors": ["d_new"], "old_liege_key": "k_old", "id": 99}])
+    t = titles_by_key(save.gamestate)
+    living = bodies(save.gamestate, "living")
+    assert f"identity={t['d_new'][0]}".encode() in living[41]        # title1 now names d_new
+    assert b"identity=99" not in living[41] and b"identity=0" in living[41]  # the live k_old scope untouched
+    assert res["R17"].extra["kept_scopes_remapped"] == {"scopes": 1, "titles": {"d_gone": 1}}
+
+
 def test_r15_held_title_successor_not_in_the_reference_is_skipped_and_named(tmp_path):
     save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE))
     ctx = R.RuleContext(reference=tmp_path / "ref.ck3")

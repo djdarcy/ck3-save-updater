@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-10-27
+
+### Fixed
+- When the migration gave a campaign character back the new titles for land 1.20 redrew, the old title was removed but references to it stayed: character variables that remembered a title (the founding campaign has 113, written by the Biography mod: a character's titles and primary title) pointed at a title that no longer existed. They now name the new title that character holds. The report lists them, per old title. References to titles that still exist are never touched.
+
 ## [0.3.8] - 2026-10-27
 
 ### Fixed
@@ -180,8 +185,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.8...HEAD
-[0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...v0.3.8
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...HEAD
+[0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...v0.3.9
+[0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...174e82f
 [0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...b8fa75b
 [0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...1564d12
 [0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...1d61473
