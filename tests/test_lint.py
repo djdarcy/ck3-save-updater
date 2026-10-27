@@ -558,6 +558,90 @@ def test_company_checks_dangling_title_unregistered_runtime_title_and_wrong_back
         "company 2: its title x_mc_2 names mercenary=9"]
 
 
+def test_title_liege_chains_end():
+    """A walk up a liege chain ends only at a title with no liege: a county that became its own liege froze the
+    game on 987.11.8 (2026-10-27). Both a self-liege and a longer loop are errors; a sound tree is quiet."""
+    loops = TREE + ("3={\n\tkey=c_self\n\tde_facto_liege=3\n}\n"                          # its own liege
+                    "4={\n\tkey=c_x\n\tde_facto_liege=5\n}\n5={\n\tkey=d_y\n\tde_facto_liege=4\n}\n"  # c_x <-> d_y
+                    "6={\n\tkey=k_top\n}\n7={\n\tkey=d_z\n\tde_jure_liege=6\n}\n")        # ends at k_top: fine
+    found = _checks(_titles_gs(loops))
+    f = found["title liege chains end"]
+    assert f.severity == "error"
+    assert sorted(f.examples) == ["de_facto_liege: c_self -> c_self", "de_facto_liege: c_x -> d_y -> c_x"]
+    assert "title liege chains end" not in _checks(_titles_gs(TREE))
+
+
+ARMIES_OK = (b"living={\n1={\n\tfirst_name=\"A\"\n}\n2={\n\tfirst_name=\"B\"\n}\n}\n"
+             b"units={\n\t100={\n\t\ttype=army\n\t\towner=1\n\t\tarmy=200\n\t}\n}\n"
+             b"armies={\n\tregiments={\n\t\t0={\n\t\t\tmax=100\n\t\t}\n\t}\n"
+             b"\tarmy_regiments={\n"
+             b"\t\t300={\n\t\t\tchunks={ {\n\t\t\t\t\tregiment=0\n\t\t\t\t}\n }\n"
+             b"\t\t\tcached={\n\t\t\t\tcurrent=80\n\t\t\t\tmax=100\n\t\t\t}\n\t\t\tarmy=200\n\t\t}\n"
+             b"\t\t301={\n\t\t\tcached={\n\t\t\t\tsize=1\n\t\t\t}\n\t\t\tarmy=200\n\t\t\tknight=2\n\t\t}\n\t}\n"
+             b"\tarmies={\n\t\t200={\n\t\t\tregiments={ 300 301 }\n\t\t\tcommander=1\n\t\t\tunit=100\n\t\t}\n\t}\n}\n")
+
+
+def _armies(g: bytes) -> dict:
+    rep = L.LintReport()
+    L.check_armies(g, rep)
+    return {f.check: f for f in rep.findings}
+
+
+def test_army_links_resolve_both_ways():
+    """2026-10-27, after the 20 March 989 stop in the AI's army planner: every army link must resolve and point
+    back, and an army must hold soldiers. A sound army is quiet; each broken link is named."""
+    assert _armies(ARMIES_OK) == {}
+    bad = (ARMIES_OK.replace(b"commander=1", b"commander=9")                    # commander not living
+           .replace(b"\t\t\tregiment=0\n", b"\t\t\tregiment=7\n")                # pool missing
+           .replace(b"regiments={ 300 301 }", b"regiments={ 300 301 302 }")      # regiment missing
+           .replace(b"\t\tarmy=200\n\t}\n}\n", b"\t\tarmy=201\n\t}\n}\n"))       # the unit names another army
+    f = _armies(bad)["army links resolve both ways"]
+    assert f.severity == "error"
+    assert sorted(f.examples) == sorted([
+        "regiment 300: soldier pool 7 does not exist",
+        "army 200: its unit 100 names another army",
+        "army 200: commander 9 is not living",
+        "army 200: regiment 302 does not exist",
+        "unit 100: army 201 does not exist"])
+
+
+def test_an_army_without_soldiers_is_a_warning():
+    empty = ARMIES_OK.replace(b"current=80", b"current=0").replace(b"size=1", b"size=0")
+    f = _armies(empty)["armies have soldiers"]
+    assert f.severity == "warn" and f.examples == ["army 200 (commander 1)"]
+
+
+AI_OK = (b"ai={\n\twar_coordinator_db={\n"
+         b"\t\t10={\n\t\t\twar=1\n\t\t\twar_stance=\"defender_defensive\"\n\t\t\tsupply_limit=2400\n\t\t\tstack_size=3229\n\t\t}\n"
+         b"\t}\n\twar_plan_db={\n\t\t20={\n\t\t\twar=1\n\t\t\twar_coordinator=10\n\t\t\towner=5\n\t\t}\n\t}\n"
+         b"\tai_strategies={\n\t\t5={\n\t\t\tadvanced_ai_data={\n\t\t\t\twar_plans={ 20 }\n\t\t\t}\n\t\t}\n\t}\n}\n")
+
+
+def _ai(g: bytes) -> dict:
+    rep = L.LintReport()
+    L.check_ai(g, rep)
+    return {f.check: f for f in rep.findings}
+
+
+def test_ai_war_coordinators_must_have_been_run():
+    """2026-10-27: a coordinator with no war stance and a supply limit of 0 (six carried from the 1.8.1 campaign;
+    1.20 writes none) made the AI split an army stack without end. A run coordinator is quiet."""
+    assert _ai(AI_OK) == {}
+    unrun = AI_OK.replace(b"\t\t\twar_stance=\"defender_defensive\"\n", b"").replace(b"supply_limit=2400",
+                                                                                     b"supply_limit=0")
+    f = _ai(unrun)["AI war coordinators have been run"]
+    assert f.severity == "error" and f.examples == ["coordinator 10 (war 1, supply_limit 0)"]
+
+
+def test_ai_plans_and_strategies_must_point_at_things_that_exist():
+    """A strategy listing a war plan that is gone crashed the game's load (2026-10-27, the first variant)."""
+    bad = AI_OK.replace(b"war_coordinator=10", b"war_coordinator=11").replace(b"war_plans={ 20 }",
+                                                                              b"war_plans={ 20 21 }")
+    f = _ai(bad)["AI war plans and strategies point at things that exist"]
+    assert sorted(f.examples) == ["an AI strategy lists war plan 21, which does not exist",
+                                  "war plan 20: coordinator 11 does not exist"]
+
+
 def test_check_contracts_needs_both_parties():
     ok = "7={\n\t\tliege=1\n\t\tvassal=2\n\t}\n"
     assert _checks(_titles_gs(TREE, contracts=ok)) == {}

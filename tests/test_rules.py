@@ -155,6 +155,81 @@ class TestR5:
         assert res.extra["candidates"] == 3 and res.matched == 2
 
 
+# --------------------------------------------------------------------------- R21
+DEAD = (b"dead_unprunable={\n"
+        b"2974={\n\tfirst_name=\"Al-Mansur\"\n\tdead_data={\n\t\tdate=775.1.1\n\t\tliege=3595\n"
+        b"\t\tliege_title=8061\n\t\tdomain={ 8061 11 }\n\t}\n}\n"
+        b"3595={\n\tfirst_name=\"Al-Mahdi\"\n\tdead_data={\n\t\tdate=785.1.1\n\t\tliege=2974\n"
+        b"\t\tdomain={ 8061 11 }\n\t}\n}\n"
+        b"10={\n\tfirst_name=\"Indep\"\n\tdead_data={\n\t\tdate=800.1.1\n\t\tliege=10\n\t}\n}\n"
+        b"11={\n\tfirst_name=\"Vassal\"\n\tdead_data={\n\t\tdate=801.1.1\n\t\tliege=10\n\t\tliege_title=5\n\t}\n}\n"
+        b"}\n")
+
+
+class TestR21:
+    @pytest.fixture
+    def dsave(self, tmp_path):
+        p = tmp_path / "dead.ck3"
+        p.write_bytes(build_ck3(meta=RULES_META, body=RULES_BODY + DEAD))
+        return sf.read_save(p)
+
+    def test_drops_the_liege_of_dead_characters_on_a_loop_only(self, dsave):
+        """The 1.8.1 campaign's Al-Mansur <-> Al-Mahdi loop is broken; a self-liege (how 1.20 writes a ruler who
+        died independent) and a vassal whose chain ends at him are left alone."""
+        res = run(dsave, "R21")["R21"]
+        assert res.matched == 2 and res.extra["characters"] == [2974, 3595] and res.edited == 3
+        exp = without(RULES_BODY + DEAD, b"\t\tliege=3595\n", b"\t\tliege_title=8061\n", b"\t\tliege=2974\n")
+        assert dsave.gamestate.endswith(exp[-len(DEAD) + 25:])
+        assert b"liege=10\n\t}" in dsave.gamestate and b"liege=10\n\t\tliege_title=5" in dsave.gamestate
+
+    def test_a_second_run_changes_nothing(self, dsave):
+        run(dsave, "R21")
+        before = dsave.gamestate
+        res = run(dsave, "R21")["R21"]
+        assert res.matched == 0 and res.edited == 0 and dsave.gamestate == before
+
+
+# --------------------------------------------------------------------------- R20
+AI = (b"ai={\n\twar_coordinator_db={\n"
+      b"\t\t10={\n\t\t\twar=1\n\t\t\tsupply_limit=0\n\t\t\tgarrison_limit=0\n\t\t\tstack_size=0\n\t\t}\n"       # never run
+      b"\t\t11={\n\t\t\twar=2\n\t\t\twar_stance=\"defender_defensive\"\n\t\t\tsupply_limit=2400\n\t\t}\n"   # run
+      b"\t}\n\twar_plan_db={\n"
+      b"\t\t20={\n\t\t\twar=1\n\t\t\twar_coordinator=10\n\t\t\towner=5\n\t\t}\n"
+      b"\t\t21={\n\t\t\twar=2\n\t\t\twar_coordinator=11\n\t\t\towner=5\n\t\t}\n"
+      b"\t\t22={\n\t\t\twar=1\n\t\t\twar_coordinator=10\n\t\t\towner=6\n\t\t}\n\t}\n"
+      b"\tai_strategies={\n"
+      b"\t\t5={\n\t\t\tadvanced_ai_data={\n\t\t\t\twar_plans={ 20 21 }\n\t\t\t\tbudget_reserved=0\n\t\t\t}\n\t\t}\n"
+      b"\t\t6={\n\t\t\tadvanced_ai_data={\n\t\t\t\twar_plans={ 22 }\n\t\t\t\tbudget_reserved=0\n\t\t\t}\n\t\t}\n"
+      b"\t}\n}\n")
+
+
+class TestR20:
+    @pytest.fixture
+    def asave(self, tmp_path):
+        p = tmp_path / "ai.ck3"
+        p.write_bytes(build_ck3(meta=RULES_META, body=RULES_BODY + AI))
+        return sf.read_save(p)
+
+    def test_drops_never_run_coordinators_their_plans_and_the_plans_in_strategies(self, asave):
+        """The 1.8.1 campaign's never-run coordinators (no stance, supply limit 0) made 1.20's AI split an army
+        stack without end; a plan left listed in a strategy crashed the load. A run coordinator and its plan stay;
+        a strategy list that empties goes, as 1.20 never writes an empty one."""
+        res = run(asave, "R20")["R20"]
+        assert res.matched == 1 and res.extra == {"coordinators": [10], "war_plans": [20, 22], "strategy_lists": 2}
+        g = asave.gamestate
+        assert b"\t\t10={" not in g and b"\t\t20={" not in g and b"\t\t22={" not in g
+        assert b"\t\t11={" in g and b"\t\t21={" in g
+        assert b"war_plans={ 21 }" in g                                   # 20 dropped, 21 kept
+        assert g.count(b"war_plans=") == 1                                # character 6's list emptied and removed
+        assert g.count(b"budget_reserved=0") == 2                         # nothing else in the strategies touched
+
+    def test_a_second_run_changes_nothing(self, asave):
+        run(asave, "R20")
+        before = asave.gamestate
+        res = run(asave, "R20")["R20"]
+        assert res.matched == 0 and res.edited == 0 and asave.gamestate == before
+
+
 # --------------------------------------------------------------------------- R6
 class TestR6:
     def test_dead_titles_reported(self, save, tmp_path):
@@ -212,8 +287,8 @@ class TestRegistry:
             assert r.name and r.since and r.description and r.apply.__doc__
 
     def test_registry_order_is_dependency_order(self):
-        assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12",
-                                              "R15", "R14", "R16", "R17", "R7"]
+        assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9",
+                                              "R12", "R15", "R14", "R16", "R17", "R7"]
 
     def test_transplant_rules_are_opt_in_and_bring_the_write_step(self):
         assert "R14" not in [r.id for r in R.select("all")]
@@ -222,7 +297,8 @@ class TestRegistry:
 
     def test_all_rules_compose(self, save, tmp_path):
         res = R.run_rules(save, R.select("all"), R.RuleContext(game_dir=make_game_dir(tmp_path / "g")))
-        assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R7"]
+        assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9", "R12",
+                                       "R7"]
         assert all("skipped" in r.extra for r in res if r.id in ("R8", "R10", "R9", "R12"))   # no reference
         sf.write_save(save, tmp_path / "o.ck3")
         back = sf.read_save(tmp_path / "o.ck3")
@@ -245,7 +321,8 @@ class TestCLI:
                 "--game-dir", str(game), "--reference", "none", "-o", str(tmp_path / "out.ck3"))
         assert r.returncode == 0, r.stderr
         rep = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
-        assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R7"]
+        assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9",
+                                                   "R12", "R7"]
         assert not list(tmp_path.glob("*__wos-*"))          # no reference -> no branch, one output
         assert rep["rules"][0]["edited"] == 2 and rep["output_sha256"] == sf.sha256((tmp_path / "out.ck3").read_bytes())
 
@@ -287,8 +364,8 @@ def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prereq
     """S1 (director 2026-10-26 00:45): ``all,R14,R15,R16`` is the defaults plus the transplant, in registry order,
     with the write step (R17) brought along; such a selection lacks no prerequisite."""
     ids = [r.id for r in R.select("all,R14,R15,R16")]
-    assert ids == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16", "R17",
-                   "R7"]
+    assert ids == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16",
+                   "R17", "R7"]
     assert R.missing_prerequisites(R.select("all,R14,R15,R16")) == []
 
 

@@ -153,6 +153,10 @@ def main(run_name: str, args: list[str]) -> int:
     # an event, as the 2026-10-26 soaks found) and one space is posted to unpause it. Every press is noted, so a
     # run that keeps pressing has hung rather than paused.
     keepalive = "--h-keepalive" in args
+    # --h-mem-capture=GB: when the game's private memory passes GB, run ck3_split_capture.py once (the AI army
+    # planner's endless split, 2026-10-27: 130 GB in ten minutes), then stop the run; the machine is protected
+    # from a runaway whether or not the capture finds the loop
+    mem_cap_gb = next((float(a.split("=", 1)[1]) for a in args if a.startswith("--h-mem-capture=")), None)
     last_date_sig = None
     stuck_presses = 0        # consecutive keepalive presses that did not move the date
     args = [a for a in args if not a.startswith("--h-")]
@@ -258,6 +262,19 @@ def main(run_name: str, args: list[str]) -> int:
                     post_key(hwnd, k)
                 note(f"keys (posted, no focus): {' '.join(keys)}")
                 keys_sent = True
+            if mem_cap_gb is not None and proc.poll() is None:
+                import psutil
+                try:
+                    gb = psutil.Process(proc.pid).memory_info().private / 2**30
+                except psutil.Error:
+                    gb = 0.0
+                if gb > mem_cap_gb:
+                    note(f"memory: {gb:.1f} GB private passed {mem_cap_gb:g} GB; split capture")
+                    cap = subprocess.run([sys.executable, "-I", str(Path(__file__).with_name("ck3_split_capture.py")),
+                                          str(run / "split_capture")], capture_output=True, text=True, timeout=900)
+                    note("split capture: " + (cap.stdout + cap.stderr).strip().replace("\n", " | ")[:1500])
+                    stop_reason = "memory runaway"
+                    break
             if CRASHES.exists():
                 new = {p.name for p in CRASHES.iterdir()} - crashes_before
                 if new:
@@ -294,14 +311,17 @@ def main(run_name: str, args: list[str]) -> int:
                             if last_date_sig is not None and last_date_sig.size == date.size and \
                                     ImageStat.Stat(ImageChops.difference(date, last_date_sig)).mean[0] < 2.0:
                                 stuck_presses += 1
-                                if stuck_presses == 3:
-                                    # three presses changed nothing: a frozen simulation, not a pause; record it
+                                if stuck_presses == 1:
+                                    # first stop: maybe a self-pause; one space only (each press toggles pause, so
+                                    # pressing on every shot could pause a game that was running)
+                                    post_key(hwnd, "space")
+                                    note("keepalive: the date did not move since the last shot; space posted once")
+                                elif stuck_presses == 3:
+                                    # still stuck two shots after the press: a frozen simulation; record it
                                     cap = subprocess.run([GIT_BASH, str(Path(__file__).with_name("ck3_freeze_capture.sh")),
                                                           str(run / f"freeze_{shot_n:03d}")],
                                                          capture_output=True, text=True, timeout=180)
                                     note("freeze capture: " + cap.stdout.strip().replace("\n", " | ")[:400])
-                                post_key(hwnd, "space")
-                                note("keepalive: the date did not move since the last shot; space posted")
                             else:
                                 stuck_presses = 0
                             last_date_sig = date

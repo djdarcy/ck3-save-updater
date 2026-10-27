@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-27
+
+### Fixed
+- The New Year crash: the new-map transplant now registers every mercenary company title it carries in the save's runtime title list. The game rejected the unregistered ones at load, destroyed most of them within a year, and then crashed on a company left pointing at a destroyed title. The founding save played through two New Years without it.
+- A migrated save could stop the game at a random date (20 March 989 in one run, after 1 January 990 in another) while its memory grew past 100 GB. The 1.8.1 campaign kept six AI war plans that had been created and never run, with a supply limit of 0; 1.20 loads them as they are, and when armies are assigned to one, the AI splits the army stack to fit a supply limit of 0, forever. A new rule (R20) removes those never-run war coordinators, the war plans that name them, and their entries in the characters' AI strategies; the game builds fresh ones for those wars. The founding save now plays past 1003.
+- A new rule (R21) drops the recorded liege of dead characters whose liege chain loops (the 1.8.1 campaign had one: two Abbasid caliphs recorded as each other's liege). A ruler who died independent, recorded as his own liege, is left as the game writes him.
+
+### Added
+- `lint`: a title's liege chain must end (a title that is its own liege, or a chain that loops, is an error; the game's walk up such a chain never ends).
+- `lint`: army checks: an army's map unit, regiments, soldier pools, commander, and the unit's owner must exist and point back; an army with no soldiers is a warning.
+- `lint`: AI war state checks: every AI war coordinator must have a war stance and a supply limit above 0, and every war plan and every plan an AI strategy lists must exist (a strategy listing a missing plan crashes the load).
+
 ## [0.3.5] - 2026-10-27
 
 ### Fixed
@@ -145,8 +157,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.5...HEAD
-[0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...v0.3.5
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.6...HEAD
+[0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...v0.3.6
+[0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...1d61473
 [0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...e0a6ab3
 [0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/4d6ca3b...8e9309c
 [0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...4d6ca3b

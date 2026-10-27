@@ -107,6 +107,37 @@ def test_r17_carries_a_company_for_its_carried_county_and_renumbers_a_taken_x_ke
     assert f"title={t['x_mc_8'][0]}".encode() in comps[0] and f"county={t['c_new'][0]}".encode() in comps[0]
 
 
+def test_r17_registers_a_carried_runtime_title_in_dynamic_templates(tmp_path):
+    """1.20 rejects an x_ title key missing from landed_titles/dynamic_templates and destroys the title in play,
+    leaving its company dangling, which crashed the founding save after a New Year (2026-10-27). A carried company's
+    title is registered under its output key, with the reference's own entry; the campaign's entries stay."""
+    mc = "mercenary_company_manager={\n\tmercenary_companies={\n%s\t}\n}\n"
+    dt = '\tdynamic_templates={ %s }\n'
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "k_old", "\tde_jure_vassals={ 1 }\n\tcoat_of_arms_id=0\n") + title(1, "d_old", "\tde_jure_liege=0\n")
+        + title(2, "k_lone", "") + title(3, "x_mc_1", "") + title(4, "x_mc_7", ""),
+        coa="0={\n\tpattern=\"a\"\n}\n5={\n\tpattern=\"b\"\n}\n", coa_next=6, title_index=5,
+        extra="provinces={\n1={\n\tholding={\n\t\ttype=\"castle_holding\"\n\t}\n}\n2={\n}\n}\n" + mc % "",
+    )
+    save_body = save_body.replace(b"landed_titles={\n", b"landed_titles={\n" + (dt % '{ key="x_mc_1" tier=duchy dyn=yes } '
+                                  '{ key="x_mc_7" tier=duchy dyn=yes }').encode(), 1)
+    titles9 = title(9, "x_mc_1", "\tholder=11\n") + title(10, "x_mc_2", "")
+    ref = REF.replace(b"8={\n\tkey=d_landless\n}\n", b"8={\n\tkey=d_landless\n}\n" + titles9.encode(), 1)
+    ref = ref.replace(b'9={\n\tfirst_name="P9"\n}\n', b'9={\n\tfirst_name="P9"\n}\n' + char(11).encode(), 1)
+    ref += (mc % "\t\t0={\n\t\t\ttitle=9\n\t\t\tcounty=3\n\t\t}\n").encode()
+    ref = ref.replace(b"landed_titles={\n", b"landed_titles={\n" + (dt % '{ key="x_mc_1" tier=duchy dyn=yes } '
+                      '{ key="x_mc_2" tier=duchy dyn=yes }').encode(), 1)
+    save, res = migrate(tmp_path, save_body, ref, "R14")
+    assert res["R17"].extra["runtime_keys_renamed"] == {"x_mc_1": "x_mc_8"}
+    g = save.gamestate
+    b = gs.locate(g, "landed_titles/dynamic_templates")
+    reg = re.findall(rb'key="([^"]+)"([^}]*)\}', g[b.open:b.close])
+    assert [k for k, _ in reg] == [b"x_mc_1", b"x_mc_7", b"x_mc_8"]          # the campaign's two, then the carried
+    assert b"tier=duchy" in reg[2][1] and b"dyn=yes" in reg[2][1]
+    assert res["R17"].extra["registered"]["landed_titles/dynamic_templates"] == 1
+
+
 def titles_by_key(g: bytes) -> dict[str, tuple[int, bytes]]:
     out = {}
     for i, e in T.entries(g, "landed_titles/landed_titles"):

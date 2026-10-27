@@ -333,6 +333,26 @@ def child_at(data: bytes, positions: list[int]) -> dict[int, tuple[Block, Child]
     return out
 
 
+def parent_cycles(parent: dict) -> list[list]:
+    """Every cycle of a parent map (each node has at most one parent), a self-parent included. A walk up such a
+    chain ends only at a node with no parent; on a cycle it never ends (the 8 November 987 freeze, 2026-10-27)."""
+    state, found = {}, []
+    for start in parent:
+        if start in state:
+            continue
+        path, pos, n = [], {}, start
+        while n in parent and n not in state:
+            state[n] = 1
+            pos[n] = len(path)
+            path.append(n)
+            n = parent[n]
+        if n in pos:
+            found.append(path[pos[n]:])
+        for p in path:
+            state[p] = 2
+    return found
+
+
 def find_keys(data: bytes, parent: Block, key: str | bytes) -> list[Child]:
     """Children of ``parent`` named ``key`` at depth 0 (repeats included, e.g. spouse=)."""
     k = key.encode() if isinstance(key, str) else key

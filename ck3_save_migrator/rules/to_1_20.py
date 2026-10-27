@@ -213,6 +213,125 @@ def r5_empty_keys(save: CK3Save, ctx, rule) -> object:
                        extra={"by_parent": dict(parents), "candidates": len(candidates)})
 
 
+# --------------------------------------------------------------------------- R21
+DEAD_SECTIONS = ("dead_unprunable", "characters/dead_prunable")
+_DEAD_LIEGE = re.compile(rb"[\n\t ]liege=(\d+)")
+
+
+def dead_lieges(d: bytes) -> dict[int, tuple[int, int]]:
+    """dead character id -> (liege id, offset of the character's "{"), read from each dead_data block."""
+    out = {}
+    for path in DEAD_SECTIONS:
+        try:
+            sec = gs.locate(d, path)
+        except gs.GamestateError:
+            continue
+        for e in gs.iter_entries(d, *sec.body):
+            if not (e.key and e.key.isdigit()):
+                continue
+            at = d.find(b"dead_data={", e.open, e.close)
+            if at < 0:
+                continue
+            close = gs.match_brace(d, at + len(b"dead_data="))
+            m = _DEAD_LIEGE.search(d, at, close)
+            if m:
+                out[int(e.key)] = (int(m.group(1)), e.open)
+    return out
+
+
+def r21_dead_liege_cycles(save: CK3Save, ctx, rule) -> object:
+    """Drop liege=/liege_title= from the dead_data of every dead character on a liege cycle of two or more.
+
+    1.8.1 save: one cycle, Al-Mansur (2974, d. 775) -> Al-Mahdi (3595, d. 785) -> Al-Mansur, written by the 1.8.1
+    game's history setup (both were independent caliphs). The 1.20 game writes a dead independent ruler as his
+    own liege (3,513 such in its own 989 autosave) and never a longer loop; a fresh 1.20 game records no liege for
+    them at all. A walk up a liege chain ends only where the chain ends (djdarcy, 2026-10-27: fix it in case some
+    part of the game walks the history graph). Self-lieges are left as the game writes them.
+    """
+    d = save.gamestate
+    lieges = dead_lieges(d)
+    parent = {c: l for c, (l, _) in lieges.items() if l != c and l in lieges}
+    members = [c for cyc in gs.parent_cycles(parent) if len(cyc) > 1 for c in cyc]
+    p = gs.EditPass()
+    for c in members:
+        p.count(rule.name).matched += 1
+        op = lieges[c][1]
+        entry = gs.Block(str(c).encode(), op, op, gs.match_brace(d, op))
+        dd = gs.find_child(d, entry, "dead_data")
+        p.delete_key(d, dd, "liege", rule.name, str(c))
+        p.delete_key(d, dd, "liege_title", rule.name, str(c))
+    p.apply_to(save)
+    c = p.count(rule.name)
+    return rule.result(matched=c.matched, edited=c.edited, extra={"characters": sorted(members)})
+
+
+# --------------------------------------------------------------------------- R20
+_AI_FIELD = {k: re.compile(rb"[\n\t ]" + k + rb"=(\S+)") for k in (b"war_stance", b"supply_limit", b"war_coordinator")}
+_WAR_PLANS = re.compile(rb"war_plans=\{([^{}]*)\}")
+
+
+def unrun_war_coordinator(body: bytes) -> bool:
+    """True for an AI war coordinator that was created and never run: no war_stance, or a supply limit of 0.
+    The 1.20 game writes neither (0 of 204 and 214 coordinators in its own autosaves; lowest supply limit 1000)."""
+    sl = _AI_FIELD[b"supply_limit"].search(body)
+    return _AI_FIELD[b"war_stance"].search(body) is None or (sl is not None and float(sl.group(1)) <= 0)
+
+
+def r20_unrun_war_coordinators(save: CK3Save, ctx, rule) -> object:
+    """Delete AI war coordinators that were created and never run, and the war plans that name them.
+
+    1.8.1 save: 6 of 172 coordinators with no war_stance and supply_limit=0 (garrison_limit and stack_size 0, every
+    update tick 0); 1.20 writes none. 1.20 loads them and never computes their stance or limits; when armies are
+    assigned to one, the AI's unit stack splits its groups to stay under a supply limit of 0, one new group per pass
+    without end (ck3+0x19f93e0 reads the coordinator's +0x78, which its loader fills from supply_limit; the 20 March
+    989 / 990 stops: 265 million groups, 130 GB). Each is named by exactly one war plan (ai/war_plan_db). The game
+    builds coordinators and plans for wars itself.
+    """
+    d = save.gamestate
+    p = gs.EditPass()
+    unrun = set()
+    try:
+        db, plans = gs.locate(d, "ai/war_coordinator_db"), gs.locate(d, "ai/war_plan_db")
+    except gs.GamestateError:
+        return rule.result(matched=0, edited=0)
+    for e in gs.iter_entries(d, *db.body):
+        if e.key and unrun_war_coordinator(d[e.open:e.close]):
+            unrun.add(e.key)
+            p.count(rule.name).matched += 1
+            p.delete_block(d, e, rule.name, "coordinator " + e.key.decode())
+    dropped_plans = set()
+    for e in gs.iter_entries(d, *plans.body):
+        wc = _AI_FIELD[b"war_coordinator"].search(d, e.open, e.close)
+        if e.key and wc and wc.group(1) in unrun:
+            dropped_plans.add(e.key)
+            p.delete_block(d, e, rule.name, "war plan " + e.key.decode())
+    # each plan is also listed by its owner's AI strategy (ai/ai_strategies/<char>/advanced_ai_data/war_plans); a
+    # dangling id there crashes the load (2026-10-27, measured). 1.20 never writes an empty list (0 of 310), and
+    # leaves the key out when there is none, so a list that empties goes too.
+    lists = 0
+    try:
+        st = gs.locate(d, "ai/ai_strategies")
+    except gs.GamestateError:
+        st = None
+    if st is not None and dropped_plans:
+        for m in _WAR_PLANS.finditer(d, st.open, st.close):
+            ids = m.group(1).split()
+            kept = [i for i in ids if i not in dropped_plans]
+            if len(kept) == len(ids):
+                continue
+            lists += 1
+            if kept:
+                p.add(gs.Edit(m.start(1), m.end(1), b" " + b" ".join(kept) + b" ", rule.name, "strategy war_plans"))
+            else:
+                s, e = gs.removal_span(d, m.start(), m.end())
+                p.add(gs.Edit(s, e, b"", rule.name, "strategy war_plans emptied"))
+    p.apply_to(save)
+    c = p.count(rule.name)
+    return rule.result(matched=c.matched, edited=c.edited,
+                       extra={"coordinators": sorted(int(k) for k in unrun),
+                              "war_plans": sorted(int(k) for k in dropped_plans), "strategy_lists": lists})
+
+
 # --------------------------------------------------------------------------- R6
 _TITLE_DEF = re.compile(rb"(?<![\w.])([hekdcb]_[\w\-']+)\s*=\s*\{")
 _LOOKUP_LINE = re.compile(r"^\s*([\w\-']+)\s*=\s*([\w\-']+)", re.M)
@@ -330,6 +449,11 @@ RULES = [
          'delete empty "" entries from game_rules settings lists', r4_game_rule_blanks),
     Rule("R5", "empty-keys", UNKNOWN_SINCE,
          "delete map entries with an empty key (=-5000.1.1)", r5_empty_keys),
+    Rule("R21", "dead-liege-cycles", UNKNOWN_SINCE,
+         "drop the recorded liege of dead characters whose liege chain loops", r21_dead_liege_cycles),
+    Rule("R20", "unrun-war-coordinators", UNKNOWN_SINCE,
+         "drop AI war coordinators that were never run (no stance, supply limit 0) and their war plans",
+         r20_unrun_war_coordinators),
     Rule("R6", "dead-titles-report", "1.18.0 (map rework; exact major unverified)",
          "report titles the game no longer defines (no edit)", r6_dead_titles),
     Rule("R7", "version-bump", "n/a",

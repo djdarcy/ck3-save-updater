@@ -81,6 +81,8 @@ COUNTIES = "county_manager/counties"
 REGISTRIES: dict[str, str] = {"culture_manager/template_cultures": "culture", "dynasties/static_dynasties": "dynasty",
                               "dynasties/static_dynasty_houses": "house"}
 NAME_MAP = "coat_of_arms/coat_of_arms_manager_name_map"
+DYNAMIC_TEMPLATES = "landed_titles/dynamic_templates"           # the registry of runtime (x_) title keys
+_TEMPLATE = re.compile(rb'\{\s*key="?([^"\s}]+)"?([^{}]*)\}')   # one entry: { key="x_mc_0" tier=duchy dyn=yes }
 REPARENTED = frozenset({"unheld barony", "same holder", "baron only"})   # the 1c cases that are re-parented
 _RUNTIME_KEY = re.compile(rb"^(x_(?:[a-z]+_)?)(\d+)$")      # x_mc_6 -> (x_mc_, 6); x_12 -> (x_, 12)
 _PAIR = re.compile(rb"(?m)^[ \t]*([^\s={}]+)=(\d+)[ \t]*$")    # a whole-line key=number pair (name map)
@@ -929,6 +931,7 @@ class Transplant:
         self._events(ep)
         self._counters_and_lookups(ep)
         self._registries(ep)
+        self._register_runtime_titles(ep)
         self._collisions()
         return ep
 
@@ -968,6 +971,34 @@ class Transplant:
         if lines:
             at = self.save.rfind(b"\n", 0, sn.close) + 1
             ep.add(gs.Edit(at, at, b"".join(lines), "transplant", NAME_MAP))
+
+    def _register_runtime_titles(self, ep: gs.EditPass) -> None:
+        """Every carried runtime (x_) title is registered in landed_titles/dynamic_templates, with the reference's own
+        entry for it (tier and the rest) under the key the title has in the output. 1.20 rejects an unregistered x_
+        key at load ("... is not a valid title template") and destroys the title in play; a mercenary company left
+        pointing at it then crashes the yearly company pass (2026-10-27: 167 carried company titles, 134 destroyed
+        within a year). A key the save already registers is left alone."""
+        try:
+            rdt, sdt = gs.locate(self.ref, DYNAMIC_TEMPLATES), gs.locate(self.save, DYNAMIC_TEMPLATES)
+        except gs.GamestateError:
+            return
+        ref_entry = {m.group(1): m.group(2).strip() for m in _TEMPLATE.finditer(self.ref, rdt.open, rdt.close)}
+        have = {m.group(1) for m in _TEMPLATE.finditer(self.save, sdt.open, sdt.close)}
+        keys = self.title_keys()
+        adds = []
+        for i in sorted(self.carry["title"] - set(self.tr.spaces["title"].join)):
+            rkey = keys.get(i, "")
+            if not rkey.startswith("x_"):
+                continue
+            okey = self.report.runtime_keys_renamed.get(rkey, rkey).encode()
+            rest = ref_entry.get(rkey.encode())
+            if okey in have or rest is None:
+                continue
+            adds.append(b'{ key="' + okey + b'" ' + rest + b" } ")
+            have.add(okey)
+        if adds:
+            ep.add(gs.Edit(sdt.close, sdt.close, b" ".join(adds), "transplant", DYNAMIC_TEMPLATES))
+            self.report.registered[DYNAMIC_TEMPLATES] = len(adds)
 
     def _collisions(self) -> None:
         """A11.4, measured rather than assumed: per space, copied (not joined) objects whose translated slot index

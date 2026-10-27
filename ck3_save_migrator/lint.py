@@ -125,6 +125,10 @@ def _list(body: bytes, key: bytes) -> list[bytes]:
     return m.group(1).split() if m else []
 
 
+def _cycles(parent: dict) -> list[list]:
+    return gs.parent_cycles(parent)
+
+
 # --------------------------------------------------------------------------- checks
 def check_structure(g: bytes, rep: LintReport) -> None:
     depth, low, first_negative = 0, 0, None
@@ -260,6 +264,15 @@ def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
                                         f"{', ' if not dj and not df else ''}{'no de facto liege' if not df else ''}")
             elif not dj and f[b"holder"]:
                 orphan.append(k)                     # held land that no county contains
+    looped = []
+    for field in (b"de_jure_liege", b"de_facto_liege"):
+        parent = {i: int(f[field]) for i, f in titles.items()
+                  if f[field] is not None and f[field].isdigit() and int(f[field]) in titles}
+        for c in _cycles(parent):
+            looped.append(f"{field.decode()}: " + " -> ".join((titles[i][b"key"] or b"?").decode() for i in c + c[:1]))
+    rep.add("title liege chains end", "error", looped,
+            gloss="A title that is its own liege, or a chain of lieges that returns to itself; the game's walk up "
+                  "the chain never ends (the 8 November 987 freeze was a county that had become its own liege)")
     rep.add("title keys are unique", "error", [f"{k} x{keys[k.encode()]}" for k in dup],
             gloss="Two titles carry the same key; the game keeps one name and logs the other as a duplicate")
     rep.add("title lieges point at titles that exist", "error", bad_liege,
@@ -388,6 +401,115 @@ def check_companies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
             gloss="A company whose title is gone; the game's yearly pass over companies crashes on it")
     rep.add("a mercenary company's title names the company back", "error", no_backlink,
             gloss="A company title's mercenary= must be the company's own id")
+
+
+def check_armies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """Armies, their map units and their regiments point at things that exist, and point back (measured
+    2026-10-27, after the 20 March 989 stop in the AI's army planner, which splits army groups until the armies it
+    moves carry no strength: an army whose links do not resolve is the data shape that would feed it).
+
+    An army's ``unit`` is a unit whose ``army`` is that army; its ``regiments`` are army regiments whose ``army``
+    is that army; a regiment's ``chunks`` draw on soldier pools in ``armies/regiments``; commanders, unit owners
+    and knights are living characters. An army with no soldiers is a warning: the game makes one in passing (seen
+    once in its own 988 autosave), but a migrated save should carry none."""
+    idx = idx or SectionIndex(g)
+    ab, rb_, pb, ub, lv = (idx.block(p) for p in ("armies/armies", "armies/army_regiments", "armies/regiments",
+                                                   "units", "living"))
+    if ab is None or ub is None or lv is None:
+        return
+    living = {e.key for e in gs.iter_entries(g, *lv.body) if e.key}
+    armies, regs, units = (({e.key: g[e.open:e.close] for e in gs.iter_entries(g, *b.body) if e.key} if b else {})
+                           for b in (ab, rb_, ub))
+    pools = {e.key for e in gs.iter_entries(g, *pb.body) if e.key} if pb else set()
+    bad, empty = [], []
+    strength = Counter()
+    for rid, t in regs.items():
+        army = _val(t, b"army")
+        if army is not None and army not in armies:
+            bad.append(f"regiment {rid.decode()}: army {army.decode()} does not exist")
+        knight = _val(t, b"knight")
+        if knight is not None and knight not in living:
+            bad.append(f"regiment {rid.decode()}: knight {knight.decode()} is not living")
+        for p in re.findall(rb"regiment=(\d+)", t):
+            if pools and p not in pools:
+                bad.append(f"regiment {rid.decode()}: soldier pool {p.decode()} does not exist")
+        cur, size = re.search(rb"current=([\d.]+)", t), re.search(rb"cached=\{\s*size=(\d+)", t)
+        strength[army] += float(cur.group(1)) if cur else (int(size.group(1)) if size else 0)
+    for aid, t in armies.items():
+        a = aid.decode()
+        u = _val(t, b"unit")
+        if u is not None and u not in units:
+            bad.append(f"army {a}: unit {u.decode()} does not exist")
+        elif u is not None and _val(units[u], b"army") != aid:
+            bad.append(f"army {a}: its unit {u.decode()} names another army")
+        c = _val(t, b"commander")
+        if c is not None and c not in living:
+            bad.append(f"army {a}: commander {c.decode()} is not living")
+        for r in _list(t, b"regiments"):
+            if not r.isdigit():
+                break                                  # a nested regiments={ { ... } } form, not an id list
+            if r not in regs:
+                bad.append(f"army {a}: regiment {r.decode()} does not exist")
+            elif _val(regs[r], b"army") != aid:
+                bad.append(f"army {a}: its regiment {r.decode()} names another army")
+        if strength[aid] <= 0:
+            empty.append(f"army {a} (commander {(c or b'-').decode()})")
+    for uid, t in units.items():
+        army, owner = _val(t, b"army"), _val(t, b"owner")
+        if army is not None and army not in armies:
+            bad.append(f"unit {uid.decode()}: army {army.decode()} does not exist")
+        if owner is not None and owner not in living:
+            bad.append(f"unit {uid.decode()}: owner {owner.decode()} is not living")
+    rep.stats["armies"] = {"armies": len(armies), "units": len(units), "regiments": len(regs)}
+    rep.add("army links resolve both ways", "error", bad,
+            gloss="An army, map unit or regiment that names something missing, or something that does not name it "
+                  "back; the game's army code reads these links without checking them")
+    rep.add("armies have soldiers", "warn", empty,
+            gloss="An army whose regiments hold no men; the AI's army planner splits groups by strength")
+
+
+def check_ai(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """The AI's saved war state (``ai/war_coordinator_db``, ``ai/war_plan_db``, ``ai/ai_strategies``), measured
+    2026-10-27 after the 20 March 989 / 990 stops.
+
+    A war coordinator with no ``war_stance`` or a ``supply_limit`` of 0 was created and never run; 1.20 writes none
+    (0 of 204 and 214 in its own autosaves; lowest supply limit 1000), never computes them after loading, and its AI
+    then splits an army stack to fit under a supply limit of 0 without end. Every war plan names a coordinator that
+    exists, and every plan an AI strategy lists exists: a dangling plan id in a strategy crashed the load."""
+    idx = idx or SectionIndex(g)
+    wc, wp, st = (idx.block(p) for p in ("ai/war_coordinator_db", "ai/war_plan_db", "ai/ai_strategies"))
+    if wc is None:
+        return
+    coords, unrun = set(), []
+    for e in gs.iter_entries(g, *wc.body):
+        if not e.key:
+            continue
+        coords.add(e.key)
+        body = g[e.open:e.close]
+        sl = _val(body, b"supply_limit")
+        if _val(body, b"war_stance") is None or (sl is not None and float(sl) <= 0):
+            unrun.append(f"coordinator {e.key.decode()} (war {(_val(body, b'war') or b'?').decode()}, "
+                         f"supply_limit {(sl or b'-').decode()})")
+    plans, dangling = set(), []
+    if wp is not None:
+        for e in gs.iter_entries(g, *wp.body):
+            if not e.key:
+                continue
+            plans.add(e.key)
+            c = _val(g[e.open:e.close], b"war_coordinator")
+            if c is not None and c not in coords:
+                dangling.append(f"war plan {e.key.decode()}: coordinator {c.decode()} does not exist")
+    if st is not None:
+        for m in re.finditer(rb"war_plans=\{([^{}]*)\}", g[st.open:st.close]):
+            for pid in m.group(1).split():
+                if pid not in plans:
+                    dangling.append(f"an AI strategy lists war plan {pid.decode()}, which does not exist")
+    rep.add("AI war coordinators have been run", "error", unrun,
+            gloss="A war coordinator with no war stance or a supply limit of 0; the game never computes them after "
+                  "loading, and its AI then splits an army stack without end (the 20 March 989 stop)")
+    rep.add("AI war plans and strategies point at things that exist", "error", dangling,
+            gloss="A war plan whose coordinator is gone, or a strategy listing a plan that is gone; the game "
+                  "crashes loading it")
 
 
 def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -817,6 +939,8 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_titles(g, rep, idx)
     check_primary_titles(g, rep, idx)
     check_companies(g, rep, idx)
+    check_armies(g, rep, idx)
+    check_ai(g, rep, idx)
     check_contracts(g, rep, idx)
     check_registries(g, rep, idx)
     check_references(g, rep, idx)
