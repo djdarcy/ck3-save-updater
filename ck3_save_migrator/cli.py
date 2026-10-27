@@ -291,7 +291,8 @@ def cmd_migrate(args) -> int:
         # the fresh-game title comparison only when the transplant ran: without R14 the save lacks every title the
         # target version added, by the user's choice, and that is not an error in the output
         transplanted = any(r.id == "R14" for r in rules)
-        rep = lint_gamestate(s.gamestate, known=known, reference=ref_gamestate[0] if transplanted else None)
+        rep = lint_gamestate(s.gamestate, known=known, reference=ref_gamestate[0] if transplanted else None,
+                             game_dir=ctx.game_dir)
         lint_errors += rep.errors
         return rep
 
@@ -359,12 +360,12 @@ def print_lint(rep, indent: str = "  ", level: int = DEFAULT) -> None:
 def run_lint(save, args, reference_path: Path | None):
     game_dir = find_game_dir(getattr(args, "game_dir", None))
     if getattr(args, "no_keys", False):
-        return lint_gamestate(save.gamestate, keys=False)
+        return lint_gamestate(save.gamestate, keys=False, game_dir=game_dir)
     reference = read_save(reference_path).gamestate if reference_path else None
     mods, missing = listed_workshop_mods(save.meta, game_dir) if getattr(args, "mods", "save") == "save" else ([], [])
     data = load_game_data(game_dir, reference, mods, mods_missing=missing,
                           reference_name=str(reference_path) if reference_path else None)
-    return lint_gamestate(save.gamestate, known=data, reference=reference)
+    return lint_gamestate(save.gamestate, known=data, reference=reference, game_dir=game_dir)
 
 
 def cmd_lint(args) -> int:

@@ -396,6 +396,58 @@ def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
     rep.add("a ruler's domain lists only titles he holds", "warn", foreign)
 
 
+_SCOPE = re.compile(rb"type=(\w+)\s+identity=(\d+)")
+_TOP_KEY = re.compile(rb"(?m)^([A-Za-z_]\w*)=")
+_NONE_IDS = {b"4294967295", b"18446744073709551615"}   # the game's "none", 32- and 64-bit (1.20 writes 1,065)
+
+
+def _top_sections(g: bytes) -> tuple[list[int], list[str]]:
+    tops = [(m.start(), m.group(1).decode()) for m in _TOP_KEY.finditer(g)]
+    return [s for s, _ in tops], [k for _, k in tops]
+
+
+def _section_at(secs: tuple[list[int], list[str]], pos: int) -> str:
+    import bisect
+    i = bisect.bisect_right(secs[0], pos) - 1
+    return secs[1][i] if i >= 0 else "?"
+
+
+def check_scopes(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """Stored script scopes (``type=<kind> identity=<id>``: event targets, scheme and story scopes, council-task
+    targets, variables, memories) point at a character, title, province, artifact or faith that exists. A warning:
+    a 1.8.1 save carries hundreds the game tolerates (the founding campaign: 282 characters in ``living``, 164 in
+    triggered events; its migration adds none), while 1.20's own fresh save has none. After the 989.1.1 crash (a
+    council task aimed at a province with no title link; djdarcy: "another generic case of a linter check we should
+    have to validate all events / actions?"). The game's "none" values are not dangling."""
+    idx = idx or SectionIndex(g)
+
+    def ids(*paths):
+        out = set()
+        for p in paths:
+            b = idx.block(p)
+            if b is not None:
+                out.update(e.key for e in gs.iter_entries(g, *b.body) if e.key)
+        return out
+
+    known = {b"char": ids(*CHAR_SECTIONS), b"lt": ids("landed_titles/landed_titles"), b"prov": ids("provinces"),
+             b"artifact": ids("artifacts/artifacts"), b"faith": ids("religion/faiths")}
+    secs = _top_sections(g)
+    groups: Counter = Counter()
+    first: dict = {}
+    for m in _SCOPE.finditer(g):
+        kind, i = m.group(1), m.group(2)
+        if i in _NONE_IDS or kind not in known or not known[kind] or i in known[kind]:
+            continue
+        k = (kind.decode(), _section_at(secs, m.start()))
+        groups[k] += 1
+        first.setdefault(k, i.decode())
+    rep.add("stored script scopes point at things that exist", "warn",
+            [f"{n:,} {k[0]} scope(s) in {k[1]} (e.g. {first[k]})" for k, n in groups.most_common()],
+            gloss="Event, scheme, story or council-task scopes naming a character, title, province, artifact or "
+                  "faith the save does not have; old saves carry some the game tolerates, but one the game acts on "
+                  "can fail late")
+
+
 def check_units_passable(g: bytes, rep: LintReport, game_dir: Path, idx: SectionIndex | None = None) -> None:
     """Nothing in the save lives on, or is aimed at, a province the target map makes impassable: a map unit, a
     holding with a type or soldier pools, a soldier pool raised there, a siege, a council task's target. 1.20 writes
@@ -437,6 +489,14 @@ def check_units_passable(g: bytes, rep: LintReport, game_dir: Path, idx: Section
         t = re.search(rb"\n\t+target=\{\s*type=prov\s+identity=(\d+)", g[e.open:e.close])
         if e.key and t and int(t.group(1)) in bad_map:
             bad.append(f"council task {e.key.decode()} aimed at province {t.group(1).decode()}")
+    # any other stored script scope aimed at such a province (an event, a scheme, a story, a variable) is the same
+    # hazard; memories are history and are left alone
+    secs = _top_sections(g)
+    for m in _SCOPE.finditer(g):
+        if m.group(1) == b"prov" and int(m.group(2)) in bad_map:
+            sec = _section_at(secs, m.start())
+            if sec not in ("council_task_manager", "character_memory_manager"):
+                bad.append(f"a scope in {sec} aimed at province {m.group(2).decode()}")
     rep.add("nothing lives on a province the new map made impassable", "error", bad,
             gloss="Something on, or aimed at, a province the new map made impassable; the game crashes when it "
                   "files it under that province")
@@ -1083,6 +1143,7 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_contracts(g, rep, idx)
     check_realms(g, rep, idx)
     check_meta(g, rep, idx)
+    check_scopes(g, rep, idx)
     if game_dir is not None:
         check_units_passable(g, rep, game_dir, idx)
     check_registries(g, rep, idx)

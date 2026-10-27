@@ -420,6 +420,21 @@ class TestCLI:
         assert cli.main(["lint", str(bad)]) == 4
         assert re.search(r"ERROR +braces balance", capsys.readouterr().out)
 
+    @pytest.mark.parametrize("keys", [[], ["--no-keys"]])
+    def test_lint_command_passes_the_game_folder_to_the_map_checks(self, paths, tmp_path, capsys, keys):
+        """v0.3.7 shipped the impassable-province check without the CLI handing lint the game folder: `lint
+        --game-dir` and migrate's own lint never ran it (found 2026-10-27 when the 1.8.1 original linted clean)."""
+        from tests.fixtures.make_ck3 import make_game_dir
+        game = make_game_dir(tmp_path / "game")
+        (game / "map_data").mkdir(parents=True, exist_ok=True)
+        (game / "map_data" / "default.map").write_text("impassable_mountains = LIST { 9542 }\n", encoding="utf-8")
+        save = sf.read_save(paths[0])
+        save.set_gamestate(save.gamestate + b"units={\n\t7={\n\t\ttype=army\n\t\tlocation=9542\n\t}\n}\n")
+        bad = tmp_path / "unit.ck3"
+        sf.write_save(save, bad)
+        assert cli.main(["lint", str(bad), "--game-dir", str(game), "--reference", "none", *keys]) == 4
+        assert "nothing lives on a province the new map made impassable" in capsys.readouterr().out
+
 
 class TestDiscoveryNone:
     def test_game_dir_none_from_env_explicit_wins(self, tmp_path, monkeypatch):
@@ -693,6 +708,32 @@ def test_check_realms_a_count_under_a_liege_needs_a_contract_with_him():
     db = ("living={\n" + REALM_PEOPLE + "}\nlanded_titles={\n\tlanded_titles={\n" + REALM + "\t}\n}\n"
           "vassal_contracts={\n\tdatabase={\n" + ok + "\t}\n}\n").encode()
     assert _realms(db) == {}                                                       # 1.20 writes database too
+
+
+def test_check_scopes_finds_scopes_naming_nothing_and_skips_none():
+    """djdarcy 2026-10-27, after the council-task crash: "another generic case of a linter check we should have to
+    validate all events / actions?" Every stored scope must name something that exists; the game's none is fine."""
+    g = (b"living={\n5={\n}\n}\nprovinces={\n\t9541={\n\t}\n}\n"
+         b"triggered_event={\n\t1={\n\t\tscope={ type=char identity=5 }\n\t\tother={ type=char identity=6 }\n"
+         b"\t\tnone={ type=char identity=4294967295 }\n\t}\n}\n"
+         b"council_task_manager={\n\tactive={\n\t\t7={\n\t\t\ttarget={ type=prov identity=9541 }\n\t\t}\n"
+         b"\t\t8={\n\t\t\ttarget={ type=prov identity=9999 }\n\t\t}\n\t}\n}\n")
+    rep = L.LintReport()
+    L.check_scopes(g, rep)
+    (f,) = rep.findings
+    assert f.severity == "warn" and f.count == 2
+    assert f.examples == ["1 char scope(s) in triggered_event (e.g. 6)", "1 prov scope(s) in council_task_manager (e.g. 9999)"]
+
+
+def test_check_impassable_sees_any_scope_aimed_at_new_mountains(tmp_path):
+    (tmp_path / "map_data").mkdir()
+    (tmp_path / "map_data" / "default.map").write_text("impassable_mountains = LIST { 9542 }\n", encoding="utf-8")
+    g = (b"story_cycle_manager={\n\t1={\n\t\tvar={ type=prov identity=9542 }\n\t}\n}\n"
+         b"character_memory_manager={\n\t2={\n\t\tloc={ type=prov identity=9542 }\n\t}\n}\n")
+    rep = L.LintReport()
+    L.check_units_passable(g, rep, tmp_path)
+    (f,) = rep.findings
+    assert f.examples == ["a scope in story_cycle_manager aimed at province 9542"]     # a memory is history
 
 
 def test_check_realms_reads_each_title_only_to_its_own_end():

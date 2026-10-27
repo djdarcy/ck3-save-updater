@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-10-27
+
+### Fixed
+- `lint --game-dir` and the lint that `migrate` runs on its output never ran the check for things left on impassable land, added in 0.3.7: the game folder was not passed through. The 1.8.1 founding campaign now shows its 10 such problems, and its migrated output none.
+
+### Added
+- `lint` warns about stored script scopes (the targets of events, schemes, stories, council tasks and variables) that name a character, title, province, artifact or faith the save does not have, and, with `--game-dir`, reports as an error any such scope aimed at a province the new map made impassable. Old saves carry some dangling scopes the game tolerates (the founding campaign: about 500); a new game's save has none. The game's "none" value is not counted.
+
 ## [0.3.7] - 2026-10-27
 
 ### Fixed
@@ -172,8 +180,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.7...HEAD
-[0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...v0.3.7
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.8...HEAD
+[0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...v0.3.8
+[0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...b8fa75b
 [0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...1564d12
 [0.3.5]: https://github.com/djdarcy/ck3-save-migrator/compare/e0a6ab3...1d61473
 [0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...e0a6ab3
