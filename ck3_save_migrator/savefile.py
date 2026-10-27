@@ -324,14 +324,27 @@ def _replace(src: Path, dst: Path) -> None:
             time.sleep(REPLACE_DELAY)
 
 
+def same_file(a: str | os.PathLike, b: str | os.PathLike) -> bool:
+    """Do two paths name one file? Resolved paths equal, or, when both exist, ``os.path.samefile`` (a hardlink, a
+    junction, a mapped drive or a short 8.3 name cannot route a write back onto the input; director S7)."""
+    pa, pb = Path(a), Path(b)
+    if pa.resolve() == pb.resolve():
+        return True
+    try:
+        return pa.exists() and pb.exists() and os.path.samefile(pa, pb)
+    except OSError:
+        return False
+
+
 def write_save(save: CK3Save, out: str | os.PathLike, *, force: bool = False, recompress: bool = False,
                dry_run: bool = False) -> WriteResult:
     """Serialise ``save`` to ``out``: never in place, atomic, verified before it lands.
 
-    ``dry_run`` builds and verifies the bytes in memory and writes nothing.
+    ``dry_run`` builds and verifies the bytes in memory and writes nothing. ``force`` lifts only the refusal to
+    overwrite an existing output, never the refusal to write over the input.
     """
     out_p = Path(out)
-    if save.source is not None and out_p.resolve() == save.source.resolve():
+    if save.source is not None and same_file(out_p, save.source):
         raise InPlaceError(f"refusing to write over the input file: {out_p}")
     if out_p.exists() and not force and not dry_run:
         raise OutputExistsError(f"output already exists: {out_p} (use --force to overwrite)")

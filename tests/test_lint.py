@@ -538,6 +538,18 @@ def test_localization_key_is_rejected_only_directly_in_a_title():
     assert f["Unexpected token: localization_key (in landed_titles)"].count == 1
 
 
+# --------------------------------------------------------------------------- a half migration (S1)
+def test_rite_ids_in_a_save_with_no_rites_database_are_an_error():
+    """S1 (director 2026-10-26 00:45): people copied in without the religion rules carry 1.20 rite ids into a save
+    that has no rites database; lint used to skip the religion checks there and report 0 errors."""
+    g = b"living={\n1={\n\tfirst_name=\"A\"\n\trite=7\n}\n2={\n\tfirst_name=\"B\"\n}\n}\n"
+    rep = L.LintReport()
+    L.check_references(g, rep)
+    found = {f.check: f for f in rep.findings}
+    f = found["characters with a rite have a rites database"]
+    assert f.severity == "error" and f.count == 1 and f.examples == ["living/1: rite=7"]
+
+
 # --------------------------------------------------------------------------- the game-start registries
 def test_template_cultures_unregistered_is_a_warning_and_untemplated_ones_are_fine():
     """INV-6 (census 2026-10-26): a templated culture missing from template_cultures is named; a culture with no

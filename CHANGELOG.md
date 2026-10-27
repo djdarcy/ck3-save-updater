@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-26
+
+### Changed
+- `migrate save.ck3` with no `--rules` now runs the full migration (it used to write an unchanged copy that looked migrated). `--rules all,R14,R15,R16` adds the new-map transplant to it. An empty `--rules` is refused.
+- A rule chosen without the rules it depends on is refused before anything is read, and the message names what is missing (for example, the transplant rules need the religion rules, so that copied people's faiths point at something).
+- When no rule changes anything (the save is already migrated, or nothing matched), nothing is written and the tool says so; `--force` does not change that. Migrating a migrated save is therefore safe.
+- `--bump-version` is deprecated and does nothing: the version bump is part of the default rules.
+
+### Fixed
+- `--force` never overwrites the input save, also when the output path is a second name for it (a hard link, a junction or a mapped drive).
+- Migrating an already-migrated save with the map rules (R15) used to undo part of the first migration: it renamed two baronies back and removed baronies that had already moved to their 1.20 place. A save that is already at the current version now leaves R15 nothing to do.
+- Migrating an already migrated save no longer adds the new regions' situations a second time (China's dynastic cycle and the others, with their regions and groups).
+- Titles left without a de jure parent, because the title above them in 1.8.1 is gone, get the parent 1.20's map gives them (22 on the founding campaign).
+- `lint` reports characters carrying 1.20 rite numbers in a save that has no rites database, instead of skipping the religion checks there.
+
 ## [0.3.3] - 2026-10-26
 
 ### Fixed
@@ -116,9 +131,10 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.3...HEAD
-[0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.2...v0.3.3
-[0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...v0.3.2
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/djdarcy/ck3-save-migrator/compare/8e9309c...v0.3.4
+[0.3.3]: https://github.com/djdarcy/ck3-save-migrator/compare/4d6ca3b...8e9309c
+[0.3.2]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.1...4d6ca3b
 [0.3.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.2.0...v0.2.1

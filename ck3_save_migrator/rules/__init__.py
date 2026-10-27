@@ -55,6 +55,9 @@ class Rule:
     description: str
     apply: Callable[[CK3Save, RuleContext, "Rule"], RuleResult]
     default: bool = True                   # included in --rules all
+    # the rules whose ctx.state this one reads, and R8 for a rule that writes a faith or rite id (director
+    # 2026-10-26 00:45, S1): a selection without them is refused before any work
+    requires: tuple[str, ...] = ()
 
     def result(self, **kw) -> RuleResult:
         return RuleResult(self.id, self.name, self.since, self.description, **kw)
@@ -78,18 +81,20 @@ _TRANSPLANT_PLANNERS = {"R14", "R15", "R16"}
 
 
 def select(spec: str | None, *, include_off: tuple[str, ...] = ()) -> list[Rule]:
-    """``"all"`` -> every default rule (plus any id/name in ``include_off``); ``"R1,title-names"`` -> those, in registry order."""
-    if not spec:
-        chosen = set()
-    elif spec.strip().lower() == "all":
-        chosen = {r.id for r in REGISTRY if r.default}
-    else:
-        chosen = set()
-        for tok in (t.strip() for t in spec.split(",") if t.strip()):
-            rule = next((r for r in REGISTRY if tok.lower() in (r.id.lower(), r.name.lower())), None)
-            if rule is None:
-                raise ValueError(f"unknown rule {tok!r}; known: {', '.join(f'{r.id}={r.name}' for r in REGISTRY)}")
-            chosen.add(rule.id)
+    """``"all"`` -> every default rule; ``"R1,title-names"`` -> those, in registry order; ``"all,R14,R16"`` -> the
+    defaults plus those (the documented way to add the transplant). ``include_off`` adds ids or names as well.
+    ``None`` selects nothing (the CLI turns a missing --rules into ``"all"``); an empty string is refused."""
+    if spec is not None and not spec.strip():
+        raise ValueError("an empty rule selection is refused; give --rules all, or a comma list of rules")
+    chosen = set()
+    for tok in (t.strip() for t in (spec or "").split(",") if t.strip()):
+        if tok.lower() == "all":
+            chosen |= {r.id for r in REGISTRY if r.default}
+            continue
+        rule = next((r for r in REGISTRY if tok.lower() in (r.id.lower(), r.name.lower())), None)
+        if rule is None:
+            raise ValueError(f"unknown rule {tok!r}; known: all, {', '.join(f'{r.id}={r.name}' for r in REGISTRY)}")
+        chosen.add(rule.id)
     for tok in include_off:
         rule = next((r for r in REGISTRY if tok.lower() in (r.id.lower(), r.name.lower())), None)
         if rule is not None:
@@ -97,6 +102,12 @@ def select(spec: str | None, *, include_off: tuple[str, ...] = ()) -> list[Rule]
     if chosen & _TRANSPLANT_PLANNERS:
         chosen.add("R17")
     return [r for r in REGISTRY if r.id in chosen]
+
+
+def missing_prerequisites(rules: list[Rule]) -> list[tuple[str, list[str]]]:
+    """(rule id, the prerequisites it lacks) for every selected rule whose ``requires`` the selection misses."""
+    have = {r.id for r in rules}
+    return [(r.id, [p for p in r.requires if p not in have]) for r in rules if any(p not in have for p in r.requires)]
 
 
 def run_rules(save: CK3Save, rules: list[Rule], ctx: RuleContext | None = None) -> list[RuleResult]:

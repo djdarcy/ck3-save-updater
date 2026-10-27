@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import io
+import os
 import subprocess
 import sys
 import zipfile
@@ -295,10 +296,15 @@ class TestCLI:
         assert "UnifiedText" in r.stdout and "gamestate" in r.stdout
 
     def test_migrate_default_output(self, tmp_path):
+        """S9 (director 2026-10-26 00:45): no --rules means the defaults, so the default output is a migrated
+        save (the version bump at least), never an unchanged copy that looks migrated."""
         src = write(tmp_path, build_ck3(), "Beidh.ck3")
-        r = run_cli("migrate", str(src))
+        r = run_cli("migrate", str(src), "--no-lint")
         assert r.returncode == 0, r.stderr
-        assert (tmp_path / "Beidh.migrated.ck3").read_bytes() == src.read_bytes()
+        out = tmp_path / "Beidh.migrated.ck3"
+        migrated = sf.read_save(out)
+        for part in (migrated.meta, migrated.gamestate):             # the version bump, R7, ran by default
+            assert b"save_game_version=18" in part and b'version="1.20.1.2"' in part
 
     def test_migrate_dry_run(self, tmp_path):
         src = write(tmp_path, build_ck3())
@@ -314,6 +320,46 @@ class TestCLI:
     def test_migrate_refuses_in_place(self, tmp_path):
         src = write(tmp_path, build_ck3())
         assert run_cli("migrate", str(src), "-o", str(src), "--force").returncode == 2
+
+    def test_force_never_lifts_the_input_guard_for_a_hardlinked_alias(self, tmp_path):
+        """S7 (director 2026-10-26 00:45): --force lifts only the existing-output refusal; a second name for the
+        input (here a hardlink, the same for a junction or a mapped drive) is caught by samefile. Safe by
+        construction: everything is in tmp_path, and the input's bytes are compared after the refused run."""
+        src = write(tmp_path, build_ck3())
+        alias = tmp_path / "alias.ck3"
+        os.link(src, alias)
+        before = src.read_bytes()
+        r = run_cli("migrate", str(src), "-o", str(alias), "--force", "--no-lint")
+        assert r.returncode == 2 and "input" in r.stderr
+        assert src.read_bytes() == before
+
+    def test_force_overwrites_an_existing_output(self, tmp_path):
+        src = write(tmp_path, build_ck3())
+        write(tmp_path, b"x", "o.ck3")
+        r = run_cli("migrate", str(src), "-o", str(tmp_path / "o.ck3"), "--force", "--no-lint")
+        assert r.returncode == 0 and (tmp_path / "o.ck3").read_bytes() != b"x"
+
+    def test_a_rule_without_its_prerequisites_is_refused_before_any_work(self, tmp_path):
+        """S1: --rules R14,R16 without the religion rules is refused, naming what is missing; nothing is written."""
+        src = write(tmp_path, build_ck3())
+        r = run_cli("migrate", str(src), "--rules", "R14,R16", "-o", str(tmp_path / "o.ck3"), "--no-lint")
+        assert r.returncode == 1 and "R14 needs R8" in r.stderr and "R16 needs R8" in r.stderr
+        assert not (tmp_path / "o.ck3").exists()
+
+    def test_an_empty_rule_selection_is_refused(self, tmp_path):
+        src = write(tmp_path, build_ck3())
+        r = run_cli("migrate", str(src), "--rules", "", "-o", str(tmp_path / "o.ck3"))
+        assert r.returncode == 1 and "empty rule selection" in r.stderr
+
+    def test_a_second_migration_writes_nothing_even_with_force(self, tmp_path):
+        """S9/S11: migrate(migrate(x)) edits 0 and writes nothing, exit 0; --force does not change that."""
+        src = write(tmp_path, build_ck3())
+        first = tmp_path / "m1.ck3"
+        assert run_cli("migrate", str(src), "-o", str(first), "--no-lint").returncode == 0
+        for extra in ([], ["--force"]):
+            r = run_cli("migrate", str(first), "-o", str(tmp_path / "m2.ck3"), "--no-lint", *extra)
+            assert r.returncode == 0 and "nothing to write" in r.stdout, r.stdout + r.stderr
+            assert not (tmp_path / "m2.ck3").exists()
 
     def test_bad_input_exit_1(self, tmp_path):
         assert run_cli("inspect", str(write(tmp_path, b"junk"))).returncode == 1

@@ -97,6 +97,23 @@ def r14_new_titles(save: CK3Save, ctx, rule):
                               "x_titles_left_out": sum(1 for k in ref_keys.values() if k.startswith("x_"))})
 
 
+def _version_tuple(v: str) -> tuple[int, ...]:
+    return tuple(int(x) for x in re.findall(r"\d+", v))
+
+
+def save_version(save: CK3Save) -> tuple[int, ...] | None:
+    """The game version a save says it was written by (meta_data ``version="1.8.1"``), as numbers."""
+    from .. import gamestate as gs
+    try:
+        meta = gs.find_section(save.gamestate, "meta_data")
+    except gs.GamestateError:
+        return None
+    for c in gs.iter_children(save.gamestate, *meta.body):
+        if c.key == b"version" and c.value_start is not None:
+            return _version_tuple(save.gamestate[c.value_start:c.value_end].decode("ascii", "replace")) or None
+    return None
+
+
 def r15_dead_titles(save: CK3Save, ctx, rule):
     """Settle the save's titles the target no longer defines, and its moved baronies, by place: a clean mapping
     renames the save's title to its successor (id and holder kept); any other is removed with every reference
@@ -105,6 +122,12 @@ def r15_dead_titles(save: CK3Save, ctx, rule):
     from .. import deadtitles as D
     from .. import gamestate as gs
     from ..lint import defined_title_keys
+    # S11 (measured 2026-10-26): the mapping comes from the two maps' files, which still differ on a save that is
+    # already on the target map; re-run on the founding save's migrated output, R15 swapped b_darlington and
+    # b_hartlepool back and removed 8 moved baronies. A save already at the target version is on the target map.
+    have = save_version(save)
+    if have is not None and have >= _version_tuple(ctx.target_version):
+        return _skip(rule, f"the save is already at {'.'.join(map(str, have))} (the target map); nothing to settle")
     if ctx.old_game_dir is None or ctx.game_dir is None:
         return _skip(rule, "needs --old-game-dir (the save's own version's game folder) and --game-dir")
     _, conversion = defined_title_keys(ctx.game_dir)
@@ -160,7 +183,18 @@ def r16_people(save: CK3Save, ctx, rule):
     # Unit 5b (director, 2026-10-25): every culture template the save lacks (not only the closure's), and
     # China's system state -- the situations, which bring their sub-regions and participant groups
     t.add("culture", set(t.entries("culture_manager/cultures")), "R16")
-    t.add("situation", set(t.entries("situation_manager/database")), "R16")
+    # only the situation types the save lacks (S11, measured 2026-10-26: re-run on the founding save's migrated
+    # output, R16 planned all 4 again, and R17 inserted them a second time with their 11 sub-regions and 55
+    # groups; cultures are safe, they join by template)
+    def sit_type(g, e):
+        m = re.search(rb"\n\t+type=\"?(\w+)", g[e.start:min(e.end, e.start + 2000)])
+        return m.group(1) if m else None
+    try:
+        have = {sit_type(save.gamestate, e) for _, e in T.entries(save.gamestate, "situation_manager/database")}
+    except T.TranslationError:
+        have = set()
+    t.add("situation", {i for i, e in t.entries("situation_manager/database").items()
+                        if sit_type(t.ref, e) not in have}, "R16")
     dead = sum(1 for p in people - joined if t.character(p)[0] == "dead_unprunable")
     return rule.result(matched=len(people - joined),
                        extra={"titles_with_a_holder": len(holders), "rulers": len(rulers),
@@ -174,7 +208,8 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     inserted at column 0, seams stitched, the coat counter raised, lookups extended."""
     t = ctx.state.get("transplant")
     if t is None:
-        return _skip(rule, "nothing planned (run R14, R15 or R16 first)")
+        # S2: name only the rules that plan a write; R15 renames titles in place and plans nothing for R17
+        return _skip(rule, "nothing planned: R14 (titles, provinces) and R16 (people) plan what this rule writes")
     ep = t.edits()
     ep.apply_to(save)
     rep = t.report.as_dict()
@@ -219,13 +254,14 @@ from . import Rule  # noqa: E402  (Rule is defined before this module is importe
 RULES = [
     Rule("R14", "new-titles", "1.13 to 1.20 (map rework: East Asia, Tibet, ...)",
          "plan the titles and provinces the save does not have, from a 1.20 reference save", r14_new_titles,
-         default=False),
+         default=False, requires=("R8",)),
     Rule("R15", "dead-titles", "1.13 to 1.20 (titles the map rework removed or moved)",
          "rename the save's dead and moved titles to their 1.20 successors where the mapping is clean; remove "
-         "the rest (split, wasteland, dropped), reported", r15_dead_titles, default=False),
+         "the rest (split, wasteland, dropped), reported", r15_dead_titles, default=False,
+         requires=("R14", "R16")),
     Rule("R16", "people", "1.13 to 1.20 (the new regions' rulers, courts and families)",
          "plan the holders of the planned titles, their courts and close family, from a 1.20 reference save",
-         r16_people, default=False),
+         r16_people, default=False, requires=("R8", "R14")),
     Rule("R17", "transplant-write", "1.20",
          "write everything R14-R16 planned, ids translated, references outside the output dropped, seams "
          "stitched", r17_transplant_write, default=False),

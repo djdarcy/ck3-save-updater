@@ -329,6 +329,7 @@ def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
                      rites=len(rites), faiths=len(faiths), religions=len(religions), cultures=len(cultures))
 
     no_rite, bad_rite, bad_culture, bad_house, bad_family = [], [], [], [], []
+    rite_without_db = []                  # S1: rite ids in a save with no rites database (a half migration)
     for sec, b, ids in spans:
         starts = [m.start() for m in ids]
         has_rite = bytearray(len(ids))
@@ -341,6 +342,8 @@ def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
                     has_rite[i] = 1
                 if rites and val not in rites:
                     bad_rite.append(f"{sec}/{ids[i].group(1).decode()}: rite={val.decode()}")
+                elif not rites and i >= 0:
+                    rite_without_db.append(f"{sec}/{ids[i].group(1).decode()}: rite={val.decode()}")
             elif key == b"culture":
                 if cultures and val not in cultures:
                     bad_culture.append(f"{sec}: culture={val.decode()}")
@@ -356,6 +359,9 @@ def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
             no_rite += [f"{sec}/{ids[i].group(1).decode()}" for i in range(len(ids)) if not has_rite[i]]
     rep.add("every character has a rite", "error", no_rite, "1.20 writes rite= on every character")
     rep.add("character rite ids exist", "error", bad_rite)
+    rep.add("characters with a rite have a rites database", "error", rite_without_db,
+            gloss="Characters carry 1.20 rite numbers but the save has no rites database: people were copied in "
+                  "without the religion rules (R8), so their faith points at nothing")
     rep.add("character culture ids exist", "warn", bad_culture,
             gloss="Characters whose culture number matches no culture in the save")
     rep.add("character house ids exist", "warn", bad_house,

@@ -20,7 +20,7 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
-from .rules import REGISTRY, RuleContext, run_rules, select
+from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
     InPlaceError,
@@ -29,6 +29,7 @@ from .savefile import (
     VerifyError,
     default_output,
     read_save,
+    same_file,
     sha256,
     write_save,
 )
@@ -226,7 +227,7 @@ def _check_paths(args, outputs: list[tuple[Path, str | None]], *, existence: boo
     """
     src = Path(args.save).resolve()
     for out, report in outputs:
-        if out.resolve() == src:
+        if same_file(out, src):           # S7: --force never lifts this one (resolved path, then samefile)
             raise InPlaceError(f"refusing to write over the input file: {out}")
         folders = ([] if args.dry_run else [out.parent]) + ([Path(report).parent] if report else [])
         for folder in folders:
@@ -238,7 +239,19 @@ def _check_paths(args, outputs: list[tuple[Path, str | None]], *, existence: boo
 
 def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
-    rules = select(args.rules, include_off=("R7",) if args.bump_version else ())
+    # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
+    # wants a migration; an explicit empty selection is refused (select raises)
+    rules = select(args.rules if args.rules is not None else "all",
+                   include_off=("R7",) if args.bump_version else ())
+    if args.bump_version:
+        say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
+                     "default rules", "rules", err=True)
+    # S1: a rule whose prerequisites are not selected is refused before any work, naming them
+    missing = missing_prerequisites(rules)
+    if missing:
+        raise ValueError("rule prerequisites missing: " + "; ".join(
+            f"{rid} needs {', '.join(need)}" for rid, need in missing)
+            + " (add them, or use --rules all,R14,R15,R16 for the full migration with the transplant)")
     shapes = ["faith", "rite"] if args.wos_shape == "both" else [args.wos_shape]
     reference = find_reference(args.reference)
     split = next((i for i, r in enumerate(rules) if r.id == "R10"), None)
@@ -278,8 +291,23 @@ def cmd_migrate(args) -> int:
         lint_errors += rep.errors
         return rep
 
+    def nothing_to_write(results) -> bool:
+        """S9/S11: every selected rule edited 0 (the save is already at the target, or nothing matched): write
+        nothing, say so with the counts, exit 0; --force does not change that."""
+        if sum(r.edited for r in results):
+            return False
+        say(MINIMAL, f"nothing to write: {len(results)} rules ran and edited 0 "
+                     f"(matched {sum(r.matched for r in results):,}); the save is already migrated, or nothing in "
+                     "it matched", "rules")
+        for r in results:
+            note = f"  ({r.extra['skipped']})" if "skipped" in r.extra else ""
+            say(DEFAULT, f"    {r.id:3} {r.name:22} matched {r.matched:>8,}  edited {r.edited:>8,}{note}", "rules")
+        return True
+
     if not branch:
         results = run_rules_timed(save, rules, ctx)
+        if nothing_to_write(results):
+            return 0
         _emit(args, save, results, out, args.report, ctx, in_sha, lint_of(save))
     else:
         # both shapes: run the shared rules once, branch at R10
@@ -290,6 +318,8 @@ def cmd_migrate(args) -> int:
             c2.state = copy.deepcopy(ctx.state)
             c2.wos_shape = shape
             results = shared + run_rules_timed(s2, rules[split:], c2)
+            if nothing_to_write(results):
+                continue
             _emit(args, s2, results, branch_path(out, shape),
                   str(branch_path(Path(args.report), shape)) if args.report else None, c2, in_sha, lint_of(s2))
     if lint_errors:
@@ -369,10 +399,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="overwrite an existing output file")
     p.add_argument("--recompress", action="store_true",
                    help="re-deflate the zip even when nothing changed (default reuses the input bytes)")
-    p.add_argument("--rules", help="'all' or a comma list of rule ids/names (e.g. R1,title-names); default none")
+    p.add_argument("--rules", help="'all' (the default), a comma list of rule ids/names (e.g. R1,title-names), or "
+                                   "both: 'all,R14,R15,R16' adds the new-map transplant")
     p.add_argument("--report", help="write a JSON report of the rules' counts to this path")
     p.add_argument("--bump-version", action="store_true",
-                   help="kept for compatibility: R7 (version bump) is now part of --rules all")
+                   help="deprecated, does nothing: R7 (version bump) is part of the default rules")
     p.add_argument("--portraits-version", type=int, help="R7 also sets portraits_version to this")
     p.add_argument("--reference", help="a save written by the target game version, for R8-R12 "
                    "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference)")

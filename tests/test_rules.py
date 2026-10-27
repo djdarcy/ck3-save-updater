@@ -280,3 +280,25 @@ def test_real_987_counts():
     assert len(res["R6"].extra["dead"]) == 96
     assert res["R6"].extra["converted_by_game"] == {"d_knights_hospitaler": "d_knights_hospitaller"}
     assert res["R7"].edited == 2
+
+
+# --------------------------------------------------------------------------- selection and prerequisites (S1)
+def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prerequisite():
+    """S1 (director 2026-10-26 00:45): ``all,R14,R15,R16`` is the defaults plus the transplant, in registry order,
+    with the write step (R17) brought along; such a selection lacks no prerequisite."""
+    ids = [r.id for r in R.select("all,R14,R15,R16")]
+    assert ids == ["R1", "R2", "R3", "R4", "R5", "R6", "R11", "R8", "R10", "R9", "R12", "R15", "R14", "R16", "R17",
+                   "R7"]
+    assert R.missing_prerequisites(R.select("all,R14,R15,R16")) == []
+
+
+def test_a_selection_missing_prerequisites_names_them():
+    assert R.missing_prerequisites(R.select("R15")) == [("R15", ["R14", "R16"])]
+    assert R.missing_prerequisites(R.select("R9,R12")) == [("R9", ["R8", "R10"]), ("R12", ["R8"])]
+    assert R.missing_prerequisites(R.select("all")) == []
+
+
+def test_an_empty_selection_is_refused_and_none_selects_nothing():
+    with pytest.raises(ValueError, match="empty rule selection"):
+        R.select("  ")
+    assert R.select(None) == []

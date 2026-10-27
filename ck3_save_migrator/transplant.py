@@ -108,6 +108,7 @@ class Report:
     provinces_filled: int = 0                                  # ruling B: empty campaign provinces given a holding
     settled: list = field(default_factory=list)                # step 1c-bis: one row per settled barony
     settled_landless_rulers: list = field(default_factory=list)  # displaced copied rulers left with no title
+    orphans_reparented: list = field(default_factory=list)     # S3: "<title> -> <its 1.20 de jure parent>"
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
@@ -122,6 +123,7 @@ class Report:
                 "reparent_cases": dict(self.reparent_cases), "reparent_left": self.reparent_left,
                 "contracts_moved": self.contracts_moved, "provinces_filled": self.provinces_filled,
                 "settled": self.settled, "settled_landless_rulers": self.settled_landless_rulers,
+                "orphans_reparented": self.orphans_reparented,
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
@@ -696,6 +698,33 @@ class Transplant:
             self._ent["_from_save"] = {s: r for r, s in self.tr.spaces["title"].join.items()}
         return self._ent["_from_save"].get(save_title)
 
+    def orphan_plan(self) -> dict[tuple[str, int], int]:
+        """S3 (director 2026-10-26 00:45): a title with no de jure parent in the output whose 1.20 counterpart has
+        one gets it, from the reference's own tree (the map's data, a carry). ("save", id) or ("ref", id) -> the
+        reference id of the parent; only parents present in the output (campaign or copied) are used."""
+        if "_orphans" in self._ent:
+            return self._ent["_orphans"]
+        tm = self.tr.spaces["title"]
+        ref_dj = {}
+        for r, e in self.entries(TITLES).items():
+            m = re.search(rb"\n\tde_jure_liege=(\d+)", self.ref[e.open:min(e.close, e.open + 4096)])
+            if m:
+                ref_dj[r] = int(m.group(1))
+        present = lambda p: p in tm.join or p in self.carry["title"]  # noqa: E731
+        out = {}
+        for s, e in T.entries(self.save, TITLES):
+            r = self._ref_of(s)
+            if r is None or r not in ref_dj or not present(ref_dj[r]):
+                continue
+            if self.reparent_plan().get(s) is not None:
+                continue                                # a moved barony: 1c's
+            if not re.search(rb"\n\tde_jure_liege=\d+", self.save[e.open:min(e.close, e.open + 4096)]):
+                out[("save", s)] = ref_dj[r]
+        # measured 2026-10-26 on e2e_1c8: all 22 orphans are campaign titles whose 1.8.1 parent R15 removed (two of
+        # them renamed by R15, d_orkhon and k_bale); a copied title keeps the reference's parent through rewrite
+        self._ent["_orphans"] = out
+        return out
+
     def reparented(self, s: int) -> bool:
         """Is campaign barony ``s`` moved to its 1.20 county: a 1c case, or one step 1c-bis settles."""
         case = self.reparent_plan().get(s, (None, None, ""))[2]
@@ -716,6 +745,8 @@ class Transplant:
         if v in m.join:
             if space == "title" and path.startswith("de_jure_vassals") and self.reparented(m.join[v]):
                 return True             # a campaign barony 1.20 put in this new county comes with it (step 1c)
+            if space == "title" and path.startswith("de_jure_vassals") and ("save", m.join[v]) in self.orphan_plan():
+                return True             # a campaign title whose old parent died joins its 1.20 parent (S3)
             if space == "title" and path == "de_facto_liege" and self.save_title_key(m.join[v]).startswith("c_"):
                 return True             # a new barony in an existing county: the engine requires de facto = de jure
             if space == "title" and (path == "de_facto_liege" or path.startswith("de_jure_vassals")):
@@ -1007,6 +1038,9 @@ class Transplant:
             if m and int(m.group(1)) in tm.join:
                 children[tm.join[int(m.group(1))]].append(tm.translate(t))
                 self.report.seams += 1
+        for (side, s), p in sorted(self.orphan_plan().items()):
+            if side == "save" and p in tm.join:         # S3: a campaign parent lists its re-parented orphan
+                children[tm.join[p]].append(s)
         for b, (old, want, case) in sorted(self.reparent_plan().items()):
             if not self.reparented(b):
                 continue
@@ -1107,6 +1141,18 @@ class Transplant:
                 else:
                     at = self.save.rfind(b"\n", 0, e.close) + 1
                     ep.add(gs.Edit(at, at, b"\t" + fld + b"=" + new + b"\n", "transplant", "1c " + fld.decode()))
+        # S3: an orphan campaign title gets its 1.20 de jure parent
+        tmo = self.tr.spaces["title"]
+        for (side, s), p in sorted(self.orphan_plan().items()):
+            if side != "save":
+                continue
+            e = stitles.get(s) if stitles else dict(T.entries(self.save, TITLES)).get(s)
+            if e is None:
+                continue
+            at = self.save.rfind(b"\n", 0, e.close) + 1
+            new_p = tmo.join[p] if p in tmo.join else tmo.translate(p)
+            ep.add(gs.Edit(at, at, f"\tde_jure_liege={new_p}\n".encode(), "transplant", "S3 de jure parent"))
+            rep.orphans_reparented.append(f"{self.save_title_key(s)} -> {self.title_keys().get(p, '')}")
         self._name_mirror_cases(head)
         # campaign characters' entries, each edited once: contract lists, domains, court (1c and 1c-bis)
         ops: dict[int, dict] = defaultdict(lambda: {"vc_drop": set(), "vc_add": [], "dom_drop": set(),

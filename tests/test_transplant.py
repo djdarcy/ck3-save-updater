@@ -464,6 +464,116 @@ def test_1c_a_copied_barony_in_a_campaign_county_whose_holder_holds_land_elsewhe
     assert row["barony"] == "b_n" and row["goes to"] == 40 and "campaign holder 40" in row["reason"]
 
 
+def test_s3_a_campaign_title_whose_old_parent_died_joins_its_1_20_parent(tmp_path):
+    """S3 (director 2026-10-26 00:45): a campaign title left with no de jure parent (R15 removed its 1.8.1 one)
+    gets the parent 1.20's map gives it, from the reference's tree: here a copied kingdom (d_a, listed by the
+    copied k_new) and a campaign kingdom (d_b, appended to k_camp's list). A title the save gives a parent is
+    never touched."""
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "d_a", "\tholder=40\n") + title(1, "d_b", "\tholder=40\n")
+        + title(2, "k_camp", "\tde_jure_vassals={ 3 }\n") + title(3, "d_c", "\tde_jure_liege=2\n"),
+        title_index=4, extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "d_a", "\tde_jure_liege=4\n") + title(1, "d_b", "\tde_jure_liege=2\n")
+        + title(2, "k_camp", "\tde_jure_vassals={ 1 3 }\n") + title(3, "d_c", "\tde_jure_liege=4\n")
+        + title(4, "k_new", "\tholder=9\n\tde_jure_vassals={ 0 3 }\n"),
+        extra="provinces={\n1={\n}\n}\n")
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ex = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}["R17"].extra
+    assert sorted(ex["orphans_reparented"]) == ["d_a -> k_new", "d_b -> k_camp"]
+    t = titles_by_key(save.gamestate)
+    k_new_id, k_new = t["k_new"]
+    assert f"de_jure_liege={k_new_id}".encode() in t["d_a"][1] and b"de_jure_liege=2" in t["d_b"][1]
+    assert b"de_jure_liege=2" in t["d_c"][1]                    # had a parent: untouched (1.20 differs, G10)
+    assert b" 0 " in re.search(rb"de_jure_vassals=\{[^}]*\}", k_new).group(0)
+    assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", t["k_camp"][1]).group(1).split()) == [b"1", b"3"]
+
+
+def _lease_run(tmp_path, expansion: bool):
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "b_free", "\tholder=40\n") + title(1, "b_taken", "\tholder=40\n\tlessee=2\n")
+        + title(2, "d_old_order", ""), title_index=3, extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "b_free", "") + title(1, "b_taken", "") + title(2, "d_old_order", "")
+        + title(3, "d_order", "\tholder=9\n\tholy_order=0\n"),
+        extra="provinces={\n1={\n}\n}\nholy_orders={\n\tholy_orders={\n\t\t0={\n\t\t\ttitle=3\n"
+              "\t\t\ttitles={ 0 1 }\n\t\t\tfounder=9\n\t\t}\n\t}\n}\n")
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3", expansion_orders=expansion)
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    return save, res["R17"].extra, DEFAULT_META + save_body
+
+
+def test_s10_a_lease_is_written_only_on_a_barony_the_order_leases_and_that_is_not_already_leased(tmp_path):
+    """S10 (director 2026-10-26 00:45): an expansion order's lease goes on a campaign barony the reference's order
+    leases and that is not already leased; a barony with a lease of its own keeps it; the report lists every lease."""
+    save, ex, before = _lease_run(tmp_path, expansion=True)
+    t = titles_by_key(save.gamestate)
+    order_id = t["d_order"][0]
+    assert f"lessee={order_id}".encode() in t["b_free"][1]
+    assert b"lessee=2" in t["b_taken"][1] and f"lessee={order_id}".encode() not in t["b_taken"][1]
+    assert ex["expansion_content_added"] == {"holy_orders": ["d_order"], "leases": ["b_free -> d_order"]}
+
+
+def test_s10_no_expansion_orders_writes_no_lease_and_leaves_the_campaign_titles_alone(tmp_path):
+    """S10: --no-expansion-orders: the order is not added, no lease edit, the campaign's titles byte-identical."""
+    save, ex, before = _lease_run(tmp_path, expansion=False)
+    t, b = titles_by_key(save.gamestate), titles_by_key(before)
+    assert "d_order" not in t and ex["expansion_content_added"] == {"holy_orders": [], "leases": []}
+    for k in ("b_free", "b_taken", "d_old_order"):
+        assert t[k][1] == b[k][1]
+
+
+def test_the_transplant_on_its_own_output_writes_nothing(tmp_path):
+    """S11 (director 2026-10-26 00:45): every rule is idempotent on its own output; R14 and R16 run again on what
+    R17 wrote plan nothing, and R17 edits 0."""
+    save, ctx, res = run_r14(tmp_path)
+    again = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save.gamestate[len(DEFAULT_META):]))
+    ctx2 = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx2.state["reference_gamestate"] = DEFAULT_META + REF
+    res2 = {r.id: r for r in R.run_rules(again, R.select("R14,R16"), ctx2)}
+    assert res2["R14"].extra["titles_planned"] == 0 and res2["R14"].extra["provinces_planned"] == 0
+    assert res2["R17"].edited == 0
+
+
+def test_r15_steps_aside_on_a_save_already_at_the_target_version(tmp_path):
+    """S11 (measured 2026-10-26): R15's mapping comes from the two maps' files, which still differ on a migrated
+    save; re-run on the founding save's output it swapped two renamed baronies back and removed 8 moved ones. A
+    save that already says it is at the target version is on the target map: R15 skips, and nothing changes."""
+    meta = DEFAULT_META.replace(b'version="1.8.1"', b'version="1.20.1.2"')
+    body = SAVE.replace(b'version="1.8.1"', b'version="1.20.1.2"')
+    save = sf.parse_save(build_ck3(meta=meta, body=body))
+    before = save.gamestate
+    ctx = R.RuleContext(game_dir=tmp_path, old_game_dir=tmp_path)          # folders R15 must not even read
+    res = {r.id: r for r in R.run_rules(save, R.select("R15"), ctx)}            # R15 brings R17 along
+    assert "already at 1.20.1.2" in res["R15"].extra["skipped"] and res["R15"].edited == 0
+    assert res["R17"].edited == 0 and save.gamestate == before
+
+
+def test_r16_plans_only_the_situation_types_the_save_lacks(tmp_path):
+    """S11 (measured 2026-10-26): R16 planned every reference situation on every run, so a second migration inserted
+    them again; it now plans only the types the save does not have (a 1.8.1 save has none, so all of them)."""
+    sit = "situation_manager={\n\tdatabase={\n%s\t}\n}\n"
+    one = "\t\t%d={\n\t\t\ttype=%s\n\t\t}\n"
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=SAVE + (sit % (one % (0, "dynastic_cycle"))).encode()))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + REF + (
+        sit % (one % (0, "dynastic_cycle") + one % (1, "the_great_steppe"))).encode()
+    res = {r.id: r for r in R.run_rules(save, R.select("R14,R16"), ctx)}
+    assert res["R17"].extra["planned"]["R16 situation"] == 1
+    g = save.gamestate
+    b = gs.locate(g, "situation_manager/database")
+    types = re.findall(rb"type=(\w+)", g[b.open:b.close])
+    assert sorted(types) == [b"dynastic_cycle", b"the_great_steppe"]
+
+
 def test_a_displaced_ruler_is_placed_in_the_takers_court():
     from ck3_save_migrator.transplant import _set_employer
     has = b"5={\n\tfirst_name=\"A\"\n\tcourt_data={\n\t\temployer=9\n\t}\n}"
