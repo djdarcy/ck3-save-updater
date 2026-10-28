@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -125,9 +126,20 @@ class TestR3:
 
 # --------------------------------------------------------------------------- R4
 class TestR4:
+    @staticmethod
+    def blanks(g: bytes) -> dict:
+        """The "" tokens in meta_data's game_rules and in the top-level game_rules section(s)."""
+        meta = gs.find_child(g, gs.find_section(g, "meta_data"), "game_rules")
+        top = list(gs.find_sections(g, "game_rules"))
+        return {"meta_data": g[meta.open:meta.close].count(b'""'),
+                "top-level": sum(g[b.open:b.close].count(b'""') for b in top)}
+
     def test_blanks_removed_in_both_copies(self, save):
         res = run(save, "R4")["R4"]
-        assert res.extra["blanks_removed"] == {"meta_data": 3, "top-level": 3}
+        # (the Python rule reported this as extra["blanks_removed"]; the patch's output shows it)
+        before, after = self.blanks(DATA), self.blanks(save.gamestate)
+        assert {k: before[k] - after[k] for k in before} == {"meta_data": 3, "top-level": 3}
+        assert after == {"meta_data": 0, "top-level": 0}
         assert (res.matched, res.edited) == (2, 6)
         exp = DATA.replace(b'settings={ "" "" "" normal', b"settings={ normal") \
                   .replace(b'setting={ "" "" "" normal', b"setting={ normal")
@@ -144,7 +156,11 @@ class TestR4:
 class TestR5:
     def test_empty_keys_removed_everywhere(self, save):
         res = run(save, "R5")["R5"]
-        assert res.matched == 2 and res.extra["by_parent"] == {"decision_cooldowns": 1, "interaction_cooldowns": 1}
+        # (the Python rule reported extra["by_parent"] == {"decision_cooldowns": 1, "interaction_cooldowns": 1})
+        for parent in (b"decision_cooldowns", b"interaction_cooldowns"):
+            entry = parent + b"={\n\t\t\t=-5000.1.1\n"
+            assert (DATA.count(entry), save.gamestate.count(entry)) == (1, 0), parent
+        assert res.matched == 2 and res.edited == 2
         exp = DATA.replace(b"\t\tdecision_cooldowns={\n\t\t\t=-5000.1.1\n", b"\t\tdecision_cooldowns={\n", 1) \
                   .replace(b"\t\tinteraction_cooldowns={\n\t\t\t=-5000.1.1\n", b"\t\tinteraction_cooldowns={\n", 1)
         assert save.gamestate == exp
@@ -152,7 +168,8 @@ class TestR5:
     def test_equals_at_line_start_inside_a_string_is_not_a_key(self, save):
         res = run(save, "R5")["R5"]
         assert b'desc="a line\n=not a key"' in save.gamestate
-        assert res.extra["candidates"] == 3 and res.matched == 2
+        # (the Python rule reported extra["candidates"] == 3: three lines begin with '=', two of them keys)
+        assert len(re.findall(rb"(?m)^[ \t]*=", DATA)) == 3 and res.matched == 2
 
 
 # --------------------------------------------------------------------------- R21
@@ -357,7 +374,14 @@ class TestR6:
 class TestR7:
     def test_bump_both_copies(self, save, tmp_path):
         res = run(save, "R7")["R7"]
-        assert res.extra["before"] == {"save_game_version": "8", "version": '"1.8.1"'}
+        # (the Python rule reported extra["before"] == {"save_game_version": "8", "version": '"1.8.1"'}): the two
+        # values it replaced, each found once and set
+        meta = gs.find_section(DATA, "meta_data")
+        old = {c.key.decode(): DATA[c.value_start:c.value_end].decode() for c in gs.iter_children(DATA, *meta.body)
+               if c.key in (b"version", b"save_game_version")}
+        assert old == {"save_game_version": "8", "version": '"1.8.1"'}
+        rows = {r["edit"]: (r["found"], r["edits"]) for r in res.extra["edits"] if "skipped" not in r}
+        assert rows == {1: (1, 1), 2: (1, 1)} and (res.matched, res.edited) == (2, 2)
         sf.write_save(save, tmp_path / "o.ck3")
         back = sf.read_save(tmp_path / "o.ck3")
         assert b'version="1.20.1.2"' in back.meta and b"save_game_version=18" in back.meta

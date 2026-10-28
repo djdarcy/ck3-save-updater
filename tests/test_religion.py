@@ -50,7 +50,10 @@ def val(g, block, key):
 class TestR11:
     def test_counts_and_targets(self, paths):
         save, res, _ = run(paths, "R11")
-        assert res["R11"].extra["by_kind"] == {"modifier blocks": 1, "modifiers list entries": 1, "type": 1}
+        # (the Python rule reported extra["by_kind"] == {"modifier blocks": 1, "modifiers list entries": 1, "type": 1};
+        # the patch's three edits are those three kinds, in that order)
+        assert [(r["edit"], r["edits"]) for r in res["R11"].extra["edits"]] == [(1, 1), (2, 1), (3, 1)]
+        assert (res["R11"].matched, res["R11"].edited) == (3, 3)
         g = save.gamestate
         assert b'modifier=""' not in g and b'type=""' not in g
         assert b'modifier="real_modifier"' in g                      # the named one stays

@@ -1,0 +1,239 @@
+meta_data={
+	save_game_version=8
+	version="1.8.1"
+	portraits_version=3
+	meta_date=987.10.27
+	ironman=no
+}
+landed_titles={
+	landed_titles={
+0={
+	key="d_sunni"
+}
+1={
+	key="x_x_599"
+	holder=10
+}
+2={
+	key="b_jerusalem"
+}
+3={
+	key="c_test"
+	holder=10
+}
+4={
+	key="k_papal_state"
+	holder=12
+}
+5={
+	key="d_celtic_seat"
+}
+	}
+}
+living={
+10={
+	first_name="Beidh"
+	birth=950.1.1
+	faith=2
+	dynasty_house=100
+	alive_data={
+		variables={
+			data={ {
+					flag="f"
+					data={
+						type=faith
+						identity=0
+					}
+				}
+ {
+					flag="r"
+					data={
+						type=religion
+						identity=1
+					}
+				}
+ }
+		}
+	}
+}
+11={
+	first_name="Child"
+	birth=970.1.1
+	dynasty_house=100
+	alive_data={
+		modifier={
+			modifier=""
+			expiration_date=9999.1.1
+		}
+		modifier={
+			modifier="real_modifier"
+			expiration_date=990.1.1
+		}
+	}
+}
+12={
+	first_name="Ash"
+	birth=960.1.1
+	faith=3
+}
+13={
+	first_name="Courtier"
+	birth=961.1.1
+	court_data={
+		employer=12
+	}
+	alive_data={
+		prison_data={
+			type=""
+			date=980.1.1
+		}
+	}
+}
+}
+dead_unprunable={
+20={
+	first_name="Old"
+	birth=900.1.1
+	faith=0
+}
+21={
+	first_name="Kin"
+	birth=901.1.1
+	dynasty_house=100
+}
+}
+characters={
+	dead_prunable={
+30={
+	first_name="Gone"
+	birth=1.1.1
+	faith=1
+}
+	}
+}
+played_character={
+	name="player"
+	character=10
+}
+religion={
+	religions={
+		0={
+			template="christianity_religion"
+			faiths={ 0 1 2 4 }
+		}
+		1={
+			template="islam_religion"
+			faiths={ 3 }
+		}
+	}
+	faiths={
+		0={
+			template="catholic"
+			religion=0
+			religious_head=4
+		}
+		1={
+			template="insular_celtic"
+			religion=0
+		}
+		2={
+			template="insular_celtic"
+			tag="dynamic_faith_2"
+			name="Way of Scarcity"
+			adjective="Omni"
+			adherent="scarcitus"
+			adherent_plural="omnians"
+			desc="scarcity (zero) becoming abundance (infinity)"
+			color=rgb { 171 0 255 }
+			icon="dualism_custom_1"
+			texticon="dualism_custom_1_icon!"
+			graphical_faith="catholic_gfx"
+			piety_icon_group=""
+			fervor=75.5
+			religious_head=1
+			founder=21
+			changes={
+977.2.1="1 Feb 977: Mended the schism: positive_value +25!" 979.5.9="9 May 979: Birth of the Omni Heresy } {x}: positive_value +100!" 		}
+			doctrine="tenet_gnosticism"
+			doctrine="doctrine_gender_equal"
+			doctrine="doctrine_bogus_gone"
+			religion=0
+			holy_sites={ 0 1 2 }
+		}
+		3={
+			template="ashari"
+			religion=1
+		}
+		4={
+			template="insular_celtic"
+			religion=0
+			religious_head=5
+		}
+	}
+	great_holy_wars={
+		0={
+			target=3
+		}
+	}
+	holy_sites={
+		0={
+			holy_site_template="jerusalem"
+		}
+		1={
+			holy_site_template="armagh"
+		}
+		2={
+			holy_site_template="iona"
+		}
+	}
+}
+county_manager={
+	counties={
+		c_test={
+			culture=0
+			faith=2
+		}
+		c_none={
+			culture=0
+			faith=4294967295
+		}
+	}
+}
+holy_orders={
+	holy_orders={
+		0={
+			faith=0
+			title=0
+		}
+	}
+}
+dynasties={
+	dynasty_house={
+100={
+	name="house"
+	head_of_house=10
+	dynasty=200
+}
+	}
+	dynasties={
+200={
+	dynasty_head=10
+}
+	}
+}
+culture_manager={
+	cultures={
+		0={
+			name="greek"
+			culture_template="greek"
+		}
+	}
+}
+artifacts={
+	artifacts={
+1={
+	name="Cup"
+	modifiers={ "" artifact_monthly_prestige }
+}
+	}
+}
