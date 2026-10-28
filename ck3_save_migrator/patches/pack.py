@@ -16,7 +16,7 @@ import importlib.util
 from importlib.resources import files
 from pathlib import Path
 
-from ..rules import Rule, RuleContext
+from ..rule_types import Rule, RuleContext      # not from ..rules, whose REGISTRY is built by rules_from_pack
 from . import engine
 from .model import Pack, Patch, PatchError, as_folder, load_pack
 from .run import context_values, run_patch
@@ -82,6 +82,7 @@ def _declarative(patch: Patch):
                            edited=len(pl.edits) if not pl.failure else 0,
                            extra=extra)
     apply.patch = patch
+    apply.__doc__ = f"{patch.title} (the declarative patch {patch.source}: {len(patch.edits)} edit(s))"
     return apply
 
 
@@ -89,6 +90,7 @@ def _runner(patch: Patch):
     def apply(save, ctx, rule):
         return run_patch(save, patch, ctx, rule, ctx.state.get("patch_vars", {}))
     apply.patch = patch
+    apply.__doc__ = f"{patch.title} (the run patch {patch.source})"
     return apply
 
 

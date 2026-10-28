@@ -1,14 +1,17 @@
-"""The shipped pack (ck3_save_migrator/packs/to_1_20) is the registry, written as files.
+"""The shipped pack (ck3_save_migrator/packs/to_1_20) is the registry.
 
-``rules_from_pack`` on it gives the same ids in the same order, with the same name, since, description, default and
-requires, as ``REGISTRY``; each code patch's ``apply`` is the very function the registry holds. The last test
-builds the wheel, installs it into a fresh virtual environment and loads the pack from an empty directory, so a
-wheel that forgot its .toml files, or code that reads from the source tree, fails.
+``REGISTRY`` is built from it, and it gives the same ids in the same order, with the same name, since,
+description, default and requires, as v0.3.11's Python registry did (recorded from that version in
+``tests/fixtures/patches/``); each code patch's ``apply`` is the very function v0.3.11 ran, and ``rules`` prints
+what it printed. The last test builds the wheel, installs it into a fresh virtual environment and loads the pack
+from an empty directory, so a wheel that forgot its .toml files, or code that reads from the source tree, fails.
 """
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
+import json
 import shutil
 import subprocess
 import sys
@@ -19,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from ck3_save_migrator.patches import read_pack, rules_from_pack
-from ck3_save_migrator.rules import REGISTRY, _ORDER
+from ck3_save_migrator.rules import REGISTRY, _ORDER, religion_1_20, to_1_20, transplant_1_20
 
 ROOT = Path(__file__).resolve().parents[1]
 DECLARATIVE = {"R1", "R4", "R5", "R7", "R11"}
@@ -29,21 +32,38 @@ def test_the_pack_order_is_the_registry_order():
     assert list(read_pack().order) == _ORDER
 
 
-def test_the_rules_from_the_pack_are_the_registry_field_by_field():
-    pack = rules_from_pack()
-    assert [r.id for r in pack] == [r.id for r in REGISTRY]
-    for mine, theirs in zip(pack, REGISTRY):
-        assert (mine.name, mine.since, mine.description, mine.default, mine.requires) == \
-               (theirs.name, theirs.since, theirs.description, theirs.default, theirs.requires), mine.id
+def test_the_registry_is_the_shipped_pack():
+    assert [(r.id, r.name, r.apply.patch.kind if hasattr(r.apply, "patch") else "code") for r in REGISTRY] == \
+           [(r.id, r.name, r.apply.patch.kind if hasattr(r.apply, "patch") else "code") for r in rules_from_pack()]
 
 
-def test_each_code_patch_runs_the_very_function_the_registry_holds():
-    pack = {r.id: r for r in rules_from_pack()}
-    for r in REGISTRY:
+def test_the_registry_is_v0_3_11s_field_by_field():
+    """Every rule's id, order, name, since, description, default and requires as v0.3.11's Python registry had
+    them (recorded from that version in tests/fixtures/patches/registry_v0.3.11.json)."""
+    old = json.loads((ROOT / "tests" / "fixtures" / "patches" / "registry_v0.3.11.json").read_text(encoding="utf-8"))
+    assert [r.id for r in REGISTRY] == [o["id"] for o in old]
+    for mine, theirs in zip(REGISTRY, old):
+        assert (mine.name, mine.since, mine.description, mine.default, list(mine.requires)) == \
+               (theirs["name"], theirs["since"], theirs["description"], theirs["default"], theirs["requires"]), mine.id
+
+
+def test_each_code_patch_runs_the_very_function_v0_3_11_ran():
+    """The 14 code patches name the same functions v0.3.11's registry held; the 5 retired rules are declarative."""
+    old = json.loads((ROOT / "tests" / "fixtures" / "patches" / "registry_v0.3.11.json").read_text(encoding="utf-8"))
+    python = {r.id: r.apply for mod in (to_1_20, religion_1_20, transplant_1_20) for r in mod.RULES}
+    for r, o in zip(REGISTRY, old):
         if r.id in DECLARATIVE:
-            assert pack[r.id].apply is not r.apply and pack[r.id].apply.patch.kind == "declarative"
+            assert r.apply.patch.kind == "declarative" and r.id not in python, r.id
         else:
-            assert pack[r.id].apply is r.apply, r.id
+            module, name = o["function"].split(":")
+            assert r.apply is getattr(importlib.import_module(module), name) is python[r.id], r.id
+
+
+def test_the_rules_command_prints_what_v0_3_11_printed(capsys):
+    from ck3_save_migrator import cli
+    assert cli.main(["rules"]) == 0
+    expected = (ROOT / "tests" / "fixtures" / "patches" / "rules_v0.3.11.txt").read_text(encoding="utf-8")
+    assert capsys.readouterr().out == expected
 
 
 def test_the_shipped_pack_uses_no_script_files():

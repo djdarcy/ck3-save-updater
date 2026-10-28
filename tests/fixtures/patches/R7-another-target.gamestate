@@ -1,0 +1,12 @@
+meta_data={
+	save_game_version=19
+	version="1.21.0"
+	portraits_version=3
+	game_rules={
+		settings={ "" "" normal_difficulty "" }
+		setting={ "" a }
+		other={ "" }
+	}
+}
+x={
+}

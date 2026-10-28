@@ -95,43 +95,6 @@ def _list_tokens(d: bytes, block: gs.Block) -> list[gs.Child]:
     return [c for c in gs.iter_children(d, *block.body) if c.key is None and c.block is None]
 
 
-# --------------------------------------------------------------------------- R11
-def r11_empty_modifiers(save: CK3Save, ctx, rule):
-    """Delete modifiers with an empty name: modifier={ modifier="" ... } blocks, "" in modifiers={} lists, type="".
-
-    1.8.1 save: 214 empty modifier blocks (character modifier / timed_modifier), 779
-    modifiers={ "" } lists (artifacts) and one type="" -- written by 1.8.1 itself for
-    modifiers whose definition was gone; 1.20 rejects each ("Failed to read key reference: :").
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    by = Counter()
-    blocks = [m.start(1) for m in re.finditer(rb'(?m)^\t*(modifier)=""', d)]
-    for pos, (parent, child) in gs.child_at(d, blocks).items():
-        if child.key == b"modifier" and parent.key in (b"modifier", b"timed_modifier"):
-            s, e = gs.removal_span(d, parent.start, parent.end)
-            p.add(gs.Edit(s, e, b"", rule.name, "modifier block"))
-            by["modifier blocks"] += 1
-    lists = [m.start() for m in re.finditer(rb"(?<![\w.])modifiers=\{", d)]
-    for pos, (parent, child) in gs.child_at(d, lists).items():
-        if child.block is None:
-            continue
-        for tok in _list_tokens(d, child.block):
-            if d[tok.start:tok.end] == b'""':
-                s, e = gs.removal_span(d, tok.start, tok.end)
-                p.add(gs.Edit(s, e, b"", rule.name, "modifiers list"))
-                by["modifiers list entries"] += 1
-    types = [m.start(1) for m in re.finditer(rb'(?m)^\t*(type)=""', d)]
-    for pos, (parent, child) in gs.child_at(d, types).items():
-        if child.key == b"type":
-            s, e = gs.removal_span(d, child.start, child.end)
-            p.add(gs.Edit(s, e, b"", rule.name, f"type in {(parent.key or b'').decode()}"))
-            by["type"] += 1
-    p.apply_to(save)
-    c = p.count(rule.name)
-    return rule.result(matched=c.edited, edited=c.edited, extra={"by_kind": dict(by)})
-
-
 # --------------------------------------------------------------------------- R8
 def _old_religion_tables(d: bytes) -> tuple[dict, dict, dict]:
     """(faiths id -> info, religions id -> template, holy site id -> template) from a 1.8-layout religion section."""
@@ -792,8 +755,6 @@ RULES = [
     Rule("R10", "custom-faith", "1.20.0",
          "carry the save's own custom faiths (e.g. Way of Scarcity) as a faith or a rite", r10_custom_faith,
          requires=("R8",)),
-    Rule("R11", "empty-modifiers", "1.8.1<v<=1.20.1.2",
-         'delete modifiers with an empty name (modifier="", "" in modifiers lists, type="")', r11_empty_modifiers),
     Rule("R12", "faithless-rite", "1.20.0 (rite on every character)",
          "give characters without a faith their house head's rite (fallbacks reported)", r12_faithless_rite,
          requires=("R8", "R9")),

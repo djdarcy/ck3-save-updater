@@ -1,0 +1,110 @@
+meta_data={
+	save_game_version=8
+	version="1.8.1"
+	portraits_version=3
+	meta_date=987.10.27
+	game_rules={
+		settings={ "" "" "" normal_difficulty default_cfp_baldtrait }
+	}
+
+	ironman=no
+}
+random_seed=4942029
+landed_titles={
+	landed_titles={
+0={
+	key="k_papal_state"
+	holder=66845
+	name="Papacy"
+	adj="Papal"
+	article="the "
+	date=976.3.4
+	coat_of_arms_id=7
+	default_coa=yes
+}
+18={
+	key="e_black_horde"
+	name="Black Horde"
+	adj="Mongol"
+	pre="Mongolo"
+	date=9999.1.1
+	coat_of_arms_id=13
+}
+40={
+	key="x_x_1848"
+	name="Dynamic"
+	date=900.1.1
+}
+41={
+	key="d_knights_hospitaler"
+	holder=500
+	de_jure_liege=0
+	coat_of_arms_id=20
+}
+	}
+}
+living={
+500={
+	first_name="Knut"
+	desc="a line
+=not a key"
+	landed_data={
+		decision_cooldowns={
+			convert_to_witchcraft_decision=986.1.1
+		}
+		interaction_cooldowns={
+		}
+		liege_title=18
+	}
+}
+}
+opinions={
+	active_opinions={ {
+			owner=1
+			target=2
+			temporary_opinion={
+				modifier="impressed_opinion"
+				start_date=974.12.2
+				converging={
+					days=4709
+					opinion=20.6
+				}
+				value=5
+			}
+			temporary_opinion={
+				modifier="feast_opinion"
+				converging={
+					total_days=3650
+					days=1411
+					opinion=15
+				}
+				value=10
+			}
+			scripted_relations={
+				potential_friend={
+					flags="AAAAAA=="
+				}
+
+			}
+		}
+ {
+			owner=2
+			target=1
+			scripted_relations={
+				ward={
+					flags="AQAAAA=="
+				}
+				friend={
+					flags="AAEAAA=="
+				}
+				rival={
+					flags="Aw=="
+				}
+
+			}
+		}
+ }
+}
+game_rules={
+	setting={ "" "" "" normal_difficulty default_cfp_baldtrait }
+}

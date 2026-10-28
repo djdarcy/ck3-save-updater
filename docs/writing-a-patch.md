@@ -356,7 +356,7 @@ def test_old_key_is_renamed():
 
 What the pieces are: `build_ck3(meta=..., body=...)` (from the tool's test fixtures, so run the test from a checkout of the repository) builds a small save file whose gamestate is `meta` followed by `body`; `load_patch` reads one patch folder (`from_disk=True` for a folder of your own, `context_fields` the template names a patch may use); `apply_patch(save, patch, values)` applies it, `values` being the template values (`{}` when the patch uses none, or for example `{"target_version": "1.21.0"}`), and returns what it found and did. Build paths from the test file's own folder, as `HERE` does, so the test runs from anywhere.
 
-The tool's own tests of this kind are in `tests/test_patches_equivalence.py` (each shipped patch against the Python rule it replaces) and `tests/test_patches_ops.py` (each operation).
+The tool's own tests of this kind are in `tests/test_patches_equivalence.py` (each shipped patch against the output the Python rule it replaced wrote on the same saves, kept as files in `tests/fixtures/patches/`) and `tests/test_patches_ops.py` (each operation).
 
 ## Game versions inform, never gate
 

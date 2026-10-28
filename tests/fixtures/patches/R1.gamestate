@@ -1,0 +1,37 @@
+meta_data={
+	save_game_version=8
+	version="1.8.1"
+	portraits_version=3
+	game_rules={
+		settings={ "" "" normal_difficulty "" }
+		setting={ "" a }
+		other={ "" }
+	}
+}
+opinions={
+	active_opinions={
+		1={
+			temporary_opinion={
+				value=5
+				days=3
+			}
+			converging={ x=1 }
+			temporary_opinion={ value=2 }
+		}
+		2={
+			temporary_opinion={ value=1 }
+			temporary_opinion={
+			}
+		}
+		{
+			temporary_opinion={
+			}
+		}
+	}
+	temporary_opinion={ converging={ } }
+}
+misc={
+	temporary_opinion={
+		converging={ }
+	}
+}
