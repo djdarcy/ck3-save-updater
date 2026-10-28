@@ -2,8 +2,9 @@
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
 4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
-did not hold, or a run patch's command that failed; migrate writes nothing; check: one would fail). ``tools run`` returns the script's own
-exit code.
+did not hold, or a run patch's command that failed; migrate writes nothing; check: one would fail). ``tools run``
+returns the script's own exit code. ``soak`` (which starts the game): 0 clean exit, 2 refused, 6 a crash, 7 did not
+load or did not exit, 8 a guard check failed.
 """
 
 from __future__ import annotations
@@ -457,6 +458,41 @@ def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
     return [r for r in rules if r.id not in skipped]
 
 
+SOAK_EXIT = {"clean exit": 0, "crash on exit": 6, "crash while running": 6, "did not load": 7, "did not exit": 7}
+
+
+def cmd_soak(args) -> int:
+    """Load a save in the game, run it, close it through Exit to Desktop, say how it ended (soak.py). STARTS THE
+    GAME. Exit 0 clean exit, 2 refused (nothing changed), 6 a crash, 7 did not load or did not exit, 8 a guard check
+    failed (an autosave or dlc_load.json not put back: the run folder holds the originals)."""
+    from . import soak as sk
+    if args.game:
+        install = Path(args.game)
+    else:
+        game = find_game_dir(None)
+        if game is None:
+            say(ERROR, "ERROR: no game install found; give --game <the folder that holds 'binaries' and 'game'>",
+                "io", err=True)
+            return 2
+        install = game.parent
+    exit_after = args.exit_after if args.exit_after is not None else int(args.minutes * 60)
+    try:
+        res = sk.soak(Path(args.save), install=install, docs=Path(args.docs) if args.docs else None,
+                      run_dir=Path(args.run_dir) if args.run_dir else None, exit_after=exit_after,
+                      speed=args.speed, mods=args.mods, say=lambda m: say(DEFAULT, f"  {m}", "io"))
+    except sk.SoakRefused as exc:
+        say(ERROR, f"ERROR: soak refused: {exc}", "io", err=True)
+        return 2
+    say(MINIMAL, f"soak: {res.outcome}{' (' + res.detail + ')' if res.detail else ''}", "io")
+    for what, ok in res.checks:
+        say(MINIMAL if ok else ERROR, f"  {what}: {'put back and verified' if ok else 'NOT VERIFIED'}", "io",
+            err=not ok)
+    say(MINIMAL, f"  run folder: {res.run_dir}", "io")
+    if not all(ok for _, ok in res.checks):
+        return 8
+    return SOAK_EXIT.get(res.outcome, 7)
+
+
 def cmd_check(args) -> int:
     """Each selected patch's verdict on this save, read only: needed, done, unknown (code and run patches, and
     Python rules with no declarative patch in the shipped pack) or fails (exit 5). Each is judged on the save as it
@@ -625,6 +661,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
+
+    p = sub.add_parser("soak", help="START THE GAME: load a save, let it run unpaused, close it through Exit to "
+                                    "Desktop, and say whether it exited cleanly or crashed (Windows; see docs/soak.md)")
+    p.add_argument("save")
+    p.add_argument("--game", help="the CK3 install folder, the one holding 'binaries' and 'game' (default: from "
+                                  "$CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--docs", help="the game's documents folder (default: ~/Documents/Paradox Interactive/"
+                                  "Crusader Kings III)")
+    p.add_argument("--minutes", type=float, default=10, help="how long the game runs once it is in game (default 10)")
+    p.add_argument("--exit-after", type=int, metavar="SECONDS",
+                   help="the same in seconds; overrides --minutes")
+    p.add_argument("--speed", type=int, default=5, choices=range(1, 6), metavar="1..5",
+                   help="the game speed it runs at (default 5)")
+    p.add_argument("--mods", nargs="+", metavar="DESCRIPTOR",
+                   help="enable exactly these mods for the run (e.g. mod/ugc_2220098919.mod), through dlc_load.json, "
+                        "which is put back byte for byte afterwards")
+    p.add_argument("--run-dir", help="where the backups, the timeline and copies of the game's logs go (default: a "
+                                     "new folder in the tool's cache folder)")
+    p.set_defaults(func=cmd_soak)
 
     p = sub.add_parser("check", help="say, for each selected patch, whether this save needs it, has it done, "
                                      "cannot be told (code and run patches) or would fail; reads only, writes "
