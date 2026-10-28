@@ -1,0 +1,9 @@
+format = 1
+id = "R3"
+name = "title-names"
+title = "move inline title name/adj/pre/article into title_name_data"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r3_title_names"

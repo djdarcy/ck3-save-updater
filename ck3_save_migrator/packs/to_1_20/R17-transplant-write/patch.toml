@@ -1,0 +1,9 @@
+format = 1
+id = "R17"
+name = "transplant-write"
+title = "write everything R14-R16 planned, ids translated, references outside the output dropped, seams stitched"
+since = "1.20"
+default = false
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.transplant_1_20:r17_transplant_write"

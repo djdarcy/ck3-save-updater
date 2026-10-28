@@ -1,0 +1,16 @@
+format = 1
+id = "R5"
+name = "empty-keys"
+title = "delete map entries with an empty key (=-5000.1.1)"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+
+# An entry with an empty key ("=-5000.1.1"), at any depth; 1.20 rejects each ("Invalid date string ... empty").
+# Only an entry whose "=" begins its line is taken, as the rule always has.
+[[edit]]
+path = "**"
+op = "delete_key"
+key = ""
+at = "line-start"

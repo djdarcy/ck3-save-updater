@@ -1,7 +1,8 @@
 """Command-line entry point for ck3-save-migrator (the `ck3-save-migrator` command).
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
-4 lint found an error (migrate: the output is still written, for inspection).
+4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
+did not hold, or a run patch's command that failed; migrate writes nothing).
 """
 
 from __future__ import annotations
@@ -20,6 +21,8 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
+from .patches import rules_from_pack
+from .patches.model import tomllib
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -237,6 +240,26 @@ def _check_paths(args, outputs: list[tuple[Path, str | None]], *, existence: boo
             raise OutputExistsError(f"output already exists: {out} (use --force to overwrite)")
 
 
+def read_patch_vars(pairs: list[str], file: str | None) -> dict:
+    """The caller's variables for run patches: ``--vars file.toml`` first, then each ``--var name=value``."""
+    out: dict = {}
+    if file:
+        try:
+            data = tomllib.loads(Path(file).read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as exc:
+            raise ValueError(f"--vars {file}: not valid TOML: {exc}") from None
+        for k, v in data.items():
+            if isinstance(v, dict):
+                raise ValueError(f"--vars {file}: '{k}' is a table; give a string, a number or a list")
+            out[k] = [str(x) for x in v] if isinstance(v, list) else str(v)
+    for pair in pairs:
+        name, sep, value = pair.partition("=")
+        if not sep or not name.strip():
+            raise ValueError(f"--var {pair!r}: write it as name=value")
+        out[name.strip()] = value
+    return out
+
+
 def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
     # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
@@ -246,6 +269,10 @@ def cmd_migrate(args) -> int:
     if args.bump_version:
         say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
                      "default rules", "rules", err=True)
+    # patch packs from folders run after the selected rules, in the order given (their default patches)
+    for folder in args.pack or []:
+        rules = rules + [r for r in rules_from_pack(folder, allow_run=args.allow_run) if r.default]
+    patch_vars = read_patch_vars(args.var or [], args.vars)
     # S1: a rule whose prerequisites are not selected is refused before any work, naming them
     missing = missing_prerequisites(rules)
     if missing:
@@ -275,7 +302,8 @@ def cmd_migrate(args) -> int:
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
-    known = None          # what the game and the mods define: read once, shared by both outputs
+    ctx.state["patch_vars"] = patch_vars
+    known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
     lint_errors = 0
 
@@ -296,6 +324,18 @@ def cmd_migrate(args) -> int:
         lint_errors += rep.errors
         return rep
 
+    def failed(results) -> bool:
+        """A patch that failed (an ``expect`` that did not hold, a run command that failed) stops the migration:
+        each is printed with its message and nothing is written (exit 5)."""
+        bad = [r for r in results if r.extra.get("failed")]
+        for r in bad:
+            say(ERROR, f"ERROR: patch {r.id} ({r.name}) failed: {r.extra['failed']}", "rules", err=True)
+            for line in r.extra.get("stderr") or []:
+                say(ERROR, f"    {line}", "rules", err=True)
+        if bad:
+            say(ERROR, f"ERROR: {len(bad)} patch(es) failed; nothing written", "rules", err=True)
+        return bool(bad)
+
     def nothing_to_write(results) -> bool:
         """S9/S11: every selected rule edited 0 (the save is already at the target, or nothing matched): write
         nothing, say so with the counts, exit 0; --force does not change that."""
@@ -311,18 +351,26 @@ def cmd_migrate(args) -> int:
 
     if not branch:
         results = run_rules_timed(save, rules, ctx)
+        if failed(results):
+            return 5
         if nothing_to_write(results):
             return 0
         _emit(args, save, results, out, args.report, ctx, in_sha, lint_of(save))
     else:
         # both shapes: run the shared rules once, branch at R10
         shared = run_rules_timed(save, rules[:split], ctx)
-        for shape in shapes:
+        if failed(shared):
+            return 5
+        runs = []
+        for shape in shapes:        # every shape runs before any is written, so a failure leaves no output at all
             s2 = copy.deepcopy(save)
             c2 = copy.copy(ctx)
             c2.state = copy.deepcopy(ctx.state)
             c2.wos_shape = shape
-            results = shared + run_rules_timed(s2, rules[split:], c2)
+            runs.append((shape, s2, c2, shared + run_rules_timed(s2, rules[split:], c2)))
+        if failed([r for *_, results in runs for r in results[len(shared):]]):
+            return 5
+        for shape, s2, c2, results in runs:
             if nothing_to_write(results):
                 continue
             _emit(args, s2, results, branch_path(out, shape),
@@ -428,6 +476,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lint-mods", choices=("save", "none"), default="save",
                    help="which mods the lint assumes will be active when the save loads: the Workshop mods the "
                         "save lists (default; those installed), or none (a vanilla load)")
+    p.add_argument("--pack", action="append", metavar="FOLDER",
+                   help="a patch pack folder to apply after the selected rules (repeatable, applied in the order "
+                        "given; see docs/writing-a-patch.md)")
+    p.add_argument("--var", action="append", metavar="NAME=VALUE",
+                   help="a variable for the packs' run patches, @@NAME@@ in their command (repeatable)")
+    p.add_argument("--vars", metavar="FILE",
+                   help="a TOML file of variables for the packs' run patches (a list value becomes several arguments)")
+    p.add_argument("--allow-run", action="store_true",
+                   help="let script and run patches in --pack folders run their code (it runs with your "
+                        "permissions)")
     p.set_defaults(func=cmd_migrate)
 
     p = sub.add_parser("lint", help="check a 1.20-layout save before loading it: structure, cross-references, "

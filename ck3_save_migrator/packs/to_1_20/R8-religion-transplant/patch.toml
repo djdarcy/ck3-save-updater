@@ -1,0 +1,9 @@
+format = 1
+id = "R8"
+name = "religion-transplant"
+title = "replace religion with a 1.20 reference's religion/faiths/rites/organizations, ids translated"
+since = "1.20.0 (By God Alone: faiths/rites databases)"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.religion_1_20:r8_religion_transplant"

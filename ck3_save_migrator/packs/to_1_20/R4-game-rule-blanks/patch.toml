@@ -1,0 +1,17 @@
+format = 1
+id = "R4"
+name = "game-rule-blanks"
+title = 'delete empty "" entries from game_rules settings lists'
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+# The report counts the settings lists looked at, as the rule always has, not the blanks found.
+matched = "blocks"
+
+# 1.8.1 leaves empty "" entries in the game rules lists, both in meta_data and in the top-level section, under
+# both names the game uses ("settings" and "setting"); 1.20 has none.
+[[edit]]
+path = ["meta_data/game_rules/settings", "meta_data/game_rules/setting", "game_rules/settings", "game_rules/setting"]
+op = "delete_value"
+value = '""'

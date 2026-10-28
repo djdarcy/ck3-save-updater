@@ -1,0 +1,32 @@
+format = 1
+id = "R11"
+name = "empty-modifiers"
+title = 'delete modifiers with an empty name (modifier="", "" in modifiers lists, type="")'
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+
+# 1.8.1 writes modifiers whose definition is gone with an empty name; 1.20 rejects each
+# ("Failed to read key reference: :").
+
+# A modifier={ ... } or timed_modifier={ ... } block whose modifier="" begins its line: the whole block goes.
+[[edit]]
+path = "**"
+op = "delete_entry"
+where = { key = ["modifier", "timed_modifier"], field = { modifier = '""' } }
+at = "line-start"
+
+# "" inside any modifiers={ ... } list.
+[[edit]]
+path = "**/modifiers"
+op = "delete_value"
+value = '""'
+
+# type="" beginning its line, anywhere.
+[[edit]]
+path = "**"
+op = "delete_key"
+key = "type"
+where = { value = '""' }
+at = "line-start"
