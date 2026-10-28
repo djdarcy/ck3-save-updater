@@ -119,9 +119,21 @@ def rules_from_pack(source=None, *, allow_run: bool = False) -> list[Rule]:
     return rules
 
 
-def status(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None) -> str:
-    """"needed", "done", or "unknown" (code and run patches run when selected)."""
+def verdict(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None) -> tuple[str, str]:
+    """(verdict, detail) for ``patch`` on a gamestate, which is only read: "needed" (some edit would edit; the
+    detail counts the edits), "done" (none would), "fails" (an ``expect`` or ``need_path`` does not hold; the
+    detail names the edit, the path and the count), or "unknown" (a code or run patch: only running it would tell,
+    and checking runs nothing)."""
     if patch.kind != "declarative":
-        return "unknown"
+        return "unknown", f"a {'code' if patch.kind == 'script' else 'run'} patch: only running it would tell"
     pl = engine.plan(save_gamestate, patch, context_values(ctx or RuleContext()))
-    return "needed" if pl.needed else "done"
+    if pl.failure:
+        return "fails", pl.failure
+    if pl.needed:
+        return "needed", f"{len(pl.edits)} edit(s)"
+    return "done", "nothing to edit" + (" (its done marker is present)" if pl.done else "")
+
+
+def status(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None) -> str:
+    """"needed", "done", "fails" or "unknown" (code and run patches run when selected); see ``verdict``."""
+    return verdict(save_gamestate, patch, ctx)[0]

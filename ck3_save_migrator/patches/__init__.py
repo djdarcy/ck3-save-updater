@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from .engine import Plan, apply_patch, plan
 from .model import FORMAT, OPS, EditSpec, Pack, Patch, PatchError, load_pack, load_patch
-from .pack import SHIPPED, read_pack, rules_from_pack, shipped_pack_folder, status
+from .pack import SHIPPED, read_pack, rules_from_pack, shipped_pack_folder, status, verdict
 
 __all__ = ["FORMAT", "OPS", "EditSpec", "Pack", "Patch", "PatchError", "Plan", "SHIPPED", "apply_patch",
-           "load_pack", "load_patch", "plan", "read_pack", "rules_from_pack", "shipped_pack_folder", "status"]
+           "load_pack", "load_patch", "plan", "read_pack", "rules_from_pack", "shipped_pack_folder", "status",
+           "verdict"]

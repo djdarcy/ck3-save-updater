@@ -35,12 +35,14 @@ pip install -e .
 
 ## Usage
 
-Four commands:
+The commands:
 
 - `ck3-save-migrator inspect <save>`: show a save's header, metadata block and the files inside it.
 - `ck3-save-migrator migrate <save> --rules all`: write a migrated copy; `--report` writes a JSON account of every change.
 - `ck3-save-migrator lint <save>`: check a save before loading it (below).
 - `ck3-save-migrator rules`: list the migration rules and the game versions they apply to.
+- `ck3-save-migrator check <save>`: say, for each rule, whether this save still needs it, without changing anything ([Checking a save](docs/writing-a-patch.md#checking-a-save)).
+- `ck3-save-migrator disable <id>`, `enable <id>`, `disabled`: turn a rule off for every later `--rules all`, turn it back on, and list what is off ([Turning rules off](docs/writing-a-patch.md#turning-rules-off)).
 
 Migrating a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest):
 
@@ -63,7 +65,7 @@ A custom faith is written two ways by default, as its own faith and as a rite of
 
 `migrate` runs the same checks on every output by default, prints them, and writes them next to the output as `<name>.lint.json` (`--no-lint` skips them). The predictions depend on which mods will be active: by default the checks assume the Workshop mods the save itself lists (those installed); `--mods none` on `lint`, or `--lint-mods none` on `migrate`, predicts a load with no mods. Pointing the checks at the game folder (found automatically, or `--game-dir`) and a save from the current version (`--reference`) makes them more complete.
 
-Exit codes: 0 done with no error from the migrator itself (the save can still carry thousands of predicted log lines; that is reported, not an error), 1 bad input, 2 refused (the output exists, or would overwrite the input), 3 the written file failed verification, 4 the checks found an error (`migrate` still writes the output so it can be inspected), 5 a patch from a `--pack` failed (`migrate` prints why and writes nothing).
+Exit codes: 0 done with no error from the migrator itself (the save can still carry thousands of predicted log lines; that is reported, not an error), 1 bad input, 2 refused (the output exists, or would overwrite the input), 3 the written file failed verification, 4 the checks found an error (`migrate` still writes the output so it can be inspected), 5 a patch failed (`migrate` prints why and writes nothing; `check` exits 5 when a patch would fail).
 
 ### How much it says
 
