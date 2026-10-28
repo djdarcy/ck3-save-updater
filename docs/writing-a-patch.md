@@ -322,6 +322,8 @@ A run patch runs a program with your permissions, so a pack folder with one is r
 ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack" --var tools_dir="my_tools" --allow-run
 ```
 
+When the script sits in a scripts folder, `tool = "fix_faces"` with `args = ["@@input@@", "@@output@@"]` is a shorter way to write the same command; [Tools](tools.md#a-tool-in-a-run-patch) explains it.
+
 ## Running your pack
 
 ```bash

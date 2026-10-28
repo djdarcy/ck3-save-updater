@@ -1,5 +1,6 @@
 """The core never needs dazzlecmd-lib: with any import of it made to fail, the package imports, builds the rules from
-the shipped pack, and migrates a synthetic save through the command line."""
+the shipped pack, migrates a synthetic save through the command line, and shows the help of the optional ``tools``
+command."""
 
 from __future__ import annotations
 
@@ -21,6 +22,12 @@ from ck3_save_migrator import cli
 code = cli.main(["migrate", sys.argv[1], "--no-lint", "-o", sys.argv[2], "-q"])
 assert code == 0, code
 assert "dazzlecmd_lib" not in [m for m, v in sys.modules.items() if v is not None]
+try:
+    cli.main(["tools", "--help"])
+except SystemExit as exc:
+    assert exc.code == 0, exc.code
+else:
+    raise AssertionError("tools --help did not exit")
 print("ok")
 """
 
