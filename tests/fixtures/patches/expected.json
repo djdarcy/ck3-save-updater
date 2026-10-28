@@ -1,0 +1,128 @@
+{
+ "R1": {
+  "rule": "R1",
+  "matched": 4,
+  "edited": 5,
+  "sha256": "71138a32e9c646ea22979e468be4cc5f7d86afa05a7261b0a6ce4c46f2df977e"
+ },
+ "R4": {
+  "rule": "R4",
+  "matched": 5,
+  "edited": 8,
+  "sha256": "10e4f282809c6c4c910c06a408bd0ce13a24e10b197202ce0adb5c3ad3156171"
+ },
+ "R5": {
+  "rule": "R5",
+  "matched": 4,
+  "edited": 4,
+  "sha256": "ec98becf532a25ac00877caab90fcbe6dd51906ad563699d0b19e3c69ef4947a"
+ },
+ "R7-no-portraits": {
+  "rule": "R7",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "15f05505f41874bdad7e6a3a737a7a0a34634e763cb04909a308b9b600b371a9"
+ },
+ "R7-portraits-5": {
+  "rule": "R7",
+  "matched": 3,
+  "edited": 3,
+  "sha256": "fff867e72e6f361035cac9a27829f1a230987ff7afe4ee5e017554fa01dbf7cb"
+ },
+ "R7-portraits-3": {
+  "rule": "R7",
+  "matched": 3,
+  "edited": 2,
+  "sha256": "15f05505f41874bdad7e6a3a737a7a0a34634e763cb04909a308b9b600b371a9"
+ },
+ "R7-at-target": {
+  "rule": "R7",
+  "matched": 2,
+  "edited": 0,
+  "sha256": "eb8dfa411bc8335e468ce6553086233f31def056e992c47e8ab3ad7ee4ed4efe"
+ },
+ "R7-another-target": {
+  "rule": "R7",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "6bde38a28f0f2ebc1bc4367e0878a6fc5486e8f8165e6d035aa85240d87060b7"
+ },
+ "R11": {
+  "rule": "R11",
+  "matched": 6,
+  "edited": 6,
+  "sha256": "f907bfa4390c94c9616ddae05035c6c14455042b487f780627e3654998706b7a"
+ },
+ "rules-fixture-R1": {
+  "rule": "R1",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "7af3ce8b5af70467e3c60a093916fe876c538bca3b6e9f89cbbc77e308887c8f"
+ },
+ "religion-fixture-R1": {
+  "rule": "R1",
+  "matched": 0,
+  "edited": 0,
+  "sha256": "550ff173328eb5cfc2f2c4f7c202a0328d6191f9d93a3ab11bcf7df5df16c5b3"
+ },
+ "rules-fixture-R4": {
+  "rule": "R4",
+  "matched": 2,
+  "edited": 6,
+  "sha256": "11a85f7bf81685dfdf4fc7e90ce79e693bb640b63aaf8ea1c4240ea7673e1367"
+ },
+ "religion-fixture-R4": {
+  "rule": "R4",
+  "matched": 0,
+  "edited": 0,
+  "sha256": "550ff173328eb5cfc2f2c4f7c202a0328d6191f9d93a3ab11bcf7df5df16c5b3"
+ },
+ "rules-fixture-R5": {
+  "rule": "R5",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "07175ea1d68d835c9b93e1d16ffcbc2c4b118a240e6f9e3167cbd207381fd176"
+ },
+ "religion-fixture-R5": {
+  "rule": "R5",
+  "matched": 0,
+  "edited": 0,
+  "sha256": "550ff173328eb5cfc2f2c4f7c202a0328d6191f9d93a3ab11bcf7df5df16c5b3"
+ },
+ "rules-fixture-R7": {
+  "rule": "R7",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "917c88de9044c107901966c08302925e5c6b51957afc00caee286dc120abe292"
+ },
+ "religion-fixture-R7": {
+  "rule": "R7",
+  "matched": 2,
+  "edited": 2,
+  "sha256": "3f21384e9f0ec87b5d4b7e8e2138ca35c8d6089a8c000d2598d9abd06fe7e974"
+ },
+ "rules-fixture-R11": {
+  "rule": "R11",
+  "matched": 0,
+  "edited": 0,
+  "sha256": "0f3362cdf2aaa6bb9bfbf00b1e70ef3400473e46f81994ef155b26d91f422ce3"
+ },
+ "religion-fixture-R11": {
+  "rule": "R11",
+  "matched": 3,
+  "edited": 3,
+  "sha256": "219d3ef2689fa4cca710a48f7b318e78c232a7383a697c0f5f5ca14ed2098deb"
+ },
+ "big-R5": {
+  "rule": "R5",
+  "matched": 6090,
+  "edited": 6090,
+  "sha256": "3a06bc90457ba60effc2a7349baf4134dd2291b93d1a5ddab7830d858f338c2e"
+ },
+ "big-R11": {
+  "rule": "R11",
+  "matched": 18270,
+  "edited": 18270,
+  "sha256": "dc9d31cf0505ccab06a009e029ff44e25559be258b2ea3c69785ae7ae45b863c"
+ }
+}

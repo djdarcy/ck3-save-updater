@@ -31,24 +31,6 @@ def _opinion_entries(data: bytes):
     yield from gs.iter_entries(data, *ao.body)
 
 
-# --------------------------------------------------------------------------- R1
-def r1_converging(save: CK3Save, ctx, rule) -> object:
-    """Delete converging={...} inside every opinions/active_opinions/*/temporary_opinion.
-
-    1.8.1 save: 76,433 converging blocks, all inside temporary_opinion; 1.20 reference: 0.
-    The 1.20 parser rejects each one ("Unexpected token: converging").
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    for e in _opinion_entries(d):
-        for to in gs.find_keys(d, e, "temporary_opinion"):
-            if to.block is not None and p.delete_key(d, to.block, "converging", rule.name):
-                p.count(rule.name).matched += 1
-    p.apply_to(save)
-    c = p.count(rule.name)
-    return rule.result(matched=c.matched, edited=c.edited)
-
-
 # --------------------------------------------------------------------------- R2
 def r2_relation_flags(save: CK3Save, ctx, rule) -> object:
     """Re-encode scripted_relations/<kind>/flags bitsets from 4 bytes to 1.20's 1 byte.
@@ -145,72 +127,6 @@ def r3_title_names(save: CK3Save, ctx, rule) -> object:
     p.apply_to(save)
     c = p.count(rule.name)
     return rule.result(matched=c.matched, edited=c.edited, extra={"titles_touched": c.matched, "names": side})
-
-
-# --------------------------------------------------------------------------- R4
-def r4_game_rule_blanks(save: CK3Save, ctx, rule) -> object:
-    """Delete empty "" tokens from game_rules settings/setting, in meta_data and in the top-level section.
-
-    1.8.1 save: 69 blanks in meta_data/game_rules/settings and 69 in game_rules/setting;
-    1.20 reference: 0 and 0. Both versions use 'settings' in meta_data and 'setting' at
-    top level, so no key is renamed.
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    where = {}
-    blocks = []
-    try:
-        blocks.append(("meta_data", gs.find_child(d, gs.find_section(d, "meta_data"), "game_rules")))
-    except gs.GamestateError:
-        pass
-    blocks += [("top-level", b) for b in gs.find_sections(d, "game_rules")]
-    for label, gr in blocks:
-        n = 0
-        for lst in gs.iter_children(d, *gr.body):
-            if lst.key not in (b"settings", b"setting") or lst.block is None:
-                continue
-            p.count(rule.name).matched += 1
-            for v in gs.iter_children(d, *lst.block.body):
-                if v.key is None and v.block is None and d[v.start:v.end] == b'""':
-                    s, e = gs.removal_span(d, v.start, v.end)
-                    p.add(gs.Edit(s, e, b"", rule.name, label))
-                    n += 1
-        where[label] = where.get(label, 0) + n
-    p.apply_to(save)
-    c = p.count(rule.name)
-    return rule.result(matched=c.matched, edited=c.edited, extra={"blanks_removed": where})
-
-
-# --------------------------------------------------------------------------- R5
-_EMPTY_KEY_LINE = re.compile(rb"(?m)^[ \t]*=")
-
-
-def r5_empty_keys(save: CK3Save, ctx, rule) -> object:
-    """Delete map entries whose key is empty ("=-5000.1.1"), wherever they occur.
-
-    1.8.1 save: 99 -- 98 in decision_cooldowns, 1 in interaction_cooldowns; 1.20
-    reference: 0. The 1.20 parser rejects each ("Invalid date string ... empty").
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    candidates = [m.end() - 1 for m in _EMPTY_KEY_LINE.finditer(d)]
-    found = gs.child_at(d, candidates)
-    parents: Counter = Counter()
-    for pos in candidates:
-        hit = found.get(pos)
-        if hit is None:
-            continue
-        parent, child = hit
-        if child.key != b"":
-            continue
-        p.count(rule.name).matched += 1
-        parents[(parent.key or b"{}").decode()] += 1
-        s, e = gs.removal_span(d, child.start, child.end)
-        p.add(gs.Edit(s, e, b"", rule.name, (parent.key or b"").decode()))
-    p.apply_to(save)
-    c = p.count(rule.name)
-    return rule.result(matched=c.matched, edited=c.edited,
-                       extra={"by_parent": dict(parents), "candidates": len(candidates)})
 
 
 # --------------------------------------------------------------------------- R21
@@ -566,46 +482,13 @@ def r6_dead_titles(save: CK3Save, ctx, rule) -> object:
                               "game_title_templates": len(defined)})
 
 
-# --------------------------------------------------------------------------- R7
-def r7_version_bump(save: CK3Save, ctx, rule) -> object:
-    """Set meta_data version and save_game_version (and portraits_version only if given) to the target.
-
-    1.20 reference: version="1.20.1.2", save_game_version=18, portraits_version=5.
-    Both meta copies change together (the plaintext block is derived from the gamestate's).
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    meta = gs.find_section(d, "meta_data")
-    targets = {b"version": b'"' + ctx.target_version.encode() + b'"',
-               b"save_game_version": str(ctx.target_save_game_version).encode()}
-    if ctx.portraits_version is not None:
-        targets[b"portraits_version"] = str(ctx.portraits_version).encode()
-    before = {}
-    for c in gs.iter_children(d, *meta.body):
-        if c.key in targets:
-            p.count(rule.name).matched += 1
-            before[c.key.decode()] = d[c.value_start:c.value_end].decode()
-            if d[c.value_start:c.value_end] != targets[c.key]:
-                p.add(gs.Edit(c.value_start, c.value_end, targets[c.key], rule.name))
-    p.apply_to(save)
-    c = p.count(rule.name)
-    return rule.result(matched=c.matched, edited=c.edited,
-                       extra={"before": before, "after": {k.decode(): v.decode() for k, v in targets.items()}})
-
-
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
-    Rule("R1", "opinions-converging", UNKNOWN_SINCE,
-         "delete converging={} in opinions temporary_opinion blocks", r1_converging),
     Rule("R2", "relation-flags", UNKNOWN_SINCE,
          "re-encode scripted_relations flags bitsets to 1.20's 1-byte width", r2_relation_flags),
     Rule("R3", "title-names", UNKNOWN_SINCE,
          "move inline title name/adj/pre/article into title_name_data", r3_title_names),
-    Rule("R4", "game-rule-blanks", UNKNOWN_SINCE,
-         'delete empty "" entries from game_rules settings lists', r4_game_rule_blanks),
-    Rule("R5", "empty-keys", UNKNOWN_SINCE,
-         "delete map entries with an empty key (=-5000.1.1)", r5_empty_keys),
     Rule("R21", "dead-liege-cycles", UNKNOWN_SINCE,
          "drop the recorded liege of dead characters whose liege chain loops", r21_dead_liege_cycles),
     Rule("R20", "unrun-war-coordinators", UNKNOWN_SINCE,
@@ -616,6 +499,4 @@ RULES = [
          r22_impassable_provinces),
     Rule("R6", "dead-titles-report", "1.18.0 (map rework; exact major unverified)",
          "report titles the game no longer defines (no edit)", r6_dead_titles),
-    Rule("R7", "version-bump", "n/a",
-         "set meta_data version/save_game_version to the target", r7_version_bump),
 ]
