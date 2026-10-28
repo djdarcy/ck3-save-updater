@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-28
+
+### Added
+- `ck3-save-migrator check <save>`: what each rule would do to a save, without writing anything: `needed` (with how many edits), `done`, `unknown` (rules written as code, which only running can tell), or `fails` (a patch whose expectation is not met, named with its path; exit code 5).
+- `ck3-save-migrator disable <id>` / `enable <id>` / `disabled`: turn a rule off for `--rules all`, kept in a small config file the tool owns (`%APPDATA%\ck3-save-migrator\config.toml` on Windows, `~/.config/ck3-save-migrator/config.toml` elsewhere; `CK3SM_CONFIG` points it elsewhere). A rule named explicitly in `--rules` still runs.
+
 ## [0.3.12] - 2026-10-28
 
 ### Changed
@@ -207,7 +213,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.13...HEAD
+[0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...v0.3.10
