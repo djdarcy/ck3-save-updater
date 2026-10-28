@@ -148,6 +148,45 @@ def character_lookup(g: bytes) -> dict[str, int]:
     return {a.decode(): int(c) for a, c in _LOOKUP_LINE.findall(g[b.open + 1:b.close])}
 
 
+JOIN_MAX_BIRTH_GAP = 60      # years. Measured 2026-10-28 on the founding save against the 1.20 reference: of 8,557
+#                              joined pairs, 222 disagree on the birth date; revisions of the same person reach 25
+#                              years (Ivar 820/845, Sieghard 857/880); all 13 pairs over 60 have different names, and
+#                              12 of them are impossible (the campaign's person died before the other was born).
+_BIRTH = re.compile(rb"\n\tbirth=(\d+)")
+_DEATH = re.compile(rb"\n\tdead_data=\{[^}]*?\n\t\tdate=(\d+)")
+_FIRST_NAME = re.compile(rb'\n\tfirst_name="([^"]*)"')
+
+
+def character_lives(g: bytes) -> dict[int, tuple[int | None, int | None, str | None]]:
+    """character id -> (birth year, death year or None, first name or None), from the three character sections."""
+    out: dict[int, tuple[int | None, int | None, str | None]] = {}
+    for path in ("living", "dead_unprunable", "characters/dead_prunable"):
+        for i, e in entries(g, path):
+            head = min(e.close, e.open + 2000)
+            b = _BIRTH.search(g, e.open, head)
+            n = _FIRST_NAME.search(g, e.open, head)
+            d = _DEATH.search(g, e.open, e.close)
+            out[i] = (int(b.group(1)) if b else None, int(d.group(1)) if d else None,
+                      n.group(1).decode(errors="replace") if n else None)
+    return out
+
+
+def implausible_join(ref_life: tuple | None, save_life: tuple | None) -> str | None:
+    """Why a reference and a campaign character with the same history id cannot be one person, else None. Dying
+    before the other was born rules a pair out however long anyone lives. A birth gap over JOIN_MAX_BIRTH_GAP rules
+    it out only when the first names differ too: the same name with a heavily revised birth date stays one person
+    (refusing would copy a duplicate of someone the campaign has). A side with no entry (a pruned campaign
+    character) or no birth date is not judged."""
+    if not ref_life or not save_life:
+        return None
+    (rb, _, rn), (sb, sd, sn) = ref_life, save_life
+    if rb is not None and sd is not None and sd < rb:
+        return f"the campaign's person died in {sd}, before the reference's was born in {rb}"
+    if rb is not None and sb is not None and abs(rb - sb) > JOIN_MAX_BIRTH_GAP and rn != sn:
+        return f"born {abs(rb - sb)} years apart ({sb} and {rb}) with different names ({sn!r} and {rn!r})"
+    return None
+
+
 def traits_lookup(g: bytes) -> list[str]:
     try:
         b = gs.find_section(g, "traits_lookup")
@@ -195,6 +234,8 @@ class SpaceMap:
     identity: bool = False
     join: dict[int, int] = field(default_factory=dict)
     join_pruned: dict[int, int] = field(default_factory=dict)   # joins whose save object no longer exists
+    # key-matched pairs refused as different objects: reference id -> (key, save id, why)
+    join_rejected: dict[int, tuple[str, int, str]] = field(default_factory=dict)
     save_n: int = 0
     save_max_index: int = -1
     ref_n: int = 0
@@ -281,8 +322,21 @@ class Translator:
         # characters by history id. The save's lookup may point at a character the campaign has since pruned
         # (the game keeps such entries: 836 of 8,973 in the founding save); the reference's mentions of that
         # person still go to the campaign's id, never to a copy (recorded in ``join_pruned``).
+        # A history id is not always the same person in both versions: 1.20 reuses some 1.8 ids for other people
+        # (200032 is Attab, born 923, in 1.20 and Suleyman, born 725, dead 779, in 1.8.1). A pair whose lives
+        # cannot be one life is not joined; the reference's person is then copied like any other (2026-10-28: the
+        # copied contract of Attab named the dead Suleyman as vassal, and the game crashed on exit).
         sl, rl = character_lookup(save), character_lookup(ref)
-        join("character", {rl[h]: sl[h] for h in rl.keys() & sl.keys()}, pruned_ok=True)
+        s_life, r_life = character_lives(save), character_lives(ref)
+        pairs, rejected = {}, {}
+        for h in rl.keys() & sl.keys():
+            why = implausible_join(r_life.get(rl[h]), s_life.get(sl[h]))
+            if why:
+                rejected[rl[h]] = (h, sl[h], why)
+            else:
+                pairs[rl[h]] = sl[h]
+        join("character", pairs, pruned_ok=True)
+        spaces["character"].join_rejected = rejected
 
         s_tr, r_tr = traits_lookup(save), traits_lookup(ref)
         pos = {n: i for i, n in enumerate(s_tr)}

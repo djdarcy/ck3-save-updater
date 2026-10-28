@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-10-28
+
+### Fixed
+- A campaign migrated with the new-map transplant crashed every time the player chose Exit to Desktop, with or without mods (the game's own save of the same date did not). The new game reuses some history ids for different people than the old game did: one id belongs to a man born in 923 in 1.20 and to a man born in 725, dead in 779, in 1.8.1. The migration matched people by that id alone, so a vassal contract copied from the new game named the long-dead man as its vassal, and the game crashed tearing that contract down on exit. Two people now count as one only if their lives can be one life: never when the campaign's person died before the other was born, and not when their births are more than 60 years apart under different first names. Otherwise the new game's person is brought in as their own character. The founding campaign has 13 such ids; the migration report lists each one with its reason.
+
+### Added
+- `lint` reports as an error any vassal contract whose liege or vassal is dead (the state that crashed the game on exit; the game's own saves have none), and warns about a living courtier whose employer is dead.
+
 ## [0.3.9] - 2026-10-27
 
 ### Fixed
@@ -185,7 +193,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...HEAD
+[0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...v0.3.9
 [0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...174e82f
 [0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...b8fa75b

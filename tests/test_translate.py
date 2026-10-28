@@ -186,6 +186,44 @@ def test_characters_join_by_history_id():
     assert tr.id("character", 8) == 8 + 31
 
 
+def test_a_reused_history_id_whose_lives_cannot_be_one_life_is_not_joined():
+    """1.20 reuses some 1.8 history ids for other people: 200032 is Attab (born 923) in 1.20 and Suleyman (born
+    725, dead 779) in 1.8.1. Joined, Attab's copied contract named the dead Suleyman, and the game crashed on exit
+    (2026-10-28). The reference's person is copied instead, and the refusal is recorded."""
+    save = gamestate(dead=char(30, "\tbirth=725.1.1\n\tdead_data={\n\t\tdate=779.1.1\n\t}\n"), lookup="\t200032=30\n")
+    ref = gamestate(living=char(7, "\tbirth=923.1.1\n"), lookup="\t200032=7\n")
+    tr = T.Translator.build(save, ref)
+    m = tr.spaces["character"]
+    assert 7 not in m.join
+    assert tr.id("character", 7) == 7 + 31                    # offset: a copy, not the campaign's Suleyman
+    h, s, why = m.join_rejected[7]
+    assert (h, s) == ("200032", 30) and "died in 779" in why
+
+
+def test_births_more_than_sixty_years_apart_are_not_joined():
+    save = gamestate(living=char(30, "\tbirth=810.1.1\n"), lookup="\t168115=30\n")
+    ref = gamestate(living=char(7, "\tbirth=875.1.1\n"), lookup="\t168115=7\n")
+    m = T.Translator.build(save, ref).spaces["character"]
+    assert 7 not in m.join and "65 years apart" in m.join_rejected[7][2]
+
+
+def test_the_same_name_far_apart_still_joins():
+    """A long gap alone does not split one person: the same first name with a birth date revised by 80 years stays
+    the campaign's (djdarcy, 2026-10-28: "60 years could still be low"; refusing would copy a duplicate)."""
+    save = gamestate(living=char(30, "\tbirth=760.1.1\n"), lookup="\t500=30\n")
+    ref = gamestate(living=char(7, "\tbirth=840.1.1\n").replace('"P7"', '"P30"'), lookup="\t500=7\n")
+    m = T.Translator.build(save, ref).spaces["character"]
+    assert m.join == {7: 30} and not m.join_rejected
+
+
+def test_a_revised_birth_date_still_joins():
+    """The same person with revised history (Ivar, born 820 in 1.8 and 845 in 1.20) stays the campaign's."""
+    save = gamestate(living=char(30, "\tbirth=820.2.7\n"), lookup="\t500=30\n")
+    ref = gamestate(living=char(7, "\tbirth=845.2.7\n"), lookup="\t500=7\n")
+    m = T.Translator.build(save, ref).spaces["character"]
+    assert m.join == {7: 30} and not m.join_rejected
+
+
 def test_a_history_join_to_a_pruned_character_is_kept_and_reported():
     save = gamestate(living=char(12), lookup="\t500=9\n")              # 9 was pruned by the campaign
     ref = gamestate(living=char(7) + char(8, "\tfamily_data={\n\t\tchild={ 7 }\n\t}\n"), lookup="\t500=7\n")

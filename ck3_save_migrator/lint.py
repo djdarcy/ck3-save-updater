@@ -195,6 +195,7 @@ _T_FIELD = {k: re.compile(rb"\n\t" + k + rb"=\"?([\w\-']+)\"?") for k in
 
 _TIER_RANK = {"b": 1, "c": 2, "d": 3, "k": 4, "e": 5}
 _DOMAIN = re.compile(rb"\n\t\tdomain=\{([^}]*)\}")
+_EMPLOYER = re.compile(rb"\n\t\temployer=(\d+)")
 
 
 def check_primary_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -343,6 +344,45 @@ def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
                                f"{'missing' if m is None else m.group(1).decode() + ' is not a character'}")
     rep.add("vassal contracts name both parties", "error", bad,
             gloss="A vassal contract without its liege or its vassal binds nobody")
+    check_living_roles(g, rep, idx)
+
+
+def check_living_roles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
+    """Roles only the living hold name a living character. A vassal contract with a dead party is an error: the game
+    tears contracts down with their living parties, so one bound to the dead outlives its characters and its
+    destructor reads a freed one on Exit to Desktop (2026-10-28, ck3+0x24ca0bb: play5's contract 8774 named the dead
+    Suleyman, through a history id 1.20 reuses for another man; the game's own save, and the 1.8.1 original, have
+    none). A living courtier whose employer is dead is a warning: the 1.8.1 original carries one and ran."""
+    idx = idx or SectionIndex(g)
+    living, dead = set(), set()
+    for sec in CHAR_SECTIONS:
+        b = idx.block(sec)
+        if b is not None:
+            ids = {m.group(1) for m in _ENTRY_COL0.finditer(g, b.open, b.close)}
+            (living if sec == "living" else dead).update(ids)
+    dead -= living
+    bad = []
+    for sec in ("vassal_contracts/active", "vassal_contracts/database"):
+        b = idx.block(sec)
+        for e in gs.iter_entries(g, *b.body) if b is not None else []:
+            if not (e.key and e.key.isdigit()):
+                continue
+            body = g[e.open:e.close]
+            for party in (b"liege", b"vassal"):
+                m = re.search(rb"[\n\t ]" + party + rb"=(\d+)", body)
+                if m and m.group(1) in dead:
+                    bad.append(f"{sec} {e.key.decode()}: {party.decode()} {m.group(1).decode()} is dead")
+    rep.add("vassal contracts bind living characters", "error", bad,
+            gloss="A contract whose liege or vassal is dead outlives its characters; the game crashes on exit "
+                  "when it tears it down")
+    lb, courtiers = idx.block("living"), []
+    if lb is not None:
+        for m in _ENTRY_COL0.finditer(g, lb.open, lb.close):
+            end = g.find(b"\n}", m.end(), lb.close)
+            em = _EMPLOYER.search(g, m.end(), end if end > 0 else lb.close)
+            if em and em.group(1) in dead:
+                courtiers.append(f"{m.group(1).decode()}: employer {em.group(1).decode()} is dead")
+    rep.add("a courtier's employer is alive", "warn", courtiers)
 
 
 def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:

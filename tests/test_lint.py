@@ -683,6 +683,23 @@ def test_check_contracts_needs_both_parties():
     assert found["vassal contracts name both parties"].count == 2
 
 
+def test_check_living_roles_a_contract_with_a_dead_party_is_an_error():
+    """play5 (2026-10-28) crashed on Exit to Desktop: its contract 8774 named the dead Suleyman (a history id 1.20
+    reuses for another man), and the game tore that contract down after its characters. The game's own save has none."""
+    living = "1={\n}\n2={\n}\n4={\n\tcourt_data={\n\t\temployer=3\n\t}\n}\n"
+    g = (f"living={{\n{living}}}\ndead_unprunable={{\n3={{\n\tfirst_name=\"S\"\n}}\n}}\n"
+         "vassal_contracts={\n\tdatabase={\n7={\n\t\tliege=1\n\t\tvassal=2\n\t}\n"
+         "8774={\n\t\tliege=1\n\t\tvassal=3\n\t}\n\t}\n}\n").encode()
+    rep = L.LintReport()
+    L.check_contracts(g, rep)
+    found = {f.check: f for f in rep.findings}
+    assert found["vassal contracts bind living characters"].severity == "error"
+    assert found["vassal contracts bind living characters"].examples == ["vassal_contracts/database 8774: vassal 3 is dead"]
+    assert "vassal contracts name both parties" not in found         # a dead character exists: the old check passed it
+    assert found["a courtier's employer is alive"].severity == "warn"
+    assert found["a courtier's employer is alive"].examples == ["4: employer 3 is dead"]
+
+
 def _realms(g: bytes) -> dict:
     rep = L.LintReport()
     L.check_realms(g, rep)

@@ -21,7 +21,7 @@ Version levels:
 # Version components - edit these for version bumps
 MAJOR = 0
 MINOR = 3
-PATCH = 9
+PATCH = 10
 PHASE = ""  # Per-MINOR feature set: "" (stable), "alpha", "beta", "rc1", etc.
 PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 
@@ -29,7 +29,7 @@ PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 PROJECT_PHASE = ""  # "prealpha", "alpha", "beta", "stable", or ""
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.3.9_main_21-20261027-174e82f2"
+__version__ = "0.3.10_main_22-20261028-8af64dd5"
 __app_name__ = "ck3-save-migrator"
 
 

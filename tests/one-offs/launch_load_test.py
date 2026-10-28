@@ -119,6 +119,38 @@ def post_key(hwnd: int, name: str) -> None:
     _t.sleep(0.3)
 
 
+def click_client(hwnd: int, fx: float, fy: float, real: bool = False) -> str:
+    """Click at a fraction (fx, fy) of the window's client area. By posted messages (no focus taken), or with
+    real=True by moving the cursor there and sending a real click (takes focus: only when the machine is ours)."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    rc = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(rc))
+    x, y = int(rc.right * fx), int(rc.bottom * fy)
+    if not real:
+        lp = (y << 16) | (x & 0xFFFF)
+        for msg, wp in ((0x0200, 0), (0x0201, 1), (0x0202, 0)):       # WM_MOUSEMOVE, LBUTTONDOWN, LBUTTONUP
+            user32.PostMessageW(hwnd, msg, wp, lp)
+            time.sleep(0.1)
+        return f"posted click at client ({x},{y}) of {rc.right}x{rc.bottom}"
+    pt = wintypes.POINT(x, y)
+    user32.ClientToScreen(hwnd, ctypes.byref(pt))
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.5)
+    user32.SetCursorPos(pt.x, pt.y)
+    time.sleep(0.3)
+    user32.mouse_event(0x0002, 0, 0, 0, 0)                           # MOUSEEVENTF_LEFTDOWN
+    time.sleep(0.1)
+    user32.mouse_event(0x0004, 0, 0, 0, 0)                           # MOUSEEVENTF_LEFTUP
+    return f"real click at screen ({pt.x},{pt.y})"
+
+
+# "Exit to Desktop" in the Exit Game dialog that WM_CLOSE opens, as a fraction of the client area (measured on
+# a 3862x2216 window shot, 2026-10-27: the button's centre at 1930,1270 with a 44 px title bar)
+EXIT_TO_DESKTOP = (0.4997, 0.5645)
+
+
 def tail_new(path: Path, pos: dict) -> list[str]:
     if not path.exists():
         return []
@@ -138,6 +170,10 @@ def tail_new(path: Path, pos: dict) -> list[str]:
 def main(run_name: str, args: list[str]) -> int:
     # game logs carry names like "Bolesław"; a cp1252 console would kill the watcher mid-run
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    # see the game's real pixels: without this, display scaling reports a 3860x2170 client area as 2560x1440 and
+    # every click lands short (found 2026-10-27 on the Exit to Desktop click)
+    import ctypes
+    ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))   # PER_MONITOR_AWARE_V2
     # harness options (not passed to the game): --h-console=CMD types CMD into the debug console once, a few
     # seconds after the 'In Game' idler; repeatable, sent in order
     consoles = [a.split("=", 1)[1] for a in args if a.startswith("--h-console=")]
@@ -157,6 +193,12 @@ def main(run_name: str, args: list[str]) -> int:
     # planner's endless split, 2026-10-27: 130 GB in ten minutes), then stop the run; the machine is protected
     # from a runaway whether or not the capture finds the loop
     mem_cap_gb = next((float(a.split("=", 1)[1]) for a in args if a.startswith("--h-mem-capture=")), None)
+    # --h-exit-after=SECONDS: SECONDS after the game is in game (and the keys, if any, are sent), close the window
+    # the way Alt+F4 does (a posted WM_CLOSE), so the game runs its own shutdown. Added 2026-10-27 for the crash on
+    # exit: every earlier run ended at the time cap or by a kill, so a crash during shutdown was never exercised.
+    exit_after = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--h-exit-after=")), None)
+    exit_posted_at = None
+    exit_clicks = 0
     last_date_sig = None
     stuck_presses = 0        # consecutive keepalive presses that did not move the date
     args = [a for a in args if not a.startswith("--h-")]
@@ -262,6 +304,24 @@ def main(run_name: str, args: list[str]) -> int:
                     post_key(hwnd, k)
                 note(f"keys (posted, no focus): {' '.join(keys)}")
                 keys_sent = True
+            ready = in_game_at and hwnd and not consoles and (keys_sent or not keys)
+            if exit_after is not None and exit_posted_at is None and ready and time.time() - in_game_at > exit_after:
+                import ctypes
+                ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)          # WM_CLOSE: opens "Exit Game"
+                exit_posted_at = time.time()
+                exit_clicks = 0
+                note(f"exit: WM_CLOSE posted {exit_after}s after in game (opens the Exit Game dialog)")
+            if exit_posted_at is not None and proc.poll() is None:
+                waited = time.time() - exit_posted_at
+                if exit_clicks == 0 and waited > 4:
+                    note("exit: " + click_client(hwnd, *EXIT_TO_DESKTOP) + " (Exit to Desktop)")
+                    exit_clicks = 1
+                elif exit_clicks == 1 and waited > 25:
+                    note("exit: still running; " + click_client(hwnd, *EXIT_TO_DESKTOP, real=True) + " (Exit to Desktop)")
+                    exit_clicks = 2
+            if exit_posted_at is not None and time.time() - exit_posted_at > 120:
+                stop_reason = "exit posted but the game was still running 120 s later"
+                break
             if mem_cap_gb is not None and proc.poll() is None:
                 import psutil
                 try:
@@ -330,6 +390,15 @@ def main(run_name: str, args: list[str]) -> int:
                 last_shot = time.time()
             time.sleep(POLL)
     finally:
+        if exit_posted_at is not None and (stop_reason.startswith("process exited") or stop_reason == "crash dump"):
+            # the crash reporter writes its folder as the process dies; give it time, then say which way it went
+            for _ in range(15):
+                new = ({p.name for p in CRASHES.iterdir()} - crashes_before) if CRASHES.exists() else set()
+                if new:
+                    break
+                time.sleep(2)
+            note(f"exit result: {'CRASH ON EXIT ' + str(sorted(new)) if new else 'clean exit (no crash folder within 30 s)'}"
+                 f", rc={rc}, {int(time.time() - exit_posted_at)}s after WM_CLOSE")
         note(f"stop: {stop_reason} after {int(time.time() - t0)}s; error.log lines seen: {error_lines}")
         if LOGS.exists():
             shutil.copytree(LOGS, run / "logs", dirs_exist_ok=True)

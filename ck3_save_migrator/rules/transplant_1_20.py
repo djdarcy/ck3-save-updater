@@ -225,11 +225,16 @@ def r16_people(save: CK3Save, ctx, rule):
     t.add("situation", {i for i, e in t.entries("situation_manager/database").items()
                         if sit_type(t.ref, e) not in have}, "R16")
     dead = sum(1 for p in people - joined if t.character(p)[0] == "dead_unprunable")
+    # history ids the campaign holds for a different person (translate.implausible_join): such a reference person
+    # is copied, not joined; listed so a reader can see who would otherwise have been merged with whom
+    refused = [{"history_id": h, "reference_character": r, "campaign_character": s, "why": why}
+               for r, (h, s, why) in sorted(t.tr.spaces["character"].join_rejected.items())]
     return rule.result(matched=len(people - joined),
                        extra={"titles_with_a_holder": len(holders), "rulers": len(rulers),
                               "displaced_landless": len(t.employer), "displaced": displaced_rows,
                               "courtiers": len(c["courtiers"]), "family": len(c["family"]),
-                              "left_to_the_campaign": len(joined), "dead": dead})
+                              "left_to_the_campaign": len(joined), "dead": dead,
+                              "history_ids_not_joined": refused})
 
 
 def r17_transplant_write(save: CK3Save, ctx, rule):
