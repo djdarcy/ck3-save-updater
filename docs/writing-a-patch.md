@@ -367,6 +367,16 @@ ck3-save-migrator enable R21       # back on
 
 A rule turned off is left out of `--rules all` (and of a `migrate` or `check` with no `--rules`), and the tool says so in one line: `skipped by your config: R21`. Naming it in `--rules`, as in `--rules all,R21`, still runs it: what you type beats the setting. An id the tool does not know is refused, and the message lists the known ones. This applies to the tool's own rules; patches in your own packs are turned off with `default = false` in their `patch.toml`.
 
+To leave a rule out for one run only, put a `-` before it in `--rules`:
+
+```bash
+ck3-save-migrator migrate "My_Old_Campaign.ck3" --rules all,-R21
+ck3-save-migrator migrate "My_Old_Campaign.ck3" --rules -R21        # the same: all but R21
+ck3-save-migrator check "My_Old_Campaign.ck3" --rules -R21,-empty-keys
+```
+
+A `-` takes an id or a name, in any case, and applies after everything else: after `all`, after the rules you name, and after the rules turned off with `disable`. Leaving out a rule that was not selected anyway changes nothing. An unknown id is refused, listing the known ones. So is leaving out a rule another selected rule needs: `--rules all,-R8` is refused because R10 requires R8, and the message names both, so you can leave both out (`-R8,-R10,...`) or keep R8. Naming a rule and leaving it out in the same `--rules` is refused too.
+
 The setting is kept in a small file the tool owns: `%APPDATA%\ck3-save-migrator\config.toml` on Windows, `~/.config/ck3-save-migrator/config.toml` elsewhere. The environment variable `CK3SM_CONFIG` names another file instead.
 
 ## Testing a patch
