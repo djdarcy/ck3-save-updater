@@ -7,8 +7,8 @@ It runs on Windows, where it presses keys in the game window and clicks its Exit
 ## Using it
 
 ```bash
-ck3-save-migrator soak "My_Old_Campaign.migrated.ck3"
-ck3-save-migrator soak "My_Old_Campaign.migrated.ck3" --minutes 30 --speed 3 --mods mod/ugc_2220098919.mod
+ck3update soak "My_Old_Campaign.migrated.ck3"
+ck3update soak "My_Old_Campaign.migrated.ck3" --minutes 30 --speed 3 --mods mod/ugc_2220098919.mod
 ```
 
 | Option | What it does |
