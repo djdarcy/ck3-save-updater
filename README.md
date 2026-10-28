@@ -83,6 +83,7 @@ Results go to standard output; warnings, errors and the extra detail go to stand
 
 ## More
 
+- [Updating a save](docs/updating-a-save.md): the everyday flow, from `inspect` and `check` to `migrate`, `lint` and loading it, and what to do when the game updates again.
 - [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
 - [Tools](docs/tools.md): an optional add-on that lists and runs the project's standalone scripts as they are.
 - [Platform support](docs/platform-support.md): what the tool is tested on.

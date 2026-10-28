@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-10-28
+
+### Added
+- `docs/updating-a-save.md`: the everyday flow on one page, from looking at a save and checking what it needs, through migrating and linting, to loading it, plus what to do when the game updates again and what each exit code means. Linked from the README.
+
 ## [0.3.13] - 2026-10-28
 
 ### Added
@@ -213,7 +218,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.13...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.14...HEAD
+[0.3.14]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...v0.3.11
