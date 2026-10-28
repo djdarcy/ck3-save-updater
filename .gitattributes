@@ -11,6 +11,8 @@
 *.zip binary
 *.woff binary
 *.woff2 binary
+# expected save bytes for the patch tests, compared byte for byte
+*.gamestate binary
 
 # The vendored git-repokit-common tooling is not this project's language:
 # GitHub's language statistics and diffs treat it as vendored.

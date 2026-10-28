@@ -1,0 +1,19 @@
+R1  opinions-converging    since 1.8.1<v<=1.20.1.2            delete converging={} in opinions temporary_opinion blocks
+R2  relation-flags         since 1.8.1<v<=1.20.1.2            re-encode scripted_relations flags bitsets to 1.20's 1-byte width
+R3  title-names            since 1.8.1<v<=1.20.1.2            move inline title name/adj/pre/article into title_name_data
+R4  game-rule-blanks       since 1.8.1<v<=1.20.1.2            delete empty "" entries from game_rules settings lists
+R5  empty-keys             since 1.8.1<v<=1.20.1.2            delete map entries with an empty key (=-5000.1.1)
+R21 dead-liege-cycles      since 1.8.1<v<=1.20.1.2            drop the recorded liege of dead characters whose liege chain loops
+R20 unrun-war-coordinators since 1.8.1<v<=1.20.1.2            drop AI war coordinators that were never run (no stance, supply limit 0) and their war plans
+R22 impassable-provinces   since 1.18.0 (map rework; exact major unverified) clear old holdings, soldier pools and sieges from provinces the target map makes impassable; move units off
+R6  dead-titles-report     since 1.18.0 (map rework; exact major unverified) report titles the game no longer defines (no edit)
+R11 empty-modifiers        since 1.8.1<v<=1.20.1.2            delete modifiers with an empty name (modifier="", "" in modifiers lists, type="")
+R8  religion-transplant    since 1.20.0 (By God Alone: faiths/rites databases) replace religion with a 1.20 reference's religion/faiths/rites/organizations, ids translated
+R10 custom-faith           since 1.20.0                       carry the save's own custom faiths (e.g. Way of Scarcity) as a faith or a rite
+R9  faith-to-rite          since 1.20.0 (characters and counties point at a rite) replace faith=<old id> with rite=<new id>; remap faith/religion variables
+R12 faithless-rite         since 1.20.0 (rite on every character) give characters without a faith their house head's rite (fallbacks reported)
+R15 dead-titles            since 1.13 to 1.20 (titles the map rework removed or moved) rename the save's dead and moved titles to their 1.20 successors where the mapping is clean; remove the rest (split, wasteland, dropped), reported  (opt-in)
+R14 new-titles             since 1.13 to 1.20 (map rework: East Asia, Tibet, ...) plan the titles and provinces the save does not have, from a 1.20 reference save  (opt-in)
+R16 people                 since 1.13 to 1.20 (the new regions' rulers, courts and families) plan the holders of the planned titles, their courts and close family, from a 1.20 reference save  (opt-in)
+R17 transplant-write       since 1.20                         write everything R14-R16 planned, ids translated, references outside the output dropped, seams stitched  (opt-in)
+R7  version-bump           since n/a                          set meta_data version/save_game_version to the target

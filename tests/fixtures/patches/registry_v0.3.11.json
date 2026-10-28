@@ -1,0 +1,189 @@
+[
+ {
+  "id": "R1",
+  "name": "opinions-converging",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "delete converging={} in opinions temporary_opinion blocks",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r1_converging"
+ },
+ {
+  "id": "R2",
+  "name": "relation-flags",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "re-encode scripted_relations flags bitsets to 1.20's 1-byte width",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r2_relation_flags"
+ },
+ {
+  "id": "R3",
+  "name": "title-names",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "move inline title name/adj/pre/article into title_name_data",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r3_title_names"
+ },
+ {
+  "id": "R4",
+  "name": "game-rule-blanks",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "delete empty \"\" entries from game_rules settings lists",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r4_game_rule_blanks"
+ },
+ {
+  "id": "R5",
+  "name": "empty-keys",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "delete map entries with an empty key (=-5000.1.1)",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r5_empty_keys"
+ },
+ {
+  "id": "R21",
+  "name": "dead-liege-cycles",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "drop the recorded liege of dead characters whose liege chain loops",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r21_dead_liege_cycles"
+ },
+ {
+  "id": "R20",
+  "name": "unrun-war-coordinators",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "drop AI war coordinators that were never run (no stance, supply limit 0) and their war plans",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r20_unrun_war_coordinators"
+ },
+ {
+  "id": "R22",
+  "name": "impassable-provinces",
+  "since": "1.18.0 (map rework; exact major unverified)",
+  "description": "clear old holdings, soldier pools and sieges from provinces the target map makes impassable; move units off",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r22_impassable_provinces"
+ },
+ {
+  "id": "R6",
+  "name": "dead-titles-report",
+  "since": "1.18.0 (map rework; exact major unverified)",
+  "description": "report titles the game no longer defines (no edit)",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r6_dead_titles"
+ },
+ {
+  "id": "R11",
+  "name": "empty-modifiers",
+  "since": "1.8.1<v<=1.20.1.2",
+  "description": "delete modifiers with an empty name (modifier=\"\", \"\" in modifiers lists, type=\"\")",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.religion_1_20:r11_empty_modifiers"
+ },
+ {
+  "id": "R8",
+  "name": "religion-transplant",
+  "since": "1.20.0 (By God Alone: faiths/rites databases)",
+  "description": "replace religion with a 1.20 reference's religion/faiths/rites/organizations, ids translated",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.religion_1_20:r8_religion_transplant"
+ },
+ {
+  "id": "R10",
+  "name": "custom-faith",
+  "since": "1.20.0",
+  "description": "carry the save's own custom faiths (e.g. Way of Scarcity) as a faith or a rite",
+  "default": true,
+  "requires": [
+   "R8"
+  ],
+  "function": "ck3_save_migrator.rules.religion_1_20:r10_custom_faith"
+ },
+ {
+  "id": "R9",
+  "name": "faith-to-rite",
+  "since": "1.20.0 (characters and counties point at a rite)",
+  "description": "replace faith=<old id> with rite=<new id>; remap faith/religion variables",
+  "default": true,
+  "requires": [
+   "R8",
+   "R10"
+  ],
+  "function": "ck3_save_migrator.rules.religion_1_20:r9_faith_to_rite"
+ },
+ {
+  "id": "R12",
+  "name": "faithless-rite",
+  "since": "1.20.0 (rite on every character)",
+  "description": "give characters without a faith their house head's rite (fallbacks reported)",
+  "default": true,
+  "requires": [
+   "R8",
+   "R9"
+  ],
+  "function": "ck3_save_migrator.rules.religion_1_20:r12_faithless_rite"
+ },
+ {
+  "id": "R15",
+  "name": "dead-titles",
+  "since": "1.13 to 1.20 (titles the map rework removed or moved)",
+  "description": "rename the save's dead and moved titles to their 1.20 successors where the mapping is clean; remove the rest (split, wasteland, dropped), reported",
+  "default": false,
+  "requires": [
+   "R14",
+   "R16"
+  ],
+  "function": "ck3_save_migrator.rules.transplant_1_20:r15_dead_titles"
+ },
+ {
+  "id": "R14",
+  "name": "new-titles",
+  "since": "1.13 to 1.20 (map rework: East Asia, Tibet, ...)",
+  "description": "plan the titles and provinces the save does not have, from a 1.20 reference save",
+  "default": false,
+  "requires": [
+   "R8"
+  ],
+  "function": "ck3_save_migrator.rules.transplant_1_20:r14_new_titles"
+ },
+ {
+  "id": "R16",
+  "name": "people",
+  "since": "1.13 to 1.20 (the new regions' rulers, courts and families)",
+  "description": "plan the holders of the planned titles, their courts and close family, from a 1.20 reference save",
+  "default": false,
+  "requires": [
+   "R8",
+   "R14"
+  ],
+  "function": "ck3_save_migrator.rules.transplant_1_20:r16_people"
+ },
+ {
+  "id": "R17",
+  "name": "transplant-write",
+  "since": "1.20",
+  "description": "write everything R14-R16 planned, ids translated, references outside the output dropped, seams stitched",
+  "default": false,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.transplant_1_20:r17_transplant_write"
+ },
+ {
+  "id": "R7",
+  "name": "version-bump",
+  "since": "n/a",
+  "description": "set meta_data version/save_game_version to the target",
+  "default": true,
+  "requires": [],
+  "function": "ck3_save_migrator.rules.to_1_20:r7_version_bump"
+ }
+]

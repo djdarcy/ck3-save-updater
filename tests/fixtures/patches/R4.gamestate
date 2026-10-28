@@ -1,0 +1,24 @@
+meta_data={
+	save_game_version=8
+	version="1.8.1"
+	portraits_version=3
+	game_rules={
+		settings={ normal_difficulty }
+		setting={ a }
+		other={ "" }
+	}
+}
+game_rules={
+	setting={ a }
+	settings={
+		b
+	}
+	list={ "" }
+	setting=""
+}
+misc={
+	settings={ "" }
+}
+game_rules={
+	setting={ }
+}
