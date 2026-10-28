@@ -30,7 +30,7 @@ PROJECT_PHASE = ""  # "prealpha", "alpha", "beta", "stable", or ""
 
 # Auto-updated by git hooks - do not edit manually
 __version__ = "0.3.15_main_42-20261028-5380d272"
-__app_name__ = "ck3-save-migrator"
+__app_name__ = "ck3-save-updater"
 
 
 def get_version():

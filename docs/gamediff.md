@@ -7,8 +7,8 @@ It reads only. It never changes the game folders or the save, and writes nothing
 ## Using it
 
 ```bash
-ck3-save-migrator gamediff "old/game" "new/game"
-ck3-save-migrator gamediff "old/game" "new/game" --save "My_Old_Campaign.ck3" --json "update.json"
+ck3update gamediff "old/game" "new/game"
+ck3update gamediff "old/game" "new/game" --save "My_Old_Campaign.ck3" --json "update.json"
 ```
 
 Each folder is a CK3 install's `game` folder (the one holding `common`, `events`, `history` and `map_data`). To compare two versions you need both installed somewhere, for example a copy of the old `game` folder kept before updating.

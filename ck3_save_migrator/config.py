@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .patches.model import tomllib
 
-APP = "ck3-save-migrator"
+APP = "ck3-save-migrator"      # the folder keeps its name from before the rename, so an existing config keeps working
 
 
 def config_path() -> Path:
@@ -55,7 +55,7 @@ def write_disabled(ids: list[str], path: Path | None = None) -> Path:
     path = path or config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     items = ", ".join(json.dumps(i) for i in sorted(set(ids), key=_order))   # JSON strings are TOML strings
-    path.write_text("# ck3-save-migrator settings; change with `ck3-save-migrator enable/disable <id>`\n"
+    path.write_text("# ck3-save-updater settings; change with `ck3update enable/disable <id>`\n"
                     f"disabled = [{items}]\n", encoding="utf-8")
     return path
 
