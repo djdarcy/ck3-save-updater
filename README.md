@@ -44,6 +44,7 @@ The commands:
 - `ck3-save-migrator check <save>`: say, for each rule, whether this save still needs it, without changing anything ([Checking a save](docs/writing-a-patch.md#checking-a-save)).
 - `ck3-save-migrator disable <id>`, `enable <id>`, `disabled`: turn a rule off for every later `--rules all`, turn it back on, and list what is off ([Turning rules off](docs/writing-a-patch.md#turning-rules-off)).
 - `ck3-save-migrator gamediff <old game> <new game> [--save <save>]`: what a game update added, removed and changed, and which of it a save uses ([gamediff](docs/gamediff.md)).
+- `ck3-save-migrator soak <save>`: **starts the game**, loads the save, lets it run, closes it through Exit to Desktop and says whether it exited cleanly or crashed; your autosaves and mod list are put back afterwards ([soak](docs/soak.md)).
 
 Migrating a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest):
 
@@ -87,6 +88,7 @@ Results go to standard output; warnings, errors and the extra detail go to stand
 - [Updating a save](docs/updating-a-save.md): the everyday flow, from `inspect` and `check` to `migrate`, `lint` and loading it, and what to do when the game updates again.
 - [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
+- [soak](docs/soak.md): load a save in the game and watch it (starts the game).
 - [Tools](docs/tools.md): an optional add-on that lists and runs the project's standalone scripts as they are.
 - [Platform support](docs/platform-support.md): what the tool is tested on.
 
