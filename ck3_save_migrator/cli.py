@@ -12,6 +12,7 @@ import argparse
 import copy
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -448,7 +449,8 @@ def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
     off = set(disabled_ids())
     if not off:
         return rules
-    named = {find_rule(t).id for t in spec.split(",") if t.strip() and t.strip().lower() != "all"}
+    named = {find_rule(t).id for t in spec.split(",")
+             if t.strip() and t.strip().lower() != "all" and not t.strip().startswith("-")}
     named |= {find_rule(t).id for t in include_off}
     skipped = [r.id for r in rules if r.id in off and r.id not in named]
     if skipped:
@@ -574,7 +576,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--recompress", action="store_true",
                    help="re-deflate the zip even when nothing changed (default reuses the input bytes)")
     p.add_argument("--rules", help="'all' (the default), a comma list of rule ids/names (e.g. R1,title-names), or "
-                                   "both: 'all,R14,R15,R16' adds the new-map transplant")
+                                   "both: 'all,R14,R15,R16' adds the new-map transplant; a '-' before an id or name "
+                                   "leaves that rule out: 'all,-R21', or '-R21' alone for all but R21")
     p.add_argument("--report", help="write a JSON report of the rules' counts to this path")
     p.add_argument("--bump-version", action="store_true",
                    help="deprecated, does nothing: R7 (version bump) is part of the default rules")
@@ -631,7 +634,7 @@ def build_parser() -> argparse.ArgumentParser:
                                      "nothing (exit 5 when one would fail)")
     p.add_argument("save")
     p.add_argument("--rules", help="as for migrate: 'all' (the default, less the rules turned off with disable), "
-                                   "a comma list of ids or names, or both")
+                                   "a comma list of ids or names, or both; '-R21' leaves R21 out")
     p.add_argument("--pack", action="append", metavar="FOLDER",
                    help="also check a patch pack folder's default patches (repeatable); nothing in it is run")
     p.add_argument("--allow-run", action="store_true",
@@ -675,8 +678,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def join_rules_value(argv: list[str]) -> list[str]:
+    """``--rules -R21`` as ``--rules=-R21``: argparse would take a value starting with '-' for an option."""
+    out = list(argv)
+    i = 0
+    while i < len(out) - 1:
+        if out[i] == "--rules" and out[i + 1].startswith("-") and not out[i + 1].startswith("--"):
+            out[i:i + 2] = [f"--rules={out[i + 1]}"]
+        i += 1
+    return out
+
+
 def main(argv=None) -> int:
-    args = build_parser().parse_args(argv)
+    args = build_parser().parse_args(join_rules_value(sys.argv[1:] if argv is None else argv))
     shows = args.top_show + args.show
     init_output(verbosity=resolve_verbosity(args.top_verbose + args.verbose, args.top_quiet + args.quiet,
                                             env_var="CK3SM_VERBOSITY"),

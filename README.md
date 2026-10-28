@@ -38,7 +38,7 @@ pip install -e .
 The commands:
 
 - `ck3-save-migrator inspect <save>`: show a save's header, metadata block and the files inside it.
-- `ck3-save-migrator migrate <save> --rules all`: write a migrated copy; `--report` writes a JSON account of every change.
+- `ck3-save-migrator migrate <save> --rules all`: write a migrated copy; `--report` writes a JSON account of every change. `--rules all,-R21` leaves one rule out.
 - `ck3-save-migrator lint <save>`: check a save before loading it (below).
 - `ck3-save-migrator rules`: list the migration rules and the game versions they apply to.
 - `ck3-save-migrator check <save>`: say, for each rule, whether this save still needs it, without changing anything ([Checking a save](docs/writing-a-patch.md#checking-a-save)).
