@@ -1,0 +1,9 @@
+format = 1
+id = "R14"
+name = "new-titles"
+title = "plan the titles and provinces the save does not have, from a 1.20 reference save"
+since = "1.13 to 1.20 (map rework: East Asia, Tibet, ...)"
+default = false
+requires = ["R8"]
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.transplant_1_20:r14_new_titles"

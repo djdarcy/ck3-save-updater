@@ -1,0 +1,14 @@
+format = 1
+id = "R1"
+name = "opinions-converging"
+title = "delete converging={} in opinions temporary_opinion blocks"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+
+# 1.8.1 writes converging={...} inside temporary opinions; 1.20 rejects each ("Unexpected token: converging").
+[[edit]]
+path = "opinions/active_opinions/*/temporary_opinion"
+op = "delete_key"
+key = "converging"

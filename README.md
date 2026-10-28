@@ -79,6 +79,11 @@ Every command takes `-v` and `-q`, and they can be repeated:
 
 Results go to standard output; warnings, errors and the extra detail go to standard error. The `--report` JSON is the same at every level.
 
+## More
+
+- [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
+- [Platform support](docs/platform-support.md): what the tool is tested on.
+
 ## Development
 
 ```bash

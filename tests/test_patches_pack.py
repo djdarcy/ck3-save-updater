@@ -1,0 +1,97 @@
+"""The shipped pack (ck3_save_migrator/packs/to_1_20) is the registry, written as files.
+
+``rules_from_pack`` on it gives the same ids in the same order, with the same name, since, description, default and
+requires, as ``REGISTRY``; each code patch's ``apply`` is the very function the registry holds. The last test
+builds the wheel, installs it into a fresh virtual environment and loads the pack from an empty directory, so a
+wheel that forgot its .toml files, or code that reads from the source tree, fails.
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+import sys
+import venv
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from ck3_save_migrator.patches import read_pack, rules_from_pack
+from ck3_save_migrator.rules import REGISTRY, _ORDER
+
+ROOT = Path(__file__).resolve().parents[1]
+DECLARATIVE = {"R1", "R4", "R5", "R7", "R11"}
+
+
+def test_the_pack_order_is_the_registry_order():
+    assert list(read_pack().order) == _ORDER
+
+
+def test_the_rules_from_the_pack_are_the_registry_field_by_field():
+    pack = rules_from_pack()
+    assert [r.id for r in pack] == [r.id for r in REGISTRY]
+    for mine, theirs in zip(pack, REGISTRY):
+        assert (mine.name, mine.since, mine.description, mine.default, mine.requires) == \
+               (theirs.name, theirs.since, theirs.description, theirs.default, theirs.requires), mine.id
+
+
+def test_each_code_patch_runs_the_very_function_the_registry_holds():
+    pack = {r.id: r for r in rules_from_pack()}
+    for r in REGISTRY:
+        if r.id in DECLARATIVE:
+            assert pack[r.id].apply is not r.apply and pack[r.id].apply.patch.kind == "declarative"
+        else:
+            assert pack[r.id].apply is r.apply, r.id
+
+
+def test_the_shipped_pack_uses_no_script_files():
+    for p in read_pack().patches.values():
+        assert p.script is None or ".py:" not in p.script
+        assert p.run is None
+
+
+def test_patch_folders_are_named_id_dash_name():
+    for p in read_pack().patches.values():
+        assert p.folder.name == f"{p.id}-{p.name}"
+
+
+def _build_wheel(out: Path) -> Path:
+    """Build from a clean copy of the source, so a stale build/ or egg-info folder cannot supply missing files."""
+    src = out.parent / "src"
+    skip = shutil.ignore_patterns(".git", "build", "dist", "*.egg-info", "__pycache__", "private", ".venv",
+                                  ".pytest_cache", "tests")
+    shutil.copytree(ROOT, src, ignore=skip)
+    uv = shutil.which("uv")
+    cmds = [[uv, "build", "--wheel", "-o", str(out), "-q"]] if uv else []
+    cmds.append([sys.executable, "-m", "pip", "wheel", ".", "--no-deps", "-w", str(out), "-q"])
+    for cmd in cmds:
+        r = subprocess.run(cmd, cwd=src, capture_output=True, text=True)
+        wheels = list(out.glob("*.whl"))
+        if r.returncode == 0 and wheels:
+            return wheels[0]
+    pytest.skip(f"no wheel could be built here: {r.stderr[-400:]}")
+
+
+def test_the_built_wheel_carries_the_pack_and_loads_it_from_an_empty_directory(tmp_path):
+    if sys.version_info < (3, 11):                  # tomli is the only dependency the pack loader needs on 3.10
+        pytest.skip("Python 3.10: the wheel's tomli dependency cannot be installed offline")
+    whl = _build_wheel(tmp_path / "dist")
+    env = tmp_path / "venv"
+    venv.EnvBuilder(with_pip=False, clear=True).create(env)
+    py = env / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    # a pure-Python wheel installs by unpacking it into site-packages (no pip, no network)
+    r = subprocess.run([str(py), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    with zipfile.ZipFile(whl) as z:
+        z.extractall(r.stdout.strip())
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    code = ("import ck3_save_migrator.patches as P; rs = P.rules_from_pack(); "
+            "assert len(rs) == 19, len(rs); import ck3_save_migrator, sys; "
+            "print(len(rs), ck3_save_migrator.__file__)")
+    r = subprocess.run([str(py), "-I", "-c", code], cwd=empty, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    count, where = r.stdout.split()
+    assert count == "19" and str(env) in where and str(ROOT) not in where

@@ -1,0 +1,9 @@
+format = 1
+id = "R15"
+name = "dead-titles"
+title = "rename the save's dead and moved titles to their 1.20 successors where the mapping is clean; remove the rest (split, wasteland, dropped), reported"
+since = "1.13 to 1.20 (titles the map rework removed or moved)"
+default = false
+requires = ["R14", "R16"]
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.transplant_1_20:r15_dead_titles"

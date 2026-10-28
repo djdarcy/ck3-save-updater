@@ -1,0 +1,9 @@
+format = 1
+id = "R16"
+name = "people"
+title = "plan the holders of the planned titles, their courts and close family, from a 1.20 reference save"
+since = "1.13 to 1.20 (the new regions' rulers, courts and families)"
+default = false
+requires = ["R8", "R14"]
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.transplant_1_20:r16_people"

@@ -1,0 +1,9 @@
+format = 1
+id = "R20"
+name = "unrun-war-coordinators"
+title = "drop AI war coordinators that were never run (no stance, supply limit 0) and their war plans"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r20_unrun_war_coordinators"

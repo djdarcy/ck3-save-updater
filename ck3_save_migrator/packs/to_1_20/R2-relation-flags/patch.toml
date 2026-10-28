@@ -1,0 +1,9 @@
+format = 1
+id = "R2"
+name = "relation-flags"
+title = "re-encode scripted_relations flags bitsets to 1.20's 1-byte width"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r2_relation_flags"

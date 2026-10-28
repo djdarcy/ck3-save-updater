@@ -1,0 +1,28 @@
+format = 1
+id = "R7"
+name = "version-bump"
+title = "set meta_data version/save_game_version to the target"
+since = "n/a"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+
+# The version is written quoted, the save game version as a number. portraits_version is set only when a value is
+# given (an edit whose template has no value is skipped).
+[[edit]]
+path = "meta_data"
+op = "set"
+key = "version"
+value = '"@@target_version@@"'
+
+[[edit]]
+path = "meta_data"
+op = "set"
+key = "save_game_version"
+value = "@@target_save_game_version@@"
+
+[[edit]]
+path = "meta_data"
+op = "set"
+key = "portraits_version"
+value = "@@portraits_version@@"

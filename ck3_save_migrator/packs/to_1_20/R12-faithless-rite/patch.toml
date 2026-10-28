@@ -1,0 +1,9 @@
+format = 1
+id = "R12"
+name = "faithless-rite"
+title = "give characters without a faith their house head's rite (fallbacks reported)"
+since = "1.20.0 (rite on every character)"
+default = true
+requires = ["R8", "R9"]
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.religion_1_20:r12_faithless_rite"

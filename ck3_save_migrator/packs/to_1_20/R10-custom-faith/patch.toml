@@ -1,0 +1,9 @@
+format = 1
+id = "R10"
+name = "custom-faith"
+title = "carry the save's own custom faiths (e.g. Way of Scarcity) as a faith or a rite"
+since = "1.20.0"
+default = true
+requires = ["R8"]
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.religion_1_20:r10_custom_faith"
