@@ -82,6 +82,7 @@ Results go to standard output; warnings, errors and the extra detail go to stand
 ## More
 
 - [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
+- [Tools](docs/tools.md): an optional add-on that lists and runs the project's standalone scripts as they are.
 - [Platform support](docs/platform-support.md): what the tool is tested on.
 
 ## Development
