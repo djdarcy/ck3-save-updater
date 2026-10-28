@@ -2,7 +2,7 @@
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
 4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
-did not hold, or a run patch's command that failed; migrate writes nothing). ``tools run`` returns the script's own
+did not hold, or a run patch's command that failed; migrate writes nothing; check: one would fail). ``tools run`` returns the script's own
 exit code.
 """
 
@@ -22,7 +22,8 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
-from .patches import rules_from_pack
+from .config import config_path, disabled_ids, write_disabled
+from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
@@ -265,8 +266,8 @@ def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
     # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
     # wants a migration; an explicit empty selection is refused (select raises)
-    rules = select(args.rules if args.rules is not None else "all",
-                   include_off=("R7",) if args.bump_version else ())
+    rules = select_rules(args.rules if args.rules is not None else "all",
+                         include_off=("R7",) if args.bump_version else ())
     if args.bump_version:
         say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
                      "default rules", "rules", err=True)
@@ -430,6 +431,97 @@ def cmd_lint(args) -> int:
     return 4 if rep.errors else 0
 
 
+def find_rule(token: str):
+    """The registered rule a token names (its id or its name, any case); unknown ones are refused, listing the
+    known ids."""
+    rule = next((r for r in REGISTRY if token.strip().lower() in (r.id.lower(), r.name.lower())), None)
+    if rule is None:
+        raise ValueError(f"unknown rule {token!r}; known: {', '.join(f'{r.id}={r.name}' for r in REGISTRY)}")
+    return rule
+
+
+def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
+    """``rules.select`` with the player's config applied: a rule turned off (``disable``) is left out of ``all``
+    and the leaving out is said in one line; a rule named in ``spec`` runs anyway (an explicit choice beats the
+    config)."""
+    rules = select(spec, include_off=include_off)
+    off = set(disabled_ids())
+    if not off:
+        return rules
+    named = {find_rule(t).id for t in spec.split(",") if t.strip() and t.strip().lower() != "all"}
+    named |= {find_rule(t).id for t in include_off}
+    skipped = [r.id for r in rules if r.id in off and r.id not in named]
+    if skipped:
+        say(MINIMAL, f"skipped by your config: {', '.join(skipped)} (name it in --rules to run it anyway, or "
+                     "`ck3-save-migrator enable <id>`)", "rules")
+    return [r for r in rules if r.id not in skipped]
+
+
+def cmd_check(args) -> int:
+    """Each selected patch's verdict on this save, read only: needed, done, unknown (code and run patches, and
+    Python rules with no declarative patch in the shipped pack) or fails (exit 5). Each is judged on the save as it
+    is, not after the patches before it."""
+    rules = select_rules(args.rules if args.rules is not None else "all")
+    save = read_save_logged(args.save)
+    for w in save.warnings:
+        say(WARNING, f"WARNING: {w}", "io", err=True)
+    g = save.gamestate
+    ctx = RuleContext(portraits_version=args.portraits_version)
+    shipped = read_pack().patches
+    rows = []
+    for r in rules:
+        p = shipped.get(r.id)
+        if p is not None and p.kind == "declarative":
+            rows.append((r.id, r.name, *verdict(g, p, ctx)))
+        else:
+            rows.append((r.id, r.name, "unknown", "a Python rule: only running it would tell"))
+    for folder in args.pack or []:
+        pack = read_pack(folder)                  # read only: no code of the pack is imported or run
+        rows += [(p.id, p.name, *verdict(g, p, ctx)) for p in pack.ordered() if p.default]
+    width = max((len(name) for _, name, _, _ in rows), default=0)
+    for pid, name, v, detail in rows:
+        say(MINIMAL, f"  {pid:4} {name:{width}}  {v:7}  {detail}", "rules")
+    counts = {k: sum(1 for row in rows if row[2] == k) for k in ("needed", "done", "unknown", "fails")}
+    say(MINIMAL, f"{len(rows)} patch(es): {counts['needed']} needed, {counts['done']} done, {counts['unknown']} "
+                 f"unknown, {counts['fails']} fail(s)", "rules")
+    if counts["fails"]:
+        say(ERROR, f"ERROR: {counts['fails']} patch(es) would fail on this save (see the lines marked fails)",
+            "rules", err=True)
+        return 5
+    return 0
+
+
+def cmd_disable(args) -> int:
+    rule = find_rule(args.rule)
+    ids = disabled_ids()
+    path = write_disabled(ids + [rule.id])
+    note = "was already turned off" if rule.id in ids else "is turned off"
+    say(MINIMAL, f"{rule.id} ({rule.name}) {note}: `--rules all` leaves it out (config: {path})", "rules")
+    return 0
+
+
+def cmd_enable(args) -> int:
+    rule = find_rule(args.rule)
+    ids = disabled_ids()
+    if rule.id not in ids:
+        say(MINIMAL, f"{rule.id} ({rule.name}) was not turned off; nothing to change", "rules")
+        return 0
+    path = write_disabled([i for i in ids if i != rule.id])
+    say(MINIMAL, f"{rule.id} ({rule.name}) is turned back on (config: {path})", "rules")
+    return 0
+
+
+def cmd_disabled(args) -> int:
+    ids = disabled_ids()
+    names = {r.id: r.name for r in REGISTRY}
+    for i in ids:
+        say(MINIMAL, f"{i:4} {names.get(i, '(not a known rule)')}", "rules")
+    if not ids:
+        say(MINIMAL, "no rules are turned off", "rules")
+    say(DEFAULT, f"(config: {config_path()})", "rules")
+    return 0
+
+
 def cmd_rules(args) -> int:
     for r in REGISTRY:
         flag = "" if r.default else "  (opt-in)"
@@ -533,6 +625,33 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
+
+    p = sub.add_parser("check", help="say, for each selected patch, whether this save needs it, has it done, "
+                                     "cannot be told (code and run patches) or would fail; reads only, writes "
+                                     "nothing (exit 5 when one would fail)")
+    p.add_argument("save")
+    p.add_argument("--rules", help="as for migrate: 'all' (the default, less the rules turned off with disable), "
+                                   "a comma list of ids or names, or both")
+    p.add_argument("--pack", action="append", metavar="FOLDER",
+                   help="also check a patch pack folder's default patches (repeatable); nothing in it is run")
+    p.add_argument("--allow-run", action="store_true",
+                   help="accepted so a migrate command line works unchanged; check runs no patch code, so it "
+                        "changes nothing")
+    p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version to this")
+    p.set_defaults(func=cmd_check)
+
+    p = sub.add_parser("disable", help="turn a rule off: --rules all leaves it out from now on (naming it in "
+                                       "--rules still runs it); saved in your config file")
+    p.add_argument("rule", help="the rule's id or name, e.g. R21 or dead-liege-cycles")
+    p.set_defaults(func=cmd_disable)
+
+    p = sub.add_parser("enable", help="turn a rule that was turned off with disable back on")
+    p.add_argument("rule", help="the rule's id or name")
+    p.set_defaults(func=cmd_enable)
+
+    p = sub.add_parser("disabled", help="list the rules turned off, and where the config file is "
+                                        "($CK3SM_CONFIG overrides it)")
+    p.set_defaults(func=cmd_disabled)
 
     p = sub.add_parser("tools", help="optional add-on: list and run the standalone scripts as they are "
                                      "(needs the [tools] extra; see docs/tools.md)")

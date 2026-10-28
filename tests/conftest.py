@@ -15,6 +15,13 @@ def hermetic_discovery(monkeypatch):
     monkeypatch.setenv("CK3_REFERENCE_SAVE", "none")
 
 
+@pytest.fixture(autouse=True)
+def hermetic_config(monkeypatch, tmp_path):
+    """No test reads or writes the player's own config file (rules turned off with `disable`): each test gets an
+    empty one of its own, also inherited by subprocesses."""
+    monkeypatch.setenv("CK3SM_CONFIG", str(tmp_path / "ck3sm-config" / "config.toml"))
+
+
 @pytest.fixture
 def tmp_project(tmp_path):
     """A temporary project directory for a test to work in."""

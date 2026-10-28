@@ -332,6 +332,43 @@ ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack"
 
 `--pack` is repeatable; the packs' patches run after the selected rules (so after the version bump, R7), in the order given, and appear in the output and the `--report` like any rule. Only the patches with `default = true` run; `--rules` does not select patches from a `--pack` folder. If a patch fails (an `expect` or `need_path` that does not hold, or a run patch's program that fails), the tool prints which patch and why, writes nothing, and exits with code 5. The tool's own migration runs first, as always (every default rule, unless `--rules` chooses others), and the result is written as usual to `<name>.migrated.ck3` (or `-o`), with the checks' findings beside it in `<name>.migrated.lint.json`.
 
+## Checking a save
+
+`check` reads a save and says, for each selected rule and each default patch of the packs you name, what it would do there. It changes nothing and writes no file:
+
+```bash
+ck3-save-migrator check "My_Old_Campaign.ck3" --pack "my_pack"
+```
+
+```
+  R1   opinions-converging  needed   2 edit(s)
+  R2   relation-flags       unknown  a Python rule: only running it would tell
+  R7   version-bump         done     nothing to edit
+  F1   old-key-renamed      fails    my_pack F1-old-key-renamed/patch.toml [[edit]] #1 (...): expected 1, found 0
+4 patch(es): 1 needed, 1 done, 1 unknown, 1 fail(s)
+```
+
+- **needed**: at least one of its edits would change the save.
+- **done**: none would; the save already has this fix, or never needed it.
+- **unknown**: a code or run patch, or one of the tool's rules written in Python, which only running would tell. `check` never runs them, and never imports a pack's code, so it needs no `--allow-run` (it accepts the flag, so the same command line works for `migrate` and `check`).
+- **fails**: an `expect` or `need_path` does not hold; the line names the edit, the path and the count. `migrate` would stop on it, so `check` exits with code 5, as `migrate` does.
+
+`check` takes `--rules` as `migrate` does, and leaves out the rules you turned off (below). Each patch is judged on the save as it is now, not after the patches before it have run.
+
+## Turning rules off
+
+If one of the tool's rules does not suit your save, turn it off once instead of writing out every other rule in `--rules`:
+
+```bash
+ck3-save-migrator disable R21      # or its name: disable dead-liege-cycles
+ck3-save-migrator disabled         # list what is off, and where the file is
+ck3-save-migrator enable R21       # back on
+```
+
+A rule turned off is left out of `--rules all` (and of a `migrate` or `check` with no `--rules`), and the tool says so in one line: `skipped by your config: R21`. Naming it in `--rules`, as in `--rules all,R21`, still runs it: what you type beats the setting. An id the tool does not know is refused, and the message lists the known ones. This applies to the tool's own rules; patches in your own packs are turned off with `default = false` in their `patch.toml`.
+
+The setting is kept in a small file the tool owns: `%APPDATA%\ck3-save-migrator\config.toml` on Windows, `~/.config/ck3-save-migrator/config.toml` elsewhere. The environment variable `CK3SM_CONFIG` names another file instead.
+
 ## Testing a patch
 
 Test a patch the way the tool tests its own: build a small synthetic save that has every shape the patch should change and a few near misses it must leave alone, apply the patch, and compare the result with what you expect, byte for byte. Then break the patch on purpose (point it at the wrong key, drop a path) and check the test fails: a test that cannot fail proves nothing.
