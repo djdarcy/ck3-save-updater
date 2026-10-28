@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-10-28
+
+### Added
+- Rules as patch files. A patch is a folder with a `patch.toml`. It either edits the save by a path through its structure (delete a key, a value or an entry; rename; set; insert; with simple conditions and `@@variable@@` values filled in at run time), names a Python function, or, for hard cases, runs a separate program over the save. The 19 current rules ship as a pack: five as plain patch files, the other fourteen pointing at their unchanged code. The migration still uses the Python rule list in this version; switching to the pack waits on a proof on a real save.
+- `migrate --pack <folder>` (repeatable) applies your own packs after the selected rules, with `--var name=value` and `--vars <file.toml>` for their values. A pack loaded from a folder may not run code (a script or a program) unless you pass `--allow-run`, because that code runs with your permissions.
+- A patch that fails (its `expect` not met, or its program exiting with an error) is reported by name and stops the migration: nothing is written, exit code 5.
+- `ck3-save-migrator tools list | run | path`: an optional add-on that lists and runs a folder of standalone scripts exactly as they are, each as its own process. Install it with `pip install "ck3-save-migrator[tools]"`; nothing else in the tool needs it.
+- Guides: `docs/writing-a-patch.md` and `docs/tools.md`.
+
 ## [0.3.10] - 2026-10-28
 
 ### Fixed
@@ -193,7 +202,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...HEAD
+[0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...v0.3.9
 [0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...174e82f
