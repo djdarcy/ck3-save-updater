@@ -98,6 +98,8 @@ since = "1.8.1<v<=1.20.1.2"
 default = true
 requires = []
 tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+# The report counts the temporary opinions that held a converging, as the rule always has.
+matched = "blocks-hit"
 
 # 1.8.1 writes converging={...} inside temporary opinions; 1.20 rejects each ("Unexpected token: converging").
 [[edit]]
@@ -140,6 +142,8 @@ since = "1.8.1<v<=1.20.1.2"
 default = true
 requires = []
 tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+# The report counts the settings lists looked at, as the rule always has, not the blanks found.
+matched = "blocks"
 
 # 1.8.1 leaves empty "" entries in the game rules lists, both in meta_data and in the top-level section, under
 # both names the game uses ("settings" and "setting"); 1.20 has none.
@@ -209,6 +213,7 @@ path = "meta_data"
 op = "set"
 key = "version"
 value = '"@@target_version@@"'
+need_path = true        # a save without meta_data is not one this patch can bump: fail, saying so
 
 [[edit]]
 path = "meta_data"
@@ -266,6 +271,12 @@ payload = "\tmigrated_by=yes\n"
 
 By default a path that matches nothing just means the patch is not needed there: every player's save is different. When an edit must find something, say so with `expect = { min = 1 }`, or an exact count `expect = 3` (rarely right: counts differ between saves). When an `expect` fails, the whole patch fails closed: none of its edits is applied, and the tool says which edit, which path and the count it found.
 
+`need_path = true` on an edit fails the patch the same way when its path addresses no block at all (R7 uses it: a save without `meta_data` is not one it can update). It is for paths without `**`.
+
+### What the report counts
+
+The report gives each patch a `matched` and an `edited` count. `edited` is the number of changes made. `matched` is, by default, the number of things the edits found (`matched = "found"`); a patch can set `matched = "blocks"` (before its `[[edit]]` tables) to count the blocks its paths address instead, as R4 does to count the settings lists it looked at, or `matched = "blocks-hit"` to count only the blocks where an edit found something, as R1 does to count the temporary opinions that held a `converging`. Both are for paths without `**`. Each edit's own counts are in the report under `edits`.
+
 ### Needed and done
 
 The tool works out whether a patch of edits is needed (some edit would change the save) or done (none would). Deletes, renames and sets are safe to run twice by nature; an insert is made safe by its `done`. Running a pack on a save it has already fixed changes nothing.
@@ -283,7 +294,9 @@ since = "1.8.1<v<=1.20.1.2"
 script = "ck3_save_migrator.rules.to_1_20:r2_relation_flags"
 ```
 
-`script = "<module>:<function>"` names a function inside an installed Python module; in a pack folder of your own, `script = "<file>.py:<function>"` names a file in the patch folder. The function takes `(save, ctx, rule)` and returns `rule.result(matched=..., edited=...)`, like the tool's own rules in `ck3_save_migrator/rules/`. A code patch runs whenever it is selected.
+In the tool's own pack, `script = "<module>:<function>"` names a function inside the tool's Python modules. In a pack folder of your own, `script = "<file>.py:<function>"` names a file inside the patch folder: a path with `..`, or one that starts with `/`, is refused, and so is the `<module>:<function>` form (it could import any module Python can find, the current folder included). The function takes `(save, ctx, rule)` and returns `rule.result(matched=..., edited=...)`, like the tool's own rules in `ck3_save_migrator/rules/`. A code patch runs whenever it is selected.
+
+A code patch runs Python with your permissions, so, like a run patch below, a pack folder with one is refused unless you pass `--allow-run`. The check comes before any file of the pack is imported.
 
 ## When to run a program instead: [run]
 
@@ -301,7 +314,7 @@ command = ["@@python@@", "-I", "@@tools_dir@@/fix_faces.py", "@@input@@", "@@out
 needs = ["tools_dir"]
 ```
 
-The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given; a missing one is refused, naming it.
+The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given; a missing one is refused, naming it. A program still running after `timeout` seconds (`timeout = 600` unless the `[run]` table says otherwise) is stopped, and the patch fails, saying so. What the program prints is kept in files, not in memory; the last lines of its error output are reported when it fails.
 
 A run patch runs a program with your permissions, so a pack folder with one is refused unless you pass `--allow-run`:
 
@@ -315,7 +328,7 @@ ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack" --var tools_dir
 ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack"
 ```
 
-`--pack` is repeatable; the packs' default patches run after the selected rules, in the order given, and appear in the output and the `--report` like any rule. The tool's own migration runs first, as always (every default rule, unless `--rules` chooses others), and the result is written as usual to `<name>.migrated.ck3` (or `-o`), with the checks' findings beside it in `<name>.migrated.lint.json`.
+`--pack` is repeatable; the packs' patches run after the selected rules (so after the version bump, R7), in the order given, and appear in the output and the `--report` like any rule. Only the patches with `default = true` run; `--rules` does not select patches from a `--pack` folder. If a patch fails (an `expect` or `need_path` that does not hold, or a run patch's program that fails), the tool prints which patch and why, writes nothing, and exits with code 5. The tool's own migration runs first, as always (every default rule, unless `--rules` chooses others), and the result is written as usual to `<name>.migrated.ck3` (or `-o`), with the checks' findings beside it in `<name>.migrated.lint.json`.
 
 ## Testing a patch
 

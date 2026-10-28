@@ -9,7 +9,9 @@ runs its program. ``SHIPPED`` is the pack inside the package, read with ``import
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import importlib
+import sys
 import importlib.util
 from importlib.resources import files
 from pathlib import Path
@@ -40,12 +42,23 @@ def read_pack(source=None) -> Pack:
 def _function(patch: Patch):
     target, fn = patch.script.rsplit(":", 1)
     if target.endswith(".py"):
-        path = Path(str(patch.folder)) / target
+        folder = Path(str(patch.folder)).resolve()
+        path = (folder / target).resolve()
+        if not path.is_relative_to(folder):            # a link out of the folder; the loader refuses '..' already
+            raise PatchError(f"{patch.source}: field 'script' names {target}, which is outside the patch folder")
         if not path.is_file():
             raise PatchError(f"{patch.source}: field 'script' names {target}, which is not in the patch folder")
-        spec = importlib.util.spec_from_file_location(f"ck3sm_patch_{patch.id}", path)
+        # registered under a unique name before it runs: dataclasses and the like look their module up there
+        name = f"ck3sm_patch_{hashlib.sha256(str(path).encode()).hexdigest()[:16]}"
+        spec = importlib.util.spec_from_file_location(name, path)
         mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
+        sys.modules[name] = mod
+        try:
+            spec.loader.exec_module(mod)
+        except Exception as exc:
+            sys.modules.pop(name, None)
+            raise PatchError(f"{patch.source}: field 'script': {target} failed to load "
+                             f"({type(exc).__name__}: {exc})") from exc
     else:
         try:
             mod = importlib.import_module(target)
@@ -64,7 +77,9 @@ def _declarative(patch: Patch):
         extra = {"edits": pl.stats}
         if pl.failure:
             extra["failed"] = pl.failure
-        return rule.result(matched=sum(r["found"] for r in pl.stats), edited=len(pl.edits) if not pl.failure else 0,
+        count = {"found": "found", "blocks": "blocks", "blocks-hit": "blocks_hit"}[patch.matched]
+        return rule.result(matched=sum(r.get(count, 0) for r in pl.stats),
+                           edited=len(pl.edits) if not pl.failure else 0,
                            extra=extra)
     apply.patch = patch
     return apply
@@ -78,17 +93,23 @@ def _runner(patch: Patch):
 
 
 def rules_from_pack(source=None, *, allow_run: bool = False) -> list[Rule]:
-    """One ``Rule`` per patch of a pack, in its order. A run patch in a pack read from a folder is refused unless
-    ``allow_run``: it runs a program with the player's permissions."""
+    """One ``Rule`` per patch of a pack, in its order. A pack read from a folder whose patches run code (a script or
+    run patch) is refused unless ``allow_run``: that code runs with the player's permissions. The check covers the
+    whole pack before any of its code is imported."""
     pack = source if isinstance(source, Pack) else read_pack(source)
+    if pack.from_disk and not allow_run:
+        for p in pack.ordered():
+            if p.kind == "script":
+                raise PatchError(f"{p.source}: a script patch runs Python code from the pack folder with your "
+                                 "permissions; pass --allow-run to let it")
+            if p.kind == "run":
+                raise PatchError(f"{p.source}: a run patch runs a program with your permissions; pass --allow-run "
+                                 "to let it")
     rules = []
     for p in pack.ordered():
         if p.kind == "script":
             apply = _function(p)
         elif p.kind == "run":
-            if pack.from_disk and not allow_run:
-                raise PatchError(f"{p.source}: a run patch runs a program with your permissions; pass --allow-run "
-                                 "to let it")
             apply = _runner(p)
         else:
             apply = _declarative(p)

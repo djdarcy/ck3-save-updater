@@ -102,23 +102,26 @@ def test_a_globstar_path_that_names_nothing_to_look_for_is_refused(tmp_path):
     assert "'**'" in msg
 
 
+def module_pack(tmp_path: Path, script: str):
+    """A pack read as the shipped pack is (not from a folder on disk): the only kind that may name a module."""
+    root = tmp_path / "pack"
+    write_patch(root, GOOD.split("\n[[edit]]")[0] + f'\nscript = "{script}"\n')
+    (root / "pack.toml").write_text('format = 1\nid = "p"\ntitle = "p"\norder = ["X1"]\n', encoding="utf-8")
+    return load_pack(root, from_disk=False, context_fields=CONTEXT_FIELDS)
+
+
 def test_a_script_that_does_not_resolve_is_refused_when_the_pack_is_read(tmp_path):
     from ck3_save_migrator.patches import rules_from_pack
-    root = tmp_path / "pack"
-    write_patch(root, GOOD.split("\n[[edit]]")[0] + '\nscript = "ck3_save_migrator.rules.to_1_20:no_such_rule"\n')
-    (root / "pack.toml").write_text('format = 1\nid = "p"\ntitle = "p"\norder = ["X1"]\n', encoding="utf-8")
     with pytest.raises(PatchError) as e:
-        rules_from_pack(root)
-    assert "X1-toy/patch.toml" in str(e.value) and "field 'script'" in str(e.value) and "no_such_rule" in str(e.value)
+        rules_from_pack(module_pack(tmp_path, "ck3_save_migrator.rules.to_1_20:no_such_rule"))
+    msg = str(e.value)
+    assert "X1-toy/patch.toml" in msg and "field 'script' names 'no_such_rule'" in msg
 
 
 def test_a_script_module_that_does_not_exist_is_refused(tmp_path):
     from ck3_save_migrator.patches import rules_from_pack
-    root = tmp_path / "pack"
-    write_patch(root, GOOD.split("\n[[edit]]")[0] + '\nscript = "no_such_module_here:f"\n')
-    (root / "pack.toml").write_text('format = 1\nid = "p"\ntitle = "p"\norder = ["X1"]\n', encoding="utf-8")
     with pytest.raises(PatchError, match="field 'script' names module 'no_such_module_here'"):
-        rules_from_pack(root)
+        rules_from_pack(module_pack(tmp_path, "no_such_module_here:f"))
 
 
 def test_a_badly_formed_script_is_refused(tmp_path):
@@ -140,6 +143,31 @@ def test_a_pack_order_must_name_every_patch_and_only_those(tmp_path):
     (root / "pack.toml").write_text('format = 1\nid = "p"\ntitle = "p"\norder = ["X0"]\n', encoding="utf-8")
     with pytest.raises(PatchError, match="field 'order' names X0"):
         load_pack(root, from_disk=True, context_fields=CONTEXT_FIELDS)
+
+
+@pytest.mark.parametrize("value", ["blocks", "blocks-hit"])
+def test_matched_loads_and_is_refused_with_a_globstar_path(tmp_path, value):
+    text = GOOD.replace("[[edit]]", f'matched = "{value}"\n\n[[edit]]')
+    assert load(tmp_path / "a", text).matched == value
+    msg = refused(tmp_path / "b", text.replace('path = "meta_data"', 'path = "**/meta_data"'))
+    assert f"field 'matched' = '{value}' is for paths without '**'" in msg
+
+
+def test_an_unknown_matched_is_refused(tmp_path):
+    msg = refused(tmp_path, GOOD.replace("[[edit]]", 'matched = "edits"\n\n[[edit]]'))
+    assert "field 'matched' must be" in msg and "'edits'" in msg
+
+
+def test_matched_is_for_declarative_patches(tmp_path):
+    msg = refused(tmp_path, GOOD.split("\n[[edit]]")[0] + '\nmatched = "blocks"\nscript = "fix.py:f"\n')
+    assert "field 'matched' is for declarative patches" in msg
+
+
+def test_need_path_loads_and_is_refused_with_a_globstar_path(tmp_path):
+    assert load(tmp_path / "a", GOOD + "need_path = true\n").edits[0].need_path is True
+    msg = refused(tmp_path / "b", GOOD.replace('path = "meta_data"', 'path = "**/meta_data"') + "need_path = true\n")
+    assert "field 'need_path' is for paths without '**'" in msg
+    assert "field 'need_path' must be bool" in refused(tmp_path / "c", GOOD + 'need_path = "yes"\n')
 
 
 def test_not_toml_is_refused_naming_the_file(tmp_path):

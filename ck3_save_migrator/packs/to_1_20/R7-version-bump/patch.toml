@@ -14,6 +14,7 @@ path = "meta_data"
 op = "set"
 key = "version"
 value = '"@@target_version@@"'
+need_path = true        # a save without meta_data is not one this patch can bump: fail, saying so
 
 [[edit]]
 path = "meta_data"

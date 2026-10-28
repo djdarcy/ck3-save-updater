@@ -1,9 +1,13 @@
-"""The five declarative patches against their Python rules: byte-identical output, the same number of edits.
+"""The five declarative patches against their Python rules: byte-identical output, the same edited and matched counts.
 
 The Python rule is the specification. Each test builds a synthetic gamestate with every shape the rule's docstring
 and code handle, plus near misses it must leave alone, runs the Python rule and the patch on two copies of the same
 save, and compares the gamestates byte for byte. The last test checks the two ``**`` patches (R5, R11) run within
-twice the time of their Python rules on a gamestate of more than 20 MB.
+twice the time of their Python rules on a gamestate of more than 20 MB, the best of three runs on each side.
+
+The rules' extra report fields are not reproduced by the patches (each patch reports its per-edit counts under
+``edits`` instead): R4 ``blanks_removed``, R5 ``by_parent`` and ``candidates``, R7 ``before`` and ``after``, R11
+``by_kind``.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ def assert_same(rid: str, body: bytes, ctx=None, meta: bytes = META, *, edits: i
     a, b, ra, rb = both(rid, body, ctx, meta)
     assert b.gamestate == a.gamestate
     assert rb.edited == ra.edited == edits
+    assert rb.matched == ra.matched, (rb.matched, ra.matched)
     assert "failed" not in rb.extra
     # and the patch on its own output: nothing more to do
     c = sf.parse_save(build_ck3(meta=b.gamestate[:len(meta)], body=b.gamestate[len(meta):]))
@@ -49,6 +54,7 @@ R1_BODY = (
     b"\t\t1={\n\t\t\ttemporary_opinion={\n\t\t\t\tvalue=5\n\t\t\t\tconverging={\n\t\t\t\t\ta={ 1 2 }\n\t\t\t\t}\n"
     b"\t\t\t\tdays=3\n\t\t\t}\n"
     b"\t\t\tconverging={ x=1 }\n"                                     # near miss: not inside temporary_opinion
+    b"\t\t\ttemporary_opinion={ value=2 }\n"                           # near miss: nothing to delete, not counted
     b"\t\t}\n"
     b"\t\t2={\n\t\t\ttemporary_opinion={ converging=yes value=1 }\n"
     b"\t\t\ttemporary_opinion={\n\t\t\t\tconverging={ }\n\t\t\t\tconverging={ y=2 }\n\t\t\t}\n\t\t}\n"
@@ -137,7 +143,7 @@ def test_all_five_match_on_the_projects_own_rule_fixtures():
     for meta, body in ((RULES_META, RULES_BODY), (OLD_META, OLD_BODY)):
         for rid in ("R1", "R4", "R5", "R7", "R11"):
             a, b, ra, rb = both(rid, body, meta=meta)
-            assert (rid, b.gamestate == a.gamestate, rb.edited) == (rid, True, ra.edited)
+            assert (rid, b.gamestate == a.gamestate, rb.edited, rb.matched) == (rid, True, ra.edited, ra.matched)
 
 
 # --------------------------------------------------------------------------- speed
@@ -159,15 +165,22 @@ def test_the_globstar_patches_run_within_twice_the_time_of_their_python_rules(ca
     body = big_gamestate()
     assert len(body) > 20 * 1024 * 1024
     times = {}
+
+    def best_of_three(rule):
+        """The fastest of three runs, each on a fresh save: one slow run (another process, a cold cache) is noise."""
+        best, last = None, None
+        for _ in range(3):
+            s = sf.parse_save(build_ck3(meta=META, body=body))
+            t = time.perf_counter()
+            res = rule.run(s, RuleContext())
+            took = time.perf_counter() - t
+            best = took if best is None else min(best, took)
+            last = (s, res)
+        return best, last
+
     for rid in ("R5", "R11"):
-        a = sf.parse_save(build_ck3(meta=META, body=body))
-        b = sf.parse_save(build_ck3(meta=META, body=body))
-        t = time.perf_counter()
-        ra = PYTHON[rid].run(a, RuleContext())
-        tp = time.perf_counter() - t
-        t = time.perf_counter()
-        rb = PACK[rid].run(b, RuleContext())
-        tk = time.perf_counter() - t
+        tp, (a, ra) = best_of_three(PYTHON[rid])
+        tk, (b, rb) = best_of_three(PACK[rid])
         assert b.gamestate == a.gamestate and rb.edited == ra.edited > 1000
         times[rid] = (tp, tk)
         assert tk <= 2 * tp + 0.25, f"{rid}: python {tp:.2f}s, patch {tk:.2f}s"

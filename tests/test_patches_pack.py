@@ -8,6 +8,7 @@ wheel that forgot its .toml files, or code that reads from the source tree, fail
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -62,15 +63,29 @@ def _build_wheel(out: Path) -> Path:
     skip = shutil.ignore_patterns(".git", "build", "dist", "*.egg-info", "__pycache__", "private", ".venv",
                                   ".pytest_cache", "tests")
     shutil.copytree(ROOT, src, ignore=skip)
-    uv = shutil.which("uv")
-    cmds = [[uv, "build", "--wheel", "-o", str(out), "-q"]] if uv else []
-    cmds.append([sys.executable, "-m", "pip", "wheel", ".", "--no-deps", "-w", str(out), "-q"])
-    for cmd in cmds:
+    # every builder that is present is tried in turn, so the test runs wherever any of them works
+    tried = []
+    builders = []
+    if shutil.which("uv"):
+        builders.append(("uv build", [shutil.which("uv"), "build", "--wheel", "-o", str(out), "-q"]))
+    else:
+        tried.append("uv build: uv is not installed")
+    # pip uses the installed setuptools when there is one (no network needed), else fetches it
+    isolation = ["--no-build-isolation"] if importlib.util.find_spec("setuptools") else []
+    for module, cmd in (("build", ["-m", "build", "--wheel", "--outdir", str(out)]),
+                        ("pip", ["-m", "pip", "wheel", ".", "--no-deps", *isolation, "-w", str(out), "-q"])):
+        if importlib.util.find_spec(module) is None:
+            tried.append(f"python -m {module}: the {module} module is not installed")
+        else:
+            builders.append((f"python -m {module}", [sys.executable, *cmd]))
+    for name, cmd in builders:
         r = subprocess.run(cmd, cwd=src, capture_output=True, text=True)
         wheels = list(out.glob("*.whl"))
         if r.returncode == 0 and wheels:
             return wheels[0]
-    pytest.skip(f"no wheel could be built here: {r.stderr[-400:]}")
+        last = (r.stderr.strip() or r.stdout.strip()).splitlines()[-1:] or ["no output"]
+        tried.append(f"{name}: exit code {r.returncode}, {last[0][:200]}")
+    pytest.skip("no wheel could be built here; " + "; ".join(tried))
 
 
 def test_the_built_wheel_carries_the_pack_and_loads_it_from_an_empty_directory(tmp_path):
