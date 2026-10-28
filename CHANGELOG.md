@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-10-28
+
+### Added
+- `--rules` can leave a rule out: `--rules all,-R21`, or `--rules -R21` for every default rule but R21. An unknown id is refused, and so is leaving out a rule another selected rule needs.
+- `ck3-save-migrator gamediff <old game> <new game> [--save <save>] [--json <file>]`: what a game update added, removed and changed, definition by definition, and with `--save` which of the removed or changed ones your save uses. Reads only. See `docs/gamediff.md`.
+- `ck3-save-migrator soak <save>`: **starts the game**, loads the save, lets it run, closes it through Exit to Desktop, and says whether it exited cleanly or crashed. Your autosaves and mod list are backed up first and put back afterwards, and only one soak runs at a time. See `docs/soak.md`.
+
 ## [0.3.14] - 2026-10-28
 
 ### Added
@@ -218,7 +225,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.14...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.15...HEAD
+[0.3.15]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.14...v0.3.15
 [0.3.14]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.13...v0.3.14
 [0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...v0.3.13
 [0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...v0.3.12
