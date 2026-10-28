@@ -51,6 +51,7 @@ CHANNELS = [
     ChannelDef("lint", "Pre-launch checks: the verdict and the findings", fd="stdout"),
     ChannelDef("io", "Reading and writing saves; what was written, sizes, hashes", fd="stdout"),
     ChannelDef("timing", "Wall time per rule", fd="stderr"),
+    ChannelDef("gamediff", "What a game update changed (the gamediff command)", fd="stdout"),
 ]
 
 
@@ -457,6 +458,50 @@ def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
     return [r for r in rules if r.id not in skipped]
 
 
+GAMEDIFF_SHOWN = 30          # keys listed per line before "... and N more (see --json)"
+
+
+def _keys_line(keys: list[str]) -> str:
+    more = len(keys) - GAMEDIFF_SHOWN
+    return ", ".join(keys[:GAMEDIFF_SHOWN]) + (f", ... and {more} more (see --json)" if more > 0 else "")
+
+
+def cmd_gamediff(args) -> int:
+    """Two game folders compared by definition; with --save, which removed or changed keys the save names. Reads
+    only; writes nothing but --json."""
+    from . import gamediff as gd
+    old, new = Path(args.old), Path(args.new)
+    a, b = gd.read_definitions(old), gd.read_definitions(new)
+    diffs = gd.compare(a, b)
+    say(MINIMAL, f"compared {old} ({a.files} files) with {new} ({b.files} files)", "gamediff")
+    for group, d in diffs.items():
+        say(MINIMAL, f"{group}: {len(d.added)} added, {len(d.removed)} removed, {len(d.changed)} changed", "gamediff")
+        for label, keys in (("added", d.added), ("removed", d.removed), ("changed", d.changed)):
+            if keys:
+                say(DEFAULT, f"  {label:8}: {_keys_line(keys)}", "gamediff")
+    totals = [sum(len(getattr(d, k)) for d in diffs.values()) for k in ("added", "removed", "changed")]
+    say(MINIMAL, f"total: {totals[0]} added, {totals[1]} removed, {totals[2]} changed, in {len(diffs)} folder(s)",
+        "gamediff")
+    report = {"old": str(old), "new": str(new), "files": {"old": a.files, "new": b.files},
+              "groups": {g: d.as_dict() for g, d in diffs.items()}}
+    if args.save:
+        save = read_save(args.save)
+        uses = gd.used_by_save(diffs, gd.save_names(save.gamestate))
+        n = sum(len(v["removed"]) + len(v["changed"]) for v in uses.values())
+        say(MINIMAL, f"the save names {n} of the removed or changed keys ({args.save}):", "gamediff")
+        for kind, v in uses.items():
+            for label in ("removed", "changed"):
+                if v[label]:
+                    say(MINIMAL, f"  {kind:10} {label:8}: {_keys_line(v[label])}", "gamediff")
+        if not uses:
+            say(MINIMAL, "  none: nothing it names was removed or changed", "gamediff")
+        report["save"] = {"path": str(args.save), "uses": uses}
+    if args.json:
+        Path(args.json).write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
+        say(DEFAULT, f"  report        : {args.json}", "io")
+    return 0
+
+
 def cmd_check(args) -> int:
     """Each selected patch's verdict on this save, read only: needed, done, unknown (code and run patches, and
     Python rules with no declarative patch in the shipped pack) or fails (exit 5). Each is judged on the save as it
@@ -625,6 +670,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
+
+    p = sub.add_parser("gamediff", help="compare two game folders definition by definition (what a game update "
+                                        "added, removed and changed), and with --save which of it a save uses; "
+                                        "reads only")
+    p.add_argument("old", help="the older install's 'game' folder")
+    p.add_argument("new", help="the newer install's 'game' folder")
+    p.add_argument("--save", help="also say which removed or changed keys this save names (traits, titles, "
+                                  "faiths, cultures, modifiers, buildings, game rules)")
+    p.add_argument("--json", help="write the whole comparison (every key) to this JSON file")
+    p.set_defaults(func=cmd_gamediff)
 
     p = sub.add_parser("check", help="say, for each selected patch, whether this save needs it, has it done, "
                                      "cannot be told (code and run patches) or would fail; reads only, writes "
