@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-10-28
+
+### Changed
+- The tool's rules now come from the shipped pack of patch files. Five of them (dropping the old "converging" opinion blocks, blank game-rule entries, empty keys, empty modifiers, and setting the version) are plain patch files; the Python code that did the same work is gone. Nothing a player sees changes: the same 19 rules in the same order, and on the founding campaign the migrated save is byte-for-byte the one 0.3.11 wrote.
+
 ## [0.3.11] - 2026-10-28
 
 ### Added
@@ -202,7 +207,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...HEAD
+[0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...v0.3.12
 [0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...v0.3.11
 [0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...v0.3.10
 [0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...v0.3.9
