@@ -20,7 +20,7 @@ begins its line, as the rules that find their targets with a line-anchored regex
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from .. import gamestate as gs
 from . import paths as P
@@ -81,8 +81,7 @@ def _filled(spec: EditSpec, values: dict) -> tuple[EditSpec | None, list[str]]:
             where[k] = tuple(filled)
     if missing:
         return None, missing
-    return EditSpec(spec.index, spec.paths, spec.op, out["key"], out["value"], out["to"], where, spec.position,
-                    out["payload"], spec.expect, spec.at), []
+    return replace(spec, key=out["key"], value=out["value"], to=out["to"], where=where, payload=out["payload"]), []
 
 
 # --------------------------------------------------------------------------- targets
@@ -246,8 +245,25 @@ def plan(d: bytes, patch: Patch, values: dict) -> Plan:
             pl.stats.append(row)
             continue
         hits = []
-        for path in filled.paths:
-            hits += [(path, t) for t in targets(d, filled, path)]
+        if spec.need_path or patch.matched in ("blocks", "blocks-hit"):
+            # paths without '**' (the loader checks): walk the blocks once, counting them and those with a target
+            row["blocks"] = row["blocks_hit"] = 0
+            for path in filled.paths:
+                for b in P.walk(d, path):
+                    found = _in_block(d, b, filled)
+                    row["blocks"] += 1
+                    row["blocks_hit"] += bool(found)
+                    hits += [(path, t) for t in found]
+        else:
+            for path in filled.paths:
+                hits += [(path, t) for t in targets(d, filled, path)]
+        if spec.need_path and not row["blocks"]:
+            pl.failure = (f"{patch.source} [[edit]] #{spec.index} ({spec.op} at {' | '.join(spec.paths)}): "
+                          "need_path: the save has no such block")
+            row["failed"] = pl.failure
+            pl.stats.append(row)
+            pl.edits = []
+            return pl
         row["found"] = len(hits)
         if not _expect_ok(filled.expect, len(hits)):
             pl.failure = (f"{patch.source} [[edit]] #{spec.index} ({spec.op} at "

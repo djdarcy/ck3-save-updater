@@ -21,8 +21,13 @@ from tests.fixtures.make_ck3 import build_ck3
 META = b'meta_data={\n\tsave_game_version=8\n\tversion="1.8.1"\n}\n'
 BODY = b"stuff={\n\tx=1\n\ty=2\n}\n"
 
-EDIT_SCRIPT = """import sys
-from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+
+# the scripts run with python -I, which leaves the project folder off sys.path: they put it back themselves, so the
+# tests work from a checkout where the package is not installed
+EDIT_SCRIPT = f"""import sys
+sys.path.insert(0, {str(ROOT)!r})
+""" + """from pathlib import Path
 from ck3_save_migrator import savefile as sf
 s = sf.read_save(sys.argv[1])
 s.set_gamestate(s.gamestate.replace(b"\\tx=1\\n", b"\\tx=99\\n"))

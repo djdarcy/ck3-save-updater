@@ -27,6 +27,7 @@ OPS = ("delete_key", "delete_value", "delete_entry", "rename_key", "set", "inser
 TEMPLATE = re.compile(r"@@([A-Za-z_][A-Za-z0-9_]*)@@")
 _SCRIPT_MODULE = re.compile(r"^[A-Za-z_][\w.]*:[A-Za-z_]\w*$")
 _SCRIPT_FILE = re.compile(r"^[\w./\-]+\.py:[A-Za-z_]\w*$")
+RUN_TIMEOUT = 600                   # seconds a run patch's command may take, unless its run.timeout says otherwise
 
 
 class PatchError(ValueError):
@@ -46,6 +47,7 @@ class EditSpec:
     payload: str | None = None
     expect: Any = "any"
     at: str | None = None           # "line-start": the edited child's key must begin its line
+    need_path: bool = False         # fail the patch when the path addresses no block at all
 
 
 @dataclass(frozen=True)
@@ -65,6 +67,8 @@ class Patch:
     done: dict | None = None
     script: str | None = None
     run: dict | None = None
+    matched: str = "found"          # the report's matched: targets "found", "blocks" addressed, or "blocks-hit"
+                                    # (blocks addressed that held a target)
 
     @property
     def kind(self) -> str:
@@ -177,14 +181,18 @@ def _edit(i: int, e: dict, where: str) -> EditSpec:
     paths = _strings(_need(e, "path", (str, list), w), "path", w)
     for p in paths:
         _check_path(p, w)
-    allowed = {"path", "op", "expect", "at", "key", "value", "to", "where", "position", "payload"}
+    allowed = {"path", "op", "expect", "at", "key", "value", "to", "where", "position", "payload", "need_path"}
     extra = set(e) - allowed
     if extra:
         raise PatchError(f"{w}: unknown field '{sorted(extra)[0]}'")
     at = _need(e, "at", str, w, default=None)
     if at not in (None, "line-start"):
         raise PatchError(f"{w}: field 'at' must be \"line-start\" when given, not {at!r}")
-    kw: dict = {"index": i, "paths": paths, "op": op, "expect": _expect(e.get("expect", "any"), w), "at": at}
+    need_path = _need(e, "need_path", bool, w, default=False)
+    if need_path and any("**" in p.split("/") for p in paths):
+        raise PatchError(f"{w}: field 'need_path' is for paths without '**'")
+    kw: dict = {"index": i, "paths": paths, "op": op, "expect": _expect(e.get("expect", "any"), w), "at": at,
+                "need_path": need_path}
     need = {"delete_key": ("key",), "delete_value": ("value",), "delete_entry": ("where",),
             "rename_key": ("key", "to"), "set": ("key", "value"), "insert": ("position", "payload")}[op]
     for f in need:
@@ -239,7 +247,7 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     d = _read(entry, where)
     _format(d, where)
     known = {"format", "id", "name", "title", "since", "default", "requires", "tested", "issue", "edit", "done",
-             "script", "run"}
+             "script", "run", "matched"}
     extra = set(d) - known
     if extra:
         raise PatchError(f"{where}: unknown field '{sorted(extra)[0]}'")
@@ -258,19 +266,30 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
         raise PatchError(f"{where}: field 'requires' must be a list of patch ids")
     if "script" in d:
         script = _need(d, "script", str, where)
-        if _SCRIPT_MODULE.match(script):
-            pass
+        if _SCRIPT_MODULE.match(script) and not _SCRIPT_FILE.match(script):
+            if from_disk:
+                # '<module>:<function>' would import anything on sys.path (the current folder, under python -m)
+                raise PatchError(f"{where}: field 'script' {script!r}: a pack folder names a file in the patch "
+                                 "folder, '<file>.py:<function>'; '<module>:<function>' is for the shipped pack")
         elif _SCRIPT_FILE.match(script):
             if not from_disk:
                 raise PatchError(f"{where}: field 'script' {script!r}: a pack inside the package names "
                                  "'<module>:<function>', not a file")
+            file = script.rsplit(":", 1)[0]
+            if file.startswith("/") or ".." in file.split("/"):
+                raise PatchError(f"{where}: field 'script' {script!r}: the file must be inside the patch folder "
+                                 "(a relative path without '..')")
         else:
             raise PatchError(f"{where}: field 'script' must be '<module>:<function>' or '<file>.py:<function>', "
                              f"not {script!r}")
-        if "done" in d:
-            raise PatchError(f"{where}: field 'done' is for declarative patches")
+        for f in ("done", "matched"):
+            if f in d:
+                raise PatchError(f"{where}: field '{f}' is for declarative patches")
         return Patch(**common, script=script)
     if "run" in d:
+        for f in ("done", "matched"):
+            if f in d:
+                raise PatchError(f"{where}: field '{f}' is for declarative patches")
         run = _need(d, "run", dict, where)
         cmd = run.get("command")
         if not isinstance(cmd, list) or not cmd or not all(isinstance(c, str) for c in cmd):
@@ -278,10 +297,13 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
         needs = run.get("needs", [])
         if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
             raise PatchError(f"{where}: field 'run.needs' must be a list of variable names")
-        extra = set(run) - {"command", "needs"}
+        extra = set(run) - {"command", "needs", "timeout"}
         if extra:
             raise PatchError(f"{where}: unknown field 'run.{sorted(extra)[0]}'")
-        return Patch(**common, run={"command": tuple(cmd), "needs": tuple(needs)})
+        timeout = run.get("timeout", RUN_TIMEOUT)
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
+            raise PatchError(f"{where}: field 'run.timeout' must be a number of seconds above 0")
+        return Patch(**common, run={"command": tuple(cmd), "needs": tuple(needs), "timeout": float(timeout)})
     raw = d["edit"]
     if not isinstance(raw, list) or not raw:
         raise PatchError(f"{where}: field 'edit' must be one or more [[edit]] tables")
@@ -304,7 +326,12 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     if any(e.op == "insert" for e in edits) and done is None:
         raise PatchError(f"{where}: a patch with an insert must give field 'done' (the path and key whose presence "
                          "means it was applied), or it would insert again on every run")
-    return Patch(**common, edits=edits, done=done)
+    matched = _need(d, "matched", str, where, default="found")
+    if matched not in ("found", "blocks", "blocks-hit"):
+        raise PatchError(f"{where}: field 'matched' must be \"found\", \"blocks\" or \"blocks-hit\", not {matched!r}")
+    if matched != "found" and any("**" in p.split("/") for e in edits for p in e.paths):
+        raise PatchError(f"{where}: field 'matched' = {matched!r} is for paths without '**'")
+    return Patch(**common, edits=edits, done=done, matched=matched)
 
 
 def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:

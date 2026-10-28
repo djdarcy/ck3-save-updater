@@ -2,8 +2,10 @@
 
 The engine writes the current save with ``savefile.write_save`` (the same bytes ``migrate -o`` writes) to a temporary
 ``@@input@@``, runs the patch's ``command`` as its own process from the caller's working directory, reads
-``@@output@@`` back with ``read_save``, and puts its gamestate in place. A non-zero exit, or no output file, fails
-closed: nothing of that patch is applied, and the result carries the exit code and the last lines of stderr.
+``@@output@@`` back with ``read_save``, and puts its gamestate in place. A non-zero exit, no output file, or a
+command still running after ``run.timeout`` seconds (default 600, then it is stopped) fails closed: nothing of that
+patch is applied, and the result carries the exit code and the last lines of stderr. The program's output goes to
+files in the temporary folder, not into memory.
 
 Variables in ``command`` (``@@name@@``): the ``RuleContext`` fields, ``python`` (the running interpreter),
 ``input``, ``output``, and the caller's own (``--var name=value``, ``--vars file.toml``). An element that is exactly
@@ -19,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 from .. import savefile as sf
-from .model import TEMPLATE, Patch, PatchError
+from .model import RUN_TIMEOUT, TEMPLATE, Patch, PatchError
 
 STDERR_LINES = 20
 
@@ -63,17 +65,39 @@ def run_patch(save, patch: Patch, ctx, rule, user_vars: dict):
         sf.write_save(_detached(save), inp)
         values.update(input=str(inp), output=str(outp))
         cmd = expand(patch.run["command"], values, patch.source)
-        proc = subprocess.run(cmd, capture_output=True)
-        tail = proc.stderr.decode("utf-8", "replace").splitlines()[-STDERR_LINES:]
-        if proc.returncode != 0 or not outp.is_file():
-            why = (f"exit code {proc.returncode}" if proc.returncode != 0 else "no output file was written")
+        timeout = patch.run.get("timeout", RUN_TIMEOUT)
+        out_log, err_log = Path(tmp) / "stdout.txt", Path(tmp) / "stderr.txt"
+        # the program's output goes to files, never into memory: a chatty program cannot exhaust it
+        with out_log.open("wb") as so, err_log.open("wb") as se:
+            try:
+                code = subprocess.run(cmd, stdout=so, stderr=se, timeout=timeout).returncode
+                why = f"exit code {code}" if code != 0 else None
+            except subprocess.TimeoutExpired:
+                code, why = None, f"it did not finish within {timeout:g} seconds (run.timeout) and was stopped"
+        tail = _tail(err_log)
+        if why is None and not outp.is_file():
+            why = "no output file was written"
+        if why is not None:
             return rule.result(extra={"failed": f"{patch.source}: the command failed ({why}); nothing applied",
-                                      "exit_code": proc.returncode, "stderr": tail})
+                                      "exit_code": code, "stderr": tail})
         new = sf.read_save(outp)
     before = save.gamestate
     save.set_gamestate(new.gamestate)
     changed = new.gamestate != before
     return rule.result(matched=1, edited=int(changed), extra={"exit_code": 0, "stderr": tail})
+
+
+def _tail(path: Path, lines: int = STDERR_LINES, window: int = 64 * 1024) -> list[str]:
+    """The last ``lines`` lines of a log file, reading only its last ``window`` bytes."""
+    with path.open("rb") as f:
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(max(0, size - window))
+        data = f.read()
+    text = data.decode("utf-8", "replace").splitlines()
+    if size > window and text:
+        text = text[1:]                 # the first line read is probably cut
+    return text[-lines:]
 
 
 def _detached(save):

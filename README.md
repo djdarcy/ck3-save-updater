@@ -63,7 +63,7 @@ A custom faith is written two ways by default, as its own faith and as a rite of
 
 `migrate` runs the same checks on every output by default, prints them, and writes them next to the output as `<name>.lint.json` (`--no-lint` skips them). The predictions depend on which mods will be active: by default the checks assume the Workshop mods the save itself lists (those installed); `--mods none` on `lint`, or `--lint-mods none` on `migrate`, predicts a load with no mods. Pointing the checks at the game folder (found automatically, or `--game-dir`) and a save from the current version (`--reference`) makes them more complete.
 
-Exit codes: 0 done with no error from the migrator itself (the save can still carry thousands of predicted log lines; that is reported, not an error), 1 bad input, 2 refused (the output exists, or would overwrite the input), 3 the written file failed verification, 4 the checks found an error (`migrate` still writes the output so it can be inspected).
+Exit codes: 0 done with no error from the migrator itself (the save can still carry thousands of predicted log lines; that is reported, not an error), 1 bad input, 2 refused (the output exists, or would overwrite the input), 3 the written file failed verification, 4 the checks found an error (`migrate` still writes the output so it can be inspected), 5 a patch from a `--pack` failed (`migrate` prints why and writes nothing).
 
 ### How much it says
 
