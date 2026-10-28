@@ -10,6 +10,10 @@ files in the temporary folder, not into memory.
 Variables in ``command`` (``@@name@@``): the ``RuleContext`` fields, ``python`` (the running interpreter),
 ``input``, ``output``, and the caller's own (``--var name=value``, ``--vars file.toml``). An element that is exactly
 ``"@@name@@"`` for a list variable becomes one argument per item. ``needs`` names variables the caller must give.
+
+``tool = "<name>"`` with ``args = [...]`` stands for ``command = ["@@python@@", "<scripts folder>/<name>.py",
+*args]``: the script in the tools add-on's scripts folder (``tool_script``), run by the same interpreter. It needs
+no dazzlecmd-lib.
 """
 
 from __future__ import annotations
@@ -60,11 +64,15 @@ def run_patch(save, patch: Patch, ctx, rule, user_vars: dict):
     if missing:
         raise PatchError(f"{patch.source}: run.needs {', '.join(missing)}, which the caller did not give "
                          f"(--var {missing[0]}=... or --vars <file.toml>)")
+    script = tool_script(patch, values) if patch.run.get("tool") else None    # refused before anything is written
     with tempfile.TemporaryDirectory(prefix="ck3sm-run-") as tmp:
         inp, outp = Path(tmp) / "input.ck3", Path(tmp) / "output.ck3"
         sf.write_save(_detached(save), inp)
         values.update(input=str(inp), output=str(outp))
-        cmd = expand(patch.run["command"], values, patch.source)
+        if script is not None:
+            cmd = [sys.executable, str(script)] + expand(patch.run["args"], values, patch.source)
+        else:
+            cmd = expand(patch.run["command"], values, patch.source)
         timeout = patch.run.get("timeout", RUN_TIMEOUT)
         out_log, err_log = Path(tmp) / "stdout.txt", Path(tmp) / "stderr.txt"
         # the program's output goes to files, never into memory: a chatty program cannot exhaust it
@@ -98,6 +106,21 @@ def _tail(path: Path, lines: int = STDERR_LINES, window: int = 64 * 1024) -> lis
     if size > window and text:
         text = text[1:]                 # the first line read is probably cut
     return text[-lines:]
+
+
+def tool_script(patch: Patch, values: dict) -> Path:
+    """``<scripts folder>/<tool>.py`` for a ``tool =`` run patch. The folder: the ``scripts_dir`` variable, else the
+    tools add-on's lookup (``CK3SM_SCRIPTS_DIR``, else the source checkout's ``tests/one-offs``)."""
+    from .. import tools
+    name = patch.run["tool"]
+    folder = tools.scripts_dir(str(values["scripts_dir"]) if values.get("scripts_dir") else None)
+    if folder is None:
+        raise PatchError(f"{patch.source}: run.tool {name!r} needs a scripts folder, and none is set: give "
+                         "--var scripts_dir=<folder> or set CK3SM_SCRIPTS_DIR")
+    script = folder / f"{name}.py"
+    if not script.is_file():
+        raise PatchError(f"{patch.source}: run.tool {name!r}: no script {script} (the scripts folder is {folder})")
+    return script.resolve()
 
 
 def _detached(save):

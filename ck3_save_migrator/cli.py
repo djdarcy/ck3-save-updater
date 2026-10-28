@@ -2,7 +2,8 @@
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
 4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
-did not hold, or a run patch's command that failed; migrate writes nothing).
+did not hold, or a run patch's command that failed; migrate writes nothing). ``tools run`` returns the script's own
+exit code.
 """
 
 from __future__ import annotations
@@ -436,6 +437,34 @@ def cmd_rules(args) -> int:
     return 0
 
 
+def cmd_tools(args) -> int:
+    """The optional tools add-on (tools.py): list, run or locate the standalone scripts. Exit 2 when it cannot
+    start (no dazzlecmd-lib, no scripts folder, no such tool); ``run`` otherwise returns the script's exit code."""
+    from . import tools
+    if not tools.library_available():
+        say(ERROR, tools.INSTALL_HINT, "io", err=True)
+        return 2
+    folder = tools.scripts_dir(args.scripts_dir)
+    if folder is None:
+        say(ERROR, "ERROR: no scripts folder: give --scripts-dir <folder> or set CK3SM_SCRIPTS_DIR (the source "
+                   "checkout's tests/one-offs is used only when running from one)", "io", err=True)
+        return 2
+    try:
+        if args.verb == "list":
+            found = tools.list_tools(folder)
+            width = max((len(t.name) for t in found), default=0)
+            for t in found:
+                say(MINIMAL, f"{t.name:{width}}  {t.description}".rstrip(), "io")
+            return 0
+        if args.verb == "path":
+            say(MINIMAL, str(tools.find(folder, args.name).path), "io")
+            return 0
+        return tools.run(folder, tools.cache_dir(args.cache_dir), args.name, args.args)
+    except tools.ToolsError as exc:
+        say(ERROR, f"ERROR: {exc}", "io", err=True)
+        return 2
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=__app_name__, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
     parser.add_argument("--version", action="version", version=f"{__app_name__} {get_display_version()}")
@@ -504,6 +533,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rules", help="list the migration rules")
     p.set_defaults(func=cmd_rules)
+
+    p = sub.add_parser("tools", help="optional add-on: list and run the standalone scripts as they are "
+                                     "(needs the [tools] extra; see docs/tools.md)")
+    p.add_argument("--scripts-dir", metavar="FOLDER",
+                   help="the scripts folder (default: $CK3SM_SCRIPTS_DIR, else the source checkout's tests/one-offs)")
+    p.add_argument("--cache-dir", metavar="FOLDER",
+                   help="where the tool listing for dazzlecmd-lib is generated (default: $CK3SM_TOOLS_CACHE, else "
+                        "the user cache folder)")
+    verbs = p.add_subparsers(dest="verb", required=True)
+    verbs.add_parser("list", help="each script's name and the first line of its docstring")
+    v = verbs.add_parser("run", help="run a script with the arguments given, as its own process; its exit code")
+    v.add_argument("name")
+    v.add_argument("args", nargs=argparse.REMAINDER, help="passed to the script unchanged")
+    v = verbs.add_parser("path", help="the script's full path")
+    v.add_argument("name")
+    p.set_defaults(func=cmd_tools)
     # the verbosity flags before and after the sub-command, one chain (see add_verbosity_flags)
     add_verbosity_flags(parser, top=True)
     for sp in sub.choices.values():

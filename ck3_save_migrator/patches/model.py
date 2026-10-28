@@ -27,6 +27,7 @@ OPS = ("delete_key", "delete_value", "delete_entry", "rename_key", "set", "inser
 TEMPLATE = re.compile(r"@@([A-Za-z_][A-Za-z0-9_]*)@@")
 _SCRIPT_MODULE = re.compile(r"^[A-Za-z_][\w.]*:[A-Za-z_]\w*$")
 _SCRIPT_FILE = re.compile(r"^[\w./\-]+\.py:[A-Za-z_]\w*$")
+_TOOL_NAME = re.compile(r"^[A-Za-z0-9_][\w\-]*$")
 RUN_TIMEOUT = 600                   # seconds a run patch's command may take, unless its run.timeout says otherwise
 
 
@@ -291,19 +292,33 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
             if f in d:
                 raise PatchError(f"{where}: field '{f}' is for declarative patches")
         run = _need(d, "run", dict, where)
-        cmd = run.get("command")
-        if not isinstance(cmd, list) or not cmd or not all(isinstance(c, str) for c in cmd):
-            raise PatchError(f"{where}: field 'run.command' must be a non-empty list of strings")
+        extra = set(run) - {"command", "tool", "args", "needs", "timeout"}
+        if extra:
+            raise PatchError(f"{where}: unknown field 'run.{sorted(extra)[0]}'")
+        if ("command" in run) == ("tool" in run):
+            raise PatchError(f"{where}: [run] has exactly one of 'command' or 'tool'")
         needs = run.get("needs", [])
         if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
             raise PatchError(f"{where}: field 'run.needs' must be a list of variable names")
-        extra = set(run) - {"command", "needs", "timeout"}
-        if extra:
-            raise PatchError(f"{where}: unknown field 'run.{sorted(extra)[0]}'")
         timeout = run.get("timeout", RUN_TIMEOUT)
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
             raise PatchError(f"{where}: field 'run.timeout' must be a number of seconds above 0")
-        return Patch(**common, run={"command": tuple(cmd), "needs": tuple(needs), "timeout": float(timeout)})
+        common_run = {"needs": tuple(needs), "timeout": float(timeout)}
+        if "tool" in run:
+            tool = run["tool"]
+            if not isinstance(tool, str) or not _TOOL_NAME.match(tool):
+                raise PatchError(f"{where}: field 'run.tool' must be a script name such as \"edit_save\" (the "
+                                 f"file <scripts folder>/<name>.py), not {tool!r}")
+            args = run.get("args", [])
+            if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+                raise PatchError(f"{where}: field 'run.args' must be a list of strings")
+            return Patch(**common, run={"command": None, "tool": tool, "args": tuple(args), **common_run})
+        if "args" in run:
+            raise PatchError(f"{where}: field 'run.args' goes with 'run.tool'; put arguments in 'run.command'")
+        cmd = run.get("command")
+        if not isinstance(cmd, list) or not cmd or not all(isinstance(c, str) for c in cmd):
+            raise PatchError(f"{where}: field 'run.command' must be a non-empty list of strings")
+        return Patch(**common, run={"command": tuple(cmd), "tool": None, "args": (), **common_run})
     raw = d["edit"]
     if not isinstance(raw, list) or not raw:
         raise PatchError(f"{where}: field 'edit' must be one or more [[edit]] tables")
