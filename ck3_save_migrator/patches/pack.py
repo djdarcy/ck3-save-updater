@@ -1,0 +1,104 @@
+"""Turning a pack into ``Rule`` objects the migrator runs like its registered rules.
+
+``rules_from_pack(pack)`` gives one ``Rule`` per patch, in the pack's ``order``, with the patch's id, name, since,
+title (as the description), default and requires. A declarative patch's ``apply`` runs the engine; a code patch's
+``apply`` IS the named function (so a pack that wraps the registered rules runs the very same code); a run patch's
+runs its program. ``SHIPPED`` is the pack inside the package, read with ``importlib.resources``.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import importlib
+import importlib.util
+from importlib.resources import files
+from pathlib import Path
+
+from ..rules import Rule, RuleContext
+from . import engine
+from .model import Pack, Patch, PatchError, as_folder, load_pack
+from .run import context_values, run_patch
+
+SHIPPED = "to_1_20"
+CONTEXT_FIELDS = {f.name for f in dataclasses.fields(RuleContext) if f.name != "state"}
+
+
+def shipped_pack_folder(name: str = SHIPPED):
+    return files("ck3_save_migrator.packs").joinpath(name)
+
+
+def read_pack(source=None) -> Pack:
+    """The shipped pack when ``source`` is None; otherwise the pack folder at ``source`` (a path on disk)."""
+    if source is None:
+        return load_pack(shipped_pack_folder(), from_disk=False, context_fields=CONTEXT_FIELDS)
+    folder = as_folder(source)
+    if isinstance(folder, Path) and not folder.is_dir():
+        raise PatchError(f"{folder}: not a pack folder")
+    return load_pack(folder, from_disk=True, context_fields=CONTEXT_FIELDS)
+
+
+def _function(patch: Patch):
+    target, fn = patch.script.rsplit(":", 1)
+    if target.endswith(".py"):
+        path = Path(str(patch.folder)) / target
+        if not path.is_file():
+            raise PatchError(f"{patch.source}: field 'script' names {target}, which is not in the patch folder")
+        spec = importlib.util.spec_from_file_location(f"ck3sm_patch_{patch.id}", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+    else:
+        try:
+            mod = importlib.import_module(target)
+        except ImportError as exc:
+            raise PatchError(f"{patch.source}: field 'script' names module {target!r}, which cannot be imported "
+                             f"({exc})") from None
+    func = getattr(mod, fn, None)
+    if not callable(func):
+        raise PatchError(f"{patch.source}: field 'script' names {fn!r}, which {target!r} does not define")
+    return func
+
+
+def _declarative(patch: Patch):
+    def apply(save, ctx, rule):
+        pl = engine.apply_patch(save, patch, context_values(ctx))
+        extra = {"edits": pl.stats}
+        if pl.failure:
+            extra["failed"] = pl.failure
+        return rule.result(matched=sum(r["found"] for r in pl.stats), edited=len(pl.edits) if not pl.failure else 0,
+                           extra=extra)
+    apply.patch = patch
+    return apply
+
+
+def _runner(patch: Patch):
+    def apply(save, ctx, rule):
+        return run_patch(save, patch, ctx, rule, ctx.state.get("patch_vars", {}))
+    apply.patch = patch
+    return apply
+
+
+def rules_from_pack(source=None, *, allow_run: bool = False) -> list[Rule]:
+    """One ``Rule`` per patch of a pack, in its order. A run patch in a pack read from a folder is refused unless
+    ``allow_run``: it runs a program with the player's permissions."""
+    pack = source if isinstance(source, Pack) else read_pack(source)
+    rules = []
+    for p in pack.ordered():
+        if p.kind == "script":
+            apply = _function(p)
+        elif p.kind == "run":
+            if pack.from_disk and not allow_run:
+                raise PatchError(f"{p.source}: a run patch runs a program with your permissions; pass --allow-run "
+                                 "to let it")
+            apply = _runner(p)
+        else:
+            apply = _declarative(p)
+        rules.append(Rule(p.id, p.name, p.since, p.title, apply, default=p.default, requires=p.requires))
+    return rules
+
+
+def status(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None) -> str:
+    """"needed", "done", or "unknown" (code and run patches run when selected)."""
+    if patch.kind != "declarative":
+        return "unknown"
+    pl = engine.plan(save_gamestate, patch, context_values(ctx or RuleContext()))
+    return "needed" if pl.needed else "done"

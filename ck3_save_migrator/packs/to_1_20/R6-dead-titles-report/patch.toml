@@ -1,0 +1,9 @@
+format = 1
+id = "R6"
+name = "dead-titles-report"
+title = "report titles the game no longer defines (no edit)"
+since = "1.18.0 (map rework; exact major unverified)"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r6_dead_titles"

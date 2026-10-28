@@ -20,6 +20,8 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
+from .patches import rules_from_pack
+from .patches.model import tomllib
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -237,6 +239,26 @@ def _check_paths(args, outputs: list[tuple[Path, str | None]], *, existence: boo
             raise OutputExistsError(f"output already exists: {out} (use --force to overwrite)")
 
 
+def read_patch_vars(pairs: list[str], file: str | None) -> dict:
+    """The caller's variables for run patches: ``--vars file.toml`` first, then each ``--var name=value``."""
+    out: dict = {}
+    if file:
+        try:
+            data = tomllib.loads(Path(file).read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError as exc:
+            raise ValueError(f"--vars {file}: not valid TOML: {exc}") from None
+        for k, v in data.items():
+            if isinstance(v, dict):
+                raise ValueError(f"--vars {file}: '{k}' is a table; give a string, a number or a list")
+            out[k] = [str(x) for x in v] if isinstance(v, list) else str(v)
+    for pair in pairs:
+        name, sep, value = pair.partition("=")
+        if not sep or not name.strip():
+            raise ValueError(f"--var {pair!r}: write it as name=value")
+        out[name.strip()] = value
+    return out
+
+
 def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
     # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
@@ -246,6 +268,10 @@ def cmd_migrate(args) -> int:
     if args.bump_version:
         say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
                      "default rules", "rules", err=True)
+    # patch packs from folders run after the selected rules, in the order given (their default patches)
+    for folder in args.pack or []:
+        rules = rules + [r for r in rules_from_pack(folder, allow_run=args.allow_run) if r.default]
+    patch_vars = read_patch_vars(args.var or [], args.vars)
     # S1: a rule whose prerequisites are not selected is refused before any work, naming them
     missing = missing_prerequisites(rules)
     if missing:
@@ -275,7 +301,8 @@ def cmd_migrate(args) -> int:
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
-    known = None          # what the game and the mods define: read once, shared by both outputs
+    ctx.state["patch_vars"] = patch_vars
+    known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
     lint_errors = 0
 
@@ -428,6 +455,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--lint-mods", choices=("save", "none"), default="save",
                    help="which mods the lint assumes will be active when the save loads: the Workshop mods the "
                         "save lists (default; those installed), or none (a vanilla load)")
+    p.add_argument("--pack", action="append", metavar="FOLDER",
+                   help="a patch pack folder to apply after the selected rules (repeatable, applied in the order "
+                        "given; see docs/writing-a-patch.md)")
+    p.add_argument("--var", action="append", metavar="NAME=VALUE",
+                   help="a variable for the packs' run patches, @@NAME@@ in their command (repeatable)")
+    p.add_argument("--vars", metavar="FILE",
+                   help="a TOML file of variables for the packs' run patches (a list value becomes several arguments)")
+    p.add_argument("--allow-run", action="store_true",
+                   help="let run patches in --pack folders run their programs (they run with your permissions)")
     p.set_defaults(func=cmd_migrate)
 
     p = sub.add_parser("lint", help="check a 1.20-layout save before loading it: structure, cross-references, "

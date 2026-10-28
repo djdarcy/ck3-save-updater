@@ -1,0 +1,9 @@
+format = 1
+id = "R21"
+name = "dead-liege-cycles"
+title = "drop the recorded liege of dead characters whose liege chain loops"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r21_dead_liege_cycles"

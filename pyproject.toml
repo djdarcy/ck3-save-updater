@@ -30,6 +30,7 @@ classifiers = [
 
 dependencies = [
     "dazzle-loglib>=0.3.3",
+    "tomli>=1.1.0; python_version < \"3.11\"",
 ]
 
 [project.optional-dependencies]
@@ -53,6 +54,10 @@ version = {attr = "ck3_save_migrator._version.PIP_VERSION"}
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ck3_save_migrator", "ck3_save_migrator.*"]
+
+[tool.setuptools.package-data]
+# the shipped patch packs: pack.toml, and one patch folder (a data directory, not a module) per patch
+"ck3_save_migrator.packs" = ["*/pack.toml", "*/*/patch.toml", "*/*/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
