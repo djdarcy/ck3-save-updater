@@ -5,9 +5,9 @@ This page walks a player through bringing an old Crusader Kings III save forward
 ## Before you start
 
 - Install: `pip install ck3-save-updater` (Python 3.10 or newer). The command is `ck3update`. The project's old name, `ck3-save-migrator`, still works as a second name for the same command for now.
-- Find three things on your machine:
-  - **your save**, under `Documents\Paradox Interactive\Crusader Kings III\save games\`;
-  - **the game folder** of the version you play now, for example `...\steamapps\common\Crusader Kings III\game`;
+- Know three things on your machine:
+  - **your save**: give its path, or just its name (with or without `.ck3`) and the tool looks in the game's `save games` folder: on Windows under your Documents folder wherever Windows keeps it (also when it is moved to OneDrive), on Linux under `~/.local/share/Paradox Interactive/Crusader Kings III/`, on macOS under `~/Documents/Paradox Interactive/Crusader Kings III/`;
+  - **the game folder** of the version you play now: found by itself through Steam's own records (every Steam library, on any drive), Steam's usual folders, a `SteamLibrary` or `Steam` folder at the root of a drive, an Xbox app (Game Pass) install in `XboxGames` on a drive the Xbox app installs to (not yet checked against a real Game Pass install), or the current folder. `ck3update inspect` lists every install it finds, with where it found it and its version; when there are several, the newest is used. Give `--game-dir <...\Crusader Kings III\game>` (or set `CK3_GAME_DIR`) to choose one;
   - for a save from before the 2023-2024 map rework (1.8 to 1.12 era), **a save written by the new game at your campaign's date** (the "reference"; see the reference-save guide) and, if you have it, **the old game's `game` folder** (from Steam's betas).
 - Save names below are placeholders: `My_Old_Campaign.ck3`.
 
@@ -17,7 +17,7 @@ This page walks a player through bringing an old Crusader Kings III save forward
 ck3update inspect My_Old_Campaign.ck3
 ```
 
-Shows the version the save was written by, its mods and its size. Nothing is written.
+Shows the version the save was written by (`version`, `save_game_version`, `portraits_version`), its mods and its size, and the game installs found with their versions. Nothing is written. `migrate` refuses a save written by a newer game version than the game it uses, naming both versions; when it cannot read the game's version, it says so and goes on.
 
 ## 2. See what it needs
 

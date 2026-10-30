@@ -61,7 +61,7 @@ pip install -e .
 
 [Updating a save](docs/updating-a-save.md) walks through the whole flow; the steps in short:
 
-- `ck3update inspect "My_Old_Campaign.ck3"` shows a save's header, metadata block and the files inside it; use it to see which game version wrote a save.
+- `ck3update inspect "My_Old_Campaign.ck3"` shows a save's header, metadata block, the files inside it and its versions, and the game installs found (Steam's own records, its libraries on any drive) with their versions. A save can be named by its path, or by its name in the game's `save games` folder.
 - Update a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest). This is the usual update; copy the result into your `save games` folder and load it from the game:
   ```bash
   ck3update migrate "My_Old_Campaign.ck3" --rules all --reference "A_New_1_20_Game.ck3" -o "My_Old_Campaign.migrated.ck3" --report "My_Old_Campaign.report.json"
