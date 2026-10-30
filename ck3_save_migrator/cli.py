@@ -30,7 +30,7 @@ from .config import config_path, disabled_ids, write_disabled
 from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
 from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
-from .refmod import make_bookmark, write_mod
+from .refmod import make_bookmark, meta_date, pick_ruler, write_mod
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -672,10 +672,39 @@ def cmd_tools(args) -> int:
         return 2
 
 
+RULER_FLAGS = ("character", "title", "culture", "religion", "house", "birth")
+
+
 def cmd_reference_mod(args) -> int:
-    b = make_bookmark(date=args.date, character=args.character, title=args.title, culture=args.culture,
-                      religion=args.religion, house=args.house, birth=args.birth, female=args.female,
-                      name=args.name or "", government=args.government)
+    if (args.date is None) == (args.save is None):
+        raise ValueError("give the date with --date, or a save to read it from with --save (one of the two)")
+    date = args.date if args.date is not None else meta_date(read_save(args.save).meta)
+    if args.save is not None:
+        say(DEFAULT, f"date: {date} (meta_date of {args.save})", "io")
+    given = {k: getattr(args, k) for k in RULER_FLAGS if getattr(args, k) is not None}
+    fields = dict(given, female=args.female, name=args.name or "", government=args.government or "feudal_government")
+    if len(given) < len(RULER_FLAGS):
+        # the missing fields come from the game's history files: the ruler given with --character, else one picked
+        game = find_game_dir(args.game_dir)
+        if game is None:
+            raise ValueError("no game folder to pick the ruler from: give --game-dir, or every one of "
+                             + ", ".join(f"--{k}" for k in RULER_FLAGS))
+        pick = pick_ruler(game, date, character=given.get("character"))
+        found = {"character": pick.character, "title": pick.title, "culture": pick.culture,
+                 "religion": pick.religion, "house": pick.house, "birth": pick.birth}
+        missing = [k for k in RULER_FLAGS if k not in given and not found[k]]
+        if missing:
+            raise ValueError(f"character {pick.character}'s history has no {', '.join(missing)}; give "
+                             + ", ".join(f"--{k}" for k in missing))
+        fields = {**found, **given, "female": args.female or pick.female, "name": args.name or pick.name,
+                  "government": args.government or pick.government}
+        say(MINIMAL, f"ruler: character {pick.character}"
+                     + (f" ({pick.name})" if pick.name else "") + f", {fields['title']}: {pick.why}", "io")
+        overridden = [k for k in given if k != "character"]
+        if overridden:
+            say(DEFAULT, "  given on the command line, so not read from the history: "
+                         + ", ".join(f"--{k}" for k in overridden), "io")
+    b = make_bookmark(date=date, **fields)
     for p in write_mod(b, Path(args.out)):
         say(MINIMAL, f"wrote: {p}", "io")
     say(MINIMAL, f"next: enable '{b.folder}' in the game's launcher, start a new game from the bookmark "
@@ -835,18 +864,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("reference-mod", help="write a bookmark mod that starts a 1.20 game on your campaign's "
                                              "date, to make a --reference save from (docs/reference-save.md)")
-    p.add_argument("--date", required=True, help="the campaign's date, YYYY.M.D (e.g. 987.10.27)")
-    p.add_argument("--character", required=True,
-                   help="history id of a ruler alive on that date (game/history/characters)")
-    p.add_argument("--title", required=True, help="a title that ruler holds on that date (game/history/titles)")
-    p.add_argument("--culture", required=True, help="the ruler's culture key (e.g. irish)")
-    p.add_argument("--religion", required=True, help="the ruler's faith key (e.g. insular_celtic)")
-    p.add_argument("--house", required=True, help="the ruler's dynasty house key (e.g. house_british_isles_briain)")
-    p.add_argument("--birth", required=True, help="the ruler's birth date, YYYY.M.D")
-    p.add_argument("--female", action="store_true", help="the ruler is a woman")
-    p.add_argument("--name", help="the name shown on the bookmark screen (default: 'Character <history id>')")
-    p.add_argument("--government", default="feudal_government",
-                   help="the ruler's government key (default: feudal_government)")
+    p.add_argument("--date", help="the campaign's date, YYYY.M.D (e.g. 987.10.27)")
+    p.add_argument("--save", help="read the date from this save's metadata (meta_date) instead of --date")
+    p.add_argument("--game-dir", help="the game's 'game' folder, whose history files the ruler is picked from "
+                                      "(default: $CK3_GAME_DIR or the usual Steam paths)")
+    ruler = " (default: picked from the game's history files)"
+    p.add_argument("--character", help="history id of a ruler alive on that date (game/history/characters)" + ruler)
+    p.add_argument("--title", help="a title that ruler holds on that date (game/history/titles)" + ruler)
+    p.add_argument("--culture", help="the ruler's culture key (e.g. irish)" + ruler)
+    p.add_argument("--religion", help="the ruler's faith key (e.g. insular_celtic)" + ruler)
+    p.add_argument("--house", help="the ruler's dynasty house key (e.g. house_british_isles_briain)" + ruler)
+    p.add_argument("--birth", help="the ruler's birth date, YYYY.M.D" + ruler)
+    p.add_argument("--female", action="store_true", help="the ruler is a woman (default: from the history)")
+    p.add_argument("--name", help="the name shown on the bookmark screen (default: the history's name, else "
+                                  "'Character <history id>')")
+    p.add_argument("--government", help="the ruler's government key (default: the title's history, else "
+                                        "feudal_government)")
     p.add_argument("--out", required=True, help="the folder to write the mod into (e.g. the game's mod folder)")
     p.set_defaults(func=cmd_reference_mod)
     # the verbosity flags before and after the sub-command, one chain (see add_verbosity_flags)
