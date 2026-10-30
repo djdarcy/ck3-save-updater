@@ -62,6 +62,8 @@ Changed after the copy:
 
 Written anew, generalising the probe's `LOW, GEN, NONE` constants (line 40), its `Keys.tr_char` (lines 184-185) and the title-offset mode in `keys()` (lines 191-196). Differences from the probe: `offset_by_mode` takes any two key -> id maps, returns `(None, set())` when nothing is shared at the same generation (the probe raises `IndexError`), and breaks a tie by the smallest offset (the probe's `Counter.most_common` picks by insertion order). `generation()` returns the high byte shifted down to 0-255; `translate()` masks the shifted slot to 24 bits.
 
+Added after the copy: `NONE64` (18446744073709551615, the same "no id" as some fields write it, 64 bits wide), `NONES` (both) and `is_none()`. A real 1.20 save showed the 64-bit form as dangling links.
+
 ## keys.py
 
 Written anew, generalising the probe's `ids` (lines 143-148, as `entry_keys`), `title_keys` (151-163, as `field_keys`), `characters` (166-170, as `union_keys`), the `character_lookup` reader inside `keyed_gaps` (lines 265-268, as `scalar_map`, keeping its line pattern), and the per-section gap counts of `keyed_gaps` (as `key_gaps`). Differences from the probe:
@@ -78,3 +80,5 @@ Changed after the copy, comments only: "Unit 2's load decides." became "Not sett
 ## graph.py
 
 Written anew. It reads entries with `text.iter_children` and normalises field paths with `schema.norm_key`; the shapes of the checks follow three defects found in a migrated save (a barony listed first in a domain beside its county, mercenary company titles not keyed `x_mc_<company id>`, a company record pointing at a destroyed title).
+
+Changed after the first run on real saves: every check treats both widths of the "no id" (`ids.NONES`) as no id; `duplicates` no longer lists an id repeated under one section name only (1.20 writes every `dead_unprunable` entry twice) and counts such repeats as `"<space> repeats"` instead.

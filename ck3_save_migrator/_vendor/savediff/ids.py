@@ -1,7 +1,8 @@
 """ids: split a save id into its slot and generation, and translate ids between two saves' id spaces.
 
 A CK3 id is a SLOT in the low 24 bits and a GENERATION in the high 8: a freed slot is reused with the previous
-occupant's generation + 1. ``NONE`` (0xFFFFFFFF) is the game's "no id". Two saves of one lineage can number the
+occupant's generation + 1. ``NONE`` (0xFFFFFFFF) is the game's "no id"; some fields write it 64 bits wide
+(``NONE64``, 18446744073709551615), so ``NONES`` holds both and ``is_none`` tests for either. Two saves of one lineage can number the
 same object differently; a translation between their id spaces is always an explicit step (``offset_by_mode``
 finds one, ``translate`` applies it), never assumed.
 """
@@ -13,8 +14,15 @@ from typing import Hashable, TypeVar
 LOW = 0xFFFFFF
 GEN = 0xFF000000
 NONE = 0xFFFFFFFF
+NONE64 = 0xFFFFFFFFFFFFFFFF
+NONES = frozenset({NONE, NONE64})
 
 K = TypeVar("K", bound=Hashable)
+
+
+def is_none(i: int) -> bool:
+    """True for the game's "no id", 32 or 64 bits wide."""
+    return i in NONES
 
 
 def slot(i: int) -> int:
