@@ -1,12 +1,14 @@
 # Thinning a save's population (a diagnostic)
 
-`tests/one-offs/thin_population.py` writes a copy of a save with fewer characters. **It is a diagnostic, not a migration rule:** the copy is for testing, not for playing. It answers questions like "does this hitch, or this slowdown, get smaller when the save has fewer people?". It is not part of `migrate`, and it never changes the save you give it.
+`tests/one-offs/thin_population.py` writes a copy of a save with fewer characters. **It is a diagnostic, not an update rule:** the copy is for testing, not for playing. It answers questions like "does this hitch, or this slowdown, get smaller when the save has fewer people?". It is not part of `migrate`, and it never changes the save you give it.
 
 ```bash
 python -I tests/one-offs/thin_population.py "Campaign.ck3" "Campaign__no-prunable.ck3" --mode prunable
 python -I tests/one-offs/thin_population.py "Campaign.ck3" "Campaign__few-dead.ck3" --mode dead
 python -I tests/one-offs/thin_population.py "Campaign.ck3" "Campaign__half-commoners.ck3" --mode living-half --seed 1
 ```
+
+With the optional [tools add-on](tools.md), `ck3update tools run thin_population "Campaign.ck3" "Campaign__no-prunable.ck3" --mode prunable` runs the same script.
 
 ## The modes
 
