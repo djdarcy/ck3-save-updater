@@ -104,7 +104,8 @@ def launcher_mod(b: Bookmark, folder: Path) -> str:
 
 
 def bookmark(b: Bookmark) -> str:
-    return (f"# Reference start at {b.date} for ck3update.\n"
+    # UTF-8 with a byte-order mark: the game logs every script file without one ("should be in utf8-bom encoding")
+    return (BOM + f"# Reference start at {b.date} for ck3update.\n"
             f"# Played as character {b.character}, holder of {b.title}; game/history/characters and\n"
             f"# game/history/titles must have them alive and holding it on this date.\n"
             f"{b.bookmark_key} = {{\n"
@@ -137,6 +138,126 @@ def localization(b: Bookmark) -> str:
             f' {b.character_key}: "{b.name}"\n'
             f' {b.character_key}_desc: "Reference start for ck3update."\n'
             f' {b.character_key}_subheading: "$BOOKMARK_SUBHEADING_DEFAULT$"\n')
+
+
+# --------------------------------------------------------------------------- picking the ruler from the history files
+# kingdoms and duchies first (a playable, well-defined realm), then empires, counties, baronies
+TIER_RANK = {"k": 0, "d": 1, "e": 2, "c": 3, "b": 4}
+ADULT = 16
+
+
+@dataclass(frozen=True)
+class Pick:
+    """A ruler chosen from the game's history files, with the bookmark fields read from them."""
+    character: str
+    title: str
+    culture: str | None
+    religion: str | None
+    house: str | None
+    birth: str | None
+    female: bool
+    name: str
+    government: str
+    house_how: str                # how the house was found (dynasty_house, or the dynasty's main house)
+    why: str
+
+
+REQUIRED = ("culture", "religion", "house", "birth")
+
+
+def _ruler_fields(c, title: str, rows: list, date, houses: dict) -> dict:
+    """The bookmark's fields from a character's history as of ``date``. The faith is ``rite`` (1.20's history
+    files), else ``religion`` or ``faith`` (older games); the house is ``dynasty_house``, else the main house of the
+    character's ``dynasty`` id, from common/dynasty_houses."""
+    from . import history as H
+    now = c.as_of(date)
+    birth = ".".join(map(str, c.birth)) if c.birth else None
+    house, how = now.get("dynasty_house"), "dynasty_house in the character's history"
+    if not house:
+        house, how = H.main_house(houses, now.get("dynasty"))
+    return {"culture": now.get("culture"), "religion": now.get("rite") or now.get("religion") or now.get("faith"),
+            "house": house, "house_how": how, "birth": birth, "female": now.get("female") == "yes",
+            "name": now.get("name", ""), "government": H.as_of(rows, "government", date) or "feudal_government"}
+
+
+def _missing(f: dict) -> list[str]:
+    return [k if k != "religion" else "faith" for k in REQUIRED if not f[k]]
+
+
+def pick_ruler(game_dir: Path, date: str, character: str | None = None) -> Pick:
+    """A character alive on ``date`` who holds a title on it, read from ``<game_dir>/history``.
+
+    With ``character``, that character (refused when not alive and holding on the date; fields the history lacks
+    come back None, for the caller to refuse or take from flags). Otherwise only candidates whose culture, faith,
+    dynasty house and birth date are all found; among them: adult (16 or older) first, the highest-ranked title
+    held (kingdom, duchy, empire, county, barony), then the title key, so the pick is the same every run. When no
+    living holder has all four, RefModError names what the first one lacked: an incomplete ruler is never picked.
+    Only numeric history ids are candidates (the bookmark names the character by its history id)."""
+    from . import history as H
+    y, mo, d = parse_date(date)
+    when = (y, mo, d)
+    hist = Path(game_dir) / "history"
+    if not (hist / "characters").is_dir() or not (hist / "titles").is_dir():
+        raise RefModError(f"no history folders in {game_dir} (expected history/characters and history/titles)")
+    chars = H.characters(hist / "characters")
+    trows = H.titles(hist / "titles")
+    held = H.holders(trows, when)
+    houses = H.dynasty_houses(Path(game_dir) / "common" / "dynasty_houses")
+
+    def best_title(cid: str) -> str:
+        return min(held[cid], key=lambda t: (TIER_RANK.get(t[:1], 9), t))
+
+    if character is not None:
+        cid = str(character)
+        c = chars.get(cid)
+        if c is None:
+            raise RefModError(f"character {cid} is not in {hist / 'characters'}")
+        if not c.alive_on(when):
+            raise RefModError(f"character {cid} is not alive on {date} (born {c.birth}, died {c.death})")
+        if cid not in held:
+            raise RefModError(f"character {cid} holds no title on {date} in {hist / 'titles'}")
+        t = best_title(cid)
+        f = _ruler_fields(c, t, trows[t], when, houses)
+        return Pick(cid, t, **f, why=f"the character given with --character; house: {f['house_how']}")
+
+    living, ranked = 0, []
+    closest = None
+    for cid, ts in held.items():
+        c = chars.get(cid)
+        if c is None or not cid.isdigit() or not c.alive_on(when):
+            continue
+        living += 1
+        t = best_title(cid)
+        f = _ruler_fields(c, t, trows[t], when, houses)
+        adult = (c.age_on(when) or 0) >= ADULT
+        key = (not adult, TIER_RANK.get(t[:1], 9), t)
+        if _missing(f):
+            # never written: a bookmark needs every one of the four; kept only to say what was missing
+            if closest is None or key < closest[0]:
+                closest = (key, cid, t, _missing(f))
+            continue
+        ranked.append((key, cid, t, f, adult))
+    if not living:
+        raise RefModError(f"no character in {hist} is alive and holds a title on {date}")
+    if not ranked:
+        _, cid, t, miss = closest
+        raise RefModError(f"none of the {living} living title holders on {date} has culture, faith, house and birth "
+                          f"all found in the history (the first, character {cid} holding {t}, has no "
+                          f"{', '.join(miss)}); give the ruler with --character and the missing flags")
+    ranked.sort(key=lambda r: r[0])
+    _, cid, t, f, adult = ranked[0]
+    why = (f"alive and holding {t} on {date}; of the {len(ranked)} living title holders with culture, faith, house "
+           f"and birth found, the first {'adult, ' if adult else '(none is adult), '}holding the highest-ranked "
+           f"title (kingdom, duchy, empire, county, barony), then by title key; house: {f['house_how']}")
+    return Pick(cid, t, **f, why=why)
+
+
+def meta_date(meta: bytes) -> str:
+    """The in-game date a save was made on, ``meta_date`` in its metadata."""
+    m = re.search(rb"(?m)^\s*meta_date=\"?(-?\d+\.\d+\.\d+)\"?", meta)
+    if not m:
+        raise RefModError("the save's metadata has no meta_date")
+    return m.group(1).decode()
 
 
 def files(b: Bookmark, out: Path) -> dict[Path, str]:
