@@ -24,7 +24,7 @@ from __future__ import annotations
 from . import graph, ids, keys, schema, shape, text
 from .graph import (MERCENARY_TITLE_KEY, Edge, Graph, aggregate, build, cycles, dangling, duplicates, join,
                     join_diff, key_rule, offset_translator, primary_outranked)
-from .ids import GEN, LOW, NONE, generation, make, offset_by_mode, slot, translate
+from .ids import GEN, LOW, NONE, NONE64, NONES, generation, is_none, make, offset_by_mode, slot, translate
 from .keys import entry_keys, field_keys, key_gaps, scalar_map, union_keys
 from .shape import Shape, shape_rows
 from .text import SaveTextError, SectionIndex, locate, strip_text_header
@@ -33,7 +33,7 @@ __all__ = [
     "graph", "ids", "keys", "schema", "shape", "text",
     "MERCENARY_TITLE_KEY", "Edge", "Graph", "aggregate", "build", "cycles", "dangling", "duplicates", "join",
     "join_diff", "key_rule", "offset_translator", "primary_outranked",
-    "GEN", "LOW", "NONE", "generation", "make", "offset_by_mode", "slot", "translate",
+    "GEN", "LOW", "NONE", "NONE64", "NONES", "generation", "is_none", "make", "offset_by_mode", "slot", "translate",
     "entry_keys", "field_keys", "key_gaps", "scalar_map", "union_keys",
     "Shape", "shape_rows",
     "SaveTextError", "SectionIndex", "locate", "strip_text_header",

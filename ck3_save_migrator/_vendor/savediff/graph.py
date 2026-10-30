@@ -9,9 +9,10 @@ node)``, where the schema says which space the field points into. The schema is 
 Checks on one graph, each returning ``{"rows": [...], "counted": {...}}`` -- never a bare empty list, so "nothing
 found" always says how much was looked at (the survival rule):
 
-* ``dangling``           edges whose target is not an entity of its space (``NONE`` is legal);
+* ``dangling``           edges whose target is not an entity of its space (the "no id", ``NONES``, is legal);
 * ``cycles``             cycles along one parent-like field (a title that is its own liege included);
-* ``duplicates``         an id written twice in one space; a key written twice where keys are unique;
+* ``duplicates``         an id written under two section names of one space; a key written twice where keys are
+                         unique (an id repeated under one section name is counted, not listed);
 * ``primary_outranked``  rulers whose first domain title is of a lower tier than another title they hold;
 * ``key_rule``           entities whose key, or the key of what they point at, breaks a stated pattern.
 
@@ -29,6 +30,7 @@ from . import ids, text
 from . import schema as default_schema
 
 NONE = ids.NONE
+NONES = ids.NONES
 _NUM = re.compile(rb"^\d+$")
 # a title key's tier, from its first letter; 1.20's hegemonies (h_) rank above empires
 TIERS = {"b": 1, "c": 2, "d": 3, "k": 4, "e": 5, "h": 6}
@@ -138,11 +140,12 @@ def build(g: bytes, index: text.SectionIndex | None = None, schema=default_schem
 
 # --------------------------------------------------------------------------- checks
 def dangling(gr: Graph) -> dict:
-    """Edges whose target id is not an entity of its space. ``NONE`` (4294967295) is the game's "no id" and is
-    legal. An edge into a space that was not read is not judged, and counted as such."""
+    """Edges whose target id is not an entity of its space. The game's "no id" (``NONES``: 4294967295, or
+    18446744073709551615 where a field is 64 bits wide) is legal. An edge into a space that was not read is not
+    judged, and counted as such."""
     rows, none, unjudged = [], 0, 0
     for e in gr.edges:
-        if e.dst[1] == NONE:
+        if e.dst[1] in NONES:
             none += 1
         elif e.dst[0] not in gr.loaded:
             unjudged += 1
@@ -158,7 +161,7 @@ def _parents(gr: Graph, space: str, path: str) -> dict:
         if node[0] != space:
             continue
         for e in gr.out.get(node, ()):
-            if e.path == path and e.dst[0] == space and e.dst[1] != NONE:
+            if e.path == path and e.dst[0] == space and e.dst[1] not in NONES:
                 parent[node] = e.dst
                 break
     return parent
@@ -192,7 +195,11 @@ def duplicates(g: bytes, index: text.SectionIndex | None = None, schema=default_
                unique_keys: Iterable[tuple[str, str]] = (("title", "key"),)) -> dict:
     """An id written more than once in one space (in one database, or across the databases of one space), and a
     depth-1 ``field=`` value written more than once where ``unique_keys`` says it is unique (title ``key=``).
-    A top-level section the game writes twice is read once (its first block)."""
+    A top-level section the game writes twice is read once (its first block).
+
+    An id written more than once under ONE section name only is a repeat, not a duplicate: 1.20 writes every
+    ``dead_unprunable`` entry twice. Repeats are counted (``"<space> repeats"``: the copies beyond the first), not
+    listed. An id under two different section names (``living`` and ``dead_unprunable``) is still a duplicate."""
     index = index or text.SectionIndex(g)
     rows, counted = [], Counter()
     for space, sections in schema.SPACES.items():
@@ -208,8 +215,10 @@ def duplicates(g: bytes, index: text.SectionIndex | None = None, schema=default_
                         counted[space] += 1
             except text.SaveTextError:
                 continue
+        if counted[space]:
+            counted[f"{space} repeats"] = sum(len(s) - 1 for s in seen.values() if len(set(s)) == 1)
         rows += [{"what": "id", "space": space, "id": i, "sections": secs} for i, secs in sorted(seen.items())
-                 if len(secs) > 1]
+                 if len(set(secs)) > 1]
     for space, fld in unique_keys:
         byval: dict[str, list[int]] = {}
         for sec in schema.SPACES.get(space, ()):
@@ -301,7 +310,7 @@ def record(gr: Graph, node: Node) -> dict | None:
 def join(gr: Graph, kind: str, id_: int, depth: int) -> dict:
     """The subgraph reachable from ``(kind, id_)`` along edges, within ``depth`` edges: ``{"root", "depth",
     "nodes": {node: {"depth": d, "section": s, "record": record or None}}, "edges": [...]}``. A target that is
-    not an entity is a node with ``record`` None; ``NONE`` targets are not followed."""
+    not an entity is a node with ``record`` None; "no id" targets (``NONES``) are not followed."""
     root = (kind, id_)
     seen = {root: 0}
     queue = deque([root])
@@ -312,7 +321,7 @@ def join(gr: Graph, kind: str, id_: int, depth: int) -> dict:
         if d >= depth:
             continue
         for e in gr.out.get(node, ()):
-            if e.dst[1] == NONE:
+            if e.dst[1] in NONES:
                 continue
             edges.append(e)
             if e.dst not in seen:
@@ -325,9 +334,9 @@ def join(gr: Graph, kind: str, id_: int, depth: int) -> dict:
 
 def offset_translator(offsets: dict[str, int]) -> Callable[[str, int], int]:
     """A translation of ids from save A to save B: ``ids.translate`` by ``offsets[space]`` for the spaces listed,
-    the identity elsewhere; ``NONE`` stays ``NONE``."""
+    the identity elsewhere; a "no id" (``NONES``, either width) stays as it is."""
     def tr(space: str, i: int) -> int:
-        return i if i == NONE or space not in offsets else ids.translate(i, offsets[space])
+        return i if i in NONES or space not in offsets else ids.translate(i, offsets[space])
     return tr
 
 
