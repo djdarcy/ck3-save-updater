@@ -27,6 +27,7 @@ from ._version import __app_name__, get_display_version
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
 from .config import config_path, disabled_ids, write_disabled
+from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
 from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
 from .refmod import make_bookmark, write_mod
@@ -109,37 +110,57 @@ def cmd_inspect(args) -> int:
     say(MINIMAL, f"meta block: {len(save.meta):,} bytes", "io")
     for m in save.members:
         say(MINIMAL, f"member    : {m.name}  {len(m.data):,} bytes inflated", "io")
+    v = save_versions(save.meta)
+    say(MINIMAL, f"versions  : version {v['version'] or '?'}, save_game_version {_or_q(v['save_game_version'])}, "
+                 f"portraits_version {_or_q(v['portraits_version'])}", "io")
     for w in save.warnings:
         say(MINIMAL, f"WARNING   : {w}", "io")
+    installs = game_installs(args.game_dir)
+    if not installs:
+        named = args.game_dir if args.game_dir is not None else os.environ.get("CK3_GAME_DIR")
+        say(MINIMAL, "game      : none" + (f" ({'--game-dir' if args.game_dir is not None else '$CK3_GAME_DIR'} "
+                                             "is none)" if named else " found (give --game-dir)"), "io")
+    for i, g in enumerate(installs):
+        say(MINIMAL, f"{'game' if i == 0 else 'also':10}: {describe_install(g)}"
+                     + ("" if i == 0 else "  (not used: an older or unknown version)"), "io")
     return 0
 
 
-GAME_DIR_CANDIDATES = (
-    r"E:\SteamLibrary\steamapps\common\Crusader Kings III\game",
-    r"C:\Program Files (x86)\Steam\steamapps\common\Crusader Kings III\game",
-    "~/.steam/steam/steamapps/common/Crusader Kings III/game",
-    "~/Library/Application Support/Steam/steamapps/common/Crusader Kings III/game",
-)
+def _or_q(x) -> str:
+    return "?" if x is None else str(x)
+
+
+def game_installs(explicit: str | None) -> list[GameInstall]:
+    """Every game install found (discover.py), newest version first: --game-dir, else $CK3_GAME_DIR, else Steam's
+    own records, the usual Steam folders, Steam libraries at a drive's root, and the current folder. ``none``
+    (flag or variable) means no game; a folder named that is not a game folder is refused."""
+    return discover_games(explicit, os.environ.get("CK3_GAME_DIR"))
 
 
 def find_game_dir(explicit: str | None) -> Path | None:
-    """--game-dir, else $CK3_GAME_DIR, else the usual Steam locations. ``none`` (flag or variable) means no game
-    folder: the rules and checks that need one skip."""
-    env = os.environ.get("CK3_GAME_DIR")
-    given, source = (explicit, "--game-dir") if explicit is not None else (env, "CK3_GAME_DIR")
-    if given:
-        if given.lower() == "none":
-            return None
-        p = Path(given).expanduser()
-        if (p / "common" / "landed_titles").is_dir():
-            return p
-        # a folder that was named but is not a game folder is refused, never swapped for a discovered one
-        raise FileNotFoundError(f"{source} {given} is not the game's 'game' folder "
-                                f"(expected {p / 'common' / 'landed_titles'})")
-    for cand in GAME_DIR_CANDIDATES:
-        if cand and (Path(cand).expanduser() / "common" / "landed_titles").is_dir():
-            return Path(cand).expanduser()
-    return None
+    """The game folder used: the newest install ``game_installs`` finds; None when there is none (the rules and
+    checks that need one skip)."""
+    found = game_installs(explicit)
+    return found[0].path if found else None
+
+
+def describe_install(g: GameInstall) -> str:
+    return f"{g.version or 'version unknown'}  {g.path}  (from {g.source})"
+
+
+def check_save_not_newer(save_version: str | None, game: GameInstall | None) -> None:
+    """Refuse (ValueError, exit 1) a save written by a newer game version than the game used; say so when the
+    game's version cannot be read, and go on."""
+    if game is None:
+        return
+    if game.version is None:
+        say(WARNING, f"WARNING: the game's version is unknown (no readable launcher/launcher-settings.json in "
+                     f"{game.install}); the save's version ({save_version or '?'}) was not compared with it",
+            "io", err=True)
+        return
+    if compare_versions(save_version, game.version) == 1:
+        raise ValueError(f"the save was written by game version {save_version}, newer than the game at {game.path} "
+                         f"(version {game.version}); this tool updates a save from an older version to the game's")
 
 
 DEV_REFERENCE = Path("private/data/originals/reference-1.20/ref_1_20_987_10_27.ck3")
@@ -202,6 +223,9 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "input": str(Path(args.save).resolve()), "input_sha256": in_sha,
             "output": None if result.dry_run else str(out.resolve()), "output_sha256": result.sha256,
             "dry_run": result.dry_run, "game_dir": str(ctx.game_dir) if ctx.game_dir else None,
+            "game_installs": [{"source": g.source, "path": str(g.path), "version": g.version}
+                              for g in ctx.state.get("game_installs", [])],
+            "save_versions": ctx.state.get("save_versions"),
             "reference": str(ctx.reference) if ctx.reference else None, "wos_shape": ctx.wos_shape,
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
             "lost": [x for r in results for x in r.extra.get("lost", [])],
@@ -305,12 +329,16 @@ def cmd_migrate(args) -> int:
     # one output per custom-faith shape only when there is a custom faith to shape; otherwise one plain output
     branch = may_branch and bool(custom_faith_names(save.gamestate))
     _check_paths(args, outputs(branch), existence=True)        # before any rule runs
+    installs = game_installs(args.game_dir)
+    check_save_not_newer(save_versions(save.meta)["version"], installs[0] if installs else None)
     in_sha = sha256(save.to_bytes())
-    ctx = RuleContext(game_dir=find_game_dir(args.game_dir), portraits_version=args.portraits_version,
+    ctx = RuleContext(game_dir=installs[0].path if installs else None, portraits_version=args.portraits_version,
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
+    ctx.state["game_installs"] = installs                         # the report lists them
+    ctx.state["save_versions"] = save_versions(save.meta)
     ctx.state["patch_vars"] = patch_vars
     known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
@@ -656,17 +684,24 @@ def cmd_reference_mod(args) -> int:
     return 0
 
 
+SAVE_HELP = "a save file, or the name of one in the game's 'save games' folder (with or without .ck3)"
+GAME_DIR_HELP = ("the game's 'game' folder (default: $CK3_GAME_DIR, else found through Steam's own records and "
+                 "the usual Steam folders; 'inspect' lists what it finds; 'none' for no game)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=COMMAND, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
     parser.add_argument("--version", action="version", version=f"{__app_name__} {get_display_version()}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("inspect", help="show a save's header, meta block and zip members")
-    p.add_argument("save")
+    p = sub.add_parser("inspect", help="show a save's header, meta block, zip members and versions, and the game "
+                                       "installs found")
+    p.add_argument("save", help=SAVE_HELP)
+    p.add_argument("--game-dir", help=GAME_DIR_HELP)
     p.set_defaults(func=cmd_inspect)
 
     p = sub.add_parser("migrate", help="read a save and write a migrated copy (never in place)")
-    p.add_argument("save")
+    p.add_argument("save", help=SAVE_HELP)
     p.add_argument("-o", "--output", help="output path (default: <name>.migrated.ck3 beside the input)")
     p.add_argument("--dry-run", action="store_true", help="build and verify in memory; write nothing")
     p.add_argument("--force", action="store_true", help="overwrite an existing output file")
@@ -685,7 +720,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="R10: custom faiths as their own faith, as a rite of their template's faith, "
                         "or both (default: two outputs, <stem>__wos-faith / __wos-rite, when a reference is "
                         "given; a save without custom faiths yields one output)")
-    p.add_argument("--game-dir", help="the game's 'game' folder (default: $CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--game-dir", help=GAME_DIR_HELP)
     p.add_argument("--old-game-dir",
                    help="the 'game' folder of the version the save was made with; R15 reads its map to find "
                         "what the current map calls the land of titles it no longer has")
@@ -711,10 +746,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("lint", help="check a 1.20-layout save before loading it: structure, cross-references, "
                                     "unknown keys (exit 4 when an error is found)")
-    p.add_argument("save")
+    p.add_argument("save", help=SAVE_HELP)
     p.add_argument("--reference", help="a save written by the target game version, for the key-name check "
                    "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference; 'none' to skip)")
-    p.add_argument("--game-dir", help="the game's 'game' folder (default: $CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("--game-dir", help=GAME_DIR_HELP)
     p.add_argument("--no-keys", action="store_true",
                    help="skip the checks that need game data: key names and what 1.20 will log")
     p.add_argument("--mods", choices=("save", "none"), default="save",
@@ -738,9 +773,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("soak", help="START THE GAME: load a save, let it run unpaused, close it through Exit to "
                                     "Desktop, and say whether it exited cleanly or crashed (Windows; see docs/soak.md)")
-    p.add_argument("save")
-    p.add_argument("--game", help="the CK3 install folder, the one holding 'binaries' and 'game' (default: from "
-                                  "$CK3_GAME_DIR or the usual Steam paths)")
+    p.add_argument("save", help=SAVE_HELP)
+    p.add_argument("--game", help="the CK3 install folder, the one holding 'binaries' and 'game' (default: the "
+                                  "newest install found, as 'inspect' lists them)")
     p.add_argument("--docs", help="the game's documents folder (default: ~/Documents/Paradox Interactive/"
                                   "Crusader Kings III)")
     p.add_argument("--minutes", type=float, default=10, help="how long the game runs once it is in game (default 10)")
@@ -758,7 +793,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("check", help="say, for each selected patch, whether this save needs it, has it done, "
                                      "cannot be told (code and run patches) or would fail; reads only, writes "
                                      "nothing (exit 5 when one would fail)")
-    p.add_argument("save")
+    p.add_argument("save", help=SAVE_HELP)
     p.add_argument("--rules", help="as for migrate: 'all' (the default, less the rules turned off with disable), "
                                    "a comma list of ids or names, or both; '-R21' leaves R21 out")
     p.add_argument("--pack", action="append", metavar="FOLDER",
@@ -840,6 +875,9 @@ def main(argv=None) -> int:
                 channels=resolve_channel_specs([f"{s.name}:{s.level}" for s in shows], env_var="CK3SM_SHOW"),
                 channel_defs=CHANNELS, strict_channels=True)
     try:
+        if getattr(args, "save", None):
+            # a path, or the name of a save in the game's 'save games' folder (discover.find_save)
+            args.save = str(find_save(args.save))
         return args.func(args)
     except (OutputExistsError, InPlaceError) as exc:     # before ValueError: InPlaceError is one
         say(ERROR, f"ERROR: {exc}", "io", err=True)
