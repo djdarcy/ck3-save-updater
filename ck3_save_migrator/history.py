@@ -133,6 +133,43 @@ def characters(folder: Path) -> dict[str, Character]:
     return out
 
 
+# --------------------------------------------------------------------------- dynasty houses
+# keys that would mark a house as a cadet branch of another; the game's own house files are not known to use any,
+# so when none is present the first house defined for a dynasty is taken (see main_house)
+CADET_KEYS = ("parent_house", "cadet", "is_cadet")
+
+
+def dynasty_houses(folder: Path) -> dict[str, list[tuple[str, bool]]]:
+    """``common/dynasty_houses``: dynasty id -> ``[(house key, is a cadet branch)]`` in definition order (file
+    names in order, then order in the file). A house is ``house_x = { name = ... dynasty = <id> ... }``."""
+    out: dict[str, list[tuple[str, bool]]] = {}
+    if not Path(folder).is_dir():
+        return out
+    for key, body in read_folder(folder):
+        if key is None or not isinstance(body, list):
+            continue
+        fields = {k: v for k, v in body if isinstance(v, str)}
+        dyn = fields.get("dynasty")
+        if dyn:
+            cadet = any(k in fields and fields[k] != "no" for k in CADET_KEYS)
+            out.setdefault(dyn, []).append((key, cadet))
+    return out
+
+
+def main_house(houses: dict[str, list[tuple[str, bool]]], dynasty: str | None) -> tuple[str | None, str]:
+    """(house key, how it was chosen) for a dynasty id: its only house; else the first that is not marked a cadet
+    branch; else the first defined. (None, why) when the dynasty has no house."""
+    hs = houses.get(dynasty or "", [])
+    if not hs:
+        return None, f"dynasty {dynasty} has no house in common/dynasty_houses" if dynasty else "no dynasty"
+    if len(hs) == 1:
+        return hs[0][0], f"the house of dynasty {dynasty}"
+    main = [h for h, cadet in hs if not cadet]
+    if main and len(main) < len(hs):
+        return main[0], f"the first of dynasty {dynasty}'s {len(hs)} houses that is not a cadet branch"
+    return hs[0][0], f"the first of dynasty {dynasty}'s {len(hs)} houses defined"
+
+
 # --------------------------------------------------------------------------- titles
 def titles(folder: Path) -> dict[str, list]:
     """The titles of ``game/history/titles``: key -> ``[(date, {"holder"?, "government"?})]`` in date order."""

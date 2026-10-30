@@ -158,24 +158,40 @@ class Pick:
     female: bool
     name: str
     government: str
+    house_how: str                # how the house was found (dynasty_house, or the dynasty's main house)
     why: str
 
 
-def _ruler_fields(c, title: str, rows: list, date) -> dict:
+REQUIRED = ("culture", "religion", "house", "birth")
+
+
+def _ruler_fields(c, title: str, rows: list, date, houses: dict) -> dict:
+    """The bookmark's fields from a character's history as of ``date``. The faith is ``rite`` (1.20's history
+    files), else ``religion`` or ``faith`` (older games); the house is ``dynasty_house``, else the main house of the
+    character's ``dynasty`` id, from common/dynasty_houses."""
     from . import history as H
     now = c.as_of(date)
     birth = ".".join(map(str, c.birth)) if c.birth else None
-    return {"culture": now.get("culture"), "religion": now.get("religion") or now.get("faith"),
-            "house": now.get("dynasty_house"), "birth": birth, "female": now.get("female") == "yes",
+    house, how = now.get("dynasty_house"), "dynasty_house in the character's history"
+    if not house:
+        house, how = H.main_house(houses, now.get("dynasty"))
+    return {"culture": now.get("culture"), "religion": now.get("rite") or now.get("religion") or now.get("faith"),
+            "house": house, "house_how": how, "birth": birth, "female": now.get("female") == "yes",
             "name": now.get("name", ""), "government": H.as_of(rows, "government", date) or "feudal_government"}
+
+
+def _missing(f: dict) -> list[str]:
+    return [k if k != "religion" else "faith" for k in REQUIRED if not f[k]]
 
 
 def pick_ruler(game_dir: Path, date: str, character: str | None = None) -> Pick:
     """A character alive on ``date`` who holds a title on it, read from ``<game_dir>/history``.
 
-    With ``character``, that character (refused when not alive and holding on the date). Otherwise the best
-    candidate: culture, faith, dynasty house and birth date all known; adult (16 or older); the highest-ranked
-    title held (kingdom, duchy, empire, county, barony); then the title key, so the pick is the same every run.
+    With ``character``, that character (refused when not alive and holding on the date; fields the history lacks
+    come back None, for the caller to refuse or take from flags). Otherwise only candidates whose culture, faith,
+    dynasty house and birth date are all found; among them: adult (16 or older) first, the highest-ranked title
+    held (kingdom, duchy, empire, county, barony), then the title key, so the pick is the same every run. When no
+    living holder has all four, RefModError names what the first one lacked: an incomplete ruler is never picked.
     Only numeric history ids are candidates (the bookmark names the character by its history id)."""
     from . import history as H
     y, mo, d = parse_date(date)
@@ -186,6 +202,7 @@ def pick_ruler(game_dir: Path, date: str, character: str | None = None) -> Pick:
     chars = H.characters(hist / "characters")
     trows = H.titles(hist / "titles")
     held = H.holders(trows, when)
+    houses = H.dynasty_houses(Path(game_dir) / "common" / "dynasty_houses")
 
     def best_title(cid: str) -> str:
         return min(held[cid], key=lambda t: (TIER_RANK.get(t[:1], 9), t))
@@ -200,26 +217,38 @@ def pick_ruler(game_dir: Path, date: str, character: str | None = None) -> Pick:
         if cid not in held:
             raise RefModError(f"character {cid} holds no title on {date} in {hist / 'titles'}")
         t = best_title(cid)
-        return Pick(cid, t, **_ruler_fields(c, t, trows[t], when), why="the character given with --character")
+        f = _ruler_fields(c, t, trows[t], when, houses)
+        return Pick(cid, t, **f, why=f"the character given with --character; house: {f['house_how']}")
 
-    ranked = []
+    living, ranked = 0, []
+    closest = None
     for cid, ts in held.items():
         c = chars.get(cid)
         if c is None or not cid.isdigit() or not c.alive_on(when):
             continue
+        living += 1
         t = best_title(cid)
-        f = _ruler_fields(c, t, trows[t], when)
-        complete = all(f[k] for k in ("culture", "religion", "house", "birth"))
+        f = _ruler_fields(c, t, trows[t], when, houses)
         adult = (c.age_on(when) or 0) >= ADULT
-        ranked.append(((not complete, not adult, TIER_RANK.get(t[:1], 9), t), cid, t, f, complete, adult))
-    if not ranked:
+        key = (not adult, TIER_RANK.get(t[:1], 9), t)
+        if _missing(f):
+            # never written: a bookmark needs every one of the four; kept only to say what was missing
+            if closest is None or key < closest[0]:
+                closest = (key, cid, t, _missing(f))
+            continue
+        ranked.append((key, cid, t, f, adult))
+    if not living:
         raise RefModError(f"no character in {hist} is alive and holds a title on {date}")
+    if not ranked:
+        _, cid, t, miss = closest
+        raise RefModError(f"none of the {living} living title holders on {date} has culture, faith, house and birth "
+                          f"all found in the history (the first, character {cid} holding {t}, has no "
+                          f"{', '.join(miss)}); give the ruler with --character and the missing flags")
     ranked.sort(key=lambda r: r[0])
-    _, cid, t, f, complete, adult = ranked[0]
-    why = (f"alive and holding {t} on {date}; of the {len(ranked)} living title holders, the first "
-           f"{'with culture, faith, house and birth known, ' if complete else '(none has every field known), '}"
-           f"{'adult, ' if adult else ''}holding the highest-ranked title (kingdom, duchy, empire, county, barony), "
-           "then by title key")
+    _, cid, t, f, adult = ranked[0]
+    why = (f"alive and holding {t} on {date}; of the {len(ranked)} living title holders with culture, faith, house "
+           f"and birth found, the first {'adult, ' if adult else '(none is adult), '}holding the highest-ranked "
+           f"title (kingdom, duchy, empire, county, barony), then by title key; house: {f['house_how']}")
     return Pick(cid, t, **f, why=why)
 
 
