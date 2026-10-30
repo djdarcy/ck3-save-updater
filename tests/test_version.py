@@ -8,7 +8,7 @@ from ck3_save_migrator._version import (
 
 
 def test_app_name():
-    assert __app_name__ == "ck3-save-migrator"
+    assert __app_name__ == "ck3-save-updater"
 
 
 def test_version_components():
