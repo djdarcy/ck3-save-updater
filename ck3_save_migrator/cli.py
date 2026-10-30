@@ -867,7 +867,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date", help="the campaign's date, YYYY.M.D (e.g. 987.10.27)")
     p.add_argument("--save", help="read the date from this save's metadata (meta_date) instead of --date")
     p.add_argument("--game-dir", help="the game's 'game' folder, whose history files the ruler is picked from "
-                                      "(default: $CK3_GAME_DIR or the usual Steam paths)")
+                                      "(default: the newest install found, as 'inspect' lists them)")
     ruler = " (default: picked from the game's history files)"
     p.add_argument("--character", help="history id of a ruler alive on that date (game/history/characters)" + ruler)
     p.add_argument("--title", help="a title that ruler holds on that date (game/history/titles)" + ruler)

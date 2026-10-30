@@ -211,6 +211,106 @@ def test_the_bookmark_file_is_written_with_a_byte_order_mark(tmp_path):
     assert bookmark_text(tmp_path)[:3] == b"\xef\xbb\xbf"
 
 
+# --------------------------------------------------------------------------- 1.20's own shapes
+# Measured on the real 1.20 history (2026-10-30): the faith is `rite = ...` (no `religion =` or `faith =` at all),
+# most characters name a numeric `dynasty = <id>` and no dynasty_house, the house key comes from
+# common/dynasty_houses, and the birth is a dated block `<date> = { birth = "<date>" }`.
+CHARACTERS_120 = """900 = {
+\tname = "Brian"
+\tdynasty = 100009 #Dál gCais
+\trite = insular_celtic
+\tculture = "irish"
+\t941.1.1 = {
+\t\tbirth = "941.1.1"
+\t}
+\t1014.4.23 = {
+\t\tdeath = { death_reason = death_battle }
+\t}
+}
+910 = {
+\tname = "Branch" dynasty = 200 rite = catholic culture = french
+\t940.1.1 = { birth = "940.1.1" }
+}
+911 = {
+\tname = "Housless" dynasty = 999 rite = catholic culture = french
+\t940.1.1 = { birth = "940.1.1" }
+}
+912 = {
+\tname = "Older" dynasty = 300 religion = catholic culture = french
+\t940.1.1 = { birth = "940.1.1" }
+}
+"""
+TITLES_120 = """d_munster = {
+\t978.7.1 = { holder = 900 }
+}
+c_branch = {
+\t975.1.1 = { holder = 910 }
+}
+c_older = {
+\t975.1.1 = { holder = 912 }
+}
+k_housless = {
+\t950.1.1 = { holder = 911 }
+}
+"""
+HOUSES_120 = """house_british_isles_briain = {
+\tname = "dynn_Briain"
+\tdynasty = 100009
+\tmotto = dynn_Briain_motto
+}
+house_cadet_200 = { name = "dynn_cadet" dynasty = 200 parent_house = house_main_200 }
+house_main_200 = { name = "dynn_main" dynasty = 200 }
+house_first_300 = { name = "dynn_a" dynasty = 300 }
+house_second_300 = { name = "dynn_b" dynasty = 300 }
+"""
+
+
+@pytest.fixture
+def game120(tmp_path) -> Path:
+    g = tmp_path / "game120"
+    for sub, text in (("history/characters", CHARACTERS_120), ("history/titles", TITLES_120),
+                      ("common/dynasty_houses", HOUSES_120)):
+        (g / sub).mkdir(parents=True)
+        (g / sub / "00_test.txt").write_bytes(b"\xef\xbb\xbf" + text.encode("utf-8"))
+    (g / "common" / "landed_titles").mkdir(parents=True)
+    return g
+
+
+def test_on_1_20_shapes_the_faith_is_the_rite_and_the_house_comes_from_the_dynasty(game120):
+    p = M.pick_ruler(game120, "987.10.27")
+    assert (p.character, p.title, p.culture, p.religion, p.house, p.birth) == (
+        "900", "d_munster", "irish", "insular_celtic", "house_british_isles_briain", "941.1.1")
+    assert "the house of dynasty 100009" in p.why
+
+
+def test_a_dynastys_main_house_is_its_first_that_is_not_a_cadet_branch_else_its_first(game120):
+    p = M.pick_ruler(game120, "987.10.27", character="910")
+    assert p.house == "house_main_200" and "not a cadet branch" in p.why
+    p = M.pick_ruler(game120, "987.10.27", character="912")
+    assert p.house == "house_first_300" and "first of dynasty 300's 2 houses defined" in p.why
+    assert p.religion == "catholic"                       # an older game's `religion =` is still read
+
+
+def test_an_incomplete_ruler_is_never_picked(game120, tmp_path, capsys):
+    # on 960.1.1 the only living title holder is 911, whose dynasty has no house
+    with pytest.raises(M.RefModError, match=r"none of the 1 living title holders.*911 holding k_housless.*no house"):
+        M.pick_ruler(game120, "960.1.1")
+    out = tmp_path / "mods"
+    out.mkdir()
+    assert cli.main(["reference-mod", "--date", "960.1.1", "--game-dir", str(game120), "--out", str(out)]) == 1
+    assert "no house" in capsys.readouterr().err and not any(out.iterdir())
+
+
+def test_the_command_on_1_20_shapes_writes_brians_bookmark(game120, tmp_path):
+    out = tmp_path / "mods"
+    out.mkdir()
+    assert cli.main(["reference-mod", "--date", "987.10.27", "--game-dir", str(game120), "--out", str(out)]) == 0
+    t = bookmark_text(out).decode("utf-8-sig")
+    for line in ("history_id = 900", "title = d_munster", "culture = irish", "religion = insular_celtic",
+                 "dynasty_house = house_british_isles_briain", "birth = 941.1.1", "type = male"):
+        assert f"\t\t{line}\n" in t, line
+
+
 # --------------------------------------------------------------------------- the real game, where it is installed
 @pytest.mark.skipif(not os.environ.get("CK3SM_REAL_GAME_DIR"), reason="set CK3SM_REAL_GAME_DIR to the real game folder")
 def test_on_the_real_game_the_pick_for_987_10_27_is_alive_and_holding():
@@ -219,5 +319,5 @@ def test_on_the_real_game_the_pick_for_987_10_27_is_alive_and_holding():
     chars = H.characters(game / "history" / "characters")
     assert chars[p.character].alive_on(DATE)
     assert p.title in H.holders(H.titles(game / "history" / "titles"), DATE)[p.character]
-    assert all((p.culture, p.religion, p.house, p.birth))
+    assert all((p.culture, p.religion, p.house, p.birth)), (p.culture, p.religion, p.house, p.birth)
     print(f"\npicked {p.character} ({p.name}), {p.title}: {p.why}")
