@@ -1,15 +1,18 @@
 # Rules
 
-A migration is a list of rules. Each rule is one named, numbered change to the save, made because a newer game version reads the save differently from the version that wrote it. `ck3-save-migrator rules` lists them all, in the order they run, with the game versions each applies to. This page explains each one.
+An update is a list of rules. Each rule is one named, numbered change to the save, made because a newer game version reads the save differently from the version that wrote it. `ck3update rules` lists them all, in the order they run, with the game versions each applies to. This page explains each one. The rules ship as a pack of `patch.toml` files inside the package; [Writing a patch](writing-a-patch.md) explains the format.
 
 ## Choosing rules
 
 `migrate` takes `--rules`:
 
-- `--rules all` runs every default rule (R1 to R12). This is also what runs when `--rules` is not given.
-- `--rules R1,title-names` runs only the rules named, by id or by name, in any order. They always run in the order `ck3-save-migrator rules` lists.
+- `--rules all` runs every default rule (all but the new-map rules R14 to R17), less any turned off with `ck3update disable`. This is also what runs when `--rules` is not given.
+- `--rules R1,title-names` runs only the rules named, by id or by name, in any order. They always run in the order `ck3update rules` lists.
 - `--rules all,R15,R14,R16` combines the two: every default rule, plus the ones named. This is how the opt-in rules for the new-map regions are added.
+- `--rules all,-R21`, or `--rules -R21` alone, runs every default rule but R21. [Turning rules off](writing-a-patch.md#turning-rules-off) has the details, and how to turn a rule off for every later run.
 - An empty `--rules ""` is refused.
+
+`ck3update check <save>` says, for each rule, whether a save still needs it, without changing anything.
 
 Choosing R14, R15 or R16 brings R17 along by itself: those three plan what to copy, and R17 writes it.
 
@@ -34,7 +37,7 @@ ERROR: rule prerequisites missing: R14 needs R8 (add them, or use --rules all,R1
 
 ### When a rule has nothing to do
 
-A rule that cannot run (no reference save given, no game folder found, a prerequisite that did nothing) does nothing and says why in the rule's line of output and in the report. When no selected rule changes anything, for example because the save is already migrated, nothing is written and the tool says so; `--force` does not change that. Migrating a migrated save is therefore safe.
+A rule that cannot run (no reference save given, no game folder found, a prerequisite that did nothing) does nothing and says why in the rule's line of output and in the report. When no selected rule changes anything, for example because the save is already updated, nothing is written and the tool says so; `--force` does not change that. Updating an updated save is therefore safe.
 
 ## The rules
 
@@ -42,7 +45,7 @@ The "Since" column is the game version whose loader made the rule necessary. Whe
 
 ### Format rules (default)
 
-These remove what 1.20 rejects when it loads an older save, or move data to where 1.20 reads it. They need nothing but the save.
+These remove what 1.20 rejects when it loads an older save, or move data to where 1.20 reads it. All but R6 and R22 need nothing but the save.
 
 | Rule | Name | Since | What it changes |
 |---|---|---|---|
@@ -51,6 +54,9 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 | R3 | title-names | 1.8.1<v<=1.20.1.2 | moves each title's name, adjective, prefix and article into the block where 1.20 reads them (`title_name_data`) |
 | R4 | game-rule-blanks | 1.8.1<v<=1.20.1.2 | deletes empty `""` entries from the game-rule settings lists |
 | R5 | empty-keys | 1.8.1<v<=1.20.1.2 | deletes entries with an empty key (written as `=-5000.1.1`) |
+| R21 | dead-liege-cycles | 1.8.1<v<=1.20.1.2 | drops the recorded liege of dead characters whose liege chain loops (two rulers recorded as each other's liege); a ruler who died independent, recorded as their own liege, is left as the game writes them |
+| R20 | unrun-war-coordinators | 1.8.1<v<=1.20.1.2 | removes AI war coordinators that were never run (no stance, a supply limit of 0), the war plans that name them, and their entries in the characters' AI strategies; the game builds fresh ones. Left in, the AI can split an army forever to fit a supply limit of 0 |
+| R22 | impassable-provinces | 1.18.0 (map rework; exact major unverified) | clears what stands on provinces the current map makes impassable: the holding becomes the empty one a new game has, its soldiers and any siege go, armies step back to where they came from, and council tasks aim at a province of their ruler's own. Needs the game folder |
 | R6 | dead-titles-report | 1.18.0 (map rework; exact major unverified) | changes nothing; reports titles the current game no longer defines. Needs the game folder (`--game-dir`, or found automatically) |
 | R11 | empty-modifiers | 1.8.1<v<=1.20.1.2 | deletes modifiers with an empty name (`modifier=""`, `""` in modifier lists, `type=""`) |
 | R7 | version-bump | n/a | sets the save's version fields to the target version; runs last. `--portraits-version` also sets the portraits version |
@@ -83,4 +89,4 @@ A custom faith can be carried in two shapes, chosen with `--wos-shape`: as a fai
 
 ## Order
 
-The rules run in this order, which is the order `ck3-save-migrator rules` lists: R1, R2, R3, R4, R5, R6, R11, R8, R10, R9, R12, R15, R14, R16, R17, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the version bump runs last.
+The rules run in this order, which is the order `ck3update rules` lists: R1, R2, R3, R4, R5, R21, R20, R22, R6, R11, R8, R10, R9, R12, R15, R14, R16, R17, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the version bump runs last.

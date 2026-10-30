@@ -3,14 +3,14 @@
 `lint` reads a save and reports, without changing it:
 
 - **errors**: broken links the game reads by number, such as a faith or rite that points nowhere or a character without a rite;
-- **warnings**: links that point at nothing but that the migration does not write, which old saves often carry already;
+- **warnings**: links that point at nothing but that the update does not write, which old saves often carry already;
 - **what the game will log**: each kind of complaint the current game writes to its error log when it reads this save, with a predicted count and examples;
 - **unknown names**: setting names neither the game nor the mods know.
 
 `migrate` runs the same checks on every output by default, prints them, and writes them next to the output as `<name>.lint.json` (`--no-lint` skips them). The predictions depend on which mods will be active: by default the checks assume the Workshop mods the save itself lists (those installed); `--mods none` on `lint`, or `--lint-mods none` on `migrate`, predicts a load with no mods. Pointing the checks at the game folder (found automatically, or `--game-dir`) and a save from the current version (`--reference`) makes them more complete.
 
 ```bash
-ck3-save-migrator lint "My_Old_Campaign.migrated.ck3" --json "My_Old_Campaign.lint.json"
+ck3update lint "My_Old_Campaign.migrated.ck3" --json "My_Old_Campaign.lint.json"
 ```
 
 ## Options
@@ -46,7 +46,18 @@ Each finding is described in plain words first. For what the game will log, the 
 - rites point at faiths, characters and rites that exist;
 - faiths point at religions, rites, organizations, holy sites and titles that exist;
 - religions, holy sites, organizations and holy orders point at faiths, rites and titles that exist;
-- script variables point at faiths and religions that exist.
+- script variables point at faiths and religions that exist;
+- a ruler's primary title is their highest title;
+- title liege chains end (no title is its own liege, directly or through others);
+- vassal contracts bind living characters;
+- a vassal ruler has a contract with their liege;
+- nothing lives on a province the new map made impassable;
+- `meta_data` entries all have a key;
+- a title made while the game runs is registered in `dynamic_templates`;
+- a mercenary company's title exists, and names the company back;
+- army links resolve both ways;
+- AI war coordinators have been run, and AI war plans and strategies point at things that exist;
+- the titles a fresh game has exist in the save.
 
 ### Warnings
 
@@ -57,7 +68,16 @@ Each finding is described in plain words first. For what the game will log, the 
 - family links (spouses, children, real fathers) point at characters in the save;
 - title holders are characters in the save;
 - `title_name_data` follows `coat_of_arms_id` (a placement detail; the game logged nothing for it);
-- county culture ids exist.
+- county culture ids exist;
+- a courtier's employer is alive;
+- a baron has a contract with their county's holder;
+- a ruler's domain lists only titles they hold;
+- stored script scopes point at things that exist;
+- armies have soldiers.
+
+### Information
+
+- titles a fresh game has that the save lacks, but that the game creates by itself.
 
 ### What the game will log
 
@@ -82,8 +102,11 @@ Everything but the first two needs the game folder.
 
 | Code | Meaning |
 |---|---|
-| 0 | done, with no error from the migrator itself. The save can still carry thousands of predicted log lines; that is reported, not an error |
+| 0 | done, with no error from the updater itself. The save can still carry thousands of predicted log lines; that is reported, not an error |
 | 1 | bad input (a missing file, a save the tool cannot read, an unknown or refused rule selection) |
 | 2 | refused: the output exists, or would overwrite the input |
 | 3 | the written file failed verification; nothing was written |
 | 4 | the checks found an error. `migrate` still writes the output so it can be inspected |
+| 5 | a patch failed: `migrate` prints why and writes nothing; `check` exits 5 when a patch would fail |
+
+`soak` has exit codes of its own; see [soak](soak.md).

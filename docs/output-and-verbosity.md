@@ -25,12 +25,13 @@ Results go to standard output; warnings, errors and the extra detail go to stand
 | `lint` | the checks' verdict and findings | standard output |
 | `io` | reading and writing saves: what was written, sizes, hashes | standard output |
 | `timing` | time taken per rule | standard error |
+| `gamediff` | what a game update changed (the `gamediff` command) | standard output |
 
 Warnings and errors go to standard error whatever part they belong to.
 
 ## Where results go
 
-- **The migrated save**: `-o`, or `<name>.migrated.ck3` beside the input. With two custom-faith shapes, two files: `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`. `--dry-run` writes nothing.
+- **The updated save**: `-o`, or `<name>.migrated.ck3` beside the input. With two custom-faith shapes, two files: `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`. `--dry-run` writes nothing.
 - **The checks**: printed, and written next to each output with the output's `.ck3` replaced by `.lint.json` (`My_Old_Campaign.migrated.lint.json`). `lint` itself writes them only with `--json`.
 - **The report**: only with `--report`. With two outputs, one report per output, named the same way (`My_Old_Campaign__wos-faith.report.json`). See [Reports](reports.md).
 - **The exit code**: see [Checking a save](lint.md#exit-codes).
