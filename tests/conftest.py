@@ -16,10 +16,12 @@ def hermetic_discovery(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def hermetic_config(monkeypatch, tmp_path):
-    """No test reads or writes the player's own config file (rules turned off with `disable`): each test gets an
-    empty one of its own, also inherited by subprocesses."""
-    monkeypatch.setenv("CK3SM_CONFIG", str(tmp_path / "ck3sm-config" / "config.toml"))
+def hermetic_config(monkeypatch, tmp_path_factory):
+    """No test reads or writes the player's own config file (rules turned off with `disable`, trusted packs) or
+    packs folder (beside the config): each test gets an empty one of its own, also inherited by subprocesses. It
+    is a temporary folder apart from the test's own ``tmp_path``, so a test that checks what a command wrote there
+    does not see the packs folder the commands create."""
+    monkeypatch.setenv("CK3SM_CONFIG", str(tmp_path_factory.mktemp("ck3sm") / "ck3sm-config" / "config.toml"))
 
 
 @pytest.fixture

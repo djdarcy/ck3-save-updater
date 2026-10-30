@@ -26,7 +26,8 @@ from dazzle_loglib import (
 from ._version import __app_name__, get_display_version
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
-from .config import config_path, disabled_ids, write_disabled
+from .config import config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
+from .userpacks import ensure_packs_dir, find_user_packs, runs_what, user_rules
 from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
 from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
@@ -226,6 +227,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "game_installs": [{"source": g.source, "path": str(g.path), "version": g.version}
                               for g in ctx.state.get("game_installs", [])],
             "save_versions": ctx.state.get("save_versions"),
+            "user_packs": ctx.state.get("user_packs", []),
             "reference": str(ctx.reference) if ctx.reference else None, "wos_shape": ctx.wos_shape,
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
             "lost": [x for r in results for x in r.extra.get("lost", [])],
@@ -292,6 +294,21 @@ def read_patch_vars(pairs: list[str], file: str | None) -> dict:
     return out
 
 
+def load_user_packs(allow_run: bool):
+    """The player's own packs (userpacks.py): create the standard folder on the first run, find the packs, say
+    which are skipped and why, and return (their rules, the packs found). A skipped pack does not change the exit
+    code."""
+    ensure_packs_dir()
+    found = find_user_packs()
+    rules, skipped, skipped_off = user_rules(found, allow_run=allow_run)
+    for line in skipped:
+        say(WARNING, f"WARNING: {line}", "rules", err=True)
+    if skipped_off:
+        say(MINIMAL, f"skipped by your config: {', '.join(skipped_off)} (your packs' patches; `ck3update enable "
+                     "<id>` turns one back on)", "rules")
+    return rules, found.packs
+
+
 def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
     # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
@@ -301,7 +318,10 @@ def cmd_migrate(args) -> int:
     if args.bump_version:
         say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
                      "default rules", "rules", err=True)
-    # patch packs from folders run after the selected rules, in the order given (their default patches)
+    # the player's own packs (the standard folder, then pack_dirs) run after the selected rules
+    user_rules, user_packs = load_user_packs(args.allow_run)
+    rules = rules + user_rules
+    # patch packs from folders run after those, in the order given (their default patches)
     for folder in args.pack or []:
         rules = rules + [r for r in rules_from_pack(folder, allow_run=args.allow_run) if r.default]
     patch_vars = read_patch_vars(args.var or [], args.vars)
@@ -339,6 +359,7 @@ def cmd_migrate(args) -> int:
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
     ctx.state["game_installs"] = installs                         # the report lists them
     ctx.state["save_versions"] = save_versions(save.meta)
+    ctx.state["user_packs"] = [up.as_dict() for up in user_packs]           # the report lists them
     ctx.state["patch_vars"] = patch_vars
     known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
@@ -590,6 +611,11 @@ def cmd_check(args) -> int:
             rows.append((r.id, r.name, *verdict(g, p, ctx)))
         else:
             rows.append((r.id, r.name, "unknown", "a Python rule: only running it would tell"))
+    # the player's own packs, read only like --pack folders (no code of theirs is imported or run)
+    ensure_packs_dir()
+    off = set(disabled_ids())
+    for up in find_user_packs().packs:
+        rows += [(p.id, p.name, *verdict(g, p, ctx)) for p in up.pack.ordered() if p.default and p.id not in off]
     for folder in args.pack or []:
         pack = read_pack(folder)                  # read only: no code of the pack is imported or run
         rows += [(p.id, p.name, *verdict(g, p, ctx)) for p in pack.ordered() if p.default]
@@ -606,8 +632,19 @@ def cmd_check(args) -> int:
     return 0
 
 
+def find_rule_or_user_patch(token: str):
+    """A built-in rule, else a patch of the player's own packs, by id or name (any case); refused when neither."""
+    t = token.strip().lower()
+    if not any(t in (r.id.lower(), r.name.lower()) for r in REGISTRY):
+        for up in find_user_packs().packs:
+            p = next((p for p in up.pack.ordered() if t in (p.id.lower(), p.name.lower())), None)
+            if p is not None:
+                return p
+    return find_rule(token)
+
+
 def cmd_disable(args) -> int:
-    rule = find_rule(args.rule)
+    rule = find_rule_or_user_patch(args.rule)
     ids = disabled_ids()
     path = write_disabled(ids + [rule.id])
     note = "was already turned off" if rule.id in ids else "is turned off"
@@ -616,7 +653,7 @@ def cmd_disable(args) -> int:
 
 
 def cmd_enable(args) -> int:
-    rule = find_rule(args.rule)
+    rule = find_rule_or_user_patch(args.rule)
     ids = disabled_ids()
     if rule.id not in ids:
         say(MINIMAL, f"{rule.id} ({rule.name}) was not turned off; nothing to change", "rules")
@@ -629,6 +666,7 @@ def cmd_enable(args) -> int:
 def cmd_disabled(args) -> int:
     ids = disabled_ids()
     names = {r.id: r.name for r in REGISTRY}
+    names.update({p.id: p.name for up in find_user_packs().packs for p in up.pack.ordered()})
     for i in ids:
         say(MINIMAL, f"{i:4} {names.get(i, '(not a known rule)')}", "rules")
     if not ids:
@@ -641,6 +679,63 @@ def cmd_rules(args) -> int:
     for r in REGISTRY:
         flag = "" if r.default else "  (opt-in)"
         say(MINIMAL, f"{r.id:3} {r.name:22} since {r.since:28} {r.description}{flag}", "rules")
+    ensure_packs_dir()
+    for up in find_user_packs().packs:
+        for p in up.pack.ordered():
+            flag = "" if p.default else ", opt-in"
+            say(MINIMAL, f"{p.id:3} {p.name:22} since {p.since:28} {p.title}  (your pack {up.id}: {up.state}{flag})",
+                "rules")
+    return 0
+
+
+def cmd_packs(args) -> int:
+    """Each of the player's own packs found: folder, id, kind and whether it runs."""
+    ensure_packs_dir()
+    found = find_user_packs()
+    for base, which, exists in found.scanned:
+        say(MINIMAL, f"folder: {base}  ({which}{'' if exists else ', not found'})", "rules")
+    width = max((len(up.id) for up in found.packs), default=0)
+    for up in found.packs:
+        say(MINIMAL, f"  {up.id:{width}}  {up.kind:11}  {up.state:21}  {up.folder}", "rules")
+    for p in found.not_packs:
+        say(MINIMAL, f"  (not a pack: no pack.toml)  {p}", "rules")
+    if not found.packs:
+        say(MINIMAL, "no packs of your own yet: see the README in the folder above", "rules")
+    return 0
+
+
+def _user_pack(pack_id: str):
+    found = find_user_packs()
+    up = next((u for u in found.packs if u.id == pack_id), None)
+    if up is None:
+        known = ", ".join(u.id for u in found.packs) or "none"
+        raise ValueError(f"no pack of yours has the id {pack_id!r} (found: {known}; `ck3update packs` lists them)")
+    return up
+
+
+def cmd_trust(args) -> int:
+    ensure_packs_dir()
+    up = _user_pack(args.pack)
+    trusted = trusted_packs()
+    path = write_trusted({**trusted, up.id: up.hash})
+    if up.kind == "declarative":
+        say(MINIMAL, f"{up.id} runs no code (edits only); it runs without trust. Recorded anyway (config: {path})",
+            "rules")
+        return 0
+    say(MINIMAL, f"{up.id} ({up.folder}) is trusted as its files are now (config: {path}). It runs:", "rules")
+    for line in runs_what(up):
+        say(MINIMAL, f"  {line}", "rules")
+    say(MINIMAL, "If any file of the pack changes, it stops running until you trust it again.", "rules")
+    return 0
+
+
+def cmd_untrust(args) -> int:
+    trusted = trusted_packs()
+    if args.pack not in trusted:
+        say(MINIMAL, f"{args.pack} was not trusted; nothing to change", "rules")
+        return 0
+    path = write_trusted({k: v for k, v in trusted.items() if k != args.pack})
+    say(MINIMAL, f"{args.pack} is no longer trusted: its code patches will not run (config: {path})", "rules")
     return 0
 
 
@@ -845,6 +940,19 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("disabled", help="list the rules turned off, and where the config file is "
                                         "($CK3SM_CONFIG overrides it)")
     p.set_defaults(func=cmd_disabled)
+
+    p = sub.add_parser("packs", help="list your own packs (the packs folder beside the config file, and pack_dirs): "
+                                     "folder, id, kind and whether each runs")
+    p.set_defaults(func=cmd_packs)
+
+    p = sub.add_parser("trust", help="let one of your packs that runs code run on every update, as its files are "
+                                     "now; prints what it runs")
+    p.add_argument("pack", help="the pack's id (its pack.toml's id; `ck3update packs` lists them)")
+    p.set_defaults(func=cmd_trust)
+
+    p = sub.add_parser("untrust", help="take back the trust given to one of your packs")
+    p.add_argument("pack", help="the pack's id")
+    p.set_defaults(func=cmd_untrust)
 
     p = sub.add_parser("tools", help="optional add-on: list and run the standalone scripts as they are "
                                      "(needs the [tools] extra; see docs/tools.md)")
