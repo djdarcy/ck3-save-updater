@@ -29,6 +29,7 @@ from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop
 from .config import config_path, disabled_ids, write_disabled
 from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
+from .refmod import make_bookmark, write_mod
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -643,6 +644,18 @@ def cmd_tools(args) -> int:
         return 2
 
 
+def cmd_reference_mod(args) -> int:
+    b = make_bookmark(date=args.date, character=args.character, title=args.title, culture=args.culture,
+                      religion=args.religion, house=args.house, birth=args.birth, female=args.female,
+                      name=args.name or "", government=args.government)
+    for p in write_mod(b, Path(args.out)):
+        say(MINIMAL, f"wrote: {p}", "io")
+    say(MINIMAL, f"next: enable '{b.folder}' in the game's launcher, start a new game from the bookmark "
+                 f"'{b.date} Reference (ck3update)' and save at once (do not unpause)", "io")
+    say(MINIMAL, "then: pass that save to migrate as --reference (see docs/reference-save.md)", "io")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=COMMAND, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
     parser.add_argument("--version", action="version", version=f"{__app_name__} {get_display_version()}")
@@ -784,6 +797,23 @@ def build_parser() -> argparse.ArgumentParser:
     v = verbs.add_parser("path", help="the script's full path")
     v.add_argument("name")
     p.set_defaults(func=cmd_tools)
+
+    p = sub.add_parser("reference-mod", help="write a bookmark mod that starts a 1.20 game on your campaign's "
+                                             "date, to make a --reference save from (docs/reference-save.md)")
+    p.add_argument("--date", required=True, help="the campaign's date, YYYY.M.D (e.g. 987.10.27)")
+    p.add_argument("--character", required=True,
+                   help="history id of a ruler alive on that date (game/history/characters)")
+    p.add_argument("--title", required=True, help="a title that ruler holds on that date (game/history/titles)")
+    p.add_argument("--culture", required=True, help="the ruler's culture key (e.g. irish)")
+    p.add_argument("--religion", required=True, help="the ruler's faith key (e.g. insular_celtic)")
+    p.add_argument("--house", required=True, help="the ruler's dynasty house key (e.g. house_british_isles_briain)")
+    p.add_argument("--birth", required=True, help="the ruler's birth date, YYYY.M.D")
+    p.add_argument("--female", action="store_true", help="the ruler is a woman")
+    p.add_argument("--name", help="the name shown on the bookmark screen (default: 'Character <history id>')")
+    p.add_argument("--government", default="feudal_government",
+                   help="the ruler's government key (default: feudal_government)")
+    p.add_argument("--out", required=True, help="the folder to write the mod into (e.g. the game's mod folder)")
+    p.set_defaults(func=cmd_reference_mod)
     # the verbosity flags before and after the sub-command, one chain (see add_verbosity_flags)
     add_verbosity_flags(parser, top=True)
     for sp in sub.choices.values():
