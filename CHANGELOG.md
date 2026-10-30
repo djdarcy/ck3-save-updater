@@ -4,7 +4,7 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.16] - 2026-10-30
 
 ### Changed
 - Renamed for PyPI: the project installs as `ck3-save-updater` (`pip install ck3-save-updater`) and its command is `ck3update`. The old command, `ck3-save-migrator`, still works as a second name for now. The settings folder keeps its old name (`%APPDATA%\ck3-save-migrator`, `~/.config/ck3-save-migrator`), so an existing config keeps working. The Python package inside is still `ck3_save_migrator`, and the GitHub repository keeps its name.
@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - Performance notes for large updated saves: two vanilla top-bar alerts that each cost about half a second per check, and portraits recalculated every 30 frames, with the workarounds for both. A packaged performance mod is planned.
 - A short list of mods known to misbehave in 1.20 (Better Barbershop).
+- savediff's reference graph, a diagnostic library inside the package (not used when updating a save): which record points at which by id, with checks for broken references, liege cycles, duplicate ids, a primary title outranked by another title of the same ruler, and title keys that break a naming rule, plus a way to compare one record's links across two saves.
+- Diagnostic scripts used to find the causes of the stalls in large updated saves (per-thread CPU timing, stack sampling inside a stall, reading which top-bar alert the game is checking) and to compare which fields a save's characters and other records carry against a save the game itself wrote.
 
 ## [0.3.15] - 2026-10-28
 
@@ -233,14 +235,15 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.15...HEAD
-[0.3.15]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.14...v0.3.15
-[0.3.14]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.13...v0.3.14
-[0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.12...v0.3.13
-[0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.11...v0.3.12
-[0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.10...v0.3.11
-[0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.9...v0.3.10
-[0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...v0.3.9
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.16...HEAD
+[0.3.16]: https://github.com/djdarcy/ck3-save-migrator/compare/ea04cea...v0.3.16
+[0.3.15]: https://github.com/djdarcy/ck3-save-migrator/compare/c3ad245...ea04cea
+[0.3.14]: https://github.com/djdarcy/ck3-save-migrator/compare/dd2e901...c3ad245
+[0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/08dd941...dd2e901
+[0.3.12]: https://github.com/djdarcy/ck3-save-migrator/compare/1a7a626...08dd941
+[0.3.11]: https://github.com/djdarcy/ck3-save-migrator/compare/1c8eda4...1a7a626
+[0.3.10]: https://github.com/djdarcy/ck3-save-migrator/compare/8af64dd...1c8eda4
+[0.3.9]: https://github.com/djdarcy/ck3-save-migrator/compare/174e82f...8af64dd
 [0.3.8]: https://github.com/djdarcy/ck3-save-migrator/compare/b8fa75b...174e82f
 [0.3.7]: https://github.com/djdarcy/ck3-save-migrator/compare/1564d12...b8fa75b
 [0.3.6]: https://github.com/djdarcy/ck3-save-migrator/compare/1d61473...1564d12
