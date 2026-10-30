@@ -25,6 +25,8 @@ class RuleContext:
     old_game_dir: Path | None = None        # R15: the save's own version's 'game' folder (its map, for successors)
     expansion_orders: bool = True           # R14: add the target's new holy orders even where they lease the
                                             # save's own land (expansion content the engine does not add itself)
+    # the installed folders of the mods the save lists, in its order (R23 reads their localization; a later one wins)
+    mod_dirs: list[Path] = field(default_factory=list)
     state: dict = field(default_factory=dict)  # facts one rule leaves for a later one (R8 -> R9/R10/R12)
 
 
