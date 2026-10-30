@@ -5,7 +5,7 @@ Crusader Kings III 1.20 reworked the map. It added about 3,600 provinces and 5,7
 ## Turning it on
 
 ```bash
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 \
+ck3update migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 \
     --reference "A_1_20_Game_At_My_Campaign_Date.ck3" --old-game-dir "Old_CK3/game" \
     -o "My_Old_Campaign.migrated.ck3" --report "My_Old_Campaign.report.json"
 ```
@@ -52,7 +52,7 @@ R15 settles each title your save has that 1.20 no longer defines, and each baron
 
 A match is clean when it has exactly one successor, that successor covers the same land under the 1.20 map, no other title matches the same successor, and the save does not already have that key. Where the match is clean, your title takes the 1.20 name and stays with its holder. Otherwise (1.20 split or redrew the land, the land is wasteland, or there is no successor) your title is removed with every link to it, and the 1.20 titles for that land come in through R14 with their rulers. A county's record (its culture, faith and development) follows: a renamed county keeps its record under the new name, and a removed county's record is dropped.
 
-A save that is already at the current version leaves R15 nothing to do, so migrating a migrated save does not undo the first migration.
+A save that is already at the current version leaves R15 nothing to do, so updating an updated save does not undo the first update.
 
 ## Baronies in redrawn counties
 

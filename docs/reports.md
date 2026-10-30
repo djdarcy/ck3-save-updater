@@ -1,9 +1,9 @@
 # Reports
 
-`migrate --report <file.json>` writes a JSON account of the migration: which rules ran, what each one changed, what was lost and why, and what the checks found. It is the full record; the printed output is a summary of it. The report is the same at every verbosity level.
+`migrate --report <file.json>` writes a JSON account of the update: which rules ran, what each one changed, what was lost and why, and what the checks found. It is the full record; the printed output is a summary of it. The report is the same at every verbosity level.
 
 ```bash
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --reference "A_New_1_20_Game.ck3" --report "My_Old_Campaign.report.json"
+ck3update migrate "My_Old_Campaign.ck3" --reference "A_New_1_20_Game.ck3" --report "My_Old_Campaign.report.json"
 ```
 
 When a custom faith gives two outputs, each gets its own report: `My_Old_Campaign__wos-faith.report.json` and `My_Old_Campaign__wos-rite.report.json`. With `--dry-run` the report is still written, with `output` set to `null`. When no rule changes anything, nothing is written, the report included.
@@ -28,12 +28,12 @@ When a custom faith gives two outputs, each gets its own report: `My_Old_Campaig
 
 | Field | What it holds |
 |---|---|
-| `id`, `name`, `since`, `description` | as `ck3-save-migrator rules` lists them |
+| `id`, `name`, `since`, `description` | as `ck3update rules` lists them |
 | `matched` | how many places the rule found to look at |
 | `edited` | how many edits it made |
 | `extra` | the rule's own details, when it has any. A rule that did nothing says why under `skipped` |
 
-What `extra` holds depends on the rule. A few examples: R2 lists values it left unchanged and why; R3 names each title whose names it moved; R7 gives the version fields before and after. For the new-map rules, R14 counts the titles and provinces planned; R15 has a `table` with one row per title it settled (its key, kind, class, successors, holder, reason and outcome in words); R16 counts rulers, courtiers and relatives and lists displaced rulers; R17 lists everything written, every barony re-parented, settled or left to the game, the empty provinces filled, the expansion orders and leases added, and the links dropped. See [New-map regions](new-map-regions.md).
+What `extra` holds depends on the rule. The rules written as plain `patch.toml` edits (R1, R4, R5, R7, R11) list their `edits`: for each, the operation, the paths, how many places it found and edited, and why it was skipped when it was (R7's portraits version, without `--portraits-version`). A few examples from the others: R2 lists values it left unchanged and why; R3 names each title whose names it moved. For the new-map rules, R14 counts the titles and provinces planned; R15 has a `table` with one row per title it settled (its key, kind, class, successors, holder, reason and outcome in words); R16 counts rulers, courtiers and relatives and lists displaced rulers; R17 lists everything written, every barony re-parented, settled or left to the game, the empty provinces filled, the expansion orders and leases added, and the links dropped. See [New-map regions](new-map-regions.md).
 
 ### The checks
 
@@ -45,11 +45,11 @@ Built from the project's test fixtures (a tiny synthetic 1.8.1 save, no referenc
 
 ```json
 {
-  "tool": "ck3-save-migrator 0.3.4",
+  "tool": "ck3-save-updater 0.3.15",
   "input": ".../My_Old_Campaign.ck3",
   "input_sha256": "77d22541a123ba0cb8e5ec12dd04a9f93d3900a739866a32bac01770d3630ab7",
   "output": ".../My_Old_Campaign.migrated.ck3",
-  "output_sha256": "2a64545504750ad921deeba4c9c16b2fab45c4c3da66217e00ded3a49e61cea7",
+  "output_sha256": "...",
   "dry_run": false,
   "game_dir": null,
   "reference": null,
@@ -63,7 +63,13 @@ Built from the project's test fixtures (a tiny synthetic 1.8.1 save, no referenc
       "since": "1.8.1<v<=1.20.1.2",
       "description": "delete converging={} in opinions temporary_opinion blocks",
       "matched": 2,
-      "edited": 2
+      "edited": 2,
+      "extra": {
+        "edits": [
+          {"edit": 1, "op": "delete_key", "paths": ["opinions/active_opinions/*/temporary_opinion"],
+           "found": 2, "edits": 2, "blocks": 2, "blocks_hit": 2}
+        ]
+      }
     },
     {
       "id": "R8",
@@ -84,8 +90,12 @@ Built from the project's test fixtures (a tiny synthetic 1.8.1 save, no referenc
       "matched": 2,
       "edited": 2,
       "extra": {
-        "before": {"save_game_version": "8", "version": "\"1.8.1\""},
-        "after": {"version": "\"1.20.1.2\"", "save_game_version": "18"}
+        "edits": [
+          {"edit": 1, "op": "set", "paths": ["meta_data"], "found": 1, "edits": 1, "blocks": 1, "blocks_hit": 1},
+          {"edit": 2, "op": "set", "paths": ["meta_data"], "found": 1, "edits": 1},
+          {"edit": 3, "op": "set", "paths": ["meta_data"], "found": 0, "edits": 0,
+           "skipped": "no value for @@portraits_version@@"}
+        ]
       }
     }
   ],
@@ -110,4 +120,4 @@ Built from the project's test fixtures (a tiny synthetic 1.8.1 save, no referenc
 }
 ```
 
-The real file has one entry per rule that ran (twelve here), the second warning, and every skipped check; `input` and `output` are full paths.
+The real file has one entry per rule that ran (fifteen here), the second warning, and every skipped check; `input` and `output` are full paths, and `output_sha256` is the written file's hash.
