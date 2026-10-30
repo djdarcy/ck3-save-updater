@@ -10,18 +10,22 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
 
 ## Steps
 
-1. **Find your campaign's date**: the in-game date of the save you will update (shown when you pick it on the game's load screen). The save also records it as `meta_date` in its metadata block, which is plain text at the start of the `.ck3` file.
-2. **Choose a ruler for the bookmark.** A bookmark has to name a playable character: someone alive on your date who holds a title then. Look in the game's own files, inside the game's `game` folder: `history/characters` gives each historical character's history id, birth date, culture, faith and dynasty house; `history/titles` gives who holds each title from which date. Pick a ruler whose title is theirs on your date. Their government must suit that title (most are `feudal_government`; pass `--government` otherwise).
-3. **Write the mod** into the game's `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`):
+1. **Write the mod** into the game's `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`), giving your campaign's save so the date is read from it:
 
    ```bash
-   ck3update reference-mod --date <your date> --character <history id> --title <title key> --culture <culture key> --religion <faith key> --house <dynasty house key> --birth <birth date> --name "<the ruler's name>" --out "<the game's mod folder>"
+   ck3update reference-mod --save "My_Old_Campaign.ck3" --out "<the game's mod folder>"
    ```
 
-   It writes a folder `zz_ref_<date>` (holding `descriptor.mod`, the bookmark and its English text) and, beside it, `zz_ref_<date>.mod`, which the launcher reads. It refuses to overwrite either if it already exists. Add `--female` for a female ruler.
-4. **Enable the mod** in the game's launcher, in a playset with nothing else that changes bookmarks.
-5. **Start a new game** from the bookmark named "`<date>` Reference (ck3update)", with any character, and **save at once**, before unpausing, so the world is exactly as the game starts it on that date.
-6. **Pass that save** to `migrate`:
+   Or give the date yourself with `--date <y.m.d>` (the in-game date shown on the load screen; the save records it as `meta_date`).
+
+   A bookmark has to name a playable character: someone alive on your date who holds a title then. The tool picks one from the game's own history files (`history/characters` and `history/titles` in the game folder, found as `inspect` finds it, or `--game-dir`). Only a ruler whose culture, faith, dynasty house and birth date are all found is picked; among those it prefers an adult who holds a kingdom or a duchy; among equals, the first title key, so the pick is the same every run. Culture, faith and house are read as they stand on your date. The faith is the character's `rite` (as 1.20's history files write it; older games' `religion` is read too). Most characters name a numeric `dynasty` rather than a house, so the house is that dynasty's house from `common/dynasty_houses` (its only one; else its first that is not marked a cadet branch; else its first defined). The government is the title's own from its history, else `feudal_government`. It prints who was picked and why, and how the house was found. When no living title holder has all four facts, it refuses and says what the first one lacked, rather than write an incomplete bookmark.
+
+   Any of `--character`, `--title`, `--culture`, `--religion`, `--house`, `--birth`, `--name`, `--government` and `--female` overrides what the history says; with `--character` alone, the tool checks that this character is alive and holds a title on the date, and reads the rest. With every one of the first six given, the game folder is not needed.
+
+   It writes a folder `zz_ref_<date>` (holding `descriptor.mod`, the bookmark and its English text; the bookmark and the text are UTF-8 with a byte-order mark, as the game expects) and, beside it, `zz_ref_<date>.mod`, which the launcher reads. It refuses to overwrite either if it already exists.
+2. **Enable the mod** in the game's launcher, in a playset with nothing else that changes bookmarks.
+3. **Start a new game** from the bookmark named "`<date>` Reference (ck3update)", with any character, and **save at once**, before unpausing, so the world is exactly as the game starts it on that date.
+4. **Pass that save** to `migrate`:
 
    ```bash
    ck3update migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 --reference "My_1_20_Reference.ck3" --old-game-dir "Old_CK3/game"
@@ -29,9 +33,9 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
 
 Disable the mod again for your normal games; it only adds a bookmark.
 
-## Example: 27 October 987
+## Example: 27 October 987, choosing the ruler by hand
 
-Brian Boruma (history id 900) holds the duchy of Munster (`d_munster`) from 978.7.1, and the Irish titles are feudal from 935.1.1 (the game's `history/titles/k_ireland.txt`). He was born on 941.1.1, is Irish, of the insular Celtic faith and of the house of Briain:
+This is how the first reference was made, before the tool picked the ruler itself, and how to choose a particular ruler. Brian Boruma (history id 900) holds the duchy of Munster (`d_munster`) from 978.7.1, and the Irish titles are feudal from 935.1.1 (the game's `history/titles/k_ireland.txt`). He was born on 941.1.1, is Irish, of the insular Celtic faith and of the house of Briain:
 
 ```bash
 ck3update reference-mod --date 987.10.27 --character 900 --title d_munster --culture irish --religion insular_celtic --house house_british_isles_briain --birth 941.1.1 --name "Brian Boruma" --out "<the game's mod folder>"
