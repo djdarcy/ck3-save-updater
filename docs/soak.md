@@ -13,7 +13,7 @@ ck3update soak "My_Old_Campaign.migrated.ck3" --minutes 30 --speed 3 --mods mod/
 
 | Option | What it does |
 |---|---|
-| `--game <folder>` | the CK3 install folder, the one holding `binaries` and `game` (default: found from `CK3_GAME_DIR` or the usual Steam paths) |
+| `--game <folder>` | the CK3 install folder, the one holding `binaries` and `game` (default: the newest install found, as `ck3update inspect` lists them) |
 | `--docs <folder>` | the game's documents folder (default: `Documents\Paradox Interactive\Crusader Kings III`; give it if your Documents folder is elsewhere, for example in OneDrive) |
 | `--minutes N` | how long the game runs once it is in game (default 10) |
 | `--exit-after SECONDS` | the same in seconds; overrides `--minutes` |
