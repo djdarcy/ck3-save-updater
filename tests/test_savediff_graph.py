@@ -12,6 +12,7 @@ from ck3_save_migrator._vendor.savediff import graph as G
 from ck3_save_migrator._vendor.savediff import text as T
 
 NONE = 4294967295
+NONE64 = 18446744073709551615        # the same "no id", written 64 bits wide by some fields
 
 
 # --------------------------------------------------------------------------- building gamestates
@@ -139,6 +140,26 @@ def test_a_company_whose_title_does_not_exist_is_dangling_and_none_is_legal():
     assert out["counted"]["none"] == 1 and out["counted"]["judged"] == 2
 
 
+def test_the_64_bit_none_is_legal_too():
+    g = save(titles=title(10, "x_mc_5") + title(11, "c_b", f"de_facto_liege={NONE64}"),
+             companies=entry(5, "title=10") + entry(7, f"title={NONE64}") + entry(8, f"title={NONE}"))
+    out = G.dangling(G.build(g))
+    assert out["rows"] == [] and out["counted"]["none"] == 3 and out["counted"]["judged"] == 1     # 5's title
+
+
+def test_the_64_bit_none_is_no_parent_and_is_not_followed():
+    gr = G.build(save(titles=title(11, "c_b", f"de_facto_liege={NONE64}"), companies=entry(7, f"title={NONE64}")))
+    assert G.cycles(gr, "de_facto_liege")["counted"]["with_parent"] == 0
+    j = G.join(gr, "mercenary", 7, 2)
+    assert list(j["nodes"]) == [("mercenary", 7)] and j["edges"] == []
+
+
+def test_both_nones_are_none_and_savediff_defines_them_itself():
+    from ck3_save_migrator._vendor import savediff as SD
+    assert SD.NONES == {4294967295, 18446744073709551615} and SD.NONE64 == 18446744073709551615
+    assert SD.is_none(NONE) and SD.is_none(NONE64) and not SD.is_none(5)
+
+
 def test_a_company_title_must_be_keyed_x_mc_and_its_own_id():
     g = save(titles=title(10, "x_mc_1821") + title(11, "x_mc_6") + title(12, "x_mc_77"),
              companies=entry(5, "title=10") + entry(6, "title=11") + entry(7, "title=99") + entry(8, "size=1")
@@ -169,10 +190,22 @@ def test_an_id_written_twice_in_one_space_and_a_title_key_written_twice():
              titles=title(10, "c_a") + title(11, '"c_a"') + title(12, "c_b"),
              extra="dead_unprunable={\n" + entry(2) + "}\n")
     out = G.duplicates(g)
-    assert {"what": "id", "space": "character", "id": 1, "sections": ["living", "living"]} in out["rows"]
     assert {"what": "id", "space": "character", "id": 2, "sections": ["living", "dead_unprunable"]} in out["rows"]
     assert {"what": "key", "space": "title", "value": "c_a", "ids": [10, 11]} in out["rows"]
-    assert len(out["rows"]) == 3 and out["counted"]["character"] == 4 and out["counted"]["title key"] == 3
+    assert len(out["rows"]) == 2 and out["counted"]["character"] == 4 and out["counted"]["title key"] == 3
+    # id 1, twice under one section name, is a repeat: counted, not listed
+    assert out["counted"]["character repeats"] == 1
+
+
+def test_1_20s_double_written_dead_unprunable_is_a_repeat_not_a_duplicate():
+    """1.20 writes every dead_unprunable entry twice; only an id under two different section names is listed."""
+    dead = entry(3) + entry(4) + entry(2) + entry(3) + entry(4) + entry(2)
+    g = save(chars=entry(1) + entry(2), extra="dead_unprunable={\n" + dead + "}\n"
+             + "characters={\n\tdead_prunable={\n" + entry(5) + entry(5) + "\t}\n}\n")
+    out = G.duplicates(g)
+    assert out["rows"] == [{"what": "id", "space": "character", "id": 2,
+                            "sections": ["living", "dead_unprunable", "dead_unprunable"]}]
+    assert out["counted"]["character"] == 10 and out["counted"]["character repeats"] == 3     # 3, 4 and 5
 
 
 def test_a_repeated_id_keeps_its_first_entry_in_the_graph():
@@ -259,6 +292,7 @@ def test_join_diff_sees_a_reordered_domain_because_the_first_title_is_the_primar
 def test_the_none_id_translates_to_itself_so_two_none_links_agree():
     tr = G.offset_translator({"title": 1000})
     assert tr("title", NONE) == NONE and tr("title", 5) == 1005 and tr("character", 5) == 5
+    assert tr("title", NONE64) == NONE64
     a = G.join(G.build(save(companies=entry(5, f"county={NONE}"))), "mercenary", 5, 1)
     b = G.join(G.build(save(companies=entry(5, f"county={NONE}"))), "mercenary", 5, 1)
     assert G.join_diff(a, b, tr)["rows"] == []
