@@ -126,6 +126,28 @@ def test_without_steam_a_library_at_a_drives_root_is_found_then_nothing(tmp_path
     assert find(tmp_path, drives=[str(tmp_path / "empty_drive")]) == []
 
 
+@pytest.mark.parametrize("layout", [("Content",), (), ("Content", "game"), ("game",)])
+def test_an_xbox_app_install_on_a_drive_marked_gamingroot_is_found(tmp_path, layout):
+    drive = tmp_path / "X_drive"
+    game = make_game_dir(drive.joinpath("XboxGames", "Crusader Kings III", *layout))
+    (drive / ".GamingRoot").write_bytes(b"RGBX\x01\x00\x00\x00")
+    found = find(tmp_path, drives=[str(drive)])
+    assert [(g.path, g.source) for g in found] == [(game, "Xbox app (Game Pass)")]
+
+
+def test_without_gamingroot_the_xbox_folder_is_not_looked_at(tmp_path):
+    drive = tmp_path / "X_drive"
+    make_game_dir(drive / "XboxGames" / "Crusader Kings III" / "Content")
+    assert find(tmp_path, drives=[str(drive)]) == []
+
+
+def test_a_wrong_xbox_guess_finds_nothing(tmp_path):
+    drive = tmp_path / "X_drive"
+    (drive / "XboxGames" / "Crusader Kings III" / "Content").mkdir(parents=True)     # not a game folder
+    (drive / ".GamingRoot").write_bytes(b"")
+    assert find(tmp_path, drives=[str(drive)]) == []
+
+
 def test_the_current_folder_or_its_game_child(tmp_path):
     cwd = tmp_path / "cwd"
     game = make_game_dir(cwd / "game")
