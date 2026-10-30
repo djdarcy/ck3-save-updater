@@ -1,4 +1,5 @@
-"""Command-line entry point for ck3-save-migrator (the `ck3-save-migrator` command).
+"""Command-line entry point for ck3-save-updater: the `ck3update` command (`ck3-save-migrator` is a second name for
+it, kept for now).
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
 4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
@@ -23,6 +24,7 @@ from dazzle_loglib import (
 )
 
 from ._version import __app_name__, get_display_version
+COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data
 from .config import config_path, disabled_ids, write_disabled
 from .patches import read_pack, rules_from_pack, verdict
@@ -457,7 +459,7 @@ def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
     skipped = [r.id for r in rules if r.id in off and r.id not in named]
     if skipped:
         say(MINIMAL, f"skipped by your config: {', '.join(skipped)} (name it in --rules to run it anyway, or "
-                     "`ck3-save-migrator enable <id>`)", "rules")
+                     "`ck3update enable <id>`)", "rules")
     return [r for r in rules if r.id not in skipped]
 
 
@@ -641,7 +643,7 @@ def cmd_tools(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=__app_name__, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
+    parser = argparse.ArgumentParser(prog=COMMAND, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
     parser.add_argument("--version", action="version", version=f"{__app_name__} {get_display_version()}")
     sub = parser.add_subparsers(dest="command", required=True)
 

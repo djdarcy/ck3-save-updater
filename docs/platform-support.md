@@ -1,6 +1,6 @@
 # Platform support
 
-What ck3-save-migrator is tested on, and what it is expected to run on.
+What ck3-save-updater is tested on, and what it is expected to run on.
 
 | Platform | Status | Notes |
 |---|---|---|

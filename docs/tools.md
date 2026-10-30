@@ -1,6 +1,6 @@
 # Tools
 
-The project keeps a folder of standalone Python scripts, `tests/one-offs`: small checks and fixes written while working on a save, such as counting the characters of a faith or comparing two saves. The optional tools add-on makes them easy to find and run from the `ck3-save-migrator` command: `tools list` shows them with a one-line description, `tools run` runs one, and `tools path` prints where one is.
+The project keeps a folder of standalone Python scripts, `tests/one-offs`: small checks and fixes written while working on a save, such as counting the characters of a faith or comparing two saves. The optional tools add-on makes them easy to find and run from the `ck3update` command: `tools list` shows them with a one-line description, `tools run` runs one, and `tools path` prints where one is.
 
 The add-on never changes a script. Each script runs exactly as it would if you ran `python <script> ...` yourself: as its own process, from your current folder, with the arguments you give and nothing else, and `tools run` exits with the script's own exit code. Nothing is copied into or written next to the scripts.
 
@@ -9,7 +9,7 @@ The add-on never changes a script. Each script runs exactly as it would if you r
 The add-on runs the scripts through [dazzlecmd-lib](https://pypi.org/project/dazzlecmd-lib/), which the rest of the tool does not need, so it is an extra:
 
 ```bash
-pip install "ck3-save-migrator[tools]"
+pip install "ck3-save-updater[tools]"
 ```
 
 From a source checkout, `pip install -e ".[tools]"` (or `".[dev]"`, which includes it). Without the library, every `tools` command except `--help` prints the line above and exits with code 2; migrating, linting and the other commands work as before.
@@ -17,9 +17,9 @@ From a source checkout, `pip install -e ".[tools]"` (or `".[dev]"`, which includ
 ## Using it
 
 ```bash
-ck3-save-migrator tools list
-ck3-save-migrator tools run diff_saves "Old.ck3" "New.ck3"
-ck3-save-migrator tools path diff_saves
+ck3update tools list
+ck3update tools run diff_saves "Old.ck3" "New.ck3"
+ck3update tools path diff_saves
 ```
 
 - `tools list` prints one line per script: its name and the first line of its docstring (empty when it has none). A script is never run or imported to list it; its docstring is read from the file.
@@ -32,7 +32,7 @@ Every `*.py` file directly in the scripts folder is a tool, named by its file na
 
 The first of these that is set:
 
-1. `--scripts-dir <folder>`, written after `tools` and before `list`, `run` or `path`: `ck3-save-migrator tools --scripts-dir my_scripts list`;
+1. `--scripts-dir <folder>`, written after `tools` and before `list`, `run` or `path`: `ck3update tools --scripts-dir my_scripts list`;
 2. the environment variable `CK3SM_SCRIPTS_DIR`;
 3. the `tests/one-offs` folder of the source checkout the tool is running from. An installed package has no such folder.
 

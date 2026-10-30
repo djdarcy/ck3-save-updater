@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- Renamed for PyPI: the project installs as `ck3-save-updater` (`pip install ck3-save-updater`) and its command is `ck3update`. The old command, `ck3-save-migrator`, still works as a second name for now. The settings folder keeps its old name (`%APPDATA%\ck3-save-migrator`, `~/.config/ck3-save-migrator`), so an existing config keeps working. The Python package inside is still `ck3_save_migrator`, and the GitHub repository keeps its name.
+- The README and `docs/updating-a-save.md` describe the early release: what is proven (a 1.8.1 campaign with 34 mods loads and plays in 1.20.1.2, and the update is reproducible, comparing saves by content), and what is not handled yet.
+
+### Added
+- Performance notes for large updated saves: two vanilla top-bar alerts that each cost about half a second per check, and portraits recalculated every 30 frames, with the workarounds for both. A packaged performance mod is planned.
+- A short list of mods known to misbehave in 1.20 (Better Barbershop).
+
 ## [0.3.15] - 2026-10-28
 
 ### Added

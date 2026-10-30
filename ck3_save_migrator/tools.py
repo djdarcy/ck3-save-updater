@@ -21,10 +21,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-APP = "ck3-save-migrator"
+APP = "ck3-save-migrator"      # the cache folder's name: kept from before the rename, like the config folder's
+DIST = "ck3-save-updater"      # the distribution (pip) name
+COMMAND = "ck3update"
 KIT = "oneoffs"
 MANIFEST = ".ck3sm-tool.json"
-INSTALL_HINT = f'the tools add-on needs dazzlecmd-lib: pip install "{APP}[tools]"'
+INSTALL_HINT = f'the tools add-on needs dazzlecmd-lib: pip install "{DIST}[tools]"'
 
 
 class ToolsError(Exception):
@@ -44,7 +46,7 @@ def checkout_scripts_dir() -> Path | None:
     root = Path(__file__).resolve().parents[1]
     project = root / "pyproject.toml"
     folder = root / "tests" / "one-offs"
-    if folder.is_dir() and project.is_file() and f'name = "{APP}"' in project.read_text(encoding="utf-8"):
+    if folder.is_dir() and project.is_file() and f'name = "{DIST}"' in project.read_text(encoding="utf-8"):
         return folder
     return None
 
@@ -113,7 +115,7 @@ def engine(tools: list[Tool], cache: Path):
     """dazzlecmd-lib's aggregator engine over a fresh shadow kit. ImportError when the library is missing."""
     from dazzlecmd_lib import AggregatorEngine        # the only import of dazzlecmd-lib in the package
     root = shadow_kit(tools, cache)
-    return AggregatorEngine(name=f"{APP}-tools", command=f"{APP} tools", tools_dir="tools", kits_dir="kits",
+    return AggregatorEngine(name=f"{COMMAND}-tools", command=f"{COMMAND} tools", tools_dir="tools", kits_dir="kits",
                             manifest=MANIFEST, config_dir=str(cache / "config"), project_root=str(root))
 
 

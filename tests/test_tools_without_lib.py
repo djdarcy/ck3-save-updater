@@ -28,13 +28,13 @@ def test_tools_list_without_the_library_prints_the_install_hint_and_exits_2(tmp_
     assert r.returncode == 2
     assert r.stdout == ""
     assert r.stderr.strip().splitlines() == ['the tools add-on needs dazzlecmd-lib: pip install '
-                                             '"ck3-save-migrator[tools]"']
+                                             '"ck3-save-updater[tools]"']
 
 
 def test_tools_run_without_the_library_exits_2_with_the_hint(tmp_path):
     (tmp_path / "x.py").write_text("raise SystemExit(0)\n", encoding="utf-8")
     r = probe("tools", "--scripts-dir", str(tmp_path), "run", "x")
-    assert r.returncode == 2 and 'pip install "ck3-save-migrator[tools]"' in r.stderr
+    assert r.returncode == 2 and 'pip install "ck3-save-updater[tools]"' in r.stderr
 
 
 def test_tools_help_works_without_the_library():

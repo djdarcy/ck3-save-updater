@@ -319,7 +319,7 @@ The tool writes the save as it stands to `@@input@@`, runs `command` as its own 
 A run patch runs a program with your permissions, so a pack folder with one is refused unless you pass `--allow-run`:
 
 ```bash
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack" --var tools_dir="my_tools" --allow-run
+ck3update migrate "My_Old_Campaign.ck3" --pack "my_pack" --var tools_dir="my_tools" --allow-run
 ```
 
 When the script sits in a scripts folder, `tool = "fix_faces"` with `args = ["@@input@@", "@@output@@"]` is a shorter way to write the same command; [Tools](tools.md#a-tool-in-a-run-patch) explains it.
@@ -327,7 +327,7 @@ When the script sits in a scripts folder, `tool = "fix_faces"` with `args = ["@@
 ## Running your pack
 
 ```bash
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack"
+ck3update migrate "My_Old_Campaign.ck3" --pack "my_pack"
 ```
 
 `--pack` is repeatable; the packs' patches run after the selected rules (so after the version bump, R7), in the order given, and appear in the output and the `--report` like any rule. Only the patches with `default = true` run; `--rules` does not select patches from a `--pack` folder. If a patch fails (an `expect` or `need_path` that does not hold, or a run patch's program that fails), the tool prints which patch and why, writes nothing, and exits with code 5. The tool's own migration runs first, as always (every default rule, unless `--rules` chooses others), and the result is written as usual to `<name>.migrated.ck3` (or `-o`), with the checks' findings beside it in `<name>.migrated.lint.json`.
@@ -337,7 +337,7 @@ ck3-save-migrator migrate "My_Old_Campaign.ck3" --pack "my_pack"
 `check` reads a save and says, for each selected rule and each default patch of the packs you name, what it would do there. It changes nothing and writes no file:
 
 ```bash
-ck3-save-migrator check "My_Old_Campaign.ck3" --pack "my_pack"
+ck3update check "My_Old_Campaign.ck3" --pack "my_pack"
 ```
 
 ```
@@ -360,9 +360,9 @@ ck3-save-migrator check "My_Old_Campaign.ck3" --pack "my_pack"
 If one of the tool's rules does not suit your save, turn it off once instead of writing out every other rule in `--rules`:
 
 ```bash
-ck3-save-migrator disable R21      # or its name: disable dead-liege-cycles
-ck3-save-migrator disabled         # list what is off, and where the file is
-ck3-save-migrator enable R21       # back on
+ck3update disable R21      # or its name: disable dead-liege-cycles
+ck3update disabled         # list what is off, and where the file is
+ck3update enable R21       # back on
 ```
 
 A rule turned off is left out of `--rules all` (and of a `migrate` or `check` with no `--rules`), and the tool says so in one line: `skipped by your config: R21`. Naming it in `--rules`, as in `--rules all,R21`, still runs it: what you type beats the setting. An id the tool does not know is refused, and the message lists the known ones. This applies to the tool's own rules; patches in your own packs are turned off with `default = false` in their `patch.toml`.
@@ -370,14 +370,14 @@ A rule turned off is left out of `--rules all` (and of a `migrate` or `check` wi
 To leave a rule out for one run only, put a `-` before it in `--rules`:
 
 ```bash
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --rules all,-R21
-ck3-save-migrator migrate "My_Old_Campaign.ck3" --rules -R21        # the same: all but R21
-ck3-save-migrator check "My_Old_Campaign.ck3" --rules -R21,-empty-keys
+ck3update migrate "My_Old_Campaign.ck3" --rules all,-R21
+ck3update migrate "My_Old_Campaign.ck3" --rules -R21        # the same: all but R21
+ck3update check "My_Old_Campaign.ck3" --rules -R21,-empty-keys
 ```
 
 A `-` takes an id or a name, in any case, and applies after everything else: after `all`, after the rules you name, and after the rules turned off with `disable`. Leaving out a rule that was not selected anyway changes nothing. An unknown id is refused, listing the known ones. So is leaving out a rule another selected rule needs: `--rules all,-R8` is refused because R10 requires R8, and the message names both, so you can leave both out (`-R8,-R10,...`) or keep R8. Naming a rule and leaving it out in the same `--rules` is refused too.
 
-The setting is kept in a small file the tool owns: `%APPDATA%\ck3-save-migrator\config.toml` on Windows, `~/.config/ck3-save-migrator/config.toml` elsewhere. The environment variable `CK3SM_CONFIG` names another file instead.
+The setting is kept in a small file the tool owns: `%APPDATA%\ck3-save-migrator\config.toml` on Windows, `~/.config/ck3-save-migrator/config.toml` elsewhere (the folder keeps the project's old name, so a config made before the rename still works). The environment variable `CK3SM_CONFIG` names another file instead.
 
 ## Testing a patch
 
