@@ -73,6 +73,7 @@ pip install -e .
   ```
 - `ck3update lint "My_Old_Campaign.migrated.ck3"` checks a save before you load it and predicts what the game will complain about (`migrate` already runs it on every output).
 - `ck3update rules` lists the update rules and the game versions each one applies to; `ck3update check <save>` says which of them a save still needs, without changing anything. `--rules all,-R21` leaves one rule out, and `ck3update disable <id>` turns one off for every later run ([Turning rules off](docs/writing-a-patch.md#turning-rules-off)).
+- Your own fixes run in the same `migrate` call when you put their pack in your packs folder (`packs` beside the config file, created on the first run with a README and an example); a pack that runs code runs once you trust it with `ck3update trust <pack id>`, and `ck3update packs` lists what was found ([Your own packs folder](docs/writing-a-patch.md#your-own-packs-folder)).
 - `ck3update gamediff <old game> <new game> [--save <save>]` shows what a game update added, removed and changed, and which of it a save uses ([gamediff](docs/gamediff.md)).
 - `ck3update soak <save>` **starts the game**, loads the save, lets it run, closes it through Exit to Desktop and says whether it exited cleanly or crashed; your autosaves and mod list are put back afterwards ([soak](docs/soak.md)).
 
