@@ -13,6 +13,8 @@ All lifted code was copied from the host repository at commit `e0a6ab3` by line 
 | `shape.py` | lifted: the probe `tests/one-offs/shape_diff.py` (below) |
 | `ids.py` | generalised (written anew) from the same probe's id arithmetic |
 | `keys.py` | generalised (written anew) from the same probe's key readers |
+| `schema.py` | lifted: the host's id schema, `ck3_save_migrator/idschema.py` (below) |
+| `graph.py` | new: the reference graph, its checks, joins and join diffs |
 | `_VENDORED.md` | this record |
 
 ## text.py
@@ -66,3 +68,13 @@ Written anew, generalising the probe's `ids` (lines 143-148, as `entry_keys`), `
 
 - `field_keys` reads the field through `iter_children` of the whole entry body, so "depth 1" is exact. The probe reads only the first 4,096 bytes of each entry, requires `key=` at a line start after tabs, and counts braces without skipping quoted strings.
 - `entry_keys`, `field_keys` and `scalar_map` return empty when the path is absent; the probe's `title_keys` and `character_lookup` reader raise.
+
+## schema.py
+
+Copied from `ck3_save_migrator/idschema.py` at commit `e0a6ab3`, lines 17-433 (everything after its module docstring: `PLAIN`, `TYPED`, `TRAIT`, `REVIEW`, `SPACES`, `IDENTITY`, `KIND_SPACE`, `TYPE_SPACE`, `FIELDS`, `_DATE`, `norm_key`, `classify`, `_family`, `_plain`, `PLAIN_FIELDS`), after a new module docstring.
+
+Changed after the copy, comments only: "Unit 2's load decides." became "Not settled."; "(Unit 5b)" was dropped from the comment above the relations and opinions tables. No value changed. A host test (`tests/test_savediff_schema_mirror.py`) checks that every table here equals the host's and that `classify` gives the same answer for every listed path, so the copy cannot drift silently: when the host's table changes, that test fails until this copy is updated.
+
+## graph.py
+
+Written anew. It reads entries with `text.iter_children` and normalises field paths with `schema.norm_key`; the shapes of the checks follow three defects found in a migrated save (a barony listed first in a domain beside its county, mercenary company titles not keyed `x_mc_<company id>`, a company record pointing at a destroyed title).
