@@ -15,10 +15,10 @@ An earlier run already wrote this output (exit code 2). Delete or rename it, cho
 ## "nothing to write"
 
 ```
-nothing to write: 12 rules ran and edited 0 (matched 2); the save is already migrated, or nothing in it matched
+nothing to write: 15 rules ran and edited 0 (matched 2); the save is already migrated, or nothing in it matched
 ```
 
-No selected rule changed anything, so no file was written (exit code 0). This is what migrating an already migrated save gives, and it is safe: the save is left as it is. `--force` does not change it. If you expected changes, check that you gave the old save, not a migrated one, and read each rule's line: a rule that could not run says why there (for example "no reference save (--reference)").
+No selected rule changed anything, so no file was written (exit code 0). This is what updating an already updated save gives, and it is safe: the save is left as it is. `--force` does not change it. If you expected changes, check that you gave the old save, not an updated one, and read each rule's line: a rule that could not run says why there (for example "no reference save (--reference)").
 
 ## "rule prerequisites missing"
 
@@ -34,13 +34,13 @@ Some rules use what an earlier rule did, and a selection without those rules is 
 ERROR: lint found 3 error(s) in the output; it was written so it can be inspected (see the lint lines above)
 ```
 
-The checks run on every output found something the game reads by number that is broken. The output was still written, so it can be inspected, but treat it as not ready to load. The `ERROR` lines above the message name each failed check with examples, and the same findings are in `<output>.lint.json`. A migration that runs its rules to the end should not produce errors; an error usually means a rule did not finish its job, which is worth reporting with the `.lint.json` attached. See [Checking a save](lint.md).
+The checks run on every output found something the game reads by number that is broken. The output was still written, so it can be inspected, but treat it as not ready to load. The `ERROR` lines above the message name each failed check with examples, and the same findings are in `<output>.lint.json`. An update that runs its rules to the end should not produce errors; an error usually means a rule did not finish its job, which is worth reporting with the `.lint.json` attached. See [Checking a save](lint.md).
 
 ## The game shows generic faces
 
 Faces are stored in the save as portrait data (DNA). `lint` reports portrait data in an older format than the current game writes as "Unexpected DNA string length"; how those faces then look has not been checked yet. Portrait genes added by mods are not handled yet either, so characters may not look as they did.
 
-What helps: load the migrated save with the same portrait mods the old save used, since portraits need them. And a save stores faces only for some characters, so not every face can be carried over from it.
+What helps: load the updated save with the same portrait mods the old save used, since portraits need them. And a save stores faces only for some characters, so not every face can be carried over from it.
 
 ## The Way of Scarcity, or another custom faith, is missing
 
@@ -52,8 +52,8 @@ A custom faith is carried by R10, which needs the religion rules and so a refere
 R15 dead-titles  matched 0  edited 0  (needs --old-game-dir (the save's own version's game folder) and --game-dir)
 ```
 
-R15 finds what the 1.20 map calls the land of your save's removed or moved titles by reading two maps: the current game's and the one of the version your save was made with. Pass `--old-game-dir` with the `game` folder of that older version (and `--game-dir` if the current game is not found by itself). The rest of the migration still runs without it. See [New-map regions](new-map-regions.md).
+R15 finds what the 1.20 map calls the land of your save's removed or moved titles by reading two maps: the current game's and the one of the version your save was made with. Pass `--old-game-dir` with the `game` folder of that older version (and `--game-dir` if the current game is not found by itself). The rest of the update still runs without it. See [New-map regions](new-map-regions.md).
 
 ## The reference save is from a different date
 
-The new-map rules copy the new regions' world from the reference as it is on the reference's date. A reference from another date brings rulers and families from the wrong moment into your campaign. Nothing refuses it, because the tool cannot tell which date you meant. Make a reference at your campaign's own date: [The reference save](reference-save.md) explains how, with `ck3-save-migrator reference-mod`.
+The new-map rules copy the new regions' world from the reference as it is on the reference's date. A reference from another date brings rulers and families from the wrong moment into your campaign. Nothing refuses it, because the tool cannot tell which date you meant. Make a reference at your campaign's own date: [The reference save](reference-save.md) explains how, with `ck3update reference-mod`.

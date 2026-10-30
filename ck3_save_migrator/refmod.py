@@ -95,7 +95,7 @@ def make_bookmark(*, date: str, character: int | str, title: str, culture: str, 
 # --------------------------------------------------------------------------- the texts
 def descriptor(b: Bookmark) -> str:
     return (f'version="0.1"\ntags={{\n\t"Utilities"\n}}\n'
-            f'name="Reference bookmark {b.date} (ck3-save-migrator)"\nsupported_version="1.20.*"\n')
+            f'name="Reference bookmark {b.date} (ck3update)"\nsupported_version="1.20.*"\n')
 
 
 def launcher_mod(b: Bookmark, folder: Path) -> str:
@@ -104,7 +104,7 @@ def launcher_mod(b: Bookmark, folder: Path) -> str:
 
 
 def bookmark(b: Bookmark) -> str:
-    return (f"# Reference start at {b.date} for ck3-save-migrator.\n"
+    return (f"# Reference start at {b.date} for ck3update.\n"
             f"# Played as character {b.character}, holder of {b.title}; game/history/characters and\n"
             f"# game/history/titles must have them alive and holding it on this date.\n"
             f"{b.bookmark_key} = {{\n"
@@ -131,11 +131,11 @@ def bookmark(b: Bookmark) -> str:
 def localization(b: Bookmark) -> str:
     """The English localization, starting with the byte-order mark the game requires of a .yml file."""
     return (BOM + "l_english:\n"
-            f' {b.bookmark_key}: "{b.date} Reference (ck3-save-migrator)"\n'
+            f' {b.bookmark_key}: "{b.date} Reference (ck3update)"\n'
             f' {b.bookmark_key}_desc: "A plain 1.20 start on {b.date}, used as a reference save by '
-            f'ck3-save-migrator."\n'
+            f'ck3update."\n'
             f' {b.character_key}: "{b.name}"\n'
-            f' {b.character_key}_desc: "Reference start for ck3-save-migrator."\n'
+            f' {b.character_key}_desc: "Reference start for ck3update."\n'
             f' {b.character_key}_subheading: "$BOOKMARK_SUBHEADING_DEFAULT$"\n')
 
 
