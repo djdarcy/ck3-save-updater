@@ -650,7 +650,7 @@ def cmd_reference_mod(args) -> int:
     for p in write_mod(b, Path(args.out)):
         say(MINIMAL, f"wrote: {p}", "io")
     say(MINIMAL, f"next: enable '{b.folder}' in the game's launcher, start a new game from the bookmark "
-                 f"'{b.date} Reference (ck3-save-migrator)' and save at once (do not unpause)", "io")
+                 f"'{b.date} Reference (ck3update)' and save at once (do not unpause)", "io")
     say(MINIMAL, "then: pass that save to migrate as --reference (see docs/reference-save.md)", "io")
     return 0
 

@@ -51,7 +51,7 @@ def test_the_localization_starts_with_a_bom_and_names_every_key(b):
 
 def test_the_descriptor_and_the_launcher_mod(b, tmp_path):
     d = M.descriptor(b)
-    assert 'name="Reference bookmark 987.10.27 (ck3-save-migrator)"' in d and 'supported_version="1.20.*"' in d
+    assert 'name="Reference bookmark 987.10.27 (ck3update)"' in d and 'supported_version="1.20.*"' in d
     assert '\t"Utilities"' in d
     folder = tmp_path / "zz_ref_987_10_27"
     m = M.launcher_mod(b, folder)
