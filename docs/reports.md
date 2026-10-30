@@ -17,6 +17,9 @@ When a custom faith gives two outputs, each gets its own report: `My_Old_Campaig
 | `output`, `output_sha256` | the written save and its hash (`output` is `null` on a dry run) |
 | `dry_run` | whether this was a dry run |
 | `game_dir` | the game folder used, or `null` |
+| `game_installs` | every game install found: `source` (where it was found), `path` and `version`; the first is the one used |
+| `save_versions` | the input save's `version`, `save_game_version` and `portraits_version` |
+| `user_packs` | the packs of your own packs folders: `id`, `folder`, `kind` (`declarative` or `code`), `state` (`runs`, `not trusted`, `changed since trusted` or `turned off`) and `hash` (the fingerprint `trust` records); see [Your own packs folder](writing-a-patch.md#your-own-packs-folder) |
 | `reference` | the reference save used, or `null` |
 | `wos_shape` | how a custom faith was carried in this output: `faith` or `rite` |
 | `assumptions` | every assumption a rule made, gathered from all rules |

@@ -332,6 +332,29 @@ ck3update migrate "My_Old_Campaign.ck3" --pack "my_pack"
 
 `--pack` is repeatable; the packs' patches run after the selected rules (so after the version bump, R7), in the order given, and appear in the output and the `--report` like any rule. Only the patches with `default = true` run; `--rules` does not select patches from a `--pack` folder. If a patch fails (an `expect` or `need_path` that does not hold, or a run patch's program that fails), the tool prints which patch and why, writes nothing, and exits with code 5. The tool's own migration runs first, as always (every default rule, unless `--rules` chooses others), and the result is written as usual to `<name>.migrated.ck3` (or `-o`), with the checks' findings beside it in `<name>.migrated.lint.json`.
 
+## Your own packs folder
+
+So that one `ck3update migrate <save>` runs your fixes too, put your packs in your own packs folder: `packs` beside the config file (`%APPDATA%\ck3-save-migrator\packs` on Windows, `~/.config/ck3-save-migrator/packs` elsewhere). The tool creates it the first time `migrate`, `check` or `rules` runs, with a `README.md` ("ADD RULES HERE") and `_example-pack`, a complete pack to copy; it never writes into the folder once it exists. More folders like it can be named in the config file:
+
+```toml
+pack_dirs = ["D:/my ck3 packs"]
+```
+
+- Every pack found there runs on every update, in the same call, after the tool's own rules and before any `--pack` folder: the standard folder first, then each `pack_dirs` folder, each folder's packs in name order. A subfolder whose name starts with `_` or `.` is not loaded, and a folder reached twice loads once.
+- A pack of edits runs as it is. A pack that runs code (a `script =` or `[run]` patch) runs only once you trust it:
+
+  ```bash
+  ck3update packs              # each pack found: its folder, id, kind (declarative or code) and whether it runs
+  ck3update trust my_fixes     # let it run, as its files are now; prints the code and programs it runs
+  ck3update untrust my_fixes   # take the trust back
+  ```
+
+  Trusting records a fingerprint (a sha256 of the pack folder's files, their paths and bytes) in the config file. If any file of the pack changes, or a file is added or removed, the pack stops running until you trust it again. A pack that is not trusted, or changed since, is skipped and the tool says so: `found, not trusted: run 'ck3update trust my_fixes' to let it run`. The rest of the update goes on, and the exit code does not change. `--allow-run` lets every code pack in the folders run for that one call.
+- `ck3update disable <patch id>` turns one of your patches off for every later update, as it does a built-in rule; `ck3update rules` lists your packs' patches after the built-in ones, with their pack.
+- A pack may hold a `vars.toml` beside its `pack.toml`, the variables its run patches use; a `--vars` file or a `--var` on the command line wins. A recipe in the folder then needs no options at all.
+- A patch id that a built-in rule has, two packs with one id, or one patch id in two of your packs are refused, naming both places.
+- The `--report` lists your packs under `user_packs`: id, folder, kind, state and fingerprint.
+
 ## Checking a save
 
 `check` reads a save and says, for each selected rule and each default patch of the packs you name, what it would do there. It changes nothing and writes no file:
@@ -365,7 +388,7 @@ ck3update disabled         # list what is off, and where the file is
 ck3update enable R21       # back on
 ```
 
-A rule turned off is left out of `--rules all` (and of a `migrate` or `check` with no `--rules`), and the tool says so in one line: `skipped by your config: R21`. Naming it in `--rules`, as in `--rules all,R21`, still runs it: what you type beats the setting. An id the tool does not know is refused, and the message lists the known ones. This applies to the tool's own rules; patches in your own packs are turned off with `default = false` in their `patch.toml`.
+A rule turned off is left out of `--rules all` (and of a `migrate` or `check` with no `--rules`), and the tool says so in one line: `skipped by your config: R21`. Naming it in `--rules`, as in `--rules all,R21`, still runs it: what you type beats the setting. An id the tool does not know is refused, and the message lists the known ones. It works the same on the patches of the packs in your own packs folder (below). A patch of a `--pack` folder is turned off with `default = false` in its `patch.toml`.
 
 To leave a rule out for one run only, put a `-` before it in `--rules`:
 
