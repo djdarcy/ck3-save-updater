@@ -61,7 +61,7 @@ pip install -e .
 
 The commands:
 
-- `ck3update inspect <save>`: show a save's header, metadata block and the files inside it.
+- `ck3update inspect <save>`: show a save's header, metadata block, the files inside it and its versions, and the game installs found (Steam's own records, its libraries on any drive) with their versions. A save can be named by its path, or by its name in the game's `save games` folder.
 - `ck3update migrate <save> --rules all`: write an updated copy; `--report` writes a JSON account of every change. `--rules all,-R21` leaves one rule out.
 - `ck3update lint <save>`: check a save before loading it (below).
 - `ck3update rules`: list the update rules and the game versions they apply to.
