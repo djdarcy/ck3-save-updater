@@ -37,12 +37,28 @@ def test_the_registry_is_the_shipped_pack():
            [(r.id, r.name, r.apply.patch.kind if hasattr(r.apply, "patch") else "code") for r in rules_from_pack()]
 
 
+# rules added after v0.3.11 (where each goes: after the rule named)
+ADDED = {"R23": "R12"}
+
+
+def since_v0_3_11():
+    """The registry without the rules added after v0.3.11."""
+    return [r for r in REGISTRY if r.id not in ADDED]
+
+
+def test_the_rules_added_since_v0_3_11_sit_where_they_belong():
+    ids = [r.id for r in REGISTRY]
+    for rid, after in ADDED.items():
+        assert ids.index(rid) == ids.index(after) + 1, rid
+
+
 def test_the_registry_is_v0_3_11s_field_by_field():
     """Every rule's id, order, name, since, description, default and requires as v0.3.11's Python registry had
-    them (recorded from that version in tests/fixtures/patches/registry_v0.3.11.json)."""
+    them (recorded from that version in tests/fixtures/patches/registry_v0.3.11.json); the rules added since are
+    checked by the test above."""
     old = json.loads((ROOT / "tests" / "fixtures" / "patches" / "registry_v0.3.11.json").read_text(encoding="utf-8"))
-    assert [r.id for r in REGISTRY] == [o["id"] for o in old]
-    for mine, theirs in zip(REGISTRY, old):
+    assert [r.id for r in since_v0_3_11()] == [o["id"] for o in old]
+    for mine, theirs in zip(since_v0_3_11(), old):
         assert (mine.name, mine.since, mine.description, mine.default, list(mine.requires)) == \
                (theirs["name"], theirs["since"], theirs["description"], theirs["default"], theirs["requires"]), mine.id
 
@@ -51,19 +67,28 @@ def test_each_code_patch_runs_the_very_function_v0_3_11_ran():
     """The 14 code patches name the same functions v0.3.11's registry held; the 5 retired rules are declarative."""
     old = json.loads((ROOT / "tests" / "fixtures" / "patches" / "registry_v0.3.11.json").read_text(encoding="utf-8"))
     python = {r.id: r.apply for mod in (to_1_20, religion_1_20, transplant_1_20) for r in mod.RULES}
-    for r, o in zip(REGISTRY, old):
+    for r, o in zip(since_v0_3_11(), old):
         if r.id in DECLARATIVE:
             assert r.apply.patch.kind == "declarative" and r.id not in python, r.id
         else:
             module, name = o["function"].split(":")
             assert r.apply is getattr(importlib.import_module(module), name) is python[r.id], r.id
+    # and the rules added since are code patches naming their function in the package
+    for r in REGISTRY:
+        if r.id in ADDED:
+            assert r.apply is python[r.id], r.id
 
 
 def test_the_rules_command_prints_what_v0_3_11_printed(capsys):
+    """v0.3.11's lines unchanged, with one line per added rule after the rule it follows."""
     from ck3_save_migrator import cli
     assert cli.main(["rules"]) == 0
-    expected = (ROOT / "tests" / "fixtures" / "patches" / "rules_v0.3.11.txt").read_text(encoding="utf-8")
-    assert capsys.readouterr().out == expected
+    out = capsys.readouterr().out.splitlines()
+    expected = (ROOT / "tests" / "fixtures" / "patches" / "rules_v0.3.11.txt").read_text(encoding="utf-8").splitlines()
+    assert [ln for ln in out if ln.split()[0] not in ADDED] == expected
+    for rid, after in ADDED.items():
+        i = next(i for i, ln in enumerate(out) if ln.split()[0] == rid)
+        assert out[i - 1].split()[0] == after
 
 
 def test_the_shipped_pack_uses_no_script_files():
@@ -124,9 +149,9 @@ def test_the_built_wheel_carries_the_pack_and_loads_it_from_an_empty_directory(t
     empty = tmp_path / "empty"
     empty.mkdir()
     code = ("import ck3_save_migrator.patches as P; rs = P.rules_from_pack(); "
-            "assert len(rs) == 19, len(rs); import ck3_save_migrator, sys; "
+            "assert len(rs) == 20, len(rs); import ck3_save_migrator, sys; "
             "print(len(rs), ck3_save_migrator.__file__)")
     r = subprocess.run([str(py), "-I", "-c", code], cwd=empty, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     count, where = r.stdout.split()
-    assert count == "19" and str(env) in where and str(ROOT) not in where
+    assert count == "20" and str(env) in where and str(ROOT) not in where

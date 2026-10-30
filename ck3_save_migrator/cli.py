@@ -25,7 +25,7 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
-from .lint import listed_workshop_mods, lint_gamestate, load_game_data
+from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
 from .config import config_path, disabled_ids, write_disabled
 from .patches import read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
@@ -309,6 +309,7 @@ def cmd_migrate(args) -> int:
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
+    ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
     ctx.state["patch_vars"] = patch_vars
     known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it

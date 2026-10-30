@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import re
+from bisect import bisect_right
 from collections import Counter
 from pathlib import Path
 
@@ -482,6 +483,129 @@ def r6_dead_titles(save: CK3Save, ctx, rule) -> object:
                               "game_title_templates": len(defined)})
 
 
+# --------------------------------------------------------------------------- R23
+NICK_SECTIONS = ("living", "dead_unprunable", "characters/dead_prunable")
+_NICK_ENTRY = re.compile(rb"(?m)^(\d+)=\{")
+_NICKNAME = re.compile(rb'(?m)^\tnickname=("?)([^"\s{}]+)\1[ \t]*\r?$')
+_LOC_LINE = re.compile(r'^\s*([^\s:#"]+):\d*\s*"((?:[^"\\]|\\.)*)"')
+_TEMPLATE_CODE = re.compile(r"\[([^\]]*)\]")
+
+
+def english_localization(roots: list[tuple[str, Path]], wanted: set[str]) -> dict[str, tuple[str, str]]:
+    """key -> (text, source) for the ``wanted`` keys, from ``<root>/localization/**/*_l_english.yml``. Roots are read
+    in order and a later one wins (the game's load order: the game, then the mods as the save lists them); within a
+    root, the files under ``replace/`` are read last, so they win. ``_desc`` keys are skipped."""
+    out: dict[str, tuple[str, str]] = {}
+    for source, root in roots:
+        loc = root / "localization"
+        if not loc.is_dir():
+            continue
+        files = sorted(loc.rglob("*_l_english.yml"), key=lambda p: ("replace" in p.relative_to(loc).parts, str(p)))
+        for f in files:
+            text = f.read_bytes().decode("utf-8-sig", errors="replace")
+            for line in text.splitlines():
+                m = _LOC_LINE.match(line)
+                if not m or m.group(1) not in wanted or m.group(1).endswith("_desc"):
+                    continue
+                value = m.group(2).replace('\\"', '"').replace("\\\\", "\\")
+                out[m.group(1)] = (value, source)
+    return out
+
+
+def _render(text: str, female: bool, first_name: str) -> tuple[str | None, str]:
+    """A nickname text with its template codes rendered for one character: (text, "") or (None, why)."""
+    def code(m):
+        inner = m.group(1)
+        name, _, fmt = inner.partition("|")
+        word = {"CHARACTER.GetSheHe": "she" if female else "he",
+                "CHARACTER.GetMotherFather": "mother" if female else "father",
+                "CHARACTER.GetFirstNameNoTooltip": first_name}.get(name)
+        if word is None or fmt not in ("", "U"):
+            raise KeyError(inner)
+        return word[:1].upper() + word[1:] if fmt == "U" else word
+    try:
+        out = _TEMPLATE_CODE.sub(code, text)
+    except KeyError as exc:
+        return None, f"template code [{exc.args[0]}] is not one this rule renders"
+    if "[" in out or "$" in out:
+        return None, "the text carries a code this rule does not render"
+    return out, ""
+
+
+def _escape(text: str) -> bytes:
+    return text.replace("\\", "\\\\").replace('"', '\\"').encode("utf-8")
+
+
+def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
+    """Write ``nickname_text`` after every ``nickname`` that lacks it, in all three character sections.
+
+    1.20 stores a nickname twice: the key (``nickname=nick_the_victorious``) and, on the next line, its rendered
+    English text (``nickname_text="the Victorious"``); the game's own 987 save writes ``nickname_text`` on every
+    character. A 1.8.1 save has only the key, and the game then shows the founder as ``Uilleam of " of Ireland``
+    (2026-10-30: 851 nicknamed characters in the founding save, 89 distinct keys). The text comes from the English
+    localization of the game folder, then of the save's mods in its listed order (a later one wins); two vanilla
+    texts carry template codes (He/She, Father/Mother, the first name), rendered per character. A character that
+    already has ``nickname_text``, or has no nickname, is left as it is; any other template code leaves the
+    character untouched and is reported, never guessed.
+    """
+    d = save.gamestate
+    found = []                                     # (entry start, char id, key, insert position, female, first name)
+    for sec in NICK_SECTIONS:
+        try:
+            blk = gs.locate(d, sec)
+        except gs.GamestateError:
+            continue
+        starts = [(m.start(), m.group(1)) for m in _NICK_ENTRY.finditer(d, blk.open, blk.close)]
+        if not starts:
+            continue
+        positions = [s for s, _ in starts]
+        for m in _NICKNAME.finditer(d, blk.open, blk.close):
+            i = bisect_right(positions, m.start()) - 1
+            if i < 0:
+                continue
+            start, cid = starts[i]
+            end = positions[i + 1] if i + 1 < len(positions) else blk.close
+            if re.search(rb"(?m)^\tnickname_text=", d[start:end]):
+                continue
+            body = d[start:end]
+            fn = re.search(rb'(?m)^\tfirst_name="?([^"\n]*)"?', body)
+            nl = d.find(b"\n", m.end() - 1)
+            at = nl + 1 if nl >= 0 else m.end()
+            found.append((cid.decode(), m.group(2).decode("utf-8", "replace"), at,
+                          re.search(rb"(?m)^\tfemale=yes", body) is not None,
+                          fn.group(1).decode("utf-8", "replace") if fn else ""))
+    if not found:
+        return rule.result(matched=0, edited=0, extra={"found": 0})
+    roots = ([("game", ctx.game_dir)] if ctx.game_dir is not None else []) + \
+        [(f"mod {p.name}", p) for p in getattr(ctx, "mod_dirs", []) or []]
+    wanted = {k for _, k, _, _, _ in found} | {fn for _, _, _, _, fn in found if fn}
+    loc = english_localization(roots, wanted)
+    p = gs.EditPass()
+    by_source, templated, unresolved = Counter(), [], []
+    for cid, key, at, female, first in found:
+        p.count(rule.name).matched += 1
+        hit = loc.get(key)
+        if hit is None:
+            unresolved.append({"key": key, "id": cid, "reason": "no English localization in the game or its mods"
+                               if roots else "no game folder to read the localization from"})
+            continue
+        text, source = hit
+        if "[" in text or "$" in text:
+            rendered, why = _render(text, female, loc.get(first, (first, ""))[0] if first else "")
+            if rendered is None:
+                unresolved.append({"key": key, "id": cid, "reason": why})
+                continue
+            templated.append({"key": key, "id": cid, "text": rendered})
+            text = rendered
+        p.add(gs.Edit(at, at, b'\tnickname_text="' + _escape(text) + b'"\n', rule.name, f"{cid} {key}"))
+        by_source["game" if source == "game" else "mod"] += 1
+    p.apply_to(save)
+    c = p.count(rule.name)
+    return rule.result(matched=c.matched, edited=c.edited,
+                       extra={"found": len(found), "by_source": dict(by_source), "templated": templated,
+                              "unresolved": unresolved})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -499,4 +623,6 @@ RULES = [
          r22_impassable_provinces),
     Rule("R6", "dead-titles-report", "1.18.0 (map rework; exact major unverified)",
          "report titles the game no longer defines (no edit)", r6_dead_titles),
+    Rule("R23", "nickname-text", UNKNOWN_SINCE,
+         "write the nickname's text (nickname_text) after every nickname that lacks it", r23_nickname_text),
 ]
