@@ -9,7 +9,9 @@ resolved path) and returns ``GameInstall`` records, newest version first, each s
    ``HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam`` ``InstallPath``), read as a Steam root.
 3. The usual Steam roots on each system.
 4. On Windows, ``<drive>:\\SteamLibrary`` and ``<drive>:\\Steam`` on every drive that exists.
-5. The current folder, when it, or its ``game`` child, is a game folder.
+5. On Windows, the Xbox app (Game Pass): ``<drive>:\\XboxGames\\Crusader Kings III`` (or its ``Content``) on every
+   drive marked with a ``.GamingRoot`` file (``xbox_games``; unverified on a real install).
+6. The current folder, when it, or its ``game`` child, is a game folder.
 
 A Steam root is read through its ``steamapps/libraryfolders.vdf``, which lists every library; the library whose
 ``apps`` names CK3's app id (1158310), or that has CK3's app manifest, holds the game, in
@@ -217,6 +219,29 @@ def default_steam_roots(system: str, home: Path) -> list[Path]:
             home / "Library" / "Application Support" / "Steam"]
 
 
+XBOX_FOLDER = "XboxGames"
+XBOX_TITLE = "Crusader Kings III"
+
+
+def xbox_games(drive: Path) -> list[Path]:
+    """CK3 installed by the Xbox app (Game Pass) on one drive. UNVERIFIED on a real install: the layout comes from
+    public descriptions of the Xbox app, not from a machine that has the game this way.
+
+    The Xbox app marks each drive it may install to with a hidden ``.GamingRoot`` file at the drive's root and
+    installs into ``XboxGames`` beside it, games often under a ``Content`` folder. ``.GamingRoot``'s binary content
+    is not read (its format is not documented), so the default folder name is assumed. A drive without that file
+    is not looked at. Each guess passes the same game-folder test as every other source, so a wrong guess finds
+    nothing rather than a wrong folder."""
+    if not (Path(drive) / ".GamingRoot").is_file():
+        return []
+    base = Path(drive) / XBOX_FOLDER / XBOX_TITLE
+    out = []
+    for cand in (base / "Content", base, base / "Content" / "game", base / "game"):
+        if is_game_dir(cand) and cand not in out:
+            out.append(cand)
+    return out
+
+
 # --------------------------------------------------------------------------- the game
 def discover_games(explicit: str | None = None, env: str | None = None, *, registry: dict | None = None,
                    drives: list | None = None, home: Path | None = None, cwd: Path | None = None,
@@ -257,6 +282,8 @@ def discover_games(explicit: str | None = None, env: str | None = None, *, regis
         for folder in ("SteamLibrary", "Steam"):
             root = Path(drive) / folder
             found += [(f"{root.as_posix()} on a drive, {lib}", g) for g, lib in games_under_steam_root(root)]
+    for drive in drives:
+        found += [("Xbox app (Game Pass)", g) for g in xbox_games(Path(drive))]
     for cand in (cwd, cwd / "game"):
         if is_game_dir(cand):
             found.append(("the current folder", cand))
