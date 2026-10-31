@@ -3,7 +3,10 @@ it, kept for now).
 
 Exit codes: 0 ok, 1 bad input, 2 refused by a guard (output exists, in-place), 3 verification failed,
 4 lint found an error (migrate: the output is still written, for inspection), 5 a patch failed (an ``expect`` that
-did not hold, or a run patch's command that failed; migrate writes nothing; check: one would fail). ``tools run``
+did not hold, or a run patch's command that failed; migrate writes nothing; check: one would fail). ``update`` exits
+with migrate's codes, 1 also for each refusal of its plan (a save newer than the game, a version gap no pack
+covers, an unknown ``after``, a reference pick that cannot tell two saves apart); ``status`` and ``update
+--dry-run`` exit 0, or 1 on those refusals. ``tools run``
 returns the script's own exit code. ``soak`` (which starts the game): 0 clean exit, 2 refused, 6 a crash, 7 did not
 load or did not exit, 8 a guard check failed.
 """
@@ -228,6 +231,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
                               for g in ctx.state.get("game_installs", [])],
             "save_versions": ctx.state.get("save_versions"),
             "user_packs": ctx.state.get("user_packs", []),
+            **({"plan": ctx.state["plan"]} if "plan" in ctx.state else {}),     # update: the plan it executed
             "reference": str(ctx.reference) if ctx.reference else None, "wos_shape": ctx.wos_shape,
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
             "lost": [x for r in results for x in r.extra.get("lost", [])],
@@ -324,6 +328,83 @@ def cmd_migrate(args) -> int:
     # patch packs from folders run after those, in the order given (their default patches)
     for folder in args.pack or []:
         rules = rules + [r for r in rules_from_pack(folder, allow_run=args.allow_run) if r.default]
+    return execute_rules(args, rules, user_packs, out)
+
+
+LAST_PLAN = {}          # the last plan status or update made, and the rules update ran (for the tests)
+
+
+def make_plan(args, *, writes: bool = False):
+    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder."""
+    from .plan import plan_update
+    return plan_update(args.save, game_dir=args.game_dir, reference=args.reference, old_game_dir=args.old_game_dir,
+                       rules_spec=args.rules, output=getattr(args, "output", None), packs=args.pack,
+                       allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes)
+
+
+def say_plan(plan) -> None:
+    for line in plan.lines():
+        say(MINIMAL, line, "rules")
+    for x in plan.refusals:
+        say(ERROR, f"ERROR: {x}", "rules", err=True)
+
+
+def cmd_status(args) -> int:
+    """The plan for a save, as ``update`` would execute it; writes nothing. Without a save: the game installs
+    found and the save folder."""
+    if not args.save:
+        from .discover import save_games_dir
+        installs = game_installs(args.game_dir)
+        for i, g in enumerate(installs):
+            say(MINIMAL, f"{'game' if i == 0 else 'also':10}: {describe_install(g)}", "io")
+        if not installs:
+            say(MINIMAL, "game      : none found (give --game-dir)", "io")
+        folder = save_games_dir()
+        saves = sorted(folder.glob("*.ck3")) if folder and folder.is_dir() else []
+        say(MINIMAL, f"saves     : {folder or 'the save folder could not be found'}"
+                     + (f"  ({len(saves)} save(s))" if folder and folder.is_dir() else "  (not found)"), "io")
+        return 0
+    plan = make_plan(args)
+    LAST_PLAN.update(status=plan)
+    say_plan(plan)
+    return 1 if plan.refusals else 0
+
+
+def cmd_update(args) -> int:
+    """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
+    patch's counts (nothing is written); otherwise write the output and, unless --report names another,
+    ``<output>.report.json`` beside it. Exit codes are migrate's."""
+    plan = make_plan(args, writes=not args.dry_run)
+    LAST_PLAN.update(update=plan)
+    say_plan(plan)
+    if plan.refusals:
+        return 1
+    if plan.already_current:
+        say(MINIMAL, "already current: nothing written", "rules")
+        return 0
+    if not plan.has_changes():
+        say(MINIMAL, "no patch will run: nothing written", "rules")
+        return 0
+    out = Path(plan.output)
+    args.reference = plan.reference.path or "none"
+    args.game_dir = plan.game["path"]
+    args.report = None if args.dry_run else (args.report or str(out.with_suffix(".report.json")))
+    code = execute_rules(args, plan.rules, plan.user_packs, out, state={"plan": plan.as_dict()})
+    LAST_PLAN.update(ran=[r.id for r in getattr(args, "results", [])])
+    if args.dry_run and getattr(args, "results", None):
+        got = {r.id: r for r in args.results}
+        for s in plan.steps:
+            if s.id in got and s.will_run:
+                s.matched, s.edited, s.note = got[s.id].matched, got[s.id].edited, "counted by the dry run"
+        say(MINIMAL, "dry run: the plan with each patch's counts (nothing was written)", "rules")
+        say_plan(plan)
+    return code
+
+
+def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None) -> int:
+    """Run ``rules`` on ``args.save`` and write ``out`` (and the custom-faith branches, the lint and the report):
+    the body of ``migrate``, shared by ``update``, which passes the rules its plan chose and ``state`` (its plan,
+    for the report). The results are left on ``args.results`` (those of the first output) for the caller."""
     patch_vars = read_patch_vars(args.var or [], args.vars)
     # S1: a rule whose prerequisites are not selected is refused before any work, naming them
     missing = missing_prerequisites(rules)
@@ -361,6 +442,7 @@ def cmd_migrate(args) -> int:
     ctx.state["save_versions"] = save_versions(save.meta)
     ctx.state["user_packs"] = [up.as_dict() for up in user_packs]           # the report lists them
     ctx.state["patch_vars"] = patch_vars
+    ctx.state.update(state or {})
     known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
     lint_errors = 0
@@ -409,6 +491,7 @@ def cmd_migrate(args) -> int:
 
     if not branch:
         results = run_rules_timed(save, rules, ctx)
+        args.results = results
         if failed(results):
             return 5
         if nothing_to_write(results):
@@ -426,6 +509,7 @@ def cmd_migrate(args) -> int:
             c2.state = copy.deepcopy(ctx.state)
             c2.wos_shape = shape
             runs.append((shape, s2, c2, shared + run_rules_timed(s2, rules[split:], c2)))
+        args.results = runs[0][3]
         if failed([r for *_, results in runs for r in results[len(shared):]]):
             return 5
         for shape, s2, c2, results in runs:
@@ -867,6 +951,48 @@ def build_parser() -> argparse.ArgumentParser:
                    help="let script and run patches in --pack folders run their code (it runs with your "
                         "permissions)")
     p.set_defaults(func=cmd_migrate)
+
+    def plan_options(p, *, update: bool) -> None:
+        """The options status and update share: everything the plan is built from."""
+        p.add_argument("--reference", help="a save written by the game's version at the save's date (default: "
+                                           "$CK3_REFERENCE_SAVE, else one found in the save folder; 'none' for "
+                                           "none)")
+        p.add_argument("--game-dir", help=GAME_DIR_HELP)
+        p.add_argument("--old-game-dir", help="the 'game' folder of the version the save was made with (R15)")
+        p.add_argument("--rules", help="as for migrate: 'all' (the default), ids or names, '-R21' leaves one out")
+        p.add_argument("-o", "--output", help="the output (default: <name>__updated__<game version>.ck3 beside the "
+                                              "save)")
+        p.add_argument("--pack", action="append", metavar="FOLDER", help="also a pack folder, as for migrate")
+        p.add_argument("--allow-run", action="store_true",
+                       help="let every pack's script and run patches run, trusted or not (as for migrate)")
+        if not update:
+            return
+        p.add_argument("--dry-run", action="store_true",
+                       help="run every selected patch in memory and print the plan with their counts; write nothing")
+        p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
+        p.add_argument("--report", help="the JSON report (default: <output>.report.json beside the output)")
+        p.add_argument("--wos-shape", choices=("faith", "rite", "both"), default="both",
+                       help="as for migrate: how custom faiths are carried (default: both, two outputs)")
+        p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version")
+        p.add_argument("--var", action="append", metavar="NAME=VALUE", help="a variable for run patches")
+        p.add_argument("--vars", metavar="FILE", help="a TOML file of variables for run patches")
+        p.add_argument("--no-lint", action="store_true", help="skip the checks run on the output")
+        p.add_argument("--lint-mods", choices=("save", "none"), default="save",
+                       help="as for migrate: which mods the checks assume")
+        p.add_argument("--recompress", action="store_true", help=argparse.SUPPRESS)
+        p.add_argument("--no-expansion-orders", action="store_true", help="as for migrate (R14)")
+
+    p = sub.add_parser("status", help="what `update` would do to a save: the game, the version gap, the packs and "
+                                      "patches that would run, the reference save, the output; writes nothing")
+    p.add_argument("save", nargs="?", help=SAVE_HELP + "; without one, the game installs and the save folder")
+    plan_options(p, update=False)
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("update", help="bring a save to the installed game's version: the plan `status` prints, "
+                                      "executed (--dry-run: in memory, with counts)")
+    p.add_argument("save", help=SAVE_HELP)
+    plan_options(p, update=True)
+    p.set_defaults(func=cmd_update)
 
     p = sub.add_parser("lint", help="check a 1.20-layout save before loading it: structure, cross-references, "
                                     "unknown keys (exit 4 when an error is found)")
