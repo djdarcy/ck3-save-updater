@@ -88,7 +88,11 @@ def test_migrates_report_and_lint_file_keep_their_bytes(tmp_path, capsys):
     assert cli.main(["migrate", str(src), "--reference", "none", "-o", str(out), "--report", str(rep)]) == 0
     for p in (rep, out.with_suffix(".lint.json")):
         raw = p.read_bytes()
-        assert raw == json.dumps(json.loads(raw), indent=2, ensure_ascii=False).encode("utf-8"), p.name
+        # the bytes Path.write_text writes on this platform for the same text: LF here, CRLF on Windows, so a
+        # change in newline handling is caught everywhere
+        old = tmp_path / f"old_{p.name}"
+        old.write_text(json.dumps(json.loads(raw.decode("utf-8")), indent=2, ensure_ascii=False), encoding="utf-8")
+        assert raw == old.read_bytes(), p.name
     assert "Áed".encode("utf-8") in rep.read_bytes()
 
 
