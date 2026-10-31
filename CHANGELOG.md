@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- The config file and the JSON reports (the `--report`, the lint file beside each output, `lint --json`, `gamediff --json`) are written atomically, through dazzle-filekit: a crash, a full disk or a kill mid-write leaves the old file whole instead of a torn one. Their bytes are unchanged.
+
 ## [0.3.17] - 2026-10-31
 
 ### Added

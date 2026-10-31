@@ -81,8 +81,17 @@ def write_config(data: dict, path: Path | None = None) -> Path:
         lines.append(f"pack_dirs = [{', '.join(json.dumps(d) for d in data['pack_dirs'])}]")
     if data.get("trusted"):
         lines += ["", "[trusted]"] + [f"{json.dumps(k)} = {json.dumps(v)}" for k, v in sorted(data["trusted"].items())]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    atomic_write(path, "\n".join(lines) + "\n")
     return path
+
+
+def atomic_write(path: Path, text: str) -> None:
+    """Write ``text`` (UTF-8) so that a crash, a full disk or a kill mid-write leaves the old file whole:
+    dazzle-filekit writes a ``.tmp`` file beside it and renames it over the target. Newlines are translated as
+    ``Path.write_text`` does, so the bytes are the same. Imported here, not at the top: it costs about 0.1 s, and
+    most commands never write."""
+    from dazzle_filekit.operations import atomic_write_text
+    atomic_write_text(path, text, encoding="utf-8")
 
 
 def write_disabled(ids: list[str], path: Path | None = None) -> Path:
