@@ -2,6 +2,20 @@
 
 What the common messages mean and what to do about them. The exit codes are listed in [Checking a save](lint.md#exit-codes).
 
+## "ck3update is not recognized"
+
+```
+'ck3update' is not recognized as an internal or external command
+```
+
+pip installed the command, but into a folder your shell does not search. This is common on Windows after `pip install --user ck3-save-updater`: the command lands in a per-user `Scripts` folder that Windows never adds to PATH, and pip warns about it only once. Run:
+
+```bash
+python -m ck3_save_migrator setup
+```
+
+This works whatever PATH holds, because it starts the tool through Python itself. It says where the command was installed and whether that folder is on PATH. On Windows it offers to add the folder to your user PATH (a backup of the old value is kept), and you then open a new terminal. With `--dry-run` it only says what it would change; with `--yes` it changes it without asking. Inside a virtual environment it tells you to activate the environment instead; on Linux and macOS it prints the line to add to your shell's profile. Until then, `python -m ck3_save_migrator <command> ...` runs any command, `python -m ck3_save_migrator update "My_Old_Campaign"` included.
+
 ## "output already exists"
 
 ```

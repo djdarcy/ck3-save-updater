@@ -31,6 +31,7 @@ classifiers = [
 dependencies = [
     "dazzle-loglib>=0.3.3",
     "dazzle-filekit>=0.4.3",       # atomic writes of the config and the JSON reports
+    "dazzlecmd-lib>=0.10.35a0",    # `ck3update setup` only (imported inside that command)
     "tomli>=1.1.0; python_version < \"3.11\"",
 ]
 
