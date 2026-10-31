@@ -1207,7 +1207,8 @@ def listed_workshop_mods(meta: bytes, game_dir: Path | None) -> tuple[list[Path]
     """(installed folders, ids not installed) for the Workshop mods a save's meta_data lists (ugc_<id>.mod)."""
     if game_dir is None:
         return [], []
-    content = game_dir.parent.parent.parent / "workshop" / "content" / "1158310"
+    from .discover import workshop_content_dir
+    content = workshop_content_dir(game_dir)
     found, missing = [], []
     for wid in re.findall(rb'"mod/ugc_(\d+)\.mod"', meta):
         d = content / wid.decode()

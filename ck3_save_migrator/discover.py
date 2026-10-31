@@ -140,6 +140,15 @@ def _read_vdf(path: Path) -> dict:
         return {}
 
 
+def workshop_content_dir(game_dir: Path | None) -> Path | None:
+    """The Steam Workshop folder of CK3's mods for a game folder in a Steam library:
+    ``<library>/steamapps/common/<installdir>/game`` -> ``<library>/steamapps/workshop/content/1158310``. None
+    without a game folder. The folder is not checked for existence (a library without Workshop mods has none)."""
+    if game_dir is None:
+        return None
+    return Path(game_dir).parent.parent.parent / "workshop" / "content" / CK3_APP_ID
+
+
 def steam_libraries(steam_root: Path) -> list[tuple[Path, set[str]]]:
     """(library folder, the app ids its ``apps`` block names) for every library ``libraryfolders.vdf`` lists, the
     Steam root itself first. Both layouts are read: ``"1" { "path" "..." "apps" {...} }`` and the older
