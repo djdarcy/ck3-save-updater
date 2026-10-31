@@ -49,6 +49,8 @@ def read_config(path: Path | None = None) -> dict:
         val = data.get(key, [])
         if not isinstance(val, list) or not all(isinstance(x, str) for x in val):
             raise ValueError(f"{path}: '{key}' must be a list of {what}")
+    if data.get("transplant", "off") not in ("auto", "off"):
+        raise ValueError(f"{path}: 'transplant' must be \"auto\" or \"off\"")
     trusted = data.get("trusted", {})
     if not isinstance(trusted, dict) or not all(isinstance(v, str) for v in trusted.values()):
         raise ValueError(f"{path}: 'trusted' must be a table of pack id = \"<hash>\"")
@@ -62,6 +64,11 @@ def disabled_ids(path: Path | None = None) -> list[str]:
 def pack_dirs(path: Path | None = None) -> list[str]:
     """The extra folders of the player's own packs (``pack_dirs``), as written."""
     return list(read_config(path).get("pack_dirs", []))
+
+
+def transplant_mode(path: Path | None = None) -> str:
+    """``transplant = "auto"`` lets ``update`` select the new-map rules when a save needs them; "off" otherwise."""
+    return read_config(path).get("transplant", "off")
 
 
 def trusted_packs(path: Path | None = None) -> dict[str, str]:
@@ -79,6 +86,8 @@ def write_config(data: dict, path: Path | None = None) -> Path:
              "<pack id>`", f"disabled = [{disabled}]"]
     if data.get("pack_dirs"):
         lines.append(f"pack_dirs = [{', '.join(json.dumps(d) for d in data['pack_dirs'])}]")
+    if data.get("transplant"):
+        lines.append(f"transplant = {json.dumps(data['transplant'])}")
     if data.get("trusted"):
         lines += ["", "[trusted]"] + [f"{json.dumps(k)} = {json.dumps(v)}" for k, v in sorted(data["trusted"].items())]
     atomic_write(path, "\n".join(lines) + "\n")

@@ -30,9 +30,12 @@ from pathlib import Path
 from . import savefile as sf
 from ._vendor import colors as C
 from .config import disabled_ids
-from .discover import GameInstall, compare_versions, discover_games, save_games_dir, save_versions
-from .patches import read_pack, rules_from_pack
+from .config import transplant_mode
+from .discover import GameInstall, compare_versions, discover_games, parse_version, save_games_dir, save_versions
+from .patches import PatchError, read_pack, rules_from_pack
 from .patches.model import span_matches
+from .patches.pack import run_verdict
+from .patches.run import patch_vars
 from .rules import REGISTRY, select
 from .userpacks import _with_pack_vars, ensure_packs_dir, find_user_packs
 
@@ -205,6 +208,8 @@ class UpdatePlan:
         r = self.reference
         if r.path:
             out.append(f"{L('reference')}{c.path(r.path)}  {c.note('(' + r.how + ': ' + r.why + ')')}")
+        elif r.how == "not needed":
+            out.append(f"{L('reference')}{c.note('not needed (no patch that will run needs one)')}")
         elif r.how == "refused":
             out.append(f"{L('reference')}{c.warn('none chosen')}: "
                        + (f"{len(r.ambiguous)} candidates; " if len(r.ambiguous) > 1 else "")
@@ -226,7 +231,8 @@ class UpdatePlan:
         for s in self.steps:
             counts = (f"  matched {s.matched:,} edited {s.edited:,}" if s.matched is not None else "")
             if s.will_run:
-                out.append(f"  {s.id:4} {s.name:{width}}  {c.ok('runs   ')}  {c.note(s.pack)}{counts}")
+                said = f"  {c.note(s.reason)}" if s.reason != "runs" else ""     # a done check's verdict
+                out.append(f"  {s.id:4} {s.name:{width}}  {c.ok('runs   ')}  {c.note(s.pack)}{counts}{said}")
             else:
                 why = c.warn(s.reason) if s.reason.startswith(ACTION_NEEDED) else c.note(s.reason)
                 out.append(f"  {s.id:4} {s.name:{width}}  {c.note('skipped')}  {c.note(f'{s.pack:10}')} {why}")
@@ -255,7 +261,7 @@ IND, IND2 = "  ", "    "     # a section's continuation lines, and the items und
 
 # skip reasons the player can act on (shown as a warning, not a note)
 ACTION_NEEDED = ("needs a reference save", "needs the old game folder", "its pack is not trusted",
-                 "its pack is changed since trusted")
+                 "its pack is changed since trusted", "needs --var")
 
 
 class Paint:
@@ -285,21 +291,51 @@ def _game(g: GameInstall | None) -> dict | None:
     return None if g is None else {"source": g.source, "path": str(g.path), "version": g.version}
 
 
-def _span_why(applies: dict | None, sv: str | None, gv: str | None) -> tuple[bool, str, bool]:
-    """(selected, why, declares a span that covers this save and game)."""
+NOT_SELECTED = "its pack is not selected for this save and game"
+
+
+def _span_why(applies: dict | None, sv: str | None, gv: str | None,
+              seed: str | None = None) -> tuple[bool, str, bool, str]:
+    """(selected, why, declares a span that covers this save and game, the reason its patches are skipped when not
+    selected). A ``campaign`` in ``[applies]`` selects the pack only for the save game whose random_seed it names."""
     if not applies:
-        return True, "no version span declared (matches any version)", False
+        return True, "no version span declared (matches any version)", False, ""
     parts, ok = [], True
+    camp = applies.get("campaign")
+    if camp:
+        mine = seed is not None and str(seed) == camp["seed"]
+        parts.append(f"campaign {camp['name']}: this save's random_seed "
+                     + ("is its seed" if mine else f"({seed or 'not found'}) is not its seed ({camp['seed']})"))
+        if not mine:
+            return False, "; ".join(parts), False, f"for another save game ({camp['name']})"
+    spans = {k: v for k, v in applies.items() if k in ("save", "game")}
     for key, ver in (("save", sv), ("game", gv)):
-        span = applies.get(key)
+        span = spans.get(key)
         if span is None:
-            parts.append(f"{key}: any")
+            if spans:
+                parts.append(f"{key}: any")
             continue
         m = span_matches(span, ver)
         ok = ok and bool(m)
         parts.append(f"{key} {ver or '?'} {'matches' if m else 'does not match' if m is False else 'cannot be compared to'}"
                      f" {span}")
-    return ok, "; ".join(parts), ok
+    return ok, "; ".join(parts), ok and bool(spans), NOT_SELECTED
+
+
+REWORK = "1.13"                       # the map rework: a save below it needs the new-map rules to load in 1.20
+TRANSPLANT = ("R14", "R15", "R16")    # rules.select adds R17, which writes what they plan
+CONTEXT_PRESENT = {"target_version", "target_save_game_version", "wos_shape", "expansion_orders", "mod_dirs"}
+
+
+def _excluded_ids(spec: str) -> set[str]:
+    by = {k.lower(): r.id for r in REGISTRY for k in (r.id, r.name)}
+    return {by[t.strip()[1:].lower()] for t in spec.split(",") if t.strip().startswith("-")
+            and t.strip()[1:].lower() in by}
+
+
+def _line(v: str | None):
+    pv = parse_version(v)
+    return pv[:2] if pv and len(pv) >= 2 else pv
 
 
 def _named_ids(spec: str) -> set[str]:
@@ -311,12 +347,20 @@ def _named_ids(spec: str) -> set[str]:
 def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str | None = None,
                 old_game_dir: str | None = None, rules_spec: str | None = None, output: str | None = None,
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
-                force: bool = False, create_packs_dir: bool = False) -> UpdatePlan:
+                force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
+                transplant: str | None = None, portraits_version: int | None = None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
+    Every decision is made here, before anything runs: a pack for another save game (its ``campaign``), a gap within
+    one major.minor line (assumed compatible), the reference (searched for only when a step that will run needs
+    one), a run patch's unmet ``needs`` (skipped, naming the ``--var``), its done check (a run patch already done
+    is skipped), a step whose prerequisite is skipped, and the new-map transplant (``transplant="auto"``).
+    ``variables``: the caller's ``--var``/``--vars`` (``<patch id>.<name>`` for one patch).
+
     Making the plan writes nothing: the player's packs folder is only read, unless ``create_packs_dir`` (``update``
-    without ``--dry-run`` creates it on its first run, as ``migrate`` does)."""
+    without ``--dry-run`` creates it on its first run, as ``migrate`` does). It reads the whole save only when a
+    selected run patch declares a done check (to judge it); otherwise only the bounded read."""
     save = Path(save)
     light = read_light(save)
     sv = save_versions(light.meta)
@@ -338,37 +382,52 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         refusals.append(f"the save was written by game version {sv['version']}, newer than the game at {game.path} "
                         f"(version {gv}); update brings a save from an older version to the game's")
 
-    # ---- the built-in pack, and the rules --rules selects from it
+    variables = dict(variables or {})
+    seed = light.random_seed
+
+    # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
+    mode = transplant or transplant_mode()
+    crosses = bool(sv["version"] and gv and compare_versions(sv["version"], REWORK) == -1
+                   and compare_versions(gv, REWORK) != -1)
     spec = rules_spec if rules_spec is not None else "all"
-    chosen = {r.id for r in select(spec)}                         # raises ValueError on a bad --rules
     off, named = set(disabled_ids()), _named_ids(spec)
+    if mode == "auto" and crosses:
+        add = [r for r in TRANSPLANT if r not in _excluded_ids(spec) and r not in named]
+        if add:
+            spec = spec + "," + ",".join(add)
+    chosen = {r.id for r in select(spec)}                         # raises ValueError on a bad --rules
+    if crosses and mode != "auto" and not set(TRANSPLANT) & chosen:
+        notes.append("this save crosses the 1.13-1.20 map rework: it loads only with the transplant "
+                     "(--rules all,R14,R15,R16, or --transplant auto)")
+
+    # ---- the built-in pack, and the rules --rules selects from it
     shipped = read_pack()
-    ok, why, covers = _span_why(shipped.applies, sv["version"], gv)
+    ok, why, covers, skip_why = _span_why(shipped.applies, sv["version"], gv, seed)
     pack_rows = [PackChoice(shipped.id, "built in", "(inside the package)", ok, why)]
     covered = covers
     steps: list[Step] = []
     rules: dict[str, object] = {}
-    ref = _reference(reference, save, sv, date, light.random_seed, gv, save_folder)
-    if ref.how == "refused":
-        refusals.append(ref.why)
-        amb = [Path(x) for x in ref.ambiguous]
-        fixes[ref.why] = {"fix": "pick one with --reference \"<one of these>\"",
-                          "folder": str(amb[0].parent) if amb else None, "names": [p.name for p in amb]}
+    # per step: needs a reference; the patch (for needs and done checks); whether its code may run; its vars.toml;
+    # the ids it requires
+    info: dict[str, dict] = {}
     for r in REGISTRY:
         reason, run = "runs", True
         if not ok:
-            reason, run = "its pack is not selected for this save and game", False
+            reason, run = skip_why, False
         elif r.id not in chosen:
             reason, run = ("opt-in: not in --rules" if not r.default else "not selected by --rules"), False
         elif r.id in off and r.id not in named:
             reason, run = "turned off in your config (`ck3update enable` turns it back on)", False
-        elif r.id in NEEDS_REFERENCE and not ref.path:
-            reason, run = "needs a reference save, and there is none", False
         elif r.id in NEEDS_OLD_GAME and not old_game_dir:
             reason, run = "needs the old game folder (--old-game-dir), and none was given", False
         steps.append(Step(r.id, r.name, shipped.id, run, reason))
         rules[r.id] = r
-    ref.skips = [s.id for s in steps if s.reason.startswith("needs a reference")]
+        info[r.id] = {"needs_ref": r.id in NEEDS_REFERENCE, "patch": None, "requires": tuple(r.requires)}
+
+    def pack_info(p, may_run: bool, pvars: dict) -> dict:
+        needs = p.run["needs"] if p.run else ()
+        return {"needs_ref": "reference" in needs, "patch": p, "may_run": may_run, "pack_vars": pvars,
+                "requires": tuple(p.requires)}
 
     # ---- your packs, then --pack folders
     if create_packs_dir:
@@ -376,7 +435,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     extra: list[tuple[object, list[Step]]] = []
     found = find_user_packs().packs
     for up in found:
-        ok, why, covers = _span_why(up.pack.applies, sv["version"], gv)
+        ok, why, covers, skip_why = _span_why(up.pack.applies, sv["version"], gv, seed)
         pack_rows.append(PackChoice(up.id, "yours", str(up.folder), ok, why, up.state))
         runnable = up.state == "runs" or (allow_run and up.state != "turned off")
         if ok and runnable:
@@ -387,7 +446,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         own = []
         for p in up.pack.ordered():
             if not ok:
-                reason = "its pack is not selected for this save and game"
+                reason = skip_why
             elif up.state in ("not trusted", "changed since trusted") and not allow_run:
                 reason = (f"its pack is {up.state}: `ck3update trust {up.id}` lets it run")
             elif not p.default:
@@ -397,20 +456,21 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             else:
                 reason = "runs"
             own.append(Step(p.id, p.name, up.id, reason == "runs", reason))
+            info[p.id] = pack_info(p, runnable, up.vars)
             if p.id in built:
                 rules[p.id] = built[p.id]
         extra.append((up.pack, own))
     for folder in packs or []:
         pk = read_pack(folder)
-        ok, why, covers = _span_why(pk.applies, sv["version"], gv)
+        ok, why, covers, skip_why = _span_why(pk.applies, sv["version"], gv, seed)
         pack_rows.append(PackChoice(pk.id, "--pack", str(folder), ok, why))
         built = {r.id: r for r in rules_from_pack(folder, allow_run=allow_run)} if ok else {}   # refuses code
         covered = covered or (ok and covers)
         own = []
         for p in pk.ordered():
-            reason = ("its pack is not selected for this save and game" if not ok else
-                      "default = false" if not p.default else "runs")
+            reason = (skip_why if not ok else "default = false" if not p.default else "runs")
             own.append(Step(p.id, p.name, pk.id, reason == "runs", reason))
+            info[p.id] = pack_info(p, allow_run, {})
             if p.id in built:
                 rules[p.id] = built[p.id]
         extra.append((pk, own))
@@ -431,16 +491,103 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             s._after = pk.after
         steps[at + 1:at + 1] = own
 
-    # ---- the gap
+    # ---- the reference: searched for only when a step that will run needs one (given or named, it is used)
+    given_ref = reference not in (None, "") or os.environ.get("CK3_REFERENCE_SAVE") not in (None, "")
+    if given_ref or any(s.will_run and info[s.id]["needs_ref"] for s in steps):
+        ref = _reference(reference, save, sv, date, seed, gv, save_folder)
+    else:
+        ref = Reference(None, "not needed", "no patch that will run needs one")
+    if ref.how == "refused":
+        refusals.append(ref.why)
+        amb = [Path(x) for x in ref.ambiguous]
+        fixes[ref.why] = {"fix": "pick one with --reference \"<one of these>\"",
+                          "folder": str(amb[0].parent) if amb else None, "names": [p.name for p in amb]}
+    for s in steps:
+        if s.will_run and info[s.id]["needs_ref"] and not ref.path:
+            s.will_run, s.reason = False, "needs a reference save, and there is none"
+    ref.skips = [s.id for s in steps if s.reason.startswith("needs a reference")]
+    if crosses and mode == "auto" and not ref.path and set(ref.skips) & set(TRANSPLANT):
+        notes.append("this save crosses the 1.13-1.20 map rework: it needs a reference save to load in 1.20 (the "
+                     "transplant copies the new regions from one); the steps to make one are above")
+
+    # ---- run patches' needs and variables, known before anything runs
+    known_ctx = {"game_dir": str(game.path) if game else None, "reference": ref.path,
+                 "old_game_dir": old_game_dir, "portraits_version": portraits_version}
+
+    def values_for(sid: str) -> dict:
+        i = info[sid]
+        return {**{k: v for k, v in known_ctx.items() if v not in (None, "")},
+                **i.get("pack_vars", {}), **patch_vars(sid, variables)}
+
+    ids = {s.id for s in steps}
+    for k in variables:
+        if "." in k and k.split(".", 1)[0] not in ids:
+            refusals.append(f"--var {k}: no patch {k.split('.', 1)[0]} in this plan")
+    for name in sorted(k for k in variables if "." not in k):
+        users = [s.id for s in steps if s.will_run and info[s.id]["patch"] is not None
+                 and info[s.id]["patch"].run and name in info[s.id]["patch"].run["needs"]]
+        if len(users) > 1:
+            x = f"--var {name} is needed by {', '.join(users)}: say which with --var <patch id>.{name}=..."
+            refusals.append(x)
+            fixes[x] = {"fix": " ".join(f"--var {u}.{name}=..." for u in users)}
+    for s in steps:
+        p = info[s.id]["patch"]
+        if not s.will_run or p is None or not p.run:
+            continue
+        have = values_for(s.id)
+        for name, help_text in p.run["needs_help"].items():
+            if name == "reference" or name in CONTEXT_PRESENT or have.get(name) not in (None, ""):
+                continue
+            if name == "old_game_dir":
+                s.will_run, s.reason = False, "needs the old game folder (--old-game-dir), and none was given"
+            else:
+                s.will_run = False
+                s.reason = f"needs --var {name}" + (f" ({help_text})" if help_text else "")
+            break
+
+    # ---- run patches' done checks: one already done does not run (the only full read of the save)
+    checks = [s for s in steps if s.will_run and info[s.id]["patch"] is not None and info[s.id]["patch"].run
+              and (info[s.id]["patch"].done or info[s.id]["patch"].run.get("done_command"))]
+    if checks:
+        gamestate = sf.read_save(save).gamestate
+        for s in checks:
+            i = info[s.id]
+            try:
+                v, detail = run_verdict(gamestate, i["patch"], save_file=save, values=values_for(s.id),
+                                        may_run=i["may_run"])
+            except PatchError as exc:
+                v, detail = "unknown", f"done_command not run: {exc}"
+            if v == "done":
+                s.will_run, s.reason = False, f"done: {detail}"
+            else:
+                s.reason = f"{v}: {detail}"
+
+    # ---- a step whose prerequisite does not run does not run either
+    changed = True
+    while changed:
+        changed = False
+        skipped = {s.id for s in steps if not s.will_run}
+        for s in steps:
+            need = [r for r in info[s.id]["requires"] if r in skipped]
+            if s.will_run and need:
+                s.will_run, s.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
+
+    # ---- the gap: judged on major.minor (a hotfix of the same line is assumed compatible)
     uncovered = None
-    current = bool(sv["version"]) and sv["version"] == gv
-    if gv and sv["version"] and not current and not covered and not refusals:
+    sl, gl = _line(sv["version"]), _line(gv)
+    same_line = bool(sl and gl and sl == gl)
+    if gv and sv["version"] and not same_line and not covered and not refusals:
         uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
                      "[applies] span); nothing would bring the save to the game's version")
         refusals.append(uncovered)
         fixes[uncovered] = {"fix": "a pack in your packs folder whose [applies] declares this span "
                                    "(docs/writing-a-patch.md), or `ck3update migrate` with the rules you choose"}
-    already = current and not any(s.will_run for s in steps)
+    if same_line and sv["version"] != gv and not covered and compare_versions(sv["version"], gv) == -1:
+        notes.append(f"no pack declares {sv['version']} -> {gv} (same {gl[0]}.{gl[1]} line; assumed compatible)")
+    already = same_line and not any(s.will_run for s in steps)
+    unmet = [s.id for s in steps if s.reason.startswith(("needs --var", "needs the old game"))]
+    if already and unmet:
+        notes.append(f"nothing runs; {', '.join(unmet)} skipped for an unmet need (see the patches above)")
 
     out = None
     if output:

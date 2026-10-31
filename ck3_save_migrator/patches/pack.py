@@ -134,6 +134,25 @@ def verdict(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None)
     return "done", "nothing to edit" + (" (its done marker is present)" if pl.done else "")
 
 
+def run_verdict(save_gamestate: bytes, patch: Patch, *, save_file: Path | None, values: dict,
+                may_run: bool) -> tuple[str, str]:
+    """(verdict, detail) for a run patch from its done check: ``done = {...}`` is judged on the gamestate, as a
+    declarative patch's; ``run.done_command`` is a program, run (on a copy of ``save_file``) only when ``may_run``
+    (a trusted pack, or --allow-run): otherwise "unknown". Without a done check: "unknown"."""
+    from .run import run_done_command
+    if patch.done is not None:
+        if engine._done(save_gamestate, patch):
+            return "done", f"its done marker is present ({patch.done['path']} has {patch.done['key']})"
+        return "needed", f"its done marker is absent ({patch.done['path']} has no {patch.done['key']})"
+    if patch.run and patch.run.get("done_command"):
+        if not may_run:
+            return "unknown", "done_command not run: not trusted"
+        if save_file is None:
+            return "unknown", "done_command not run: no save file to give it"
+        return run_done_command(patch, Path(save_file), values)
+    return "unknown", "a run patch without a done check: only running it would tell"
+
+
 def status(save_gamestate: bytes, patch: Patch, ctx: RuleContext | None = None) -> str:
     """"needed", "done", "fails" or "unknown" (code and run patches run when selected); see ``verdict``."""
     return verdict(save_gamestate, patch, ctx)[0]
