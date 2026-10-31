@@ -49,6 +49,8 @@ pip install ck3-save-updater
 
 This installs the `ck3update` command. The project's old name, `ck3-save-migrator`, still works as a second name for the same command for now.
 
+If your shell then says `'ck3update' is not recognized` (common on Windows after `pip install --user`: pip puts the command in a folder that is not on PATH), run `python -m ck3_save_migrator setup`. It works without the command being on PATH, says where pip put it and, on Windows, offers to add that folder to your user PATH (`--dry-run` prints what it would do and changes nothing in PATH or the registry, `--yes` changes it without asking). See [Troubleshooting](docs/troubleshooting.md#ck3update-is-not-recognized).
+
 To work on the code instead:
 
 ```bash
