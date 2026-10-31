@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - The config file and the JSON reports (the `--report`, the lint file beside each output, `lint --json`, `gamediff --json`) are written atomically, through dazzle-filekit: a crash, a full disk or a kill mid-write leaves the old file whole instead of a torn one. Their bytes are unchanged.
+- `ck3update tools run` runs a script directly, `[python, <script>] + args`, the same way a run patch's `tool =` does: nothing extra to install (the `[tools]` extra and dazzlecmd-lib are no longer needed), no cache folder written (`--cache-dir` and `CK3SM_TOOLS_CACHE` are gone), and a scripts folder holding an `__init__.py` no longer breaks it.
 
 ## [0.3.17] - 2026-10-31
 

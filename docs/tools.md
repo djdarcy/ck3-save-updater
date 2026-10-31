@@ -1,18 +1,8 @@
 # Tools
 
-The project keeps a folder of standalone Python scripts, `tests/one-offs`: small checks and fixes written while working on a save, such as counting the characters of a faith or comparing two saves. The optional tools add-on makes them easy to find and run from the `ck3update` command: `tools list` shows them with a one-line description, `tools run` runs one, and `tools path` prints where one is.
+The project keeps a folder of standalone Python scripts, `tests/one-offs`: small checks and fixes written while working on a save, such as counting the characters of a faith or comparing two saves. The `tools` command makes them easy to find and run: `tools list` shows them with a one-line description, `tools run` runs one, and `tools path` prints where one is. Nothing extra needs installing.
 
-The add-on never changes a script. Each script runs exactly as it would if you ran `python <script> ...` yourself: as its own process, from your current folder, with the arguments you give and nothing else, and `tools run` exits with the script's own exit code. Nothing is copied into or written next to the scripts.
-
-## Installing it
-
-The add-on runs the scripts through [dazzlecmd-lib](https://pypi.org/project/dazzlecmd-lib/), which the rest of the tool does not need, so it is an extra:
-
-```bash
-pip install "ck3-save-updater[tools]"
-```
-
-From a source checkout, `pip install -e ".[tools]"` (or `".[dev]"`, which includes it). Without the library, every `tools` command except `--help` prints the line above and exits with code 2; migrating, linting and the other commands work as before.
+The command never changes a script, and writes nothing anywhere. Each script runs exactly as it would if you ran `python <script> ...` yourself: as its own process, run as a file (never as a module, whatever else its folder holds), from your current folder, with your terminal's input and output and the arguments you give, and `tools run` exits with the script's own exit code.
 
 ## Using it
 
@@ -38,8 +28,6 @@ The first of these that is set:
 
 When none is set, the command says so and exits with code 2.
 
-To run a script, dazzlecmd-lib is given a small description of each one, generated again on every call in a cache folder: `--cache-dir <folder>`, else the environment variable `CK3SM_TOOLS_CACHE`, else `ck3-save-migrator/tools` inside your user cache folder (`%LOCALAPPDATA%` on Windows, `~/.cache` elsewhere). This folder is the only place the add-on writes, and it is safe to delete.
-
 ## A tool in a run patch
 
 A [run patch](writing-a-patch.md#when-to-run-a-program-instead-run) can name a script from the scripts folder instead of spelling out its command:
@@ -50,4 +38,4 @@ tool = "edit_save"
 args = ["@@input@@", "@@output@@"]
 ```
 
-This runs `<scripts folder>/edit_save.py` with the Python running the tool, followed by `args`, which take the same `@@name@@` variables as `command`. It is the same as `command = ["@@python@@", "<scripts folder>/edit_save.py", "@@input@@", "@@output@@"]`. The scripts folder is the variable `scripts_dir` when given (`--var scripts_dir=<folder>`), else found as above; when there is none, or the script is not in it, the patch is refused, naming the folder. A `tool =` patch does not need dazzlecmd-lib, and like any run patch in a pack folder it needs `--allow-run`.
+This runs `<scripts folder>/edit_save.py` with the Python running the tool, followed by `args`, which take the same `@@name@@` variables as `command`: the same command `tools run` builds. It is the same as `command = ["@@python@@", "<scripts folder>/edit_save.py", "@@input@@", "@@output@@"]`. The scripts folder is the variable `scripts_dir` when given (`--var scripts_dir=<folder>`), else found as above; when there is none, or the script is not in it, the patch is refused, naming the folder. Like any run patch in a pack folder, it needs `--allow-run`, or a trusted pack in your packs folder.

@@ -254,11 +254,14 @@ def default_docs() -> Path:
 
 
 def default_base() -> Path:
-    """The tool's cache folder for soak runs and the lock: CK3SM_SOAK_DIR, else beside the tools add-on's cache."""
+    """The tool's cache folder for soak runs and the lock: CK3SM_SOAK_DIR, else ``soak`` in the user cache folder
+    (``%LOCALAPPDATA%\\ck3-save-migrator`` on Windows, ``$XDG_CACHE_HOME`` or ``~/.cache`` + ``ck3-save-migrator``
+    elsewhere; the folder keeps the project's old name, like the config folder's)."""
     if os.environ.get("CK3SM_SOAK_DIR"):
         return Path(os.environ["CK3SM_SOAK_DIR"])
-    from .tools import cache_dir
-    return cache_dir().parent / "soak"
+    if sys.platform == "win32" and os.environ.get("LOCALAPPDATA"):
+        return Path(os.environ["LOCALAPPDATA"]) / "ck3-save-migrator" / "soak"
+    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "ck3-save-migrator" / "soak"
 
 
 def game_exe(install: Path) -> Path:

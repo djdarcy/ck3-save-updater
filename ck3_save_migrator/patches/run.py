@@ -70,7 +70,8 @@ def run_patch(save, patch: Patch, ctx, rule, user_vars: dict):
         sf.write_save(_detached(save), inp)
         values.update(input=str(inp), output=str(outp))
         if script is not None:
-            cmd = [sys.executable, str(script)] + expand(patch.run["args"], values, patch.source)
+            from .. import tools               # the one command builder, shared with `tools run`
+            cmd = tools.script_command(script, expand(patch.run["args"], values, patch.source))
         else:
             cmd = expand(patch.run["command"], values, patch.source)
         timeout = patch.run.get("timeout", RUN_TIMEOUT)

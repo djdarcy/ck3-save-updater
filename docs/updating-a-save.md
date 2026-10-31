@@ -116,7 +116,7 @@ A packaged mod with these settings is planned. Until then, the settings change a
 
 - `ck3update gamediff <old game folder> <new game folder> --save My_Campaign.ck3` lists what the update changed and what your save uses of it: the starting point for a new patch ([gamediff](gamediff.md)).
 - A new fix is a folder with a `patch.toml`. Run it with `migrate ... --pack <your folder>`; see [writing a patch](writing-a-patch.md). A pack that runs code (a script or a program) needs `--allow-run`.
-- Your own scripts can be run unchanged as patches, or listed and run with the optional `tools` add-on ([tools](tools.md)).
+- Your own scripts can be run unchanged as patches, or listed and run with `ck3update tools` ([tools](tools.md)).
 
 ## Exit codes
 
