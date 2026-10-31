@@ -84,6 +84,8 @@ class Pack:
     patches: dict                   # id -> Patch
     source: str
     from_disk: bool
+    applies: dict | None = None     # [applies]: {"save": span, "game": span}; None: no version span declared
+    after: str | None = None        # run right after this patch of another pack, not after the built-in rules
 
     def ordered(self) -> list[Patch]:
         return [self.patches[i] for i in self.order]
@@ -358,9 +360,23 @@ def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:
         raise PatchError(f"{where}: missing (a pack folder holds a pack.toml)")
     d = _read(entry, where)
     _format(d, where)
-    extra = set(d) - {"format", "id", "title", "order"}
+    extra = set(d) - {"format", "id", "title", "order", "applies", "after"}
     if extra:
         raise PatchError(f"{where}: unknown field '{sorted(extra)[0]}'")
+    applies = d.get("applies")
+    if applies is not None:
+        if not isinstance(applies, dict) or set(applies) - {"save", "game"} or \
+                not all(isinstance(v, str) for v in applies.values()):
+            raise PatchError(f"{where}: [applies] holds save = \"<span>\" and game = \"<span>\" (for example "
+                             "save = \">=1.8, <1.20\")")
+        for k, v in applies.items():
+            try:
+                parse_span(v)
+            except ValueError as exc:
+                raise PatchError(f"{where}: [applies] {k}: {exc}") from None
+    after = d.get("after")
+    if after is not None and not (isinstance(after, str) and after):
+        raise PatchError(f"{where}: field 'after' must be a patch id (for example \"R17\")")
     order = _need(d, "order", list, where)
     if not order or not all(isinstance(x, str) for x in order):
         raise PatchError(f"{where}: field 'order' must be a non-empty list of patch ids")
@@ -384,7 +400,38 @@ def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:
         if unknown:
             raise PatchError(f"{p.source}: field 'requires' names {', '.join(unknown)}, not in this pack")
     return Pack(_need(d, "id", str, where), _need(d, "title", str, where), tuple(order), patches, where,
-                from_disk)
+                from_disk, dict(applies) if applies else None, after)
+
+
+# --------------------------------------------------------------------------- version spans ([applies])
+_SPAN_PART = re.compile(r"^\s*(>=|<=|==|!=|>|<|=)?\s*v?(\d+(?:\.\d+)*)\s*$")
+
+
+def parse_span(text: str) -> list[tuple[str, str]]:
+    """``">=1.8, <1.20"`` -> ``[(">=", "1.8"), ("<", "1.20")]``: comma-separated comparisons on dotted versions
+    (a bare version means ``==``). Every comparison must hold."""
+    parts = [p for p in text.split(",") if p.strip()]
+    if not parts:
+        raise ValueError(f"{text!r} is empty (write comparisons such as \">=1.8, <1.20\")")
+    out = []
+    for p in parts:
+        m = _SPAN_PART.match(p)
+        if not m:
+            raise ValueError(f"{p.strip()!r} is not a comparison on a dotted version (such as >=1.20)")
+        out.append((m.group(1) if m.group(1) not in (None, "=") else "==", m.group(2)))
+    return out
+
+
+def span_matches(text: str, version: str | None) -> bool | None:
+    """Whether ``version`` satisfies the span; None when the version has no number to compare."""
+    from ..discover import compare_versions
+    for op, v in parse_span(text):
+        c = compare_versions(version, v)
+        if c is None:
+            return None
+        if not {">=": c >= 0, "<=": c <= 0, "==": c == 0, "!=": c != 0, ">": c > 0, "<": c < 0}[op]:
+            return False
+    return True
 
 
 def as_folder(path) -> Any:
