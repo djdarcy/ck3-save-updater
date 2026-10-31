@@ -11,6 +11,26 @@ This page walks a player through bringing an old Crusader Kings III save forward
   - for a save from before the 2023-2024 map rework (1.8 to 1.12 era), **a save written by the new game at your campaign's date** (the "reference"; see the reference-save guide) and, if you have it, **the old game's `game` folder** (from Steam's betas).
 - Save names below are placeholders: `My_Old_Campaign.ck3`.
 
+## The short way: status, then update
+
+```
+ck3update status My_Old_Campaign
+ck3update update My_Old_Campaign --dry-run
+ck3update update My_Old_Campaign
+```
+
+`status` prints the plan and writes nothing:
+
+- the save (its versions, date and mods) and the game it will be brought to (the install used, and the others found);
+- the gap between the two versions. The packs are chosen by it: each pack may say which saves and games it is for (`[applies]` in its `pack.toml`), and the built-in pack is for saves from 1.8 to before 1.20 going to a 1.20 game. A gap no selected pack covers is named, and nothing is written;
+- every pack and patch, in the order they run, with whether each runs and why not (turned off, not trusted, not selected by `--rules`, or needing a reference save or the old game folder that is not there);
+- the reference save: given with `--reference`, named by `CK3_REFERENCE_SAVE`, or found in the save folder: a save written by the game's version on the save's date. It never picks a save that descends from yours (one this tool wrote, or one you made by playing an updated save), and when two saves could each be the reference it asks you to choose one with `--reference`. With none, it lists the rules that will skip and the steps to make a reference;
+- the output: `<name>__updated_<game version>.ck3` beside the save (`-o` for another).
+
+`update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed, writes the output and `<output>.report.json` beside it (the plan and the counts). An output that exists is refused without `--force`. A save already at the game's version, with no pack selected for it, is "already current": nothing is written. `update` takes `migrate`'s options for the rules (`--rules`, `--wos-shape`, `--portraits-version`, `--old-game-dir`) and exits with the same codes.
+
+The steps below are the same flow done by hand, with `migrate`, the lower-level command `update` runs.
+
 ## 1. Look at the save
 
 ```
