@@ -30,7 +30,7 @@ from ._version import __app_name__, get_display_version
 from ._vendor import colors as C
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
-from .config import config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
+from .config import atomic_write, config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
 from .userpacks import ensure_packs_dir, find_user_packs, runs_what, user_rules
 from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
 from .patches import read_pack, rules_from_pack, verdict
@@ -88,7 +88,7 @@ def add_verbosity_flags(parser: argparse.ArgumentParser, top: bool = False) -> N
                         help="less (repeatable: -q results only, -qqq errors only, -qqqq nothing)")
     parser.add_argument("--show", action="append", metavar="CHANNEL[:LEVEL]", type=parse_channel_spec,
                         default=[], dest=p + "show", help="raise one channel, e.g. --show transplant:1 "
-                                                          "(channels: rules, transplant, lint, io, timing)")
+                                                          f"(channels: {', '.join(c.name for c in CHANNELS)})")
 
 
 def read_save_logged(path):
@@ -224,7 +224,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
         print_lint(lint_rep)
         if not result.dry_run:
             lint_path = out.with_suffix(".lint.json")      # X.migrated.ck3 -> X.migrated.lint.json
-            lint_path.write_text(json.dumps(lint_rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+            atomic_write(lint_path, json.dumps(lint_rep.as_dict(), indent=2, ensure_ascii=False))
             say(DEFAULT, f"  lint report   : {lint_path}", "io")
     if report_path:
         report = {
@@ -243,7 +243,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "rules": [r.as_dict() for r in results],
             "lint": lint_rep.as_dict() if lint_rep is not None else None,
         }
-        Path(report_path).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write(Path(report_path), json.dumps(report, indent=2, ensure_ascii=False))
         say(DEFAULT, f"  report        : {report_path}", "io")
 
 
@@ -575,7 +575,7 @@ def cmd_lint(args) -> int:
     say(MINIMAL, f"lint: {save.source}", "lint")
     print_lint(rep, level=MINIMAL)
     if args.json:
-        Path(args.json).write_text(json.dumps(rep.as_dict(), indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write(Path(args.json), json.dumps(rep.as_dict(), indent=2, ensure_ascii=False))
         say(DEFAULT, f"  report        : {args.json}", "io")
     return 4 if rep.errors else 0
 
@@ -646,7 +646,7 @@ def cmd_gamediff(args) -> int:
             say(MINIMAL, "  none: nothing it names was removed or changed", "gamediff")
         report["save"] = {"path": str(args.save), "uses": uses}
     if args.json:
-        Path(args.json).write_text(json.dumps(report, indent=1, ensure_ascii=False), encoding="utf-8")
+        atomic_write(Path(args.json), json.dumps(report, indent=1, ensure_ascii=False))
         say(DEFAULT, f"  report        : {args.json}", "io")
     return 0
 
