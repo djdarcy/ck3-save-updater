@@ -27,6 +27,7 @@ from dazzle_loglib import (
 )
 
 from ._version import __app_name__, get_display_version
+from ._vendor import colors as C
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
 from .config import config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
@@ -66,7 +67,11 @@ CHANNELS = [
 
 
 def say(level: int, text: str, channel: str, err: bool = False) -> None:
-    """One line of output on ``channel``; ``err`` sends it to stderr whatever the channel's destination."""
+    """One line of output on ``channel``; ``err`` sends it to stderr whatever the channel's destination. Errors are
+    red and warnings yellow when the stream takes colour (colors.should_use_color: off under NO_COLOR or a pipe);
+    a line that carries its own colour is left as it is."""
+    if level in (ERROR, WARNING) and "\033[" not in text:
+        text = C.colorize_for(sys.stderr if err else sys.stdout, text, C.BRIGHT_RED if level == ERROR else C.YELLOW)
     get_output().emit(level, text, channel=channel, file="stderr" if err else None)
 
 
@@ -343,10 +348,14 @@ def make_plan(args, *, writes: bool = False):
 
 
 def say_plan(plan) -> None:
-    for line in plan.lines():
+    """The verdict first, then the plan; each refusal once, on stderr, with its fix (the wtf tools' shape)."""
+    from .plan import Paint
+    out = Paint(C.should_use_color(sys.stdout))
+    for line in plan.verdict_lines(out) + plan.lines(out):
         say(MINIMAL, line, "rules")
-    for x in plan.refusals:
-        say(ERROR, f"ERROR: {x}", "rules", err=True)
+    sys.stdout.flush()                  # the refusal (stderr) comes after the plan even when stdout is a pipe
+    for line in plan.refusal_lines(Paint(C.should_use_color(sys.stderr))):
+        say(ERROR, line, "rules", err=True)
 
 
 def cmd_status(args) -> int:

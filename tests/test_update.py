@@ -97,7 +97,7 @@ def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     ref_save(saves, "Ref.ck3", bookmark=True)
     before = sorted(p.name for p in saves.iterdir())
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g))
-    assert code == 0 and "patches   : (in the order they run)" in out
+    assert code == 0 and "patches  (in the order they run)" in out
     code, dry, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape", "faith")
     assert code == 0 and "dry run: the plan with each patch's counts" in dry
     assert sorted(p.name for p in saves.iterdir()) == before                       # status and --dry-run wrote nothing
@@ -110,6 +110,22 @@ def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     assert out_path.is_file() and (saves / "Campaign__updated__1.20.1.2.report.json").is_file()
     rep = json.loads((saves / "Campaign__updated__1.20.1.2.report.json").read_text(encoding="utf-8"))
     assert [s["id"] for s in rep["plan"]["steps"] if s["will_run"]] == [r["id"] for r in rep["rules"]]
+
+
+def test_colour_is_off_under_no_color_and_the_forced_colour_is_the_same_text(tmp_path, saves, capsys, monkeypatch):
+    """The plain form is pinned under NO_COLOR (which beats FORCE_COLOR); forced colour adds escapes and nothing
+    else. The verdict comes first (the wtf tools' shape). colorama is kept from wrapping pytest's streams."""
+    import re
+    from ck3_save_migrator._vendor import colors
+    monkeypatch.setattr(colors, "_ansi_initialized", True)
+    s, g = old_save(saves), game(tmp_path)
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.setenv("NO_COLOR", "1")
+    code, plain, plain_err = run(capsys, "status", str(s), "--game-dir", str(g))
+    assert code == 0 and "\033[" not in plain + plain_err and plain.startswith("READY  1.8.1 -> 1.20.1.2:")
+    monkeypatch.delenv("NO_COLOR")
+    code, coloured, _ = run(capsys, "status", str(s), "--game-dir", str(g))
+    assert code == 0 and "\033[" in coloured and re.sub(r"\033\[[0-9;]*m", "", coloured) == plain
 
 
 def test_status_and_a_dry_run_never_create_the_packs_folder_and_update_does(tmp_path, saves, capsys):
@@ -217,7 +233,10 @@ def test_two_fresh_references_without_a_bookmark_mod_are_refused_naming_both(tmp
     a = ref_save(saves, "A.ck3")
     b = ref_save(saves, "B.ck3", seed=b"random_seed=333\n")
     code, out, err = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path)))
-    assert code == 1 and str(a) in err and str(b) in err and "give one with --reference" in err
+    # each refusal once, on stderr: the folder once, then the names, then the fix (the 01:42 layout ruling)
+    assert code == 1 and a.name in err and b.name in err and str(a.parent) in err and "pick one with --reference" in err
+    assert err.count(str(a.parent)) == 1 and "REFUSED" in out and str(a) not in out
+    assert (out + err).count("pick one with --reference") == 1 and (out + err).count(b.name) == 1
 
 
 def test_of_two_fresh_saves_the_one_with_the_bookmark_mod_is_chosen(tmp_path, saves):

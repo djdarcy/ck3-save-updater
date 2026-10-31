@@ -26,8 +26,10 @@ _HOLDING = re.compile(rb"holding=\{[^}]*?type=")     # a province entry that has
 
 # Reference titles the engine is measured to create by itself in a migrated campaign, so a copy would duplicate it
 # ("Duplicate landed title name", 2026-10-25). Measured key by key in the game's own saves of the migrated founding
-# campaign at 990.1.1 and 1003.1.1: of the 340 titles 1.20 defines that the save lacked, only this one appeared. Why
-# the engine creates it is not known (not from history files, not from a holy order). Any other title a fresh game
+# campaign at 990.1.1 and 1003.1.1: of the 340 titles 1.20 defines that the save lacked, only this one appeared. It
+# is the save's own d_knights_hospitaler renamed on load by the game's common/landed_titles/title_conversion.lookup
+# (same id, holder kept; measured on the game's re-save of play7, 2026-10-31; R6 reads the same file as
+# "converted_by_game"), so carrying it would make a second one. Any other title a fresh game
 # has is carried, empty if the fresh game has it empty (DWP 2026-10-27 05-49-04, option B; djdarcy: carry only
 # what a fresh game has, as it has it).
 ENGINE_CREATED = frozenset({"d_knights_hospitaller"})

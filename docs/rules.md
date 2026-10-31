@@ -59,6 +59,7 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 | R22 | impassable-provinces | 1.18.0 (map rework; exact major unverified) | clears what stands on provinces the current map makes impassable: the holding becomes the empty one a new game has, its soldiers and any siege go, armies step back to where they came from, and council tasks aim at a province of their ruler's own. Needs the game folder |
 | R6 | dead-titles-report | 1.18.0 (map rework; exact major unverified) | changes nothing; reports titles the current game no longer defines. Needs the game folder (`--game-dir`, or found automatically) |
 | R11 | empty-modifiers | 1.8.1<v<=1.20.1.2 | deletes modifiers with an empty name (`modifier=""`, `""` in modifier lists, `type=""`) |
+| R23 | nickname-text | 1.8.1<v<=1.20.1.2 | writes the nickname's text (`nickname_text`) after every nickname that lacks it, the way 1.20 stores a nickname: its key and its rendered text. Without it, nicknames show as raw keys or garbled in game |
 | R7 | version-bump | n/a | sets the save's version fields to the target version; runs last. `--portraits-version` also sets the portraits version |
 
 ### Religion rules (default)

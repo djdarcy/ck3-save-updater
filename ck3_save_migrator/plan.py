@@ -28,6 +28,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import savefile as sf
+from ._vendor import colors as C
 from .config import disabled_ids
 from .discover import GameInstall, compare_versions, discover_games, save_games_dir, save_versions
 from .patches import read_pack, rules_from_pack
@@ -121,6 +122,7 @@ class Reference:
     why: str
     skips: list[str] = field(default_factory=list)
     candidates: list[str] = field(default_factory=list)
+    ambiguous: list[str] = field(default_factory=list)      # refused: the saves it could not choose between
 
 
 @dataclass
@@ -141,6 +143,8 @@ class UpdatePlan:
     already_current: bool = False
     notes: list[str] = field(default_factory=list)
     gamestate_bytes_read: int = 0
+    # per refusal (by its text): the fix, and the files it names, shown as their folder once and then the names
+    fixes: dict = field(default_factory=dict)
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -156,48 +160,125 @@ class UpdatePlan:
         d.pop("user_packs", None)
         return d
 
-    def lines(self) -> list[str]:
+    def verdict_lines(self, paint: "Paint | None" = None) -> list[str]:
+        """The answer first (the wtf tools' shape): READY / ALREADY CURRENT / NOTHING TO DO, and REFUSED when the
+        plan refuses -- an already-current save can be refused as well (the reference pick), and both are said."""
+        c = paint or Paint()
+        out = []
+        runs, skips = sum(s.will_run for s in self.steps), sum(not s.will_run for s in self.steps)
+        if self.already_current:
+            out.append(f"{c.verdict('ALREADY CURRENT', 'info')}  the save is at the game's version and no pack is "
+                       "selected for it; nothing to do")
+        elif not self.refusals:
+            if runs:
+                out.append(f"{c.verdict('READY', 'ok')}  {self.gap[0] or '?'} -> {self.gap[1] or '?'}: {runs} "
+                           f"patch(es) run, {skips} skipped")
+            else:
+                out.append(f"{c.verdict('NOTHING TO DO', 'info')}  no selected patch runs")
+        if self.refusals:
+            out.append(f"{c.verdict('REFUSED', 'bad')}  {len(self.refusals)} reason(s), below; nothing is written")
+        return out + [""]
+
+    def lines(self, paint: "Paint | None" = None) -> list[str]:
+        """The plan, section by section. Refusals are not repeated here: ``refusal_lines`` prints each once."""
+        c = paint or Paint()
         v = self.save_versions
-        out = [f"save      : {self.save}",
-               f"            version {v['version'] or '?'} (save_game_version {v['save_game_version']}, "
+        L = lambda name: c.label(f"{name:10}")      # noqa: E731
+        sp = Path(self.save)
+        out = [f"{L('save')}{c.path(sp.name)}  {c.note('in ' + str(sp.parent))}",
+               f"{IND}version {v['version'] or '?'} (save_game_version {v['save_game_version']}, "
                f"portraits_version {v['portraits_version']}), date {self.save_date or '?'}, "
                f"{len(self.save_mods)} mod(s) listed"]
         if self.game:
-            out.append(f"game      : {self.game['version'] or 'version unknown'}  {self.game['path']}  "
-                       f"(from {self.game['source']})")
+            out.append(f"{L('game')}{self.game['version'] or 'version unknown'}  {c.path(self.game['path'])}  "
+                       f"{c.note('(from ' + self.game['source'] + ')')}")
         else:
-            out.append("game      : none found")
-        out += [f"also      : {g['version'] or 'version unknown'}  {g['path']}  (from {g['source']}; not used)"
-                for g in self.other_games]
-        out.append(f"gap       : {self.gap[0] or '?'} -> {self.gap[1] or '?'}"
-                   + ("  (none: the save is at the game's version)" if self.gap[0] and self.gap[0] == self.gap[1]
-                      else ""))
+            out.append(f"{L('game')}{c.warn('none found')}")
+        out += [f"{L('also')}{g['version'] or 'version unknown'}  {c.path(g['path'])}  "
+                f"{c.note('(from ' + g['source'] + '; not used)')}" for g in self.other_games]
+        out.append(f"{L('gap')}{self.gap[0] or '?'} -> {self.gap[1] or '?'}"
+                   + (c.note("  (none: the save is at the game's version)")
+                      if self.gap[0] and self.gap[0] == self.gap[1] else ""))
         if self.uncovered:
-            out.append(f"NOT COVERED: {self.uncovered}")
+            out.append(f"{IND}{c.bad('NOT COVERED')}: the gap {self.gap[0]} -> {self.gap[1]}: no selected pack "
+                       "declares it covers it")
         r = self.reference
-        out.append(f"reference : {r.path} ({r.how}: {r.why})" if r.path else f"reference : none ({r.why})")
+        if r.path:
+            out.append(f"{L('reference')}{c.path(r.path)}  {c.note('(' + r.how + ': ' + r.why + ')')}")
+        elif r.how == "refused":
+            out.append(f"{L('reference')}{c.warn('none chosen')}: "
+                       + (f"{len(r.ambiguous)} candidates; " if len(r.ambiguous) > 1 else "")
+                       + "see the refusal below")
+        else:
+            out.append(f"{L('reference')}{c.warn('none')} {c.note('(' + r.why + ')')}")
         if not r.path and r.skips:
-            out.append(f"            without one these skip: {', '.join(r.skips)}; to make one:")
-            out += [f"              {i}. {s.format(save=self.save)}" for i, s in enumerate(REFERENCE_STEPS, 1)]
-        out.append("packs     :")
+            out.append(f"{IND}without one these skip: {c.warn(', '.join(r.skips))}")
+            if r.how != "refused":                  # several candidates: the fix is --reference, not making one
+                out.append(f"{IND}to make one:")
+                out += [f"{IND2}{i}. {s.format(save=self.save)}" for i, s in enumerate(REFERENCE_STEPS, 1)]
+        out.append(c.label("packs"))
         for p in self.packs:
             trust = f", {p.trust}" if p.trust else ""
-            out.append(f"  {p.id} ({p.kind}{trust}): {'selected' if p.selected else 'not selected'}: {p.why}")
-        out.append("patches   : (in the order they run)")
+            state = c.ok("selected") if p.selected else c.note("not selected")
+            out.append(f"  {p.id} {c.note('(' + p.kind + trust + ')')}: {state}: {c.note(p.why)}")
+        out.append(f"{c.label('patches')}  {c.note('(in the order they run)')}")
         width = max((len(s.name) for s in self.steps), default=0)
         for s in self.steps:
             counts = (f"  matched {s.matched:,} edited {s.edited:,}" if s.matched is not None else "")
-            out.append(f"  {s.id:4} {s.name:{width}}  {'runs   ' if s.will_run else 'skipped'}  {s.pack:10} "
-                       f"{s.reason}{counts}")
+            if s.will_run:
+                out.append(f"  {s.id:4} {s.name:{width}}  {c.ok('runs   ')}  {c.note(s.pack)}{counts}")
+            else:
+                why = c.warn(s.reason) if s.reason.startswith(ACTION_NEEDED) else c.note(s.reason)
+                out.append(f"  {s.id:4} {s.name:{width}}  {c.note('skipped')}  {c.note(f'{s.pack:10}')} {why}")
         if any(s.will_run and s.matched is None for s in self.steps):
-            out.append(f"            edit counts: {NOT_KNOWABLE}")
-        out.append(f"output    : {self.output}" if self.output else "output    : none")
-        out += [f"note      : {n}" for n in self.notes]
-        if self.already_current:
-            out.append("already current: the save is at the game's version and no pack selected for it; "
-                       "nothing to do")
-        out += [f"REFUSED   : {x}" for x in self.refusals]
+            out.append(IND + c.note(f"edit counts: {NOT_KNOWABLE}"))
+        out.append(f"{L('output')}{c.path(self.output)}" if self.output else f"{L('output')}none")
+        out += [f"{L('note')}{c.note(n)}" for n in self.notes]
         return out
+
+    def refusal_lines(self, paint: "Paint | None" = None) -> list[str]:
+        """Each refusal once: the reason, the files it names (their folder once, then the names), the fix."""
+        c = paint or Paint()
+        out = []
+        for x in self.refusals:
+            d = self.fixes.get(x, {})
+            out.append(f"{c.bad('REFUSED')}: {x}")
+            if d.get("names"):
+                out.append(f"{IND}{c.note('in ' + d['folder'])}")
+                out += [f"{IND2}{c.path(n)}" for n in d["names"]]
+            if d.get("fix"):
+                out.append(f"{IND}{c.info('fix')}: {d['fix']}")
+        return out
+
+
+IND, IND2 = "  ", "    "     # a section's continuation lines, and the items under them
+
+# skip reasons the player can act on (shown as a warning, not a note)
+ACTION_NEEDED = ("needs a reference save", "needs the old game folder", "its pack is not trusted",
+                 "its pack is changed since trusted")
+
+
+class Paint:
+    """Colour for the plan's lines: plain unless ``on`` (the caller decides with colors.should_use_color, so
+    NO_COLOR, FORCE_COLOR, CK3UPDATE_COLOR and a pipe all apply)."""
+
+    def __init__(self, on: bool = False):
+        self.on = on
+
+    def _c(self, text: str, *codes: str) -> str:
+        return C.colorize(text, *codes) if self.on else text
+
+    def label(self, t: str) -> str: return self._c(t, C.BOLD)                      # noqa: E704
+    def path(self, t: str) -> str: return self._c(t, C.CYAN)                       # noqa: E704
+    def ok(self, t: str) -> str: return self._c(t, C.GREEN)                        # noqa: E704
+    def warn(self, t: str) -> str: return self._c(t, C.YELLOW)                     # noqa: E704
+    def bad(self, t: str) -> str: return self._c(t, C.BOLD, C.BRIGHT_RED)          # noqa: E704
+    def info(self, t: str) -> str: return self._c(t, C.BLUE)                       # noqa: E704
+    def note(self, t: str) -> str: return self._c(t, C.DIM)                        # noqa: E704
+
+    def verdict(self, t: str, kind: str) -> str:
+        code = {"ok": C.GREEN, "info": C.BLUE, "bad": C.BRIGHT_RED}[kind]
+        return self._c(t, C.BOLD, code)
 
 
 def _game(g: GameInstall | None) -> dict | None:
@@ -246,8 +327,10 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     gv = game.version if game else None
     refusals: list[str] = []
     notes: list[str] = []
+    fixes: dict = {}
     if game is None:
-        refusals.append("no game install found: give --game-dir <the game's 'game' folder>")
+        refusals.append("no game install found")
+        fixes["no game install found"] = {"fix": "give --game-dir \"<the game's 'game' folder>\""}
     elif gv is None:
         refusals.append(f"the game's version could not be read (no readable launcher/launcher-settings.json in "
                         f"{game.install}); update chooses its packs by version (migrate still works without it)")
@@ -268,6 +351,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     ref = _reference(reference, save, sv, date, light.random_seed, gv, save_folder)
     if ref.how == "refused":
         refusals.append(ref.why)
+        amb = [Path(x) for x in ref.ambiguous]
+        fixes[ref.why] = {"fix": "pick one with --reference \"<one of these>\"",
+                          "folder": str(amb[0].parent) if amb else None, "names": [p.name for p in amb]}
     for r in REGISTRY:
         reason, run = "runs", True
         if not ok:
@@ -352,6 +438,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
                      "[applies] span); nothing would bring the save to the game's version")
         refusals.append(uncovered)
+        fixes[uncovered] = {"fix": "a pack in your packs folder whose [applies] declares this span "
+                                   "(docs/writing-a-patch.md), or `ck3update migrate` with the rules you choose"}
     already = current and not any(s.will_run for s in steps)
 
     out = None
@@ -362,7 +450,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if out and Path(out).exists() and not force:
         notes.append(f"{out} exists: update refuses to write over it without --force")
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),
-                   pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read)
+                   pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
+                   fixes=fixes)
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p
@@ -407,9 +496,9 @@ def _reference(given: str | None, save: Path, sv: dict, date: str | None, seed: 
         return Reference(None, "none", f"none given, and no save in {folder} was written by {gv} on {date}")
     names = [str(c) for c, _ in cands]
     if seed is None:
-        return Reference(None, "refused", f"the save's random_seed was not in the first megabyte of its gamestate, so "
-                                          f"a save that descends from it cannot be told apart from a reference; give "
-                                          f"--reference (candidates: {', '.join(names)})", candidates=names)
+        return Reference(None, "refused", "the save's random_seed was not in the first megabyte of its gamestate, so "
+                                          "a save that descends from it cannot be told apart from a reference",
+                         candidates=names, ambiguous=names)
     left = [(c, lc) for c, lc in cands if lc.random_seed != seed and not _beside_ours(c)]
     dropped = len(cands) - len(left)
     y, m, d = date.split(".")
@@ -428,6 +517,5 @@ def _reference(given: str | None, save: Path, sv: dict, date: str | None, seed: 
         return Reference(None, "none", f"none given; every save in {folder} written by {gv} on {date} descends from "
                                        "this save or was written by this tool", candidates=names)
     pool = preferred or left
-    return Reference(None, "refused", f"{len(pool)} saves in {folder} could each be the reference (written by {gv} on "
-                                      f"{date}): {', '.join(str(c) for c, _ in pool)}; give one with --reference",
-                     candidates=names)
+    return Reference(None, "refused", f"{len(pool)} saves written by {gv} on {date} could each be the reference"
+                                      f"{excluded}", candidates=names, ambiguous=[str(c) for c, _ in pool])

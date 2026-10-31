@@ -4,6 +4,26 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.17] - 2026-10-31
+
+### Added
+- `ck3update update "<save>"`: one command that brings a save to the installed game's version. It works out a plan first and runs exactly that plan: it finds the game, reads the save's version and date, chooses the patch packs whose declared version span covers the gap, finds a reference save, and writes `<name>__updated__<game version>.ck3` beside the save (never over it; an existing output needs `--force`). `ck3update status "<save>"` prints the same plan and writes nothing; `update --dry-run` runs every patch in memory and prints the plan with each patch's counts. A save already at the game's version is reported "already current". A version gap that no pack covers is named and refused. Exit codes are `migrate`'s. `migrate` is unchanged and stays the lower-level command.
+- The plan picks the reference save from the save folder by itself: a save written by the game's version on the campaign's date, never one that descends from the save being updated (they share the campaign's random seed) and never this tool's own output. When several could be the reference, it refuses and lists them, so you choose one with `--reference`.
+- Patch packs can declare which save and game versions they apply to (`[applies]` in `pack.toml`) and where their patches run (`after = "<patch id>"`). See `docs/writing-a-patch.md`.
+- Your own packs folder: every pack in it runs on every update. A pack that runs code (a script or a program) runs only after you trust it once with `ck3update trust <pack>`, and stops again if any of its files change. `ck3update packs` lists them; extra folders can be added in the config.
+- Finding the game and the save on any machine: the Steam library is read from Steam's own records, the game's version from its launcher files, and a save can be named by its file name in the game's save folder.
+- `ck3update reference-mod`: writes a small bookmark mod that starts a new game at your campaign's date, so you can make the reference save the update needs. It picks the ruler from the game's own history files.
+- A new default rule writes the text of each character's nickname, which 1.20 expects beside the nickname itself; without it, nicknames show garbled in game.
+- Colour in the terminal: the plan opens with its verdict (READY, ALREADY CURRENT or REFUSED), section labels are bold, paths cyan, patches that run green, skips you can fix yellow, refusals red, notes grey. Colour is on in a terminal and off when output is piped or when `NO_COLOR` is set; `CK3UPDATE_COLOR=never` or `=always` overrides it. The colour helpers are a copy of dazzlecmd-lib's, whose 0.10.35a0 release adds the same blue.
+- The README as a tutorial, with topic pages under `docs/` (rules, options, reports, lint, troubleshooting, the new-map regions, the reference save).
+- A diagnostic that thins a save's population for testing (`docs/thin-population.md`).
+
+### Changed
+- A refusal is printed once, at the end of the plan, with the fix on the next line, and a list of files names their folder once.
+
+### Fixed
+- savediff no longer reports false alarms for 1.20's dead characters written twice or for the 64-bit "none" id.
+
 ## [0.3.16] - 2026-10-30
 
 ### Changed
@@ -235,8 +255,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.16...HEAD
-[0.3.16]: https://github.com/djdarcy/ck3-save-migrator/compare/ea04cea...v0.3.16
+[Unreleased]: https://github.com/djdarcy/ck3-save-migrator/compare/v0.3.17...HEAD
+[0.3.17]: https://github.com/djdarcy/ck3-save-migrator/compare/3e0ecc4...v0.3.17
+[0.3.16]: https://github.com/djdarcy/ck3-save-migrator/compare/ea04cea...3e0ecc4
 [0.3.15]: https://github.com/djdarcy/ck3-save-migrator/compare/c3ad245...ea04cea
 [0.3.14]: https://github.com/djdarcy/ck3-save-migrator/compare/dd2e901...c3ad245
 [0.3.13]: https://github.com/djdarcy/ck3-save-migrator/compare/08dd941...dd2e901
