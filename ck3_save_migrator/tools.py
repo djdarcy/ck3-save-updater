@@ -1,32 +1,26 @@
-"""The optional ``tools`` add-on: list and run a folder of standalone scripts exactly as they are.
+"""The ``tools`` add-on: list and run a folder of standalone scripts exactly as they are.
 
 Each ``*.py`` file in the scripts folder (not recursive) is one tool, named by its file's stem; its description is
-the first line of its module docstring, read with ``ast`` (a script is never imported or run to list it). A tool runs
-through dazzlecmd-lib's aggregator engine as its own process, ``[python, <script>] + args``, from the caller's
-working directory, and its exit code is the command's. Nothing is copied, rewritten or added next to the scripts:
-the engine is pointed at a "shadow kit" generated in a cache folder on every call.
+the first line of its module docstring, read with ``ast`` (a script is never imported or run to list it). A tool
+runs as its own process, ``[python, <script>] + args`` (``script_command``), from the caller's working directory,
+with the caller's input and output, and its exit code is the command's. It always runs as a file, never with
+``-m``, whatever else the folder holds (an ``__init__.py`` included). Nothing is copied, rewritten or written
+anywhere. A run patch's ``tool =`` builds its command with the same ``script_command``.
 
-dazzlecmd-lib is imported only when a tool is run (``engine``); the rest of the package never imports it. The
-scripts folder: ``--scripts-dir``, else ``CK3SM_SCRIPTS_DIR``, else the ``tests/one-offs`` folder of the source
+The scripts folder: ``--scripts-dir``, else ``CK3SM_SCRIPTS_DIR``, else the ``tests/one-offs`` folder of the source
 checkout the package is running from.
 """
 
 from __future__ import annotations
 
 import ast
-import json
 import os
-import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-APP = "ck3-save-migrator"      # the cache folder's name: kept from before the rename, like the config folder's
 DIST = "ck3-save-updater"      # the distribution (pip) name
-COMMAND = "ck3update"
-KIT = "oneoffs"
-MANIFEST = ".ck3sm-tool.json"
-INSTALL_HINT = f'the tools add-on needs dazzlecmd-lib: pip install "{DIST}[tools]"'
 
 
 class ToolsError(Exception):
@@ -59,16 +53,6 @@ def scripts_dir(explicit: str | None = None) -> Path | None:
     return checkout_scripts_dir()
 
 
-def cache_dir(explicit: str | None = None) -> Path:
-    """Where the shadow kit is generated: ``explicit``, else ``CK3SM_TOOLS_CACHE``, else the user cache folder."""
-    given = explicit or os.environ.get("CK3SM_TOOLS_CACHE")
-    if given:
-        return Path(given)
-    if sys.platform == "win32" and os.environ.get("LOCALAPPDATA"):
-        return Path(os.environ["LOCALAPPDATA"]) / APP / "tools"
-    return Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / APP / "tools"
-
-
 def description(path: Path) -> str:
     """The first line of a script's module docstring, read without importing it; "" when it has none."""
     try:
@@ -92,45 +76,18 @@ def find(folder: Path, name: str) -> Tool:
     raise ToolsError(f"no tool named {name!r} in {folder} (no {name}.py there; `tools list` shows them)")
 
 
-def shadow_kit(tools: list[Tool], cache: Path) -> Path:
-    """(Re)generate the shadow kit for ``tools`` under ``cache``; returns its project root. Only ``cache`` is
-    written: the scripts themselves are referenced by absolute path, never copied."""
-    root = cache / "shadow"
-    if root.exists():
-        shutil.rmtree(root)
-    (root / "kits").mkdir(parents=True)
-    kit = {"name": KIT, "description": "standalone scripts, run as they are", "always_active": True,
-           "tools_dir": "tools", "manifest": MANIFEST, "tools": [f"{KIT}:{t.name}" for t in tools]}
-    (root / "kits" / f"{KIT}.kit.json").write_text(json.dumps(kit, indent=2), encoding="utf-8")
-    for t in tools:
-        d = root / "tools" / KIT / t.name
-        d.mkdir(parents=True)
-        manifest = {"name": t.name, "description": t.description, "pass_through": True,
-                    "runtime": {"type": "python", "script_path": str(t.path)}}
-        (d / MANIFEST).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    return root
+def script_command(script: Path, args) -> list[str]:
+    """The command that runs one script: the running Python, the script's path, then ``args``. Always a file,
+    never ``-m``."""
+    return [sys.executable, str(script), *[str(a) for a in args]]
 
 
-def engine(tools: list[Tool], cache: Path):
-    """dazzlecmd-lib's aggregator engine over a fresh shadow kit. ImportError when the library is missing."""
-    from dazzlecmd_lib import AggregatorEngine        # the only import of dazzlecmd-lib in the package
-    root = shadow_kit(tools, cache)
-    return AggregatorEngine(name=f"{COMMAND}-tools", command=f"{COMMAND} tools", tools_dir="tools", kits_dir="kits",
-                            manifest=MANIFEST, config_dir=str(cache / "config"), project_root=str(root))
+def run_script(script: Path, args, *, cwd=None, **kw) -> int:
+    """Run ``script`` with ``args`` as its own process (from ``cwd``, by default the caller's folder, with the
+    caller's input and output unless ``kw`` says otherwise); its exit code."""
+    return subprocess.run(script_command(script, args), cwd=cwd, **kw).returncode
 
 
-def run(folder: Path, cache: Path, name: str, args: list[str]) -> int:
+def run(folder: Path, name: str, args: list[str]) -> int:
     """Run tool ``name`` with ``args``; its exit code."""
-    tools = list_tools(folder)
-    if name not in {t.name for t in tools}:
-        find(folder, name)                              # raises, naming it
-    rc = engine(tools, cache).run([name, *args])
-    return int(rc or 0)
-
-
-def library_available() -> bool:
-    try:
-        import dazzlecmd_lib  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    return run_script(find(folder, name).path, args)

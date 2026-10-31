@@ -116,7 +116,7 @@ A packaged performance mod is planned; until then these are the workarounds. [Up
 - [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
 - [soak](docs/soak.md): load a save in the game and watch it (starts the game).
-- [Tools](docs/tools.md): an optional add-on that lists and runs the project's standalone scripts as they are.
+- [Tools](docs/tools.md): `ck3update tools` lists and runs the project's standalone scripts as they are.
 - [Thinning a save's population](docs/thin-population.md): a diagnostic that writes a copy of a save with fewer characters.
 - [Platform support](docs/platform-support.md): what the tool is tested on.
 
