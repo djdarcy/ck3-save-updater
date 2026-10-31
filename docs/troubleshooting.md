@@ -14,7 +14,7 @@ pip installed the command, but into a folder your shell does not search. This is
 python -m ck3_save_migrator setup
 ```
 
-This works whatever PATH holds, because it starts the tool through Python itself. It says where the command was installed and whether that folder is on PATH. On Windows it offers to add the folder to your user PATH (a backup of the old value is kept), and you then open a new terminal. With `--dry-run` it only says what it would change; with `--yes` it changes it without asking. Inside a virtual environment it tells you to activate the environment instead; on Linux and macOS it prints the line to add to your shell's profile. Until then, `python -m ck3_save_migrator <command> ...` runs any command, `python -m ck3_save_migrator update "My_Old_Campaign"` included.
+This works whatever PATH holds, because it starts the tool through Python itself. It says where the command was installed and whether that folder is on PATH. On Windows it offers to add the folder to your user PATH (a backup of the old value is kept), and you then open a new terminal. With `--dry-run` it prints what it would do and changes nothing in PATH or the registry; on some terminals it still writes small helper scripts (`ck3update-path.cmd`, `.ps1`, `.sh`) to your temp folder. With `--yes` it changes PATH without asking. Inside a virtual environment it tells you to activate the environment instead; on Linux and macOS it prints the line to add to your shell's profile. Until then, `python -m ck3_save_migrator <command> ...` runs any command, `python -m ck3_save_migrator update "My_Old_Campaign"` included.
 
 ## "output already exists"
 
