@@ -334,11 +334,12 @@ def cmd_migrate(args) -> int:
 LAST_PLAN = {}          # the last plan status or update made, and the rules update ran (for the tests)
 
 
-def make_plan(args):
+def make_plan(args, *, writes: bool = False):
+    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder."""
     from .plan import plan_update
     return plan_update(args.save, game_dir=args.game_dir, reference=args.reference, old_game_dir=args.old_game_dir,
                        rules_spec=args.rules, output=getattr(args, "output", None), packs=args.pack,
-                       allow_run=args.allow_run, force=getattr(args, "force", False))
+                       allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes)
 
 
 def say_plan(plan) -> None:
@@ -373,7 +374,7 @@ def cmd_update(args) -> int:
     """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
     patch's counts (nothing is written); otherwise write the output and, unless --report names another,
     ``<output>.report.json`` beside it. Exit codes are migrate's."""
-    plan = make_plan(args)
+    plan = make_plan(args, writes=not args.dry_run)
     LAST_PLAN.update(update=plan)
     say_plan(plan)
     if plan.refusals:
@@ -959,7 +960,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--game-dir", help=GAME_DIR_HELP)
         p.add_argument("--old-game-dir", help="the 'game' folder of the version the save was made with (R15)")
         p.add_argument("--rules", help="as for migrate: 'all' (the default), ids or names, '-R21' leaves one out")
-        p.add_argument("-o", "--output", help="the output (default: <name>__updated_<game version>.ck3 beside the "
+        p.add_argument("-o", "--output", help="the output (default: <name>__updated__<game version>.ck3 beside the "
                                               "save)")
         p.add_argument("--pack", action="append", metavar="FOLDER", help="also a pack folder, as for migrate")
         p.add_argument("--allow-run", action="store_true",
