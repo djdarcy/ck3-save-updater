@@ -857,6 +857,30 @@ def cmd_tools(args) -> int:
         return 2
 
 
+SETUP_COMMANDS = ["ck3update", "ck3-save-migrator"]       # the console scripts setup makes reachable
+SETUP_DIST = "ck3-save-updater"
+# names a `setup <name>` may give (dazzlecmd-lib's own advice spells it `python -m <package> setup <package>`)
+SETUP_TARGETS = {*SETUP_COMMANDS, SETUP_DIST, "ck3_save_migrator"}
+
+
+def cmd_setup(args) -> int:
+    """Make the ``ck3update`` command reachable: dazzlecmd-lib's self-setup diagnoses where pip put the command
+    and, on Windows, offers to add that folder to the user PATH. dazzlecmd-lib is imported here only: importing any
+    of it loads the whole package (about 0.2 s), and no other command needs it. The exit code is its: 0 reachable
+    (or made so), 1 still not."""
+    if args.target and args.target not in SETUP_TARGETS:
+        raise ValueError(f"setup makes this tool's own command reachable; {args.target!r} is not one of its names "
+                         f"({', '.join(sorted(SETUP_TARGETS))})")
+    try:
+        from dazzlecmd_lib import self_setup
+    except ImportError as exc:
+        say(ERROR, f"ERROR: setup needs dazzlecmd-lib, which cannot be imported ({exc}); reinstall it: "
+                   f"pip install --force-reinstall {SETUP_DIST}", "io", err=True)
+        return 1
+    return int(self_setup.run_self_setup(SETUP_COMMANDS, package_name=SETUP_DIST, assume_yes=args.yes,
+                                         dry_run=args.dry_run, emit_shell_fix=args.shell_fix))
+
+
 RULER_FLAGS = ("character", "title", "culture", "religion", "house", "birth")
 
 
@@ -1097,6 +1121,18 @@ def build_parser() -> argparse.ArgumentParser:
     v = verbs.add_parser("path", help="the script's full path")
     v.add_argument("name")
     p.set_defaults(func=cmd_tools)
+
+    p = sub.add_parser("setup", help="'ck3update' is not recognized? Find where pip put it and, on Windows, "
+                                     "offer to add that folder to your user PATH (run it as "
+                                     "`python -m ck3_save_migrator setup`)")
+    p.add_argument("target", nargs="?", help=argparse.SUPPRESS)      # `setup ck3update` works too
+    p.add_argument("--yes", action="store_true", help="change PATH without asking")
+    p.add_argument("--dry-run", action="store_true",
+                   help="print what it would do; changes nothing in PATH or the registry (on some terminals it writes "
+                        "small helper scripts to your temp folder)")
+    p.add_argument("--shell-fix", action="store_true",
+                   help="print only the line that fixes this shell's session (for eval or a pipe)")
+    p.set_defaults(func=cmd_setup)
 
     p = sub.add_parser("reference-mod", help="write a bookmark mod that starts a 1.20 game on your campaign's "
                                              "date, to make a --reference save from (docs/reference-save.md)")
