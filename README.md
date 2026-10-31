@@ -61,6 +61,13 @@ pip install -e .
 
 [Updating a save](docs/updating-a-save.md) walks through the whole flow; the steps in short:
 
+- Update a save to the game you have installed, by its name in the game's `save games` folder:
+  ```bash
+  ck3update status "My_Old_Campaign"     # what update will do: the game, the version gap, the patches, the reference save
+  ck3update update "My_Old_Campaign" --dry-run   # run it all in memory, with each patch's counts; nothing is written
+  ck3update update "My_Old_Campaign"
+  ```
+  It writes `My_Old_Campaign__updated__<game version>.ck3` beside the save, and its report beside that. The packs it runs are chosen by the save's and the game's versions; a reference save (a 1.20 game at your campaign's date) is found in the save folder when there is one, and when there is none `status` says which rules skip and how to make one. `migrate`, below, is the lower-level command it runs.
 - `ck3update inspect "My_Old_Campaign.ck3"` shows a save's header, metadata block, the files inside it and its versions, and the game installs found (Steam's own records, its libraries on any drive) with their versions. A save can be named by its path, or by its name in the game's `save games` folder.
 - Update a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest). This is the usual update; copy the result into your `save games` folder and load it from the game:
   ```bash

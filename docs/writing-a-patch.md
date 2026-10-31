@@ -38,6 +38,19 @@ order = ["F1", "F2"]
 - `id`, `title`: the pack's name, and a line saying what it is for.
 - `order`: every patch id in the pack, in the order they run. A patch folder the order leaves out, or an id with no folder, is refused.
 
+Two optional fields are read by `update` and `status` (`migrate` ignores them):
+
+```toml
+after = "R17"           # run right after the patch R17 of the packs before this one, not after them all
+
+[applies]               # the saves and games this pack is for
+save = ">=1.20, <1.21"
+game = ">=1.21, <1.22"
+```
+
+- `[applies]`: `save` and `game` are comma-separated comparisons on dotted versions (`>=`, `>`, `<=`, `<`, `==`, `!=`; a bare version means `==`), every one of which must hold. `update` selects a pack when the save's version matches `save` and the game's matches `game`; a pack without `[applies]` matches any version, and the plan says so ("no version span declared"). A gap between the save's version and the game's that no selected pack's `[applies]` covers is reported, and `update` writes nothing. The built-in pack has `save = ">=1.8, <1.20"` and `game = ">=1.20, <1.21"`.
+- `after`: the pack's patches run right after that patch of another pack (for example after `R17`, so before the version bump `R7`), in the pack's own order. An id that no pack before it has is refused.
+
 ## patch.toml
 
 ```toml
