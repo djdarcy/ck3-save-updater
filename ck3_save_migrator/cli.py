@@ -833,12 +833,9 @@ def cmd_untrust(args) -> int:
 
 
 def cmd_tools(args) -> int:
-    """The optional tools add-on (tools.py): list, run or locate the standalone scripts. Exit 2 when it cannot
-    start (no dazzlecmd-lib, no scripts folder, no such tool); ``run`` otherwise returns the script's exit code."""
+    """The tools add-on (tools.py): list, run or locate the standalone scripts. Exit 2 when it cannot start (no
+    scripts folder, no such tool); ``run`` otherwise returns the script's exit code."""
     from . import tools
-    if not tools.library_available():
-        say(ERROR, tools.INSTALL_HINT, "io", err=True)
-        return 2
     folder = tools.scripts_dir(args.scripts_dir)
     if folder is None:
         say(ERROR, "ERROR: no scripts folder: give --scripts-dir <folder> or set CK3SM_SCRIPTS_DIR (the source "
@@ -854,7 +851,7 @@ def cmd_tools(args) -> int:
         if args.verb == "path":
             say(MINIMAL, str(tools.find(folder, args.name).path), "io")
             return 0
-        return tools.run(folder, tools.cache_dir(args.cache_dir), args.name, args.args)
+        return tools.run(folder, args.name, args.args)
     except tools.ToolsError as exc:
         say(ERROR, f"ERROR: {exc}", "io", err=True)
         return 2
@@ -1089,13 +1086,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("pack", help="the pack's id")
     p.set_defaults(func=cmd_untrust)
 
-    p = sub.add_parser("tools", help="optional add-on: list and run the standalone scripts as they are "
-                                     "(needs the [tools] extra; see docs/tools.md)")
+    p = sub.add_parser("tools", help="list and run the standalone scripts as they are (see docs/tools.md)")
     p.add_argument("--scripts-dir", metavar="FOLDER",
                    help="the scripts folder (default: $CK3SM_SCRIPTS_DIR, else the source checkout's tests/one-offs)")
-    p.add_argument("--cache-dir", metavar="FOLDER",
-                   help="where the tool listing for dazzlecmd-lib is generated (default: $CK3SM_TOOLS_CACHE, else "
-                        "the user cache folder)")
     verbs = p.add_subparsers(dest="verb", required=True)
     verbs.add_parser("list", help="each script's name and the first line of its docstring")
     v = verbs.add_parser("run", help="run a script with the arguments given, as its own process; its exit code")
