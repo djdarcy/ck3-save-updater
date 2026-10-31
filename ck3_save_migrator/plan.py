@@ -230,9 +230,12 @@ def _named_ids(spec: str) -> set[str]:
 def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str | None = None,
                 old_game_dir: str | None = None, rules_spec: str | None = None, output: str | None = None,
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
-                force: bool = False) -> UpdatePlan:
+                force: bool = False, create_packs_dir: bool = False) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
-    caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does."""
+    caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
+
+    Making the plan writes nothing: the player's packs folder is only read, unless ``create_packs_dir`` (``update``
+    without ``--dry-run`` creates it on its first run, as ``migrate`` does)."""
     save = Path(save)
     light = read_light(save)
     sv = save_versions(light.meta)
@@ -282,7 +285,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     ref.skips = [s.id for s in steps if s.reason.startswith("needs a reference")]
 
     # ---- your packs, then --pack folders
-    ensure_packs_dir()
+    if create_packs_dir:
+        ensure_packs_dir()
     extra: list[tuple[object, list[Step]]] = []
     found = find_user_packs().packs
     for up in found:
@@ -354,7 +358,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if output:
         out = str(Path(output))
     elif gv:
-        out = str(save.with_name(f"{save.stem}__updated_{gv}.ck3"))
+        out = str(save.with_name(f"{save.stem}__updated__{gv}.ck3"))
     if out and Path(out).exists() and not force:
         notes.append(f"{out} exists: update refuses to write over it without --force")
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),

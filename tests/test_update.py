@@ -106,10 +106,22 @@ def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     assert run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--wos-shape", "faith")[0] == 0
     assert cli.LAST_PLAN["update"].as_dict() == cli.LAST_PLAN["status"].as_dict()   # the plan status printed ...
     assert cli.LAST_PLAN["ran"] == cli.LAST_PLAN["status"].running()               # ... is the plan update ran
-    out_path = saves / "Campaign__updated_1.20.1.2.ck3"
-    assert out_path.is_file() and (saves / "Campaign__updated_1.20.1.2.report.json").is_file()
-    rep = json.loads((saves / "Campaign__updated_1.20.1.2.report.json").read_text(encoding="utf-8"))
+    out_path = saves / "Campaign__updated__1.20.1.2.ck3"
+    assert out_path.is_file() and (saves / "Campaign__updated__1.20.1.2.report.json").is_file()
+    rep = json.loads((saves / "Campaign__updated__1.20.1.2.report.json").read_text(encoding="utf-8"))
     assert [s["id"] for s in rep["plan"]["steps"] if s["will_run"]] == [r["id"] for r in rep["rules"]]
+
+
+def test_status_and_a_dry_run_never_create_the_packs_folder_and_update_does(tmp_path, saves, capsys):
+    """CK3SM_CONFIG is in a temporary folder (conftest) with no packs folder beside it yet."""
+    s, g = old_save(saves), game(tmp_path)
+    assert not U.packs_dir().exists()
+    assert run(capsys, "status", str(s), "--game-dir", str(g))[0] == 0
+    assert not U.packs_dir().exists()
+    assert run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint")[0] == 0
+    assert not U.packs_dir().exists() and not U.packs_dir().parent.exists()
+    assert run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")[0] == 0
+    assert (U.packs_dir() / "README.md").is_file()                  # update itself may, as migrate does
 
 
 # --------------------------------------------------------------------------- version spans and the gap
@@ -142,7 +154,7 @@ def test_a_gap_no_pack_covers_is_named_and_nothing_is_written(tmp_path, saves, c
         '\n\n[[edit]]\npath = "meta_data"\nop = "insert"\nposition = "end"\npayload = "\\tn1=yes\\n"\n', encoding="utf-8")
     code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
     assert code == 0, err
-    assert cli.LAST_PLAN["ran"] == ["N1"] and (saves / "Current__updated_1.21.0.ck3").is_file()
+    assert cli.LAST_PLAN["ran"] == ["N1"] and (saves / "Current__updated__1.21.0.ck3").is_file()
 
 
 def test_a_save_newer_than_the_game_is_refused(tmp_path, saves, capsys):
@@ -228,12 +240,12 @@ def test_a_save_with_a_report_beside_it_is_never_chosen(tmp_path, saves):
 def test_exit_0_writes_the_default_output_beside_the_save(tmp_path, saves, capsys):
     s = old_save(saves)
     assert run(capsys, "update", s.stem, "--game-dir", str(game(tmp_path)), "--no-lint")[0] == 0   # by name
-    assert (saves / "Campaign__updated_1.20.1.2.ck3").is_file()
+    assert (saves / "Campaign__updated__1.20.1.2.ck3").is_file()
 
 
 def test_exit_2_for_an_existing_output_and_force(tmp_path, saves, capsys):
     s, g = old_save(saves), game(tmp_path)
-    out = saves / "Campaign__updated_1.20.1.2.ck3"
+    out = saves / "Campaign__updated__1.20.1.2.ck3"
     out.write_bytes(b"mine")
     code, txt, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
     assert code == 2 and "exists" in txt and out.read_bytes() == b"mine"
@@ -258,7 +270,7 @@ def test_exit_4_when_lint_finds_an_error_and_the_output_is_still_written(tmp_pat
         return rep
     monkeypatch.setattr(cli, "lint_gamestate", broken)
     assert run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)))[0] == 4
-    assert (saves / "Campaign__updated_1.20.1.2.ck3").is_file()
+    assert (saves / "Campaign__updated__1.20.1.2.ck3").is_file()
 
 
 def test_exit_5_when_a_patch_fails_and_nothing_is_written(tmp_path, saves, capsys):
@@ -270,7 +282,7 @@ def test_exit_5_when_a_patch_fails_and_nothing_is_written(tmp_path, saves, capsy
         'op = "delete_key"\nkey = "not_there"\nexpect = { min = 1 }\n', encoding="utf-8")
     code, _, err = run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--no-lint")
     assert code == 5 and "patch S1 (must) failed" in err
-    assert not (saves / "Campaign__updated_1.20.1.2.ck3").exists()
+    assert not (saves / "Campaign__updated__1.20.1.2.ck3").exists()
 
 
 def test_no_game_or_an_unreadable_game_version_is_refused(tmp_path, saves, capsys):
