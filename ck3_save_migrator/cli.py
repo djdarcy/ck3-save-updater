@@ -1127,7 +1127,9 @@ def build_parser() -> argparse.ArgumentParser:
                                      "`python -m ck3_save_migrator setup`)")
     p.add_argument("target", nargs="?", help=argparse.SUPPRESS)      # `setup ck3update` works too
     p.add_argument("--yes", action="store_true", help="change PATH without asking")
-    p.add_argument("--dry-run", action="store_true", help="say what would change; change nothing")
+    p.add_argument("--dry-run", action="store_true",
+                   help="print what it would do; changes nothing in PATH or the registry (on some terminals it writes "
+                        "small helper scripts to your temp folder)")
     p.add_argument("--shell-fix", action="store_true",
                    help="print only the line that fixes this shell's session (for eval or a pipe)")
     p.set_defaults(func=cmd_setup)
