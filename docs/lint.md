@@ -41,7 +41,7 @@ Each finding is described in plain words first. For what the game will log, the 
 - vassal contracts name both parties;
 - every character has a rite, and character rite ids exist;
 - characters with a rite have a rites database (people copied in without the religion rules);
-- title names only inside `title_name_data`;
+- title names only inside `title_name_data` (also a title with inline names and no `title_name_data`, the older layout R3 moves);
 - every county has an existing rite;
 - rites point at faiths, characters and rites that exist;
 - faiths point at religions, rites, organizations, holy sites and titles that exist;
@@ -73,7 +73,8 @@ Each finding is described in plain words first. For what the game will log, the 
 - a baron has a contract with their county's holder;
 - a ruler's domain lists only titles they hold;
 - stored script scopes point at things that exist;
-- armies have soldiers.
+- armies have soldiers;
+- a mercenary company's title key is `x_mc_<company id>` (a candidate check: a title keyed for another company; no rule fixes it yet).
 
 ### Information
 
@@ -84,7 +85,7 @@ Each finding is described in plain words first. For what the game will log, the 
 Each of these is a kind of line the current game writes to its error log, with the predicted number of lines:
 
 - `Unexpected DNA string length`: portrait data in an older format (needs a reference save);
-- `Unexpected token`: fields the current game no longer has;
+- `Unexpected token`: fields the current game no longer has. Six of them are listed as info, not as lines the game will log as losses: the game converts them on load (measured on 1.20.1.2's re-save of an updated save, 2026-10-31, which carries none of them): `owner_influence` and `ready` in schemes, `exposure_type` and `exposure_marker` in culture_manager, `localization_key` and `renamed` in landed_titles;
 - `Failed to read key reference`: names of modifiers, perks, innovations, artifact looks and the like that the game and the active mods no longer define;
 - `Unknown on action`: queued events waiting on trigger points the game or the active mods no longer have;
 - `is not a valid title template`: titles the current game no longer defines, which load without a name;

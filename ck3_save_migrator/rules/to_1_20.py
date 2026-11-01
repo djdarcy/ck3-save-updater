@@ -33,17 +33,9 @@ def _opinion_entries(data: bytes):
 
 
 # --------------------------------------------------------------------------- R2
-def r2_relation_flags(save: CK3Save, ctx, rule) -> object:
-    """Re-encode scripted_relations/<kind>/flags bitsets from 4 bytes to 1.20's 1 byte.
-
-    1.8.1 save: 48,357 flags, all 4 bytes; non-zero values use only the low byte
-    (AQAAAA== 437, AgAAAA== 51, AwAAAA== 41), so truncation is lossless. A value
-    with a non-zero high byte is left unchanged and reported.
-    """
-    d = save.gamestate
-    p = gs.EditPass()
-    values: Counter = Counter()
-    lossy: list[dict] = []
+def _relation_flags(d: bytes):
+    """Every scripted_relations/<kind>/flags value: (kind, the value's key block, its raw bytes, its decoded bits or
+    None when it is not base64). R2 and its detector read the same matches."""
     for e in _opinion_entries(d):
         for sr in gs.find_keys(d, e, "scripted_relations"):
             if sr.block is None:
@@ -56,18 +48,46 @@ def r2_relation_flags(save: CK3Save, ctx, rule) -> object:
                     try:
                         bits = base64.b64decode(raw.strip(b'"'), validate=True)
                     except ValueError:
-                        lossy.append({"offset": f.value_start, "value": raw.decode(errors="replace"), "why": "not base64"})
-                        continue
-                    p.count(rule.name).matched += 1
-                    values[raw.decode()] += 1
-                    if len(bits) == TARGET_FLAG_BYTES:
-                        continue
-                    if any(bits[TARGET_FLAG_BYTES:]):
-                        lossy.append({"offset": f.value_start, "value": raw.decode(), "kind": kind.key.decode(),
-                                      "why": "high bytes set"})
-                        continue
-                    new = b'"' + base64.b64encode(bits[:TARGET_FLAG_BYTES]) + b'"'
-                    p.add(gs.Edit(f.value_start, f.value_end, new, rule.name))
+                        bits = None
+                    yield kind, f, raw, bits
+
+
+def _r2_would_edit(bits) -> bool:
+    return bits is not None and len(bits) != TARGET_FLAG_BYTES and not any(bits[TARGET_FLAG_BYTES:])
+
+
+def r2_detect(d: bytes) -> tuple[int, list[str]]:
+    """Read only: the flags bitsets wider than 1.20's 1 byte that R2 re-encodes (its edits), and up to five."""
+    hits = [f"{kind.key.decode()} flags={raw.decode(errors='replace')}" for kind, _, raw, bits in _relation_flags(d)
+            if _r2_would_edit(bits)]
+    return len(hits), hits[:5]
+
+
+def r2_relation_flags(save: CK3Save, ctx, rule) -> object:
+    """Re-encode scripted_relations/<kind>/flags bitsets from 4 bytes to 1.20's 1 byte.
+
+    1.8.1 save: 48,357 flags, all 4 bytes; non-zero values use only the low byte
+    (AQAAAA== 437, AgAAAA== 51, AwAAAA== 41), so truncation is lossless. A value
+    with a non-zero high byte is left unchanged and reported.
+    """
+    d = save.gamestate
+    p = gs.EditPass()
+    values: Counter = Counter()
+    lossy: list[dict] = []
+    for kind, f, raw, bits in _relation_flags(d):
+        if bits is None:
+            lossy.append({"offset": f.value_start, "value": raw.decode(errors="replace"), "why": "not base64"})
+            continue
+        p.count(rule.name).matched += 1
+        values[raw.decode()] += 1
+        if len(bits) == TARGET_FLAG_BYTES:
+            continue
+        if not _r2_would_edit(bits):
+            lossy.append({"offset": f.value_start, "value": raw.decode(), "kind": kind.key.decode(),
+                          "why": "high bytes set"})
+            continue
+        new = b'"' + base64.b64encode(bits[:TARGET_FLAG_BYTES]) + b'"'
+        p.add(gs.Edit(f.value_start, f.value_end, new, rule.name))
     p.apply_to(save)
     c = p.count(rule.name)
     return rule.result(matched=c.matched, edited=c.edited,
@@ -156,6 +176,19 @@ def dead_lieges(d: bytes) -> dict[int, tuple[int, int]]:
     return out
 
 
+def _r21_members(d: bytes) -> tuple[dict, list[int]]:
+    """The dead characters' lieges, and the members of every liege cycle of two or more (what R21 matches)."""
+    lieges = dead_lieges(d)
+    parent = {c: l for c, (l, _) in lieges.items() if l != c and l in lieges}
+    return lieges, [c for cyc in gs.parent_cycles(parent) if len(cyc) > 1 for c in cyc]
+
+
+def r21_detect(d: bytes) -> tuple[int, list[str]]:
+    """Read only: the dead characters on a liege cycle that R21 breaks, and up to five."""
+    lieges, members = _r21_members(d)
+    return len(members), [f"character {c} (liege {lieges[c][0]})" for c in members[:5]]
+
+
 def r21_dead_liege_cycles(save: CK3Save, ctx, rule) -> object:
     """Drop liege=/liege_title= from the dead_data of every dead character on a liege cycle of two or more.
 
@@ -166,9 +199,7 @@ def r21_dead_liege_cycles(save: CK3Save, ctx, rule) -> object:
     part of the game walks the history graph). Self-lieges are left as the game writes them.
     """
     d = save.gamestate
-    lieges = dead_lieges(d)
-    parent = {c: l for c, (l, _) in lieges.items() if l != c and l in lieges}
-    members = [c for cyc in gs.parent_cycles(parent) if len(cyc) > 1 for c in cyc]
+    lieges, members = _r21_members(d)
     p = gs.EditPass()
     for c in members:
         p.count(rule.name).matched += 1
@@ -536,20 +567,10 @@ def _escape(text: str) -> bytes:
     return text.replace("\\", "\\\\").replace('"', '\\"').encode("utf-8")
 
 
-def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
-    """Write ``nickname_text`` after every ``nickname`` that lacks it, in all three character sections.
-
-    1.20 stores a nickname twice: the key (``nickname=nick_the_victorious``) and, on the next line, its rendered
-    English text (``nickname_text="the Victorious"``); the game's own 987 save writes ``nickname_text`` on every
-    character. A 1.8.1 save has only the key, and the game then shows the founder as ``Uilleam of " of Ireland``
-    (2026-10-30: 851 nicknamed characters in the founding save, 89 distinct keys). The text comes from the English
-    localization of the game folder, then of the save's mods in its listed order (a later one wins); two vanilla
-    texts carry template codes (He/She, Father/Mother, the first name), rendered per character. A character that
-    already has ``nickname_text``, or has no nickname, is left as it is; any other template code leaves the
-    character untouched and is reported, never guessed.
-    """
-    d = save.gamestate
-    found = []                                     # (entry start, char id, key, insert position, female, first name)
+def _r23_found(d: bytes) -> list[tuple]:
+    """Every nickname with no nickname_text after it, in the three character sections: (char id, key, insert
+    position, female, first name). What R23 matches; its detector counts the same."""
+    found = []
     for sec in NICK_SECTIONS:
         try:
             blk = gs.locate(d, sec)
@@ -574,6 +595,29 @@ def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
             found.append((cid.decode(), m.group(2).decode("utf-8", "replace"), at,
                           re.search(rb"(?m)^\tfemale=yes", body) is not None,
                           fn.group(1).decode("utf-8", "replace") if fn else ""))
+    return found
+
+
+def r23_detect(d: bytes) -> tuple[int, list[str]]:
+    """Read only: the nicknames without their text that R23 writes, and up to five."""
+    found = _r23_found(d)
+    return len(found), [f"character {cid} ({key})" for cid, key, *_ in found[:5]]
+
+
+def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
+    """Write ``nickname_text`` after every ``nickname`` that lacks it, in all three character sections.
+
+    1.20 stores a nickname twice: the key (``nickname=nick_the_victorious``) and, on the next line, its rendered
+    English text (``nickname_text="the Victorious"``); the game's own 987 save writes ``nickname_text`` on every
+    character. A 1.8.1 save has only the key, and the game then shows the founder as ``Uilleam of " of Ireland``
+    (2026-10-30: 851 nicknamed characters in the founding save, 89 distinct keys). The text comes from the English
+    localization of the game folder, then of the save's mods in its listed order (a later one wins); two vanilla
+    texts carry template codes (He/She, Father/Mother, the first name), rendered per character. A character that
+    already has ``nickname_text``, or has no nickname, is left as it is; any other template code leaves the
+    character untouched and is reported, never guessed.
+    """
+    d = save.gamestate
+    found = _r23_found(d)
     if not found:
         return rule.result(matched=0, edited=0, extra={"found": 0})
     roots = ([("game", ctx.game_dir)] if ctx.game_dir is not None else []) + \
