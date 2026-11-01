@@ -6,16 +6,16 @@
 [![License][license-badge]][license-url]
 [![GitHub Discussions][discussions-badge]][discussions-url]
 
-[workflow-badge]: https://github.com/djdarcy/ck3-save-migrator/actions/workflows/ci-python.yml/badge.svg
-[workflow-url]: https://github.com/djdarcy/ck3-save-migrator/actions
-[version-badge]: https://img.shields.io/github/v/tag/djdarcy/ck3-save-migrator
-[version-url]: https://github.com/djdarcy/ck3-save-migrator/releases
+[workflow-badge]: https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml/badge.svg
+[workflow-url]: https://github.com/djdarcy/ck3-save-updater/actions
+[version-badge]: https://img.shields.io/github/v/tag/djdarcy/ck3-save-updater
+[version-url]: https://github.com/djdarcy/ck3-save-updater/releases
 [python-badge]: https://img.shields.io/badge/python-%3E%3D3.10-darkgreen
 [python-url]: https://python.org/downloads
 [license-badge]: https://img.shields.io/badge/license-GPL--3.0--or--later-orange
-[license-url]: https://github.com/djdarcy/ck3-save-migrator/blob/main/LICENSE
+[license-url]: https://github.com/djdarcy/ck3-save-updater/blob/main/LICENSE
 [discussions-badge]: https://img.shields.io/badge/discussions-Welcome-lightgrey
-[discussions-url]: https://github.com/djdarcy/ck3-save-migrator/discussions
+[discussions-url]: https://github.com/djdarcy/ck3-save-updater/discussions
 
 Update old Crusader Kings III saves to the current game version: inspect, patch, and revive .ck3 save files.
 
@@ -32,12 +32,12 @@ What is proven:
 
 What is not handled yet:
 
-- The regions added to the map since the save's version are brought in from a 1.20 save of the same date. This is opt-in (`--rules all,R15,R14,R16`) and still being finished ([#6](https://github.com/djdarcy/ck3-save-migrator/issues/6)).
-- Cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-migrator/issues/7)).
-- Portrait DNA across portrait versions, and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-migrator/issues/8)).
+- The regions added to the map since the save's version are brought in from a 1.20 save of the same date. This is opt-in (`--rules all,R15,R14,R16`) and still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
+- Cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)).
+- Portrait DNA across portrait versions, and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)).
 - Mod content in general.
 
-A general updater, from any game version to any later one, is the roadmap ([#14](https://github.com/djdarcy/ck3-save-migrator/issues/14)). The [CHANGELOG](CHANGELOG.md) says what each version covers.
+A general updater, from any game version to any later one, is the roadmap ([#14](https://github.com/djdarcy/ck3-save-updater/issues/14)). The [CHANGELOG](CHANGELOG.md) says what each version covers.
 
 ## Installation
 
@@ -54,8 +54,8 @@ If your shell then says `'ck3update' is not recognized` (common on Windows after
 To work on the code instead:
 
 ```bash
-git clone https://github.com/djdarcy/ck3-save-migrator.git
-cd ck3-save-migrator
+git clone https://github.com/djdarcy/ck3-save-updater.git
+cd ck3-save-updater
 pip install -e .
 ```
 
