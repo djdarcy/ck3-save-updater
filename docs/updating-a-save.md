@@ -33,6 +33,39 @@ A save one hotfix behind the game (1.20.1.2 with a 1.20.1.3 game) is "already cu
 
 `update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed, writes the output and `<output>.report.json` beside it (the plan and the counts). An output that exists is refused without `--force`. A save already at the game's version, with no pack selected for it, is "already current": nothing is written. `update` takes `migrate`'s options for the rules (`--rules`, `--wos-shape`, `--portraits-version`, `--old-game-dir`) and exits with the same codes.
 
+### The record of a save game
+
+A campaign is updated more than once: a later save of the same ruler, or the next game version. Every save of one campaign carries the same `random_seed` in its gamestate, so after each successful `update` the tool adds a row to that campaign's record, `games/<random_seed>.toml` in the config folder (beside `config.toml`; `CK3SM_CONFIG` moves both). `--dry-run`, `status` and `migrate` never write one.
+
+The record's `label` is the file name of the first save updated (later updates keep it). Each `[[update]]` row holds:
+
+- the date;
+- the input and output files with their sha256;
+- the tool version and the game version;
+- the patches that ran (id and pack);
+- the inputs it used: `--var` values (qualified names as given), `--old-game-dir`, `--transplant`, `--wos-shape` and `--portraits-version`.
+
+A reference save is never recorded, since it belongs to one date, and no part of any save is. A save whose `random_seed` cannot be read gets no record, and the plan says so.
+
+`status` and `update` read the record back:
+
+```
+record    My_Old_Campaign: last updated 2026-11-01 14:02 by ck3-save-updater 0.3.17 from My_Old_Campaign.ck3 (1 update)
+pre-filled: --var witness=W1 (from the record of My_Old_Campaign)
+```
+
+Any input you do not give this time takes the record's latest value; anything you give wins. A recorded folder or file that no longer exists is not used: the plan says the recorded value was missing, and a step that needs it is skipped with its usual "needs" reason. `--no-record` (on `status` and `update`) neither reads nor writes the record.
+
+### Updating in place
+
+`update --in-place` gives the updated save the original's name and keeps the original as `<name>.bak.ck3`:
+
+1. The output is written to a temporary name in the same folder and verified, as any output is.
+2. The original is renamed to `<name>.bak.ck3`.
+3. The output is renamed to `<name>.ck3`.
+
+If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--wos-shape` gives two outputs, so in place needs `--wos-shape faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
+
 The steps below are the same flow done by hand, with `migrate`, the lower-level command `update` runs.
 
 ## 1. Look at the save

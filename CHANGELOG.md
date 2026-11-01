@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- A record per save game: after each successful `update`, a row (inputs, outputs and their hashes, patches, game version, the inputs used) is added to `games/<random_seed>.toml` beside the config file. `status` and `update` show it and pre-fill any input not given from its latest row; a recorded folder that is gone is not used. `--no-record` turns it off. `update --in-place` replaces the save, keeping the original as `<name>.bak.ck3`.
 - `update` and `status` decide everything before anything runs. A pack can be for one save game only (`campaign` in `[applies]`). A save one hotfix behind the game is already current. The reference save is looked for only when a patch that will run needs one. A run patch's unmet `needs` and its done check (`done`, or `done_command`) skip it, saying why. `--var <patch id>.<name>` gives a variable to one patch. `ck3update help <id>` explains a rule, patch or pack. `--transplant auto` (or `transplant = "auto"` in the config) selects the new-map rules when a save crosses the 1.13 map rework and a reference is present; it is off by default.
 - `ck3update setup` (run it as `python -m ck3_save_migrator setup` when `ck3update` is "not recognized"): says where pip put the command and, on Windows, offers to add that folder to your user PATH, through dazzlecmd-lib's self-setup (now a dependency, loaded by this command only). `--dry-run` changes nothing; `--yes` does not ask.
 
