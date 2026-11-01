@@ -57,9 +57,17 @@ def expand(command, values: dict, where: str) -> list[str]:
     return out
 
 
+def patch_vars(patch_id: str, user_vars: dict) -> dict:
+    """The variables one patch sees: the bare ones (``--var name=value``), then its own qualified ones
+    (``--var <patch id>.<name>=value``), which win; another patch's qualified ones are left out."""
+    bare = {k: v for k, v in user_vars.items() if "." not in k}
+    own = {k.split(".", 1)[1]: v for k, v in user_vars.items() if "." in k and k.split(".", 1)[0] == patch_id}
+    return {**bare, **own}
+
+
 def run_patch(save, patch: Patch, ctx, rule, user_vars: dict):
     """Apply a run patch to ``save`` (a ``CK3Save``); returns the rule result."""
-    values = {**context_values(ctx), **user_vars, "python": sys.executable}
+    values = {**context_values(ctx), **patch_vars(patch.id, user_vars), "python": sys.executable}
     missing = [n for n in patch.run["needs"] if values.get(n) in (None, "")]
     if missing:
         raise PatchError(f"{patch.source}: run.needs {', '.join(missing)}, which the caller did not give "
@@ -94,6 +102,29 @@ def run_patch(save, patch: Patch, ctx, rule, user_vars: dict):
     save.set_gamestate(new.gamestate)
     changed = new.gamestate != before
     return rule.result(matched=1, edited=int(changed), extra={"exit_code": 0, "stderr": tail})
+
+
+def run_done_command(patch: Patch, save_file: Path, values: dict) -> tuple[str, str]:
+    """(verdict, detail) from a run patch's ``done_command``: the program is given ``@@input@@``, a temporary copy
+    of ``save_file`` (the save itself is never handed to it), and runs under the patch's timeout. Exit 0: "done";
+    any other exit: "needed"; not finished in time, or not startable: "unknown". The caller decides whether the
+    program may run at all (a trusted pack, or --allow-run)."""
+    import shutil
+    timeout = patch.run.get("timeout", RUN_TIMEOUT)
+    with tempfile.TemporaryDirectory(prefix="ck3sm-done-") as tmp:
+        copy = Path(tmp) / "input.ck3"
+        shutil.copyfile(save_file, copy)
+        cmd = expand(patch.run["done_command"], {**values, "python": sys.executable, "input": str(copy)},
+                     patch.source)
+        try:
+            code = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  timeout=timeout).returncode
+        except subprocess.TimeoutExpired:
+            return "unknown", f"done_command did not finish within {timeout:g} seconds"
+        except OSError as exc:
+            return "unknown", f"done_command could not start ({exc})"
+    return ("done", "done_command says it is done (exit 0)") if code == 0 else \
+        ("needed", f"done_command says it is needed (exit {code})")
 
 
 def _tail(path: Path, lines: int = STDERR_LINES, window: int = 64 * 1024) -> list[str]:

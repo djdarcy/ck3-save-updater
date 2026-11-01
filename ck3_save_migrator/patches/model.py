@@ -290,22 +290,38 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
                 raise PatchError(f"{where}: field '{f}' is for declarative patches")
         return Patch(**common, script=script)
     if "run" in d:
-        for f in ("done", "matched"):
-            if f in d:
-                raise PatchError(f"{where}: field '{f}' is for declarative patches")
+        if "matched" in d:
+            raise PatchError(f"{where}: field 'matched' is for declarative patches")
         run = _need(d, "run", dict, where)
-        extra = set(run) - {"command", "tool", "args", "needs", "timeout"}
+        extra = set(run) - {"command", "tool", "args", "needs", "timeout", "done_command"}
         if extra:
             raise PatchError(f"{where}: unknown field 'run.{sorted(extra)[0]}'")
         if ("command" in run) == ("tool" in run):
             raise PatchError(f"{where}: [run] has exactly one of 'command' or 'tool'")
         needs = run.get("needs", [])
-        if not isinstance(needs, list) or not all(isinstance(n, str) for n in needs):
-            raise PatchError(f"{where}: field 'run.needs' must be a list of variable names")
+        if isinstance(needs, dict):            # needs = { tools_dir = "the folder holding fix_faces.py" }
+            if not all(isinstance(k, str) and isinstance(v, str) for k, v in needs.items()):
+                raise PatchError(f"{where}: field 'run.needs' as a table maps each variable to its help text")
+            needs_help = dict(needs)
+        elif isinstance(needs, list) and all(isinstance(n, str) for n in needs):
+            needs_help = {n: "" for n in needs}
+        else:
+            raise PatchError(f"{where}: field 'run.needs' must be a list of variable names, or a table of "
+                             "name = \"help text\"")
         timeout = run.get("timeout", RUN_TIMEOUT)
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0:
             raise PatchError(f"{where}: field 'run.timeout' must be a number of seconds above 0")
-        common_run = {"needs": tuple(needs), "timeout": float(timeout)}
+        done_cmd = run.get("done_command")
+        if done_cmd is not None and (not isinstance(done_cmd, list) or not done_cmd
+                                     or not all(isinstance(c, str) for c in done_cmd)):
+            raise PatchError(f"{where}: field 'run.done_command' must be a non-empty list of strings (a program "
+                             "given @@input@@; exit code 0 means the patch is already done)")
+        rdone = _done_field(d, where) if "done" in d else None
+        if rdone is not None and done_cmd is not None:
+            raise PatchError(f"{where}: a run patch has at most one done check: 'done' or 'run.done_command'")
+        common_run = {"needs": tuple(needs_help), "needs_help": needs_help, "timeout": float(timeout),
+                      "done_command": tuple(done_cmd) if done_cmd else None}
+        common["done"] = rdone
         if "tool" in run:
             tool = run["tool"]
             if not isinstance(tool, str) or not _TOOL_NAME.match(tool):
@@ -332,14 +348,7 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
                 if name not in context_fields:
                     raise PatchError(f"{where} [[edit]] #{e.index}: template @@{name}@@ is not a known value "
                                      f"(known: {', '.join(sorted(context_fields))})")
-    done = None
-    if "done" in d:
-        done = _need(d, "done", dict, where)
-        if set(done) != {"path", "key"} or not all(isinstance(x, str) for x in done.values()):
-            raise PatchError(f"{where}: field 'done' must be {{ path = \"...\", key = \"...\" }}")
-        _check_path(done["path"], f"{where} done")
-        if "**" in done["path"].split("/"):
-            raise PatchError(f"{where}: field 'done.path' may not use '**'")
+    done = _done_field(d, where) if "done" in d else None
     if any(e.op == "insert" for e in edits) and done is None:
         raise PatchError(f"{where}: a patch with an insert must give field 'done' (the path and key whose presence "
                          "means it was applied), or it would insert again on every run")
@@ -349,6 +358,17 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     if matched != "found" and any("**" in p.split("/") for e in edits for p in e.paths):
         raise PatchError(f"{where}: field 'matched' = {matched!r} is for paths without '**'")
     return Patch(**common, edits=edits, done=done, matched=matched)
+
+
+def _done_field(d: dict, where: str) -> dict:
+    """``done = { path = "...", key = "..." }``: the place and key whose presence means the patch has run."""
+    done = _need(d, "done", dict, where)
+    if set(done) != {"path", "key"} or not all(isinstance(x, str) for x in done.values()):
+        raise PatchError(f"{where}: field 'done' must be {{ path = \"...\", key = \"...\" }}")
+    _check_path(done["path"], f"{where} done")
+    if "**" in done["path"].split("/"):
+        raise PatchError(f"{where}: field 'done.path' may not use '**'")
+    return done
 
 
 def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:
@@ -365,15 +385,23 @@ def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:
         raise PatchError(f"{where}: unknown field '{sorted(extra)[0]}'")
     applies = d.get("applies")
     if applies is not None:
-        if not isinstance(applies, dict) or set(applies) - {"save", "game"} or \
-                not all(isinstance(v, str) for v in applies.values()):
-            raise PatchError(f"{where}: [applies] holds save = \"<span>\" and game = \"<span>\" (for example "
-                             "save = \">=1.8, <1.20\")")
-        for k, v in applies.items():
+        spans = {k: v for k, v in applies.items() if k != "campaign"} if isinstance(applies, dict) else None
+        if spans is None or set(spans) - {"save", "game"} or not all(isinstance(v, str) for v in spans.values()):
+            raise PatchError(f"{where}: [applies] holds save = \"<span>\", game = \"<span>\" (for example "
+                             "save = \">=1.8, <1.20\") and campaign = { name = \"<label>\", seed = <random_seed> }")
+        for k, v in spans.items():
             try:
                 parse_span(v)
             except ValueError as exc:
                 raise PatchError(f"{where}: [applies] {k}: {exc}") from None
+        camp = applies.get("campaign")
+        if camp is not None:
+            seed = camp.get("seed") if isinstance(camp, dict) else None
+            if not isinstance(camp, dict) or set(camp) != {"name", "seed"} or not isinstance(camp["name"], str) \
+                    or isinstance(seed, bool) or not (isinstance(seed, int) or (isinstance(seed, str) and seed.isdigit())):
+                raise PatchError(f"{where}: [applies] campaign = {{ name = \"<label>\", seed = <the save's "
+                                 "random_seed, a number> }}")
+            applies = {**applies, "campaign": {"name": camp["name"], "seed": str(seed)}}
     after = d.get("after")
     if after is not None and not (isinstance(after, str) and after):
         raise PatchError(f"{where}: field 'after' must be a patch id (for example \"R17\")")

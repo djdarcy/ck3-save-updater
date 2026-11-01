@@ -48,7 +48,8 @@ save = ">=1.20, <1.21"
 game = ">=1.21, <1.22"
 ```
 
-- `[applies]`: `save` and `game` are comma-separated comparisons on dotted versions (`>=`, `>`, `<=`, `<`, `==`, `!=`; a bare version means `==`), every one of which must hold. `update` selects a pack when the save's version matches `save` and the game's matches `game`; a pack without `[applies]` matches any version, and the plan says so ("no version span declared"). A gap between the save's version and the game's that no selected pack's `[applies]` covers is reported, and `update` writes nothing. The built-in pack has `save = ">=1.8, <1.20"` and `game = ">=1.20, <1.21"`.
+- `[applies]`: `save` and `game` are comma-separated comparisons on dotted versions (`>=`, `>`, `<=`, `<`, `==`, `!=`; a bare version means `==`), every one of which must hold. `update` selects a pack when the save's version matches `save` and the game's matches `game`; a pack without `[applies]` matches any version, and the plan says so ("no version span declared"). A gap between the save's version and the game's that no selected pack's `[applies]` covers is reported, and `update` writes nothing. The gap is judged on major.minor: a 1.20.1.2 save against a 1.20.1.3 game is the same 1.20 line, assumed compatible, and needs no pack ("already current", with a line saying so). The built-in pack has `save = ">=1.8, <1.20"` and `game = ">=1.20, <1.21"`.
+- `campaign = { name = "<label>", seed = <random_seed> }` in `[applies]`: the pack is for one save game only, the one whose gamestate's top-level `random_seed` is `seed` (a campaign keeps its seed through updates and play). On any other save its patches are skipped, "for another save game (<label>)". `status`, `packs` and `help` show the label. A pack without it is for every save.
 - `after`: the pack's patches run right after that patch of another pack (for example after `R17`, so before the version bump `R7`), in the pack's own order. An id that no pack before it has is refused.
 
 ## patch.toml
@@ -327,7 +328,7 @@ command = ["@@python@@", "-I", "@@tools_dir@@/fix_faces.py", "@@input@@", "@@out
 needs = ["tools_dir"]
 ```
 
-The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given; a missing one is refused, naming it. A program still running after `timeout` seconds (`timeout = 600` unless the `[run]` table says otherwise) is stopped, and the patch fails, saying so. What the program prints is kept in files, not in memory; the last lines of its error output are reported when it fails.
+The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given: a list, or a table with a line of help for each, `needs = { tools_dir = "the folder holding fix_faces.py" }`. With `migrate` a missing one is refused, naming it; `update` and `status` know before anything runs, and skip the patch, saying `needs --var tools_dir (the folder holding fix_faces.py)`. A variable can be given to one patch only, `--var F3.tools_dir=...`; a bare `--var tools_dir=...` is refused when more than one selected patch needs that name, naming them (a pack's `vars.toml` is not affected). A program still running after `timeout` seconds (`timeout = 600` unless the `[run]` table says otherwise) is stopped, and the patch fails, saying so. What the program prints is kept in files, not in memory; the last lines of its error output are reported when it fails.
 
 A run patch runs a program with your permissions, so a pack folder with one is refused unless you pass `--allow-run`:
 
@@ -336,6 +337,13 @@ ck3update migrate "My_Old_Campaign.ck3" --pack "my_pack" --var tools_dir="my_too
 ```
 
 When the script sits in a scripts folder, `tool = "fix_faces"` with `args = ["@@input@@", "@@output@@"]` is a shorter way to write the same command; [Tools](tools.md#a-tool-in-a-run-patch) explains it.
+
+A run patch can say how to tell it has already run, so `update` does not run it again and `check` can say "done":
+
+- `done = { path = "...", key = "..." }`, as for an inserting patch: the place and the key whose presence means done;
+- or `done_command = [...]` in the `[run]` table: a program given `@@input@@`, a temporary copy of the save; exit code 0 means already done, any other means needed. It is code, so it runs only for a trusted pack in your packs folder or with `--allow-run`, under the patch's `timeout`; otherwise the verdict is "unknown (done_command not run: not trusted)".
+
+`ck3update help <patch id>` prints a patch's title, pack, since, default, needs (with their help) and done check.
 
 ## Running your pack
 
