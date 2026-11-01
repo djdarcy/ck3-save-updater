@@ -33,8 +33,9 @@ from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop
 from .config import atomic_write, config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
 from .userpacks import ensure_packs_dir, find_user_packs, runs_what, user_rules
 from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
-from .patches import read_pack, rules_from_pack, verdict
+from .patches import PatchError, read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
+from .patches.pack import run_verdict
 from .refmod import make_bookmark, meta_date, pick_ruler, write_mod
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
@@ -344,7 +345,9 @@ def make_plan(args, *, writes: bool = False):
     from .plan import plan_update
     return plan_update(args.save, game_dir=args.game_dir, reference=args.reference, old_game_dir=args.old_game_dir,
                        rules_spec=args.rules, output=getattr(args, "output", None), packs=args.pack,
-                       allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes)
+                       allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes,
+                       variables=read_patch_vars(args.var or [], args.vars), transplant=args.transplant,
+                       portraits_version=getattr(args, "portraits_version", None))
 
 
 def say_plan(plan) -> None:
@@ -686,6 +689,17 @@ def cmd_soak(args) -> int:
     return SOAK_EXIT.get(res.outcome, 7)
 
 
+def check_verdict(g: bytes, p, ctx, save_file, pack_vars: dict, may_run: bool) -> tuple[str, str]:
+    """A patch's verdict for ``check``: declarative patches by the engine; a run patch by its done check (its
+    ``done_command`` only when ``may_run``: a trusted pack, or --allow-run)."""
+    if p.kind != "run":
+        return verdict(g, p, ctx)
+    try:
+        return run_verdict(g, p, save_file=Path(save_file), values=dict(pack_vars), may_run=may_run)
+    except PatchError as exc:
+        return "unknown", f"done_command not run: {exc}"
+
+
 def cmd_check(args) -> int:
     """Each selected patch's verdict on this save, read only: needed, done, unknown (code and run patches, and
     Python rules with no declarative patch in the shipped pack) or fails (exit 5). Each is judged on the save as it
@@ -708,10 +722,13 @@ def cmd_check(args) -> int:
     ensure_packs_dir()
     off = set(disabled_ids())
     for up in find_user_packs().packs:
-        rows += [(p.id, p.name, *verdict(g, p, ctx)) for p in up.pack.ordered() if p.default and p.id not in off]
+        may_run = up.state == "runs" or args.allow_run
+        rows += [(p.id, p.name, *check_verdict(g, p, ctx, args.save, up.vars, may_run))
+                 for p in up.pack.ordered() if p.default and p.id not in off]
     for folder in args.pack or []:
-        pack = read_pack(folder)                  # read only: no code of the pack is imported or run
-        rows += [(p.id, p.name, *verdict(g, p, ctx)) for p in pack.ordered() if p.default]
+        pack = read_pack(folder)                  # read only: no code of the pack is imported
+        rows += [(p.id, p.name, *check_verdict(g, p, ctx, args.save, {}, args.allow_run))
+                 for p in pack.ordered() if p.default]
     width = max((len(name) for _, name, _, _ in rows), default=0)
     for pid, name, v, detail in rows:
         say(MINIMAL, f"  {pid:4} {name:{width}}  {v:7}  {detail}", "rules")
@@ -781,6 +798,87 @@ def cmd_rules(args) -> int:
     return 0
 
 
+def _patch_help(p, pack_id: str, rule=None) -> list[str]:
+    """The `help` lines of one patch (or built-in rule)."""
+    out = [f"{p.id} {p.name}: {p.title}",
+           f"  pack      : {pack_id}",
+           f"  since     : {p.since}",
+           f"  default   : {'on' if p.default else 'off (opt-in: name it in --rules)'}"]
+    if rule is not None and rule.description != p.title:
+        out.append(f"  changes   : {rule.description}")
+    if p.requires:
+        out.append(f"  requires  : {', '.join(p.requires)}")
+    kind = {"declarative": "edits (a patch.toml)", "script": f"Python code ({p.script})",
+            "run": "a program run over the save"}[p.kind]
+    out.append(f"  kind      : {kind}")
+    needs = list(p.run["needs_help"].items()) if p.run else []
+    if p.id in _NEEDS_REFERENCE():
+        needs.insert(0, ("reference", "a save written by the game's version at the save's date (--reference)"))
+    for name, text in needs:
+        out.append(f"  needs     : {name}" + (f" -- {text}" if text else ""))
+    if p.id in ("R14", "R15", "R16", "R17") and rule is not None:
+        out.append("  selected  : with --transplant auto (or transplant = \"auto\" in the config) when the save is "
+                   "below 1.13 and the game at or above it, and a reference is present; or by --rules")
+    if p.done:
+        out.append(f"  done when : {p.done['path']} has {p.done['key']}")
+    elif p.run and p.run.get("done_command"):
+        out.append(f"  done when : {' '.join(p.run['done_command'])} exits 0 (runs only for a trusted pack)")
+    elif p.kind == "script":
+        out.append("  done when : only running it tells")
+    elif p.kind == "run":
+        out.append("  done when : no done check (only running it tells)")
+    else:
+        out.append("  done when : none of its edits would change the save")
+    return out
+
+
+def _NEEDS_REFERENCE():
+    from .plan import NEEDS_REFERENCE
+    return NEEDS_REFERENCE
+
+
+def _pack_help(pack, state: str, folder: str) -> list[str]:
+    a = pack.applies or {}
+    out = [f"{pack.id}: {pack.title}", f"  folder    : {folder}"]
+    if state:
+        out.append(f"  state     : {state}")
+    out.append(f"  applies   : save {a.get('save', 'any')}; game {a.get('game', 'any')}" if a.get("save") or a.get("game")
+               else "  applies   : any version (no version span declared)")
+    if a.get("campaign"):
+        out.append(f"  campaign  : {a['campaign']['name']} (only the save game whose random_seed is "
+                   f"{a['campaign']['seed']})")
+    if pack.after:
+        out.append(f"  after     : {pack.after}")
+    out.append(f"  patches   : {', '.join(pack.order)}")
+    return out
+
+
+def cmd_help(args) -> int:
+    """What one rule, patch or pack is: its fields, read from the packs (built in and yours); nothing runs."""
+    import difflib
+    want = args.id.strip()
+    shipped = read_pack()
+    found = find_user_packs().packs
+    packs = [(shipped, "built in", "(inside the package)")] + [(up.pack, up.state, str(up.folder)) for up in found]
+    for pack, state, folder in packs:
+        if want.lower() == pack.id.lower():
+            for line in _pack_help(pack, "" if state == "built in" else state, folder):
+                say(MINIMAL, line, "rules")
+            return 0
+    rules = {r.id: r for r in REGISTRY}
+    for pack, _, _ in packs:
+        for p in pack.ordered():
+            if want.lower() in (p.id.lower(), p.name.lower()):
+                for line in _patch_help(p, pack.id, rules.get(p.id) if pack is shipped else None):
+                    say(MINIMAL, line, "rules")
+                return 0
+    names = [pack.id for pack, _, _ in packs] + [x for pack, _, _ in packs for p in pack.ordered()
+                                                 for x in (p.id, p.name)]
+    close = difflib.get_close_matches(want, names, n=3)
+    raise ValueError(f"no rule, patch or pack named {want!r}" + (f"; did you mean: {', '.join(close)}" if close else
+                                                                ""))
+
+
 def cmd_packs(args) -> int:
     """Each of the player's own packs found: folder, id, kind and whether it runs."""
     ensure_packs_dir()
@@ -789,7 +887,9 @@ def cmd_packs(args) -> int:
         say(MINIMAL, f"folder: {base}  ({which}{'' if exists else ', not found'})", "rules")
     width = max((len(up.id) for up in found.packs), default=0)
     for up in found.packs:
-        say(MINIMAL, f"  {up.id:{width}}  {up.kind:11}  {up.state:21}  {up.folder}", "rules")
+        camp = (up.pack.applies or {}).get("campaign")
+        label = f"  (for the save game {camp['name']})" if camp else ""
+        say(MINIMAL, f"  {up.id:{width}}  {up.kind:11}  {up.state:21}  {up.folder}{label}", "rules")
     for p in found.not_packs:
         say(MINIMAL, f"  (not a pack: no pack.toml)  {p}", "rules")
     if not found.packs:
@@ -995,6 +1095,12 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--pack", action="append", metavar="FOLDER", help="also a pack folder, as for migrate")
         p.add_argument("--allow-run", action="store_true",
                        help="let every pack's script and run patches run, trusted or not (as for migrate)")
+        p.add_argument("--var", action="append", metavar="NAME=VALUE",
+                       help="a variable for run patches; <patch id>.NAME=VALUE for one patch only")
+        p.add_argument("--vars", metavar="FILE", help="a TOML file of variables for run patches")
+        p.add_argument("--transplant", choices=("auto", "off"),
+                       help="auto: select the new-map rules (R14-R17) when the save crosses the 1.13 map rework "
+                            "and a reference is present (default: transplant in the config, else off)")
         if not update:
             return
         p.add_argument("--dry-run", action="store_true",
@@ -1004,8 +1110,6 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--wos-shape", choices=("faith", "rite", "both"), default="both",
                        help="as for migrate: how custom faiths are carried (default: both, two outputs)")
         p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version")
-        p.add_argument("--var", action="append", metavar="NAME=VALUE", help="a variable for run patches")
-        p.add_argument("--vars", metavar="FILE", help="a TOML file of variables for run patches")
         p.add_argument("--no-lint", action="store_true", help="skip the checks run on the output")
         p.add_argument("--lint-mods", choices=("save", "none"), default="save",
                        help="as for migrate: which mods the checks assume")
@@ -1096,6 +1200,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("disabled", help="list the rules turned off, and where the config file is "
                                         "($CK3SM_CONFIG overrides it)")
     p.set_defaults(func=cmd_disabled)
+
+    p = sub.add_parser("help", help="what one rule, patch or pack is: its title, what it changes, since, default, "
+                                    "needs, done check, pack (or, for a pack: its versions, campaign, trust, patches)")
+    p.add_argument("id", help="a rule or patch id or name (e.g. R23, nickname-text), or a pack id (e.g. to_1_20)")
+    p.set_defaults(func=cmd_help)
 
     p = sub.add_parser("packs", help="list your own packs (the packs folder beside the config file, and pack_dirs): "
                                      "folder, id, kind and whether each runs")
