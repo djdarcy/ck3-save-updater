@@ -257,7 +257,7 @@ class TestFamilies:
         assert any("DNA length" in s for s in rep.skipped)
 
     def test_rejected_tokens_counted_only_in_their_section(self, fam):
-        found = fam[0]
+        found = {f.check: f for f in fam[1].findings}
         assert found["Unexpected token: owner_influence (in schemes)"].count == 2     # not the one in living
         assert found["Unexpected token: ready (in schemes)"].count == 1
         assert found["Unexpected token: exposure_type (in culture_manager)"].count == 1
@@ -301,8 +301,9 @@ class TestFamilies:
     def test_no_game_folder_skips_the_families_that_need_one(self):
         rep = L.lint_gamestate(FAMILY_SAVE, known=L.GameData(words={b"x"}, sources=["x"]))
         assert any("no game folder" in s for s in rep.skipped)
-        rejects = {f.check for f in rep.findings if f.severity == "reject"}
-        assert rejects and all(c.startswith("Unexpected token:") for c in rejects)   # the table needs no game data
+        tokens = {f.check for f in rep.findings if f.check.startswith("Unexpected token:")}
+        assert tokens                                                       # the table needs no game data
+        assert not [f for f in rep.findings if f.severity == "reject"]      # what is left is all converted on load
 
 
 # --------------------------------------------------------------------------- real save (opt-in)
@@ -320,7 +321,9 @@ def test_real_families_within_5_percent_of_the_games_log(shape, log, monkeypatch
     save = sf.read_save(root / "migrated" / f"987_10_27__r1-r12__wos-{shape}.migrated.ck3")
     ref = sf.read_save(root / "originals" / "reference-1.20" / "ref_1_20_987_10_27.ck3").gamestate
     data = L.load_game_data(cli.find_game_dir(None), ref, [])        # the A6c launches ran with no mods
-    found = {f.check: f.count for f in L.lint_gamestate(save.gamestate, known=data).findings if f.severity == "reject"}
+    # the converted-on-load families are info now (U3), but the 1.20 load still logs them: count every finding
+    found = {f.check: f.count for f in L.lint_gamestate(save.gamestate, known=data).findings
+             if f.severity in ("reject", "info")}
     text = log.read_text(encoding="utf-8", errors="replace")
     for prefix, pattern in (("Unexpected DNA string length", "Unexpected DNA string length"),
                             ("Unexpected token: owner_influence", "Unexpected token: owner_influence"),

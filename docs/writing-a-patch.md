@@ -328,7 +328,7 @@ command = ["@@python@@", "-I", "@@tools_dir@@/fix_faces.py", "@@input@@", "@@out
 needs = ["tools_dir"]
 ```
 
-The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given: a list, or a table with a line of help for each, `needs = { tools_dir = "the folder holding fix_faces.py" }`. With `migrate` a missing one is refused, naming it; `update` and `status` know before anything runs, and skip the patch, saying `needs --var tools_dir (the folder holding fix_faces.py)`. A variable can be given to one patch only, `--var F3.tools_dir=...`; a bare `--var tools_dir=...` is refused when more than one selected patch needs that name, naming them (a pack's `vars.toml` is not affected). A program still running after `timeout` seconds (`timeout = 600` unless the `[run]` table says otherwise) is stopped, and the patch fails, saying so. What the program prints is kept in files, not in memory; the last lines of its error output are reported when it fails.
+The tool writes the save as it stands to `@@input@@`, runs `command` as its own program from your working directory, and reads `@@output@@` back. If the program exits with an error, or writes no output, nothing of the patch is applied, and the tool reports the exit code and the last lines the program wrote to its error output. `@@python@@` is the Python running the tool. Your own variables come from `--var name=value` (repeatable) or `--vars file.toml`; a variable that is a list, written as a whole element (`"@@files@@"`), becomes one argument per item. `needs` names the variables that must be given: a list, or a table with a line of help for each, `needs = { tools_dir = "the folder holding fix_faces.py" }`. With `migrate` a missing one is refused, naming it; `update` and `status` know before anything runs, and skip the patch, saying `needs --var tools_dir (the folder holding fix_faces.py)`. A variable can be given to one patch only, `--var F3.tools_dir=...`; a bare `--var tools_dir=...` (or a bare key in a `--vars` file) reaches every selected patch of one pack that needs it, and is refused only when patches of different packs need it, naming them; a qualified name still wins. A pack's `vars.toml` applies to its own patches only. A program still running after `timeout` seconds (`timeout = 600` unless the `[run]` table says otherwise) is stopped, and the patch fails, saying so. What the program prints is kept in files, not in memory; the last lines of its error output are reported when it fails.
 
 A run patch runs a program with your permissions, so a pack folder with one is refused unless you pass `--allow-run`:
 
@@ -386,15 +386,15 @@ ck3update check "My_Old_Campaign.ck3" --pack "my_pack"
 
 ```
   R1   opinions-converging  needed   2 edit(s)
-  R2   relation-flags       unknown  a Python rule: only running it would tell
+  R2   relation-flags       needed   2 scripted-relation flag bitsets wider than 1.20's 1 byte (e.g. ...)
   R7   version-bump         done     nothing to edit
   F1   old-key-renamed      fails    my_pack F1-old-key-renamed/patch.toml [[edit]] #1 (...): expected 1, found 0
-4 patch(es): 1 needed, 1 done, 1 unknown, 1 fail(s)
+4 patch(es): 2 needed, 1 done, 0 unknown, 1 fail(s)
 ```
 
 - **needed**: at least one of its edits would change the save.
 - **done**: none would; the save already has this fix, or never needed it.
-- **unknown**: a code or run patch, or one of the tool's rules written in Python, which only running would tell. `check` never runs them, and never imports a pack's code, so it needs no `--allow-run` (it accepts the flag, so the same command line works for `migrate` and `check`).
+- **unknown**: a code or run patch, which only running would tell, or one of the tool's rules whose detector needs what is not at hand (the game folder for R6, R15 and R22, a reference save for R14, R16 and R17; `--game-dir` gives the folder). The tool's rules written in Python are judged by a detector: the rule's own matcher run without its edits (R2, R21, R23), or the lint check that sees what the rule fixes (R3, R20, R22, R6, R15, R8-R12, R14-R17). `check` never runs them, and never imports a pack's code, so it needs no `--allow-run` (it accepts the flag, so the same command line works for `migrate` and `check`).
 - **fails**: an `expect` or `need_path` does not hold; the line names the edit, the path and the count. `migrate` would stop on it, so `check` exits with code 5, as `migrate` does.
 
 `check` takes `--rules` as `migrate` does, and leaves out the rules you turned off (below). Each patch is judged on the save as it is now, not after the patches before it have run.
