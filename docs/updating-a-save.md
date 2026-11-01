@@ -64,7 +64,7 @@ Any input you do not give this time takes the record's latest value; anything yo
 2. The original is renamed to `<name>.bak.ck3`.
 3. The output is renamed to `<name>.ck3`.
 
-If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--wos-shape` gives two outputs, so in place needs `--wos-shape faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
+If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--wos-shape` gives two outputs, so in place needs `--wos-shape faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
 
 The steps below are the same flow done by hand, with `migrate`, the lower-level command `update` runs.
 

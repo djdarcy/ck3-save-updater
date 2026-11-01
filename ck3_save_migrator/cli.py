@@ -419,6 +419,7 @@ def cmd_update(args) -> int:
         report_default = out.with_suffix(".report.json")
     args.reference = plan.reference.path or "none"
     args.game_dir = plan.game["path"]
+    report_given = bool(args.report)
     args.report = None if args.dry_run else (args.report or str(report_default))
     inputs = plan.inputs
     if args.wos_shape is None:
@@ -437,12 +438,19 @@ def cmd_update(args) -> int:
     LAST_PLAN.update(ran=[r.id for r in getattr(args, "results", [])])
     written = list(getattr(args, "written", []))
     if args.in_place and written and not args.dry_run:
+        report = Path(args.report) if args.report else None
         if len(written) != 1:
-            for w, _ in written:
-                Path(w).unlink(missing_ok=True)
+            _remove_outputs(written, report)
             raise ValueError("--in-place needs one output, and the custom faith gave two: give --wos-shape faith "
                              "or --wos-shape rite (nothing was changed)")
-        swap = swap_in_place(out, save_path, bak, Path(args.report) if args.report else None)
+        if code != 0:                    # lint found errors: never put such an output in the save's place
+            gv = plan.gap[1]
+            where = not_in_place(out, save_path.with_name(f"{save_path.stem}__updated__{gv}.ck3"), report,
+                                 args.force, keep_report=report_given)
+            say(ERROR, f"lint found errors: the update was not put in place; it is at {where} for inspection",
+                "io", err=True)
+            return code
+        swap = swap_in_place(out, save_path, bak, report)
         if swap:
             return swap
         written = [(save_path, written[0][1])]
@@ -470,15 +478,43 @@ def swap_in_place(tmp: Path, save: Path, bak: Path, report: Path | None) -> int:
         say(ERROR, f"ERROR: --in-place could not put the update in place ({exc}); the original is unchanged at "
                    f"{save}, and the update is left at {tmp}", "io", err=True)
         return 1
-    lint = tmp.with_suffix(".lint.json")
-    if lint.exists():
-        os.replace(lint, save.with_suffix(".lint.json"))
-    if report is not None and report.is_file():
-        data = json.loads(report.read_text(encoding="utf-8"))
-        data["output"] = str(save.resolve())
-        atomic_write(report, json.dumps(data, indent=2, ensure_ascii=False))
+    _follow_output(tmp, save, report, report)
     say(MINIMAL, f"in place: {save} (the original is kept as {bak.name})", "io")
     return 0
+
+
+def _follow_output(src: Path, dst: Path, report: Path | None, new_report: Path | None) -> None:
+    """After an output moved from ``src`` to ``dst``: move the lint file beside it, and move the report (to
+    ``new_report``) with its ``output`` naming ``dst``."""
+    lint = src.with_suffix(".lint.json")
+    if lint.exists():
+        os.replace(lint, dst.with_suffix(".lint.json"))
+    if report is not None and report.is_file():
+        data = json.loads(report.read_text(encoding="utf-8"))
+        data["output"] = str(dst.resolve())
+        atomic_write(new_report or report, json.dumps(data, indent=2, ensure_ascii=False))
+        if new_report is not None and new_report != report:
+            report.unlink(missing_ok=True)
+
+
+def _remove_outputs(written: list, report: Path | None) -> None:
+    """Remove what a run wrote: each output, the lint file beside it, and the report."""
+    for w, _ in written:
+        Path(w).unlink(missing_ok=True)
+        Path(w).with_suffix(".lint.json").unlink(missing_ok=True)
+    if report is not None:
+        report.unlink(missing_ok=True)
+
+
+def not_in_place(tmp: Path, default: Path, report: Path | None, force: bool, keep_report: bool = False) -> Path:
+    """``--in-place`` with a run that did not succeed (lint found errors): the original stays as it is, and the
+    output moves to the name it would have without ``--in-place`` (unless that name is taken). Returns where it is."""
+    if default.exists() and not force:
+        say(ERROR, f"{default} exists, so the output stays at {tmp}", "io", err=True)
+        return tmp
+    os.replace(tmp, default)
+    _follow_output(tmp, default, report, report if keep_report else default.with_suffix(".report.json"))
+    return default
 
 
 def write_record(args, plan, written: list) -> None:

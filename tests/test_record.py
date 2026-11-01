@@ -184,3 +184,51 @@ def test_a_failed_second_rename_leaves_the_original_under_its_name(tmp_path, sav
 def test_in_place_with_dash_o_is_refused(tmp_path, saves, capsys):
     code, _, err = update(capsys, old_save(saves), game(tmp_path), "--in-place", "-o", str(tmp_path / "x.ck3"))
     assert code == 1 and "does not take -o" in err
+
+
+def broken_lint(monkeypatch):
+    """Lint finds an error in every output (test_update's exit-4 method)."""
+    from ck3_save_migrator import lint as L
+
+    def broken(g, **k):
+        rep = L.LintReport()
+        rep.add("braces balance", "error", ["simulated"])
+        return rep
+    monkeypatch.setattr(cli, "lint_gamestate", broken)
+
+
+def test_in_place_with_a_lint_error_leaves_the_original_and_puts_the_output_at_the_default_name(
+        tmp_path, saves, capsys, monkeypatch):
+    broken_lint(monkeypatch)
+    g = game(tmp_path)
+    s = old_save(saves, "A.ck3")
+    original = s.read_bytes()
+    code, _, err = run(capsys, "update", str(s), "--game-dir", str(g), "--reference", "none", "--in-place")
+    assert code == 4
+    assert s.read_bytes() == original and not (saves / "A.bak.ck3").exists()
+    out = saves / "A__updated__1.20.1.2.ck3"
+    assert out.is_file() and out.with_suffix(".lint.json").is_file()
+    rep = json.loads(out.with_suffix(".report.json").read_text(encoding="utf-8"))
+    assert Path(rep["output"]) == out.resolve()
+    assert f"lint found errors: the update was not put in place; it is at {out} for inspection" in err
+    assert not list(saves.glob("*ck3update-tmp*")) and not (saves / "A.report.json").exists()
+    assert not record.games_dir().exists()                         # exit 4 writes no record
+
+
+def test_the_two_output_refusal_leaves_nothing_behind(tmp_path, saves, capsys, monkeypatch):
+    s = old_save(saves, "A.ck3")
+    original = s.read_bytes()
+
+    def two_outputs(args, rules, user_packs, out, state=None, variables=None):
+        args.written = []
+        for shape in ("faith", "rite"):
+            o = out.with_name(f"{out.stem}__wos-{shape}.ck3")
+            o.write_bytes(b"x")
+            o.with_suffix(".lint.json").write_text("{}", encoding="utf-8")
+            args.written.append((o, "sha"))
+        Path(args.report).write_text("{}", encoding="utf-8")
+        return 0
+    monkeypatch.setattr(cli, "execute_rules", two_outputs)
+    code, _, err = update(capsys, s, game(tmp_path), "--in-place")
+    assert code == 1 and "--in-place needs one output" in err
+    assert sorted(p.name for p in saves.iterdir()) == ["A.ck3"] and s.read_bytes() == original
