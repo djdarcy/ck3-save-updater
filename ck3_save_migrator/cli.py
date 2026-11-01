@@ -203,6 +203,8 @@ def branch_path(path: Path, shape: str) -> Path:
 def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: str, lint_rep=None) -> None:
     t = time.perf_counter()
     result = write_save(save, out, force=args.force, recompress=args.recompress, dry_run=args.dry_run)
+    if not result.dry_run and hasattr(args, "written"):
+        args.written.append((out, result.sha256))
     say(DIAGNOSTICS, f"{'built' if result.dry_run else 'wrote'} {out}: {result.size:,} bytes, verified, in "
                      f"{time.perf_counter() - t:.1f}s", "io", err=True)
     tag = "[dry-run] would write" if result.dry_run else "wrote"
@@ -347,7 +349,9 @@ def make_plan(args, *, writes: bool = False):
                        rules_spec=args.rules, output=getattr(args, "output", None), packs=args.pack,
                        allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes,
                        variables=read_patch_vars(args.var or [], args.vars), transplant=args.transplant,
-                       portraits_version=getattr(args, "portraits_version", None))
+                       portraits_version=getattr(args, "portraits_version", None),
+                       use_record=not args.no_record,
+                       in_place=getattr(args, "in_place", False))
 
 
 def say_plan(plan) -> None:
@@ -386,6 +390,8 @@ def cmd_update(args) -> int:
     """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
     patch's counts (nothing is written); otherwise write the output and, unless --report names another,
     ``<output>.report.json`` beside it. Exit codes are migrate's."""
+    if args.in_place and args.output:
+        raise ValueError("--in-place writes the update under the save's own name; it does not take -o")
     plan = make_plan(args, writes=not args.dry_run)
     LAST_PLAN.update(update=plan)
     say_plan(plan)
@@ -397,12 +403,51 @@ def cmd_update(args) -> int:
     if not plan.has_changes():
         say(MINIMAL, "no patch will run: nothing written", "rules")
         return 0
-    out = Path(plan.output)
+    save_path = Path(args.save)
+    bak = save_path.with_name(save_path.stem + ".bak.ck3")
+    if not args.no_record and not args.dry_run:
+        from .plan import read_light
+        args.record_seed = read_light(save_path).random_seed
+    if args.in_place:
+        if bak.exists() and not args.force and not args.dry_run:
+            raise OutputExistsError(f"the backup {bak} already exists (use --force to replace it)")
+        # the output is written beside the save under a temporary name, verified, then swapped in
+        out = save_path.with_name(f"{save_path.stem}.ck3update-tmp.ck3")
+        report_default = save_path.with_suffix(".report.json")
+    else:
+        out = Path(plan.output)
+        report_default = out.with_suffix(".report.json")
     args.reference = plan.reference.path or "none"
     args.game_dir = plan.game["path"]
-    args.report = None if args.dry_run else (args.report or str(out.with_suffix(".report.json")))
-    code = execute_rules(args, plan.rules, plan.user_packs, out, state={"plan": plan.as_dict()})
+    args.report = None if args.dry_run else (args.report or str(report_default))
+    inputs = plan.inputs
+    if args.wos_shape is None:
+        # not a plan input (it shapes the outputs): the record's, else migrate's default, both
+        from .plan import read_light
+        from .record import latest_inputs, read_record
+        rec = None if args.no_record else read_record(read_light(save_path).random_seed)
+        args.wos_shape = latest_inputs(rec).get("wos_shape") or "both"
+        if rec and latest_inputs(rec).get("wos_shape"):
+            say(MINIMAL, f"pre-filled: --wos-shape {args.wos_shape} (from the record of {rec.get('label', '?')})",
+                "rules")
+    args.old_game_dir = inputs.get("old_game_dir")
+    args.portraits_version = inputs.get("portraits_version")
+    code = execute_rules(args, plan.rules, plan.user_packs, out, state={"plan": plan.as_dict()},
+                         variables=inputs.get("vars") or {})
     LAST_PLAN.update(ran=[r.id for r in getattr(args, "results", [])])
+    written = list(getattr(args, "written", []))
+    if args.in_place and written and not args.dry_run:
+        if len(written) != 1:
+            for w, _ in written:
+                Path(w).unlink(missing_ok=True)
+            raise ValueError("--in-place needs one output, and the custom faith gave two: give --wos-shape faith "
+                             "or --wos-shape rite (nothing was changed)")
+        swap = swap_in_place(out, save_path, bak, Path(args.report) if args.report else None)
+        if swap:
+            return swap
+        written = [(save_path, written[0][1])]
+    if code == 0 and written and not args.dry_run and not args.no_record:
+        write_record(args, plan, written)
     if args.dry_run and getattr(args, "results", None):
         got = {r.id: r for r in args.results}
         for s in plan.steps:
@@ -413,11 +458,55 @@ def cmd_update(args) -> int:
     return code
 
 
-def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None) -> int:
+def swap_in_place(tmp: Path, save: Path, bak: Path, report: Path | None) -> int:
+    """``--in-place``: the original becomes ``<name>.bak.ck3`` and the verified output (``tmp``, beside it) takes
+    the save's name. If the second rename fails, the first is undone. The report's ``output`` and the lint file
+    beside the output follow the save's name. 0 when done; 1, naming both files, when the swap failed."""
+    os.replace(save, bak)
+    try:
+        os.replace(tmp, save)
+    except OSError as exc:
+        os.replace(bak, save)                    # undo: the original keeps its own name
+        say(ERROR, f"ERROR: --in-place could not put the update in place ({exc}); the original is unchanged at "
+                   f"{save}, and the update is left at {tmp}", "io", err=True)
+        return 1
+    lint = tmp.with_suffix(".lint.json")
+    if lint.exists():
+        os.replace(lint, save.with_suffix(".lint.json"))
+    if report is not None and report.is_file():
+        data = json.loads(report.read_text(encoding="utf-8"))
+        data["output"] = str(save.resolve())
+        atomic_write(report, json.dumps(data, indent=2, ensure_ascii=False))
+    say(MINIMAL, f"in place: {save} (the original is kept as {bak.name})", "io")
+    return 0
+
+
+def write_record(args, plan, written: list) -> None:
+    """Add this update to the save game's record (record.py); a save without a random_seed has none."""
+    from . import record
+    seed = getattr(args, "record_seed", None)          # read before the update ran (an in-place swap moves the file)
+    if not seed:
+        return
+    first, others = written[0], written[1:]
+    by_id = {s.id: s.pack for s in plan.steps}
+    row = {"date": record.now(), "input": str(Path(plan.save).resolve()), "input_sha256": args.in_sha,
+           "output": str(Path(first[0]).resolve()), "output_sha256": first[1],
+           "other_outputs": [{"path": str(Path(w).resolve()), "sha256": h} for w, h in others] or None,
+           "tool": f"{__app_name__} {get_display_version()}", "game_version": plan.gap[1],
+           "patches": [{"id": r.id, "pack": by_id.get(r.id, "")} for r in getattr(args, "results", [])],
+           "inputs": {k: v for k, v in {**plan.inputs, "wos_shape": args.wos_shape}.items() if v not in (None, {})},
+           "prefilled": [x.split(" (from the record")[0] for x in plan.prefilled]}
+    path = record.append_update(seed, Path(plan.save).stem, row)
+    say(DEFAULT, f"  record        : {path}", "io")
+
+
+def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None, variables: dict | None = None) -> int:
     """Run ``rules`` on ``args.save`` and write ``out`` (and the custom-faith branches, the lint and the report):
-    the body of ``migrate``, shared by ``update``, which passes the rules its plan chose and ``state`` (its plan,
-    for the report). The results are left on ``args.results`` (those of the first output) for the caller."""
-    patch_vars = read_patch_vars(args.var or [], args.vars)
+    the body of ``migrate``, shared by ``update``, which passes the rules its plan chose, ``state`` (its plan, for
+    the report) and ``variables`` (the plan's, given or pre-filled). The results are left on ``args.results``
+    (those of the first output), the input's hash on ``args.in_sha`` and each file written on ``args.written``."""
+    patch_vars = variables if variables is not None else read_patch_vars(args.var or [], args.vars)
+    args.written = []
     # S1: a rule whose prerequisites are not selected is refused before any work, naming them
     missing = missing_prerequisites(rules)
     if missing:
@@ -444,7 +533,7 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None)
     _check_paths(args, outputs(branch), existence=True)        # before any rule runs
     installs = game_installs(args.game_dir)
     check_save_not_newer(save_versions(save.meta)["version"], installs[0] if installs else None)
-    in_sha = sha256(save.to_bytes())
+    in_sha = args.in_sha = sha256(save.to_bytes())
     ctx = RuleContext(game_dir=installs[0].path if installs else None, portraits_version=args.portraits_version,
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
@@ -1101,14 +1190,19 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--transplant", choices=("auto", "off"),
                        help="auto: select the new-map rules (R14-R17) when the save crosses the 1.13 map rework "
                             "and a reference is present (default: transplant in the config, else off)")
+        p.add_argument("--no-record", action="store_true",
+                       help="neither read nor write this save game's record (the inputs of its earlier updates)")
         if not update:
             return
+        p.add_argument("--in-place", action="store_true",
+                       help="the updated save takes the save's own name; the original is kept as <name>.bak.ck3")
         p.add_argument("--dry-run", action="store_true",
                        help="run every selected patch in memory and print the plan with their counts; write nothing")
         p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
         p.add_argument("--report", help="the JSON report (default: <output>.report.json beside the output)")
-        p.add_argument("--wos-shape", choices=("faith", "rite", "both"), default="both",
-                       help="as for migrate: how custom faiths are carried (default: both, two outputs)")
+        p.add_argument("--wos-shape", choices=("faith", "rite", "both"),
+                       help="as for migrate: how custom faiths are carried (default: the record's, else both, two "
+                            "outputs)")
         p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version")
         p.add_argument("--no-lint", action="store_true", help="skip the checks run on the output")
         p.add_argument("--lint-mods", choices=("save", "none"), default="save",
