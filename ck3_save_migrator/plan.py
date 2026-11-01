@@ -148,6 +148,10 @@ class UpdatePlan:
     gamestate_bytes_read: int = 0
     # per refusal (by its text): the fix, and the files it names, shown as their folder once and then the names
     fixes: dict = field(default_factory=dict)
+    record: str | None = None          # the record line: "<label>: last updated ..." or why there is none
+    inputs: dict = field(default_factory=dict)       # the inputs used: given, else pre-filled from the record
+    prefilled: list = field(default_factory=list)    # "<input> = <value> (from the record of <label>)"
+    in_place: bool = False
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -199,6 +203,9 @@ class UpdatePlan:
             out.append(f"{L('game')}{c.warn('none found')}")
         out += [f"{L('also')}{g['version'] or 'version unknown'}  {c.path(g['path'])}  "
                 f"{c.note('(from ' + g['source'] + '; not used)')}" for g in self.other_games]
+        if self.record:
+            out.append(f"{L('record')}{self.record}")
+        out += [f"{IND}{c.info('pre-filled')}: {x}" for x in self.prefilled]
         out.append(f"{L('gap')}{self.gap[0] or '?'} -> {self.gap[1] or '?'}"
                    + (c.note("  (none: the save is at the game's version)")
                       if self.gap[0] and self.gap[0] == self.gap[1] else ""))
@@ -348,7 +355,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 old_game_dir: str | None = None, rules_spec: str | None = None, output: str | None = None,
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
-                transplant: str | None = None, portraits_version: int | None = None) -> UpdatePlan:
+                transplant: str | None = None, portraits_version: int | None = None,
+                use_record: bool = True, in_place: bool = False) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -384,6 +392,53 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
 
     variables = dict(variables or {})
     seed = light.random_seed
+
+    # ---- the save game's record: what was not given this time takes the newest recorded value
+    rec_line, prefilled = None, []
+    if not use_record:
+        rec_line = "not used (--no-record)"
+    elif seed is None:
+        rec_line = "none: the save's random_seed was not found, so no record is kept for it"
+    else:
+        from .record import latest_inputs, read_record, summary
+        rec = read_record(seed)
+        if rec is None:
+            rec_line = "none yet (this update starts one)"
+        else:
+            rec_line = summary(rec)
+            label = rec.get("label", "?")
+            src = f"(from the record of {label})"
+            last = latest_inputs(rec)
+
+            def missing(v) -> bool:
+                vals = v if isinstance(v, list) else [v]
+                return any(isinstance(x, str) and Path(x).is_absolute() and not Path(x).exists() for x in vals)
+            for k, v in (last.get("vars") or {}).items():
+                if k in variables:
+                    continue
+                if missing(v):
+                    notes.append(f"the record of {label} has --var {k}={v}, which no longer exists; not used")
+                    continue
+                variables[k] = v
+                prefilled.append(f"--var {k}={v} {src}")
+            rod = last.get("old_game_dir")
+            if old_game_dir is None and rod:
+                if missing(rod):
+                    notes.append(f"the record of {label} has --old-game-dir {rod}, which no longer exists; not used")
+                else:
+                    old_game_dir = rod
+                    prefilled.append(f"--old-game-dir {rod} {src}")
+            for name, given, flag in (("transplant", transplant, "--transplant"),
+                                      ("portraits_version", portraits_version, "--portraits-version")):
+                if given is None and last.get(name) is not None:
+                    prefilled.append(f"{flag} {last[name]} {src}")
+                    if name == "transplant":
+                        transplant = last[name]
+                    else:
+                        portraits_version = last[name]
+    # --wos-shape shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
+    inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
+              "portraits_version": portraits_version}
 
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
@@ -590,15 +645,21 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         notes.append(f"nothing runs; {', '.join(unmet)} skipped for an unmet need (see the patches above)")
 
     out = None
-    if output:
+    if in_place:
+        out = str(save)
+        bak = save.with_name(save.stem + ".bak.ck3")
+        notes.append(f"in place: the updated save takes this name, and the original is kept as {bak.name}"
+                     + (f" ({bak.name} exists: update refuses to write over it without --force)"
+                        if bak.exists() and not force else ""))
+    elif output:
         out = str(Path(output))
     elif gv:
         out = str(save.with_name(f"{save.stem}__updated__{gv}.ck3"))
-    if out and Path(out).exists() and not force:
+    if out and not in_place and Path(out).exists() and not force:
         notes.append(f"{out} exists: update refuses to write over it without --force")
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),
                    pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
-                   fixes=fixes)
+                   fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place)
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p
