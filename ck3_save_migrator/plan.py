@@ -481,12 +481,21 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     same_line = bool(sl and gl and sl == gl)
     gspan = (shipped.applies or {}).get("game")
     recheck = bool(not ok and same_line and skip_why == NOT_SELECTED and (gspan is None or span_matches(gspan, gv)))
+    # an up-to-date save: every rule --rules does not leave out is a candidate (opt-in ones too, so the transplant
+    # is judged, and guarded, rather than silently absent); a --rules that names rules without "all" keeps to them
+    plus = [t.strip().lower() for t in spec.split(",") if t.strip() and not t.strip().startswith("-")]
+    candidates = (({r.id for r in REGISTRY} - _excluded_ids(spec)) if (not plus or "all" in plus) else set(chosen)) \
+        if recheck else set()
     for r in REGISTRY:
         reason, run = "runs", True
-        if not ok and recheck and r.id in named:
-            reason = "runs (named in --rules; the pack's span does not select this save)"
-        elif not ok:
+        if not ok and r.id not in candidates:
             reason, run = skip_why, False
+        elif not ok and r.id in chosen and (r.id in named or (r.id == "R17" and set(TRANSPLANT) & named)):
+            reason = "runs (named in --rules; the pack's span does not select this save)"
+        elif not ok and r.id in off:
+            reason, run = "turned off in your config (`ck3update enable` turns it back on)", False
+        elif not ok:
+            reason, run = RECHECK, False                  # judged below: the record, then its detector
         elif r.id not in chosen:
             reason, run = ("opt-in: not in --rules" if not r.default else "not selected by --rules"), False
         elif r.id in off and r.id not in named:
@@ -660,15 +669,19 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # ---- the built-in rules' detectors (read only): needed or done, before anything runs
     detected, builtin = None, {r.id for r in REGISTRY}
     run_builtin = [s for s in steps if s.will_run and s.id in builtin and s.pack == shipped.id]
-    recheck_ids = [r.id for r in REGISTRY if r.default and r.id not in REPORT_ONLY] if recheck else []
-    if detect and recheck and rec is not None:
+    recheck_ids = [s.id for s in steps if s.reason == RECHECK]
+    if detect and recheck_ids and rec is not None:
         done_by = _recorded_tool_version(rec)
         if done_by and compare_versions(done_by, _tool_version()) != -1:
             notes.append(f"re-check skipped: the record of {rec.get('label', '?')} says this tool "
                          f"({done_by}) updated it")
             recheck_ids = []
+    if not detect or not recheck_ids:
+        for s in steps:
+            if s.reason == RECHECK:                        # not re-checked: as before, the pack is not selected
+                s.reason = skip_why
     if detect and (run_builtin or recheck_ids):
-        from .detect import Env, detect as run_detector
+        from .detect import Detection, Env, detect as run_detector, has_detector
         refbytes = None
         if ref.path and any(s.id in ("R14", "R16", "R17") for s in run_builtin):
             refbytes = sf.read_save(ref.path).gamestate
@@ -677,15 +690,44 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         for s in run_builtin:
             if s.reason == "runs" or s.reason.startswith("runs (named"):
                 s.reason = run_detector(s.id, g, env).line()
+        # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
+        # done, run what its detector finds needed, and never run blindly what cannot be judged
+        applied = _applied_in_record(rec, save, shipped.id) if rec is not None else {}
+        transplant_named = bool(set(TRANSPLANT) & named)
         for rid in recheck_ids:
             st = next(x for x in steps if x.id == rid)
-            if st.will_run:                            # named in --rules: judged above, as a step that runs
+            if rid in applied:
+                st.reason = f"already applied (record: {applied[rid]})"
                 continue
-            d = run_detector(rid, g, env)
-            st.reason = f"{st.reason}; re-check: {d.line()}"
+            if rid in REPORT_ONLY:
+                st.reason = "reports only (no edit): not re-run on an up-to-date save; name it with --rules"
+                continue
+            if rid in SAME_LINE_ONLY:
+                st.reason = "not re-run on a save on the game's line (assumed compatible); name it with --rules"
+                continue
+            # the transplant is never judged on an up-to-date save: it is "unknown", and what is unknown never runs
+            transplant = rid in TRANSPLANT + ("R17",) and not transplant_named
+            d = (Detection("unknown", why="the transplant is not judged on an up-to-date save") if transplant
+                 else run_detector(rid, g, env))
             if d.state == "needed":
-                what = f"{d.count:,} {d.what}" if d.count is not None else d.what
-                notes.append(f"needed: {rid} ({what}); run `ck3update update {save.name} --rules {rid}`")
+                st.will_run, st.reason = True, d.line()
+            elif d.state == "done":
+                st.reason = d.line()
+            else:
+                st.reason = ("unknown: not in the record and no detector; name it with --rules to run it"
+                             if not transplant and not has_detector(rid, env) else
+                             f"unknown: {d.why}, and not in the record; name it with --rules to run it")
+        for st in steps:                             # what the re-check started still needs its inputs
+            if st.will_run and st.id in recheck_ids and info[st.id]["needs_ref"] and not ref.path:
+                st.will_run, st.reason = False, "needs a reference save, and there is none"
+        changed = True
+        while changed:
+            changed = False
+            skipped = {x.id for x in steps if not x.will_run}
+            for x in steps:
+                need = [r for r in info[x.id]["requires"] if r in skipped]
+                if x.will_run and need:
+                    x.will_run, x.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
         detected = ("re-checked the save on the game's version line" if recheck_ids else "judged each built-in "
                     "step") + f": read the whole gamestate ({len(g) / 1e6:,.1f} MB)"
     elif not detect and (run_builtin or recheck):
@@ -728,8 +770,38 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     return p
 
 
-# R6 reports and edits nothing: a re-check never offers it (it would fix nothing it finds)
+# On an up-to-date save: R6 reports and edits nothing (it would fix nothing it finds), and R7 brings the version to
+# the game's, which the same major.minor line does not need (U1: assumed compatible); each runs there only by name
 REPORT_ONLY = ("R6",)
+SAME_LINE_ONLY = ("R7",)
+RECHECK = "re-check: judged by the record and the detectors"
+
+
+def _applied_in_record(rec: dict, save: Path, pack_id: str) -> dict[str, str]:
+    """rule id -> the date of the record's update that applied it to this save game: a row whose input is this
+    save, or one made before this save was written (this save then descends from that update's output)."""
+    import datetime as _dt
+    try:
+        written = _dt.datetime.fromtimestamp(save.stat().st_mtime).astimezone()
+    except OSError:
+        written = None
+    out: dict[str, str] = {}
+    for row in rec.get("update") or []:
+        date = str(row.get("date", ""))
+        try:
+            mine = bool(row.get("input")) and Path(str(row["input"])).resolve() == save.resolve()
+        except OSError:
+            mine = False
+        try:
+            earlier = written is not None and _dt.datetime.fromisoformat(date) <= written
+        except (TypeError, ValueError):
+            earlier = False
+        if not (mine or earlier):
+            continue
+        for pt in row.get("patches") or []:
+            if isinstance(pt, dict) and pt.get("pack") == pack_id and pt.get("id"):
+                out[pt["id"]] = date[:16].replace("T", " ")
+    return out
 
 
 def _tool_version() -> str:

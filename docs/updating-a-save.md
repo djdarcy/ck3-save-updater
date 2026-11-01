@@ -31,7 +31,14 @@ ck3update update My_Old_Campaign
 
 Each built-in rule that will run is judged before anything runs, by its detector (the rule's own matcher, or the lint check that sees what it fixes): `needed: 851 nicknames without text`, `done: none found`, or `unknown: ...` when its detector needs the game folder or a reference save. The detectors need the whole gamestate: the plan reads it once and says how long it took (`--no-detect` skips it, and the plan reads only the save's first megabyte).
 
-A save already on the game's version line, which the built-in pack's span does not select, is re-checked with the same detectors. Each finding is a note, with the command that runs the rule that fixes it: `needed: R23 (851 nicknames without text); run `ck3update update My_Campaign.ck3 --rules R23``. The verdict stays ALREADY CURRENT, and `update` writes nothing unless `--rules` names the rule: a rule named there runs on such a save despite the pack's span. The re-check is skipped when the save game's record says this tool version, or a later one, updated it.
+A save already on the game's version line, which the built-in pack's span does not select (one you updated before, then played), is re-checked: it skips what it already has and gets what is left. Each built-in rule is judged in turn:
+
+- one the save game's record shows applied (an update of this save, or of one written before it) is skipped: `already applied (record: <date>)`;
+- one whose detector finds nothing is skipped: `done: none found`;
+- one whose detector finds something runs: `needed: 851 nicknames without text`. The verdict is READY, and `update` writes a new save as usual;
+- one that cannot be judged (no detector, and not in the record) does not run: `unknown: not in the record and no detector; name it with --rules to run it`. The transplant (R14-R17) is never judged on such a save, so it runs there only when `--rules` names it. R6 (it only reports) and R7 (the version bump, which the same line does not need) run there only by name too.
+
+`--rules` still selects (`--rules R23` runs R23 alone) and leaves out (`--rules all,-R23`). The re-check is skipped, and the save is not read past its first megabyte, when the record says this tool version, or a later one, updated it.
 
 A save one hotfix behind the game (1.20.1.2 with a 1.20.1.3 game) is "already current": the same 1.20 line is assumed compatible, and the plan says so. `ck3update help <rule, patch or pack>` explains any one of them.
 
