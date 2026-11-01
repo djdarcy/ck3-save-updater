@@ -42,10 +42,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/djdarcy/ck3-save-migrator"
-Repository = "https://github.com/djdarcy/ck3-save-migrator"
-Issues = "https://github.com/djdarcy/ck3-save-migrator/issues"
-Changelog = "https://github.com/djdarcy/ck3-save-migrator/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/djdarcy/ck3-save-updater"
+Repository = "https://github.com/djdarcy/ck3-save-updater"
+Issues = "https://github.com/djdarcy/ck3-save-updater/issues"
+Changelog = "https://github.com/djdarcy/ck3-save-updater/blob/main/CHANGELOG.md"
 
 [project.scripts]
 ck3update = "ck3_save_migrator.cli:main"
@@ -76,6 +76,6 @@ python_classes = "Test*"
 [tool.repokit-common]
 version-source = "ck3_save_migrator/_version.py"
 changelog = "CHANGELOG.md"
-repo-url = "https://github.com/djdarcy/ck3-save-migrator"
+repo-url = "https://github.com/djdarcy/ck3-save-updater"
 tag-prefix = "v"
 private-patterns = ["private/", "local/", ".env"]
