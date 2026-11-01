@@ -25,8 +25,8 @@ pip install ck3_save_migrator
 
 ### From Source
 ```bash
-git clone https://github.com/djdarcy/ck3-save-migrator.git
-cd ck3-save-migrator
+git clone https://github.com/djdarcy/ck3-save-updater.git
+cd ck3-save-updater
 pip install -e .
 ```
 
