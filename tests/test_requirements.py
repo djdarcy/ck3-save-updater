@@ -189,12 +189,29 @@ TWO = {pid: f'\n[run]\ncommand = ["@@python@@", "@@prog@@", "@@input@@", "@@outp
        for pid in ("G1", "G2")}
 
 
-def test_a_bare_variable_two_patches_need_is_refused_naming_both(tmp_path, saves, capsys):
+def test_a_bare_variable_two_patches_of_one_pack_need_reaches_both(tmp_path, saves, capsys):
+    """U3, correcting U1: within one pack a bare name is meant for all its patches (the play6 recipe's G1 and G2
+    both need tools_dir, the same folder)."""
     run_pack("two", TWO)
+    prog = write(tmp_path / "progs" / "copy.py", COPY_AND_WRITE)
+    a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+    code, out, err = run(capsys, "update", str(ref_save(saves, "A.ck3")), "--game-dir", str(game(tmp_path)),
+                         "--allow-run", "--no-lint", "--var", "witness=both", "--var", f"prog={prog.as_posix()}",
+                         "--var", f"out_g1={a.as_posix()}", "--var", f"out_g2={b.as_posix()}")
+    assert code == 0, err
+    assert "REFUSED" not in err
+    assert a.read_text(encoding="utf-8") == "both" and b.read_text(encoding="utf-8") == "both"
+
+
+def test_a_bare_variable_patches_of_two_packs_need_is_refused_naming_both(tmp_path, saves, capsys):
+    run_pack("one", {"G1": TWO["G1"]})
+    run_pack("other", {"G2": TWO["G2"]})
     code, out, err = run(capsys, "status", str(ref_save(saves, "A.ck3")), "--game-dir", str(game(tmp_path)),
                          "--allow-run", "--var", "witness=x", "--var", "prog=p", "--var", "out_g1=a",
                          "--var", "out_g2=b")
-    assert code == 1 and "--var witness is needed by G1, G2" in err
+    assert code == 1
+    assert "--var witness is needed by patches of different packs, G1 (pack one), G2 (pack other)" in err
+    assert "--var G1.witness=... --var G2.witness=..." in err
 
 
 def test_a_qualified_variable_reaches_only_its_patch(tmp_path, saves, capsys):

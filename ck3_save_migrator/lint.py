@@ -562,6 +562,7 @@ def _entry_text(g: bytes, start: int) -> bytes:
     return g[start:gs.match_brace(g, op) + 1]
 
 
+_MC_KEY = re.compile(r"x_mc_(\d+)")
 _COMPANY_FIELD = {k: re.compile(rb"\n\t+" + k + rb"=(\d+)") for k in (b"title", b"county")}
 
 
@@ -585,7 +586,7 @@ def check_companies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
         k = _T_FIELD[b"key"].search(head)
         mc = re.search(rb"\n\tmercenary=(\d+)", head)
         titles[m.group(1)] = (k.group(1).decode() if k else "?", mc.group(1) if mc else None)
-    dangling, no_backlink = [], []
+    dangling, no_backlink, wrong_key = [], [], []
     for e in gs.iter_entries(g, *comps.body):
         if not (e.key and e.key.isdigit()):
             continue
@@ -598,6 +599,9 @@ def check_companies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
             dangling.append(f"company {e.key.decode()}: title {tid.decode()} does not exist")
             continue
         key, back = titles[tid]
+        mk = _MC_KEY.fullmatch(key)
+        if mk and mk.group(1).encode() != e.key:
+            wrong_key.append(f"company {e.key.decode()}: its title key is {key}")
         if back is not None and back != e.key:          # 1.8-era titles carry no mercenary= (the game adds it)
             no_backlink.append(f"company {e.key.decode()}: its title {key} names mercenary={back.decode() if back else '-'}")
     # every runtime title must be registered: 1.20 rejects an x_ key missing from landed_titles/dynamic_templates
@@ -613,6 +617,9 @@ def check_companies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) 
             gloss="A company whose title is gone; the game's yearly pass over companies crashes on it")
     rep.add("a mercenary company's title names the company back", "error", no_backlink,
             gloss="A company title's mercenary= must be the company's own id")
+    rep.add("a mercenary company's title key is x_mc_<company id>", "warn", wrong_key,
+            gloss="A company whose title key carries another company's number (the game names a company's title "
+                  "x_mc_<its id>); a candidate check: no rule fixes it yet")
 
 
 def check_armies(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -749,6 +756,22 @@ def check_reference_titles(g: bytes, rep: LintReport, reference: bytes, idx: Sec
             gloss="Titles the fresh game has that the engine is measured to create in a migrated save; left to it")
 
 
+_INLINE_NAME = re.compile(rb"\n\t(name|adj|pre|article)=")
+
+
+def inline_title_names(g: bytes, idx: SectionIndex | None = None) -> list[str]:
+    """Titles carrying inline name/adj/pre/article and no title_name_data: what R3 moves (its detector)."""
+    idx = idx or SectionIndex(g)
+    lt = idx.block("landed_titles/landed_titles")
+    out = []
+    for t in (gs.iter_entries(g, *lt.body) if lt is not None else []):
+        body = g[t.open:t.close]
+        m = _INLINE_NAME.search(body)
+        if m and b"\n\ttitle_name_data={" not in body:
+            out.append(f"title {t.key.decode()} (inline {m.group(1).decode()})")
+    return out
+
+
 def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
     idx = idx or SectionIndex(g)
     rites, faiths = _db(g, idx, "rites/database"), _db(g, idx, "faiths/database")
@@ -829,8 +852,11 @@ def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
             if h and h.group(1) not in char_ids:    # holy-order titles are held by dead founders: any section
                 bad_holder.append(f"title {t.key.decode()}: holder={h.group(1).decode()}")
             i = body.find(b"\n\ttitle_name_data={")
+            inline = _INLINE_NAME.search(body)
+            if i < 0 and inline:                # the 1.8 layout R3 moves: inline names, no title_name_data
+                tnd_dup.append(f"title {t.key.decode()} (inline {inline.group(1).decode()}, no title_name_data)")
             if i >= 0:
-                if re.search(rb"\n\t(name|adj|pre|article)=", body):
+                if inline:
                     tnd_dup.append(f"title {t.key.decode()}")
                 prev = body[:i].rstrip(b"\n").rsplit(b"\n", 1)[-1]
                 if not prev.startswith(b"\tcoat_of_arms_id="):
@@ -838,7 +864,7 @@ def check_references(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
     rep.add("title holders are characters in the save", "warn", bad_holder,
             gloss="Titles held by a number no character in the save has")
     rep.add("title names only inside title_name_data", "error", tnd_dup,
-            "a title with title_name_data must not also carry inline name/adj/pre/article")
+            "a title's name/adj/pre/article belong in title_name_data (R3 moves them there)")
     rep.add("title_name_data follows coat_of_arms_id", "warn", tnd_place,
             gloss="Title names stored at a slightly different place in the title than the current game writes them "
                   "(the game logged nothing for this when the 987 save loaded)")
@@ -1026,6 +1052,12 @@ REJECTED_AT = {
     (b"landed_titles", b"localization_key"): "1.20.1.2 error.log: Unexpected token: localization_key",
     (b"landed_titles", b"renamed"): "1.20.1.2 error.log: Unexpected token: renamed (player-renamed titles)",
 }
+# The game converts these on load, so they are not losses (info, not rejects): measured on 1.20.1.2's re-save of an
+# updated save (2026-10-31), which carries none of them.
+CONVERTED_ON_LOAD = {(b"schemes", b"owner_influence"), (b"schemes", b"ready"), (b"culture_manager", b"exposure_type"),
+                     (b"culture_manager", b"exposure_marker"), (b"landed_titles", b"localization_key"),
+                     (b"landed_titles", b"renamed")}
+CONVERTED_GLOSS = "the game converts this on load (measured on 1.20.1.2's re-save of an updated save, 2026-10-31)"
 # entries rejected only at one depth below the section's entries: 1.20 accepts localization_key inside a title's
 # title_name_data (where it writes it itself) and rejects it directly in the title (where 1.8.1 put it):
 # the 987 load logged 5, the 5 title-level ones, with 3 more inside title_name_data unlogged
@@ -1092,9 +1124,11 @@ def check_families(g: bytes, rep: LintReport, data: GameData, idx: SectionIndex)
         pat = (rb"\n" + b"\t" * depth + key + rb"=") if depth else (rb"[\n\t]" + key + rb"=")
         n = len(re.findall(pat, g[b.open:b.close])) if b is not None else 0
         if n:
-            rep.add(f"Unexpected token: {key.decode()} (in {section.decode()})", "reject", [evidence],
-                    gloss=f"A field the current game no longer has ({key.decode()} in {section.decode()}); "
-                          "the game skips it when loading")
+            converted = (section, key) in CONVERTED_ON_LOAD
+            rep.add(f"Unexpected token: {key.decode()} (in {section.decode()})", "info" if converted else "reject",
+                    [evidence], gloss=CONVERTED_GLOSS if converted else
+                    f"A field the current game no longer has ({key.decode()} in {section.decode()}); "
+                    "the game skips it when loading")
             rep.findings[-1].count = n
 
     if not data.defined:
