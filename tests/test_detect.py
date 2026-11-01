@@ -133,22 +133,67 @@ def current_save(saves, name="Current.ck3"):
     return s
 
 
-def test_a_current_save_missing_r23s_fix_is_re_checked(tmp_path, saves, capsys):
+def steps_of(out: str) -> dict:
+    return {ln.split()[0]: ln for ln in out.splitlines() if ln.startswith("  R")}
+
+
+def test_a_current_save_missing_r23s_fix_runs_r23_alone(tmp_path, saves, capsys):
+    """djdarcy (2026-11-01): an updated save skips what it already has and gets what is left, by default."""
     s, g = current_save(saves), localized_game(tmp_path)
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g))
-    assert code == 0 and out.startswith("ALREADY CURRENT")
-    assert "needed: R23 (1 nicknames without text); run `ck3update update Current.ck3 --rules R23`" in out
-    r23 = next(ln for ln in out.splitlines() if ln.startswith("  R23"))
-    assert "re-check: needed: 1 nicknames without text" in r23
-    before = sorted(p.name for p in saves.iterdir())
-    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
-    assert code == 0 and "already current: nothing written" in out                    # never runs unless named
-    assert sorted(p.name for p in saves.iterdir()) == before
-    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--rules", "R23")
+    assert code == 0 and out.startswith("READY") and "1 patch(es) run" in out
+    st = steps_of(out)
+    assert "runs" in st["R23"] and "needed: 1 nicknames without text" in st["R23"]
+    assert "done: none found" in st["R21"]
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
     assert code == 0, err
+    assert cli.LAST_PLAN["ran"] == ["R23"]                                    # no other rule ran
     written = sf.read_save(saves / "Current__updated__1.20.1.2.ck3").gamestate
     assert b'\tnickname_text="the Victorious"\n' in written
-    assert [x for x in cli.LAST_PLAN["ran"]] == ["R23"]
+
+
+def test_a_rule_the_record_shows_applied_is_skipped(tmp_path, saves, capsys):
+    s = current_save(saves)
+    record.append_update("222", "Current", {"date": "2026-10-31T10:00:00+00:00", "input": str(s),
+                                            "tool": "ck3-save-updater 0.0.1",
+                                            "patches": [{"id": "R23", "pack": "to_1_20"}]})
+    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(localized_game(tmp_path)))
+    assert code == 0 and out.startswith("ALREADY CURRENT")
+    assert "already applied (record: 2026-10-31 10:00)" in steps_of(out)["R23"]
+
+
+def test_a_rule_with_no_detector_and_no_record_does_not_run(tmp_path, saves, capsys, monkeypatch):
+    s = current_save(saves)
+    monkeypatch.delitem(D.DETECTORS, "R10")                        # as a rule with no detector
+    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(localized_game(tmp_path)))
+    r10 = steps_of(out)["R10"]
+    assert "skipped" in r10 and "unknown: not in the record and no detector; name it with --rules to run it" in r10
+
+
+def test_the_transplant_never_runs_on_a_current_save_without_rules(tmp_path, saves, capsys, monkeypatch):
+    from ck3_save_migrator.rules import Rule
+    real = Rule.run
+
+    def guarded(self, save, ctx):
+        if self.id in ("R14", "R15", "R16", "R17"):
+            pytest.fail(f"the transplant ran ({self.id})")
+        return real(self, save, ctx)
+    monkeypatch.setattr(Rule, "run", guarded)
+    s, g = current_save(saves), localized_game(tmp_path)
+    ref = TU.ref_save(tmp_path, "Ref.ck3", seed=b"random_seed=333\n")     # a reference: only the guard stops it
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--reference", str(ref),
+                         "--old-game-dir", str(g))
+    assert code == 0, err
+    assert not {"R14", "R15", "R16", "R17"} & set(cli.LAST_PLAN["ran"])
+    assert "skipped" in steps_of(out)["R14"]
+
+
+def test_rules_still_select_on_a_current_save(tmp_path, saves, capsys):
+    s, g = current_save(saves), localized_game(tmp_path)
+    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g), "--rules", "all,-R23")
+    assert code == 0 and out.startswith("ALREADY CURRENT") and "not selected" in steps_of(out)["R23"]
+    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g), "--rules", "R21")
+    assert " runs " in steps_of(out)["R21"] and "skipped" in steps_of(out)["R23"]     # only the named rule
 
 
 def test_a_record_naming_this_tool_version_skips_the_re_check(tmp_path, saves, capsys, monkeypatch):
@@ -157,14 +202,14 @@ def test_a_record_naming_this_tool_version_skips_the_re_check(tmp_path, saves, c
     monkeypatch.setattr(sf, "read_save", lambda *a, **k: pytest.fail("a full read"))
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(localized_game(tmp_path)))
     assert code == 0 and "re-check skipped: the record of Current says this tool" in out
-    assert "needed: R23" not in out
+    assert out.startswith("ALREADY CURRENT") and "needed:" not in out
 
 
 def test_a_record_naming_an_older_version_re_checks(tmp_path, saves, capsys):
     s = current_save(saves)
     record.append_update("222", "Current", {"date": "d", "tool": "ck3-save-updater 0.0.1"})
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(localized_game(tmp_path)))
-    assert code == 0 and "needed: R23 (1 nicknames without text)" in out
+    assert code == 0 and "needed: 1 nicknames without text" in steps_of(out)["R23"]
 
 
 def test_rules_naming_a_rule_outside_the_line_still_refuses_another_line(tmp_path, saves, capsys):
