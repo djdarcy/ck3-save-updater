@@ -351,7 +351,7 @@ def make_plan(args, *, writes: bool = False):
                        variables=read_patch_vars(args.var or [], args.vars), transplant=args.transplant,
                        portraits_version=getattr(args, "portraits_version", None),
                        use_record=not args.no_record,
-                       in_place=getattr(args, "in_place", False))
+                       in_place=getattr(args, "in_place", False), detect=not args.no_detect)
 
 
 def say_plan(plan) -> None:
@@ -836,13 +836,17 @@ def cmd_check(args) -> int:
     g = save.gamestate
     ctx = RuleContext(portraits_version=args.portraits_version)
     shipped = read_pack().patches
+    from .detect import Env, detect
+    env = Env(game_dir=find_game_dir(getattr(args, "game_dir", None)), patches=shipped)
     rows = []
     for r in rules:
         p = shipped.get(r.id)
         if p is not None and p.kind == "declarative":
             rows.append((r.id, r.name, *verdict(g, p, ctx)))
         else:
-            rows.append((r.id, r.name, "unknown", "a Python rule: only running it would tell"))
+            d = detect(r.id, g, env)          # the rule's detector, read only (detect.py); "unknown" without one
+            detail = d.line().split(": ", 1)[1] + (f" (e.g. {', '.join(d.examples[:3])})" if d.examples else "")
+            rows.append((r.id, r.name, d.state, detail))
     # the player's own packs, read only like --pack folders (no code of theirs is imported or run)
     ensure_packs_dir()
     off = set(disabled_ids())
@@ -1228,6 +1232,9 @@ def build_parser() -> argparse.ArgumentParser:
                             "and a reference is present (default: transplant in the config, else off)")
         p.add_argument("--no-record", action="store_true",
                        help="neither read nor write this save game's record (the inputs of its earlier updates)")
+        p.add_argument("--no-detect", action="store_true",
+                       help="do not read the whole save to judge each built-in rule needed or done (the plan then "
+                            "reads only its first megabyte, and an up-to-date save is not re-checked)")
         if not update:
             return
         p.add_argument("--in-place", action="store_true",
@@ -1316,6 +1323,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="accepted so a migrate command line works unchanged; check runs no patch code, so it "
                         "changes nothing")
     p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version to this")
+    p.add_argument("--game-dir", help="the game's 'game' folder, for the detectors that read the game's data "
+                                      "(R6, R15, R22; default: the newest install found)")
     p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("disable", help="turn a rule off: --rules all leaves it out from now on (naming it in "

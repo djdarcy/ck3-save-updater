@@ -47,7 +47,8 @@ def test_check_says_needed_and_unknown_and_writes_nothing(tmp_path, capsys):
     v = verdicts(out)
     assert code == 0
     assert v["R1"] == v["R4"] == v["R5"] == v["R7"] == "needed"       # the fixture has what each one fixes
-    assert v["R2"] == v["R21"] == "unknown"                           # Python rules with no declarative patch
+    assert v["R2"] == v["R3"] == "needed" and v["R21"] == "done"      # U3: the Python rules' detectors
+    assert v["R22"] == v["R6"] == "unknown"                           # their detectors need the game folder
     assert "patch(es):" in out.splitlines()[-1]
     assert (sorted(p.name for p in tmp_path.iterdir()), src.read_bytes()) == before
 
@@ -58,8 +59,9 @@ def test_after_migrate_check_says_done(tmp_path, capsys):
     code, out, _ = run(capsys, "check", str(out_save))
     v = verdicts(out)
     assert code == 0
-    assert {v[i] for i in ("R1", "R4", "R5", "R7", "R11")} == {"done"}
-    assert "0 needed" in out.splitlines()[-1]
+    assert {v[i] for i in ("R1", "R2", "R3", "R4", "R5", "R7", "R11", "R21", "R23")} == {"done"}
+    # the religion rules skip without a reference save, and their detector says they are still needed
+    assert {v[i] for i in ("R8", "R9", "R10", "R12")} == {"needed"} and "4 needed" in out.splitlines()[-1]
 
 
 def test_check_reports_a_failing_expect_naming_it_and_exits_5(tmp_path, capsys):

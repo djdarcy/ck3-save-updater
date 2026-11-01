@@ -29,6 +29,17 @@ ck3update update My_Old_Campaign
 - the new-map transplant: a save from before the 1.13 map rework going to a 1.20 game loads only with R14-R17. `--transplant auto` (or `transplant = "auto"` in the config file) selects them when a reference is present, and says the save needs one when it is not; without the switch, the plan says how to add them;
 - the output: `<name>__updated__<game version>.ck3` beside the save (`-o` for another).
 
+Each built-in rule that will run is judged before anything runs, by its detector (the rule's own matcher, or the lint check that sees what it fixes): `needed: 851 nicknames without text`, `done: none found`, or `unknown: ...` when its detector needs the game folder or a reference save. The detectors need the whole gamestate: the plan reads it once and says how long it took (`--no-detect` skips it, and the plan reads only the save's first megabyte).
+
+A save already on the game's version line, which the built-in pack's span does not select (one you updated before, then played), is re-checked: it skips what it already has and gets what is left. Each built-in rule is judged in turn:
+
+- one the save game's record shows applied (an update of this save, or of one written before it) is skipped: `already applied (record: <date>)`;
+- one whose detector finds nothing is skipped: `done: none found`;
+- one whose detector finds something runs: `needed: 851 nicknames without text`. The verdict is READY, and `update` writes a new save as usual;
+- one that cannot be judged (no detector, and not in the record) does not run: `unknown: not in the record and no detector; name it with --rules to run it`. The transplant (R14-R17) is never judged on such a save, so it runs there only when `--rules` names it. R6 (it only reports) and R7 (the version bump, which the same line does not need) run there only by name too.
+
+`--rules` still selects (`--rules R23` runs R23 alone) and leaves out (`--rules all,-R23`). The re-check is skipped, and the save is not read past its first megabyte, when the record says this tool version, or a later one, updated it.
+
 A save one hotfix behind the game (1.20.1.2 with a 1.20.1.3 game) is "already current": the same 1.20 line is assumed compatible, and the plan says so. `ck3update help <rule, patch or pack>` explains any one of them.
 
 `update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed, writes the output and `<output>.report.json` beside it (the plan and the counts). An output that exists is refused without `--force`. A save already at the game's version, with no pack selected for it, is "already current": nothing is written. `update` takes `migrate`'s options for the rules (`--rules`, `--wos-shape`, `--portraits-version`, `--old-game-dir`) and exits with the same codes.
@@ -82,7 +93,7 @@ Shows the version the save was written by (`version`, `save_game_version`, `port
 ck3update check My_Old_Campaign.ck3
 ```
 
-Lists every rule (patch) with its verdict on this save: `needed` (and how many edits), `done`, `unknown` (rules written as code: only running them tells), or `fails`. Nothing is written. Exit code 5 means a patch would fail; the line names it.
+Lists every rule (patch) with its verdict on this save: `needed` (and how many edits, or how many of what the rule fixes), `done`, `unknown` (a code or run patch: only running it tells; or a rule whose detector needs the game folder or a reference save), or `fails`. Nothing is written. Exit code 5 means a patch would fail; the line names it.
 
 `ck3update rules` lists the rules with what each does.
 
@@ -102,7 +113,7 @@ ck3update migrate My_Old_Campaign.ck3 --rules all,R14,R15,R16 ^
     -o My_Old_Campaign__updated.ck3 --report My_Old_Campaign.report.json
 ```
 
-(`^` continues a line in cmd.exe; use a backtick in PowerShell and `\` in bash.) The report lists every change and why. `migrate` ends by linting its output (step 4).
+(`^` continues a line in cmd.exe; use a backtick in PowerShell and `` in bash.) The report lists every change and why. `migrate` ends by linting its output (step 4).
 
 The update is reproducible: the same save and the same options give the same result every time. A `.ck3` file is a zip that records when each file inside it was written, so two runs give files with different bytes but the same content; compare saves by their content (`ck3update inspect`), not by the files' bytes.
 

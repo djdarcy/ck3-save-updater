@@ -152,6 +152,8 @@ class UpdatePlan:
     inputs: dict = field(default_factory=dict)       # the inputs used: given, else pre-filled from the record
     prefilled: list = field(default_factory=list)    # "<input> = <value> (from the record of <label>)"
     in_place: bool = False
+    detected: str | None = None        # the detectors' line: what they read, or why they did not run
+    detect_seconds: float | None = field(default=None, compare=False)       # how long the full read took
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -165,6 +167,7 @@ class UpdatePlan:
         d = asdict(self)
         d.pop("rules", None)
         d.pop("user_packs", None)
+        d.pop("detect_seconds", None)
         return d
 
     def verdict_lines(self, paint: "Paint | None" = None) -> list[str]:
@@ -175,7 +178,9 @@ class UpdatePlan:
         runs, skips = sum(s.will_run for s in self.steps), sum(not s.will_run for s in self.steps)
         if self.already_current:
             out.append(f"{c.verdict('ALREADY CURRENT', 'info')}  the save is at the game's version and no pack is "
-                       "selected for it; nothing to do")
+                       "selected for it; nothing to do"
+                       + (" (the re-check's findings are in the notes)" if any(n.startswith("needed: ")
+                                                                                for n in self.notes) else ""))
         elif not self.refusals:
             if runs:
                 out.append(f"{c.verdict('READY', 'ok')}  {self.gap[0] or '?'} -> {self.gap[1] or '?'}: {runs} "
@@ -243,8 +248,12 @@ class UpdatePlan:
             else:
                 why = c.warn(s.reason) if s.reason.startswith(ACTION_NEEDED) else c.note(s.reason)
                 out.append(f"  {s.id:4} {s.name:{width}}  {c.note('skipped')}  {c.note(f'{s.pack:10}')} {why}")
-        if any(s.will_run and s.matched is None for s in self.steps):
+        if any(s.will_run and s.matched is None and not s.reason.startswith(("needed:", "done:"))
+               for s in self.steps):
             out.append(IND + c.note(f"edit counts: {NOT_KNOWABLE}"))
+        if self.detected:
+            secs = f" in {self.detect_seconds:.1f} s" if self.detect_seconds is not None else ""
+            out.append(f"{L('detectors')}{c.note(self.detected + secs)}")
         out.append(f"{L('output')}{c.path(self.output)}" if self.output else f"{L('output')}none")
         out += [f"{L('note')}{c.note(n)}" for n in self.notes]
         return out
@@ -356,7 +365,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
                 transplant: str | None = None, portraits_version: int | None = None,
-                use_record: bool = True, in_place: bool = False) -> UpdatePlan:
+                use_record: bool = True, in_place: bool = False, detect: bool = False) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -368,7 +377,10 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
 
     Making the plan writes nothing: the player's packs folder is only read, unless ``create_packs_dir`` (``update``
     without ``--dry-run`` creates it on its first run, as ``migrate`` does). It reads the whole save only when a
-    selected run patch declares a done check (to judge it); otherwise only the bounded read."""
+    selected run patch declares a done check (to judge it), or with ``detect`` (the CLI's default): the built-in
+    rules' detectors (detect.py) then judge each built-in step needed or done, and a save already on the game's
+    version line is re-checked with them (unless its record says this tool version or a later one updated it).
+    The whole save is read once for both."""
     save = Path(save)
     light = read_light(save)
     sv = save_versions(light.meta)
@@ -394,7 +406,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     seed = light.random_seed
 
     # ---- the save game's record: what was not given this time takes the newest recorded value
-    rec_line, prefilled = None, []
+    rec_line, prefilled, rec = None, [], None
     if not use_record:
         rec_line = "not used (--no-record)"
     elif seed is None:
@@ -465,10 +477,25 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # per step: needs a reference; the patch (for needs and done checks); whether its code may run; its vars.toml;
     # the ids it requires
     info: dict[str, dict] = {}
+    sl, gl = _line(sv["version"]), _line(gv)
+    same_line = bool(sl and gl and sl == gl)
+    gspan = (shipped.applies or {}).get("game")
+    recheck = bool(not ok and same_line and skip_why == NOT_SELECTED and (gspan is None or span_matches(gspan, gv)))
+    # an up-to-date save: every rule --rules does not leave out is a candidate (opt-in ones too, so the transplant
+    # is judged, and guarded, rather than silently absent); a --rules that names rules without "all" keeps to them
+    plus = [t.strip().lower() for t in spec.split(",") if t.strip() and not t.strip().startswith("-")]
+    candidates = (({r.id for r in REGISTRY} - _excluded_ids(spec)) if (not plus or "all" in plus) else set(chosen)) \
+        if recheck else set()
     for r in REGISTRY:
         reason, run = "runs", True
-        if not ok:
+        if not ok and r.id not in candidates:
             reason, run = skip_why, False
+        elif not ok and r.id in chosen and (r.id in named or (r.id == "R17" and set(TRANSPLANT) & named)):
+            reason = "runs (named in --rules; the pack's span does not select this save)"
+        elif not ok and r.id in off:
+            reason, run = "turned off in your config (`ck3update enable` turns it back on)", False
+        elif not ok:
+            reason, run = RECHECK, False                  # judged below: the record, then its detector
         elif r.id not in chosen:
             reason, run = ("opt-in: not in --rules" if not r.default else "not selected by --rules"), False
         elif r.id in off and r.id not in named:
@@ -578,13 +605,17 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     for k in variables:
         if "." in k and k.split(".", 1)[0] not in ids:
             refusals.append(f"--var {k}: no patch {k.split('.', 1)[0]} in this plan")
+    # a bare name applies to every selected patch of one pack that needs it; patches of different packs needing
+    # it are refused (one folder or word is meant for one pack's patches), naming them
     for name in sorted(k for k in variables if "." not in k):
-        users = [s.id for s in steps if s.will_run and info[s.id]["patch"] is not None
+        users = [s for s in steps if s.will_run and info[s.id]["patch"] is not None
                  and info[s.id]["patch"].run and name in info[s.id]["patch"].run["needs"]]
-        if len(users) > 1:
-            x = f"--var {name} is needed by {', '.join(users)}: say which with --var <patch id>.{name}=..."
+        if len({u.pack for u in users}) > 1:
+            named_users = ", ".join(f"{u.id} (pack {u.pack})" for u in users)
+            x = (f"--var {name} is needed by patches of different packs, {named_users}: say which with "
+                 f"--var <patch id>.{name}=...")
             refusals.append(x)
-            fixes[x] = {"fix": " ".join(f"--var {u}.{name}=..." for u in users)}
+            fixes[x] = {"fix": " ".join(f"--var {u.id}.{name}=..." for u in users)}
     for s in steps:
         p = info[s.id]["patch"]
         if not s.will_run or p is None or not p.run:
@@ -603,12 +634,20 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # ---- run patches' done checks: one already done does not run (the only full read of the save)
     checks = [s for s in steps if s.will_run and info[s.id]["patch"] is not None and info[s.id]["patch"].run
               and (info[s.id]["patch"].done or info[s.id]["patch"].run.get("done_command"))]
+    full: dict = {}
+
+    def gamestate() -> bytes:
+        if "g" not in full:
+            import time
+            t = time.perf_counter()
+            full["g"] = sf.read_save(save).gamestate
+            full["seconds"] = time.perf_counter() - t
+        return full["g"]
     if checks:
-        gamestate = sf.read_save(save).gamestate
         for s in checks:
             i = info[s.id]
             try:
-                v, detail = run_verdict(gamestate, i["patch"], save_file=save, values=values_for(s.id),
+                v, detail = run_verdict(gamestate(), i["patch"], save_file=save, values=values_for(s.id),
                                         may_run=i["may_run"])
             except PatchError as exc:
                 v, detail = "unknown", f"done_command not run: {exc}"
@@ -627,10 +666,75 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             if s.will_run and need:
                 s.will_run, s.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
 
+    # ---- the built-in rules' detectors (read only): needed or done, before anything runs
+    detected, builtin = None, {r.id for r in REGISTRY}
+    run_builtin = [s for s in steps if s.will_run and s.id in builtin and s.pack == shipped.id]
+    recheck_ids = [s.id for s in steps if s.reason == RECHECK]
+    if detect and recheck_ids and rec is not None:
+        done_by = _recorded_tool_version(rec)
+        if done_by and compare_versions(done_by, _tool_version()) != -1:
+            notes.append(f"re-check skipped: the record of {rec.get('label', '?')} says this tool "
+                         f"({done_by}) updated it")
+            recheck_ids = []
+    if not detect or not recheck_ids:
+        for s in steps:
+            if s.reason == RECHECK:                        # not re-checked: as before, the pack is not selected
+                s.reason = skip_why
+    if detect and (run_builtin or recheck_ids):
+        from .detect import Detection, Env, detect as run_detector, has_detector
+        refbytes = None
+        if ref.path and any(s.id in ("R14", "R16", "R17") for s in run_builtin):
+            refbytes = sf.read_save(ref.path).gamestate
+        env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches)
+        g = gamestate()
+        for s in run_builtin:
+            if s.reason == "runs" or s.reason.startswith("runs (named"):
+                s.reason = run_detector(s.id, g, env).line()
+        # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
+        # done, run what its detector finds needed, and never run blindly what cannot be judged
+        applied = _applied_in_record(rec, save, shipped.id) if rec is not None else {}
+        transplant_named = bool(set(TRANSPLANT) & named)
+        for rid in recheck_ids:
+            st = next(x for x in steps if x.id == rid)
+            if rid in applied:
+                st.reason = f"already applied (record: {applied[rid]})"
+                continue
+            if rid in REPORT_ONLY:
+                st.reason = "reports only (no edit): not re-run on an up-to-date save; name it with --rules"
+                continue
+            if rid in SAME_LINE_ONLY:
+                st.reason = "not re-run on a save on the game's line (assumed compatible); name it with --rules"
+                continue
+            # the transplant is never judged on an up-to-date save: it is "unknown", and what is unknown never runs
+            transplant = rid in TRANSPLANT + ("R17",) and not transplant_named
+            d = (Detection("unknown", why="the transplant is not judged on an up-to-date save") if transplant
+                 else run_detector(rid, g, env))
+            if d.state == "needed":
+                st.will_run, st.reason = True, d.line()
+            elif d.state == "done":
+                st.reason = d.line()
+            else:
+                st.reason = ("unknown: not in the record and no detector; name it with --rules to run it"
+                             if not transplant and not has_detector(rid, env) else
+                             f"unknown: {d.why}, and not in the record; name it with --rules to run it")
+        for st in steps:                             # what the re-check started still needs its inputs
+            if st.will_run and st.id in recheck_ids and info[st.id]["needs_ref"] and not ref.path:
+                st.will_run, st.reason = False, "needs a reference save, and there is none"
+        changed = True
+        while changed:
+            changed = False
+            skipped = {x.id for x in steps if not x.will_run}
+            for x in steps:
+                need = [r for r in info[x.id]["requires"] if r in skipped]
+                if x.will_run and need:
+                    x.will_run, x.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
+        detected = ("re-checked the save on the game's version line" if recheck_ids else "judged each built-in "
+                    "step") + f": read the whole gamestate ({len(g) / 1e6:,.1f} MB)"
+    elif not detect and (run_builtin or recheck):
+        detected = "not run (the plan read only the first megabyte)"
+
     # ---- the gap: judged on major.minor (a hotfix of the same line is assumed compatible)
     uncovered = None
-    sl, gl = _line(sv["version"]), _line(gv)
-    same_line = bool(sl and gl and sl == gl)
     if gv and sv["version"] and not same_line and not covered and not refusals:
         uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
                      "[applies] span); nothing would bring the save to the game's version")
@@ -659,10 +763,57 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         notes.append(f"{out} exists: update refuses to write over it without --force")
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),
                    pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
-                   fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place)
+                   fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place,
+                   detected=detected, detect_seconds=full.get("seconds") if detected and "g" in full else None)
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p
+
+
+# On an up-to-date save: R6 reports and edits nothing (it would fix nothing it finds), and R7 brings the version to
+# the game's, which the same major.minor line does not need (U1: assumed compatible); each runs there only by name
+REPORT_ONLY = ("R6",)
+SAME_LINE_ONLY = ("R7",)
+RECHECK = "re-check: judged by the record and the detectors"
+
+
+def _applied_in_record(rec: dict, save: Path, pack_id: str) -> dict[str, str]:
+    """rule id -> the date of the record's update that applied it to this save game: a row whose input is this
+    save, or one made before this save was written (this save then descends from that update's output)."""
+    import datetime as _dt
+    try:
+        written = _dt.datetime.fromtimestamp(save.stat().st_mtime).astimezone()
+    except OSError:
+        written = None
+    out: dict[str, str] = {}
+    for row in rec.get("update") or []:
+        date = str(row.get("date", ""))
+        try:
+            mine = bool(row.get("input")) and Path(str(row["input"])).resolve() == save.resolve()
+        except OSError:
+            mine = False
+        try:
+            earlier = written is not None and _dt.datetime.fromisoformat(date) <= written
+        except (TypeError, ValueError):
+            earlier = False
+        if not (mine or earlier):
+            continue
+        for pt in row.get("patches") or []:
+            if isinstance(pt, dict) and pt.get("pack") == pack_id and pt.get("id"):
+                out[pt["id"]] = date[:16].replace("T", " ")
+    return out
+
+
+def _tool_version() -> str:
+    from ._version import get_base_version
+    return get_base_version()
+
+
+def _recorded_tool_version(rec: dict) -> str | None:
+    """The tool version of the record's newest update ("ck3-save-updater 0.3.17" -> "0.3.17")."""
+    rows = rec.get("update") or []
+    tool = str(rows[-1].get("tool", "")) if rows else ""
+    return tool.split()[-1] if tool.split() else None
 
 
 # --------------------------------------------------------------------------- the reference save
