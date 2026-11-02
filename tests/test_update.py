@@ -7,6 +7,7 @@ random_seed: the measured link between a save and what descends from it."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -71,6 +72,31 @@ def run(capsys, *argv) -> tuple[int, str, str]:
     return code, o, e
 
 
+def flat(out: str) -> str:
+    """The plan's blocks with each wrapped value joined back to one line (a continuation line is indented)."""
+    return re.sub(r"\n {5,}", " ", out)
+
+
+def untimed(out: str) -> str:
+    """The output with its wall times (which differ from run to run) replaced by a mark."""
+    return re.sub(r"slowest .*", "slowest ...", re.sub(r"\d+\.\d s\b", "#.# s", out))
+
+
+def steps_of(out: str) -> dict:
+    """The patches table by id: each row with a reason that went to the line below it joined back on."""
+    rows: dict = {}
+    last = None
+    for ln in out.splitlines():
+        if re.match(r"  \S+ +\S", ln):
+            last = ln.split()[0]
+            rows[last] = ln
+        elif last is not None and ln.startswith("       ") and ln.strip():
+            rows[last] += "  " + ln.strip()
+        else:
+            last = None
+    return rows
+
+
 # --------------------------------------------------------------------------- the plan reads no gamestate
 def test_the_plan_parses_no_gamestate_and_reads_one_bounded_megabyte(tmp_path, saves, monkeypatch):
     big = old_save(saves, body_extra=b"pad={\n" + b"\tx=1\n" * 600_000 + b"}\n")       # a gamestate over 3 MB
@@ -97,7 +123,7 @@ def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     ref_save(saves, "Ref.ck3", bookmark=True)
     before = sorted(p.name for p in saves.iterdir())
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g))
-    assert code == 0 and "patches  (in the order they run)" in out
+    assert code == 0 and re.search(r"(?m)^PATCHES +\(in the order they run\)$", out)
     code, dry, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape", "faith")
     assert code == 0 and "dry run: the plan with each patch's counts" in dry
     assert sorted(p.name for p in saves.iterdir()) == before                       # status and --dry-run wrote nothing
@@ -125,7 +151,8 @@ def test_colour_is_off_under_no_color_and_the_forced_colour_is_the_same_text(tmp
     assert code == 0 and "\033[" not in plain + plain_err and plain.startswith("READY  1.8.1 -> 1.20.1.2:")
     monkeypatch.delenv("NO_COLOR")
     code, coloured, _ = run(capsys, "status", str(s), "--game-dir", str(g))
-    assert code == 0 and "\033[" in coloured and re.sub(r"\033\[[0-9;]*m", "", coloured) == plain
+    assert code == 0 and "\033[" in coloured
+    assert untimed(re.sub(r"\033\[[0-9;]*m", "", coloured)) == untimed(plain)
 
 
 def test_status_and_a_dry_run_never_create_the_packs_folder_and_update_does(tmp_path, saves, capsys):
@@ -358,8 +385,9 @@ def test_an_untrusted_code_pack_is_listed_and_never_runs(tmp_path, saves, capsys
                                                 'script = "f.py:apply"\n', encoding="utf-8")
     (folder / "C1-x" / "f.py").write_text("def apply(save, ctx, rule):\n    raise SystemExit(9)\n", encoding="utf-8")
     code, out, _ = run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--no-lint")
-    assert code == 0 and "code (yours, not trusted)" in out and "C1" not in cli.LAST_PLAN["ran"]
-    assert "its pack is not trusted: `ck3update trust code` lets it run" in out
+    assert code == 0 and re.search(r"(?m)^ +code: \S.*\(yours, not trusted\)", out)
+    assert "C1" not in cli.LAST_PLAN["ran"]
+    assert "its pack is not trusted: `ck3update trust code` lets it run" in steps_of(out)["C1"]
 
 
 # --------------------------------------------------------------------------- the plan's rule table agrees with the rules

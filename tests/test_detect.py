@@ -20,7 +20,7 @@ from ck3_save_migrator.rules import to_1_20 as T
 from tests import test_update as TU
 from tests.fixtures.make_ck3 import RULES_BODY, RULES_META, build_ck3
 from tests.fixtures.religion import REF_BODY, REF_META
-from tests.test_update import game, run
+from tests.test_update import game, run, steps_of
 
 saves = TU.saves
 no_reference_from_the_environment = TU.no_reference_from_the_environment
@@ -108,10 +108,13 @@ def test_the_plan_shows_needed_and_done_and_unknown_without_a_detector(tmp_path,
     before = sorted(p.name for p in saves.iterdir())
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path)), "--reference", "none")
     assert code == 0
-    lines = {ln.split()[0]: ln for ln in out.splitlines() if ln.startswith("  R")}
+    lines = steps_of(out)
     assert "done: none found" in lines["R23"] and "needed:" in lines["R7"]
     assert "unknown: a Python rule with no detector" in lines["R20"]
-    assert "detectors judged each built-in step: read the whole gamestate" in out and " s\n" in out
+    assert re.search(r"(?m)^DETECTORS +did: judged each built-in step$", out)
+    assert re.search(r"(?m)^ +read: the whole gamestate, [\d.]+ MB, in [\d.]+ s$", out)
+    judged = re.search(r"(?m)^ +judged: (\d+) step\(s\) in [\d.]+ s; slowest (\w+) [\d.]+ s", out)
+    assert judged and int(judged[1]) == len(cli.LAST_PLAN["status"].detect_timings) and judged[2] in lines
     assert sorted(p.name for p in saves.iterdir()) == before                 # status still writes nothing
 
 
@@ -121,7 +124,7 @@ def test_no_detect_reads_only_the_first_megabyte(tmp_path, saves, capsys, monkey
     monkeypatch.setattr(sf, "read_save", lambda *a, **k: pytest.fail("a full read"))
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path)), "--reference", "none",
                        "--no-detect")
-    assert code == 0 and "detectors not run (the plan read only the first megabyte)" in out
+    assert code == 0 and re.search(r"(?m)^DETECTORS +did: not run \(the plan read only the first megabyte\)$", out)
 
 
 # --------------------------------------------------------------------------- 5. the re-check of a current save
@@ -131,10 +134,6 @@ def current_save(saves, name="Current.ck3"):
     s.write_bytes(build_ck3(meta=REF_META, body=REF_BODY.replace(
         b'\tfirst_name="Saint"\n', b'\tfirst_name="Saint"\n\tnickname=nick_the_victorious\n') + b"random_seed=222\n"))
     return s
-
-
-def steps_of(out: str) -> dict:
-    return {ln.split()[0]: ln for ln in out.splitlines() if ln.startswith("  R")}
 
 
 def test_a_current_save_missing_r23s_fix_runs_r23_alone(tmp_path, saves, capsys):

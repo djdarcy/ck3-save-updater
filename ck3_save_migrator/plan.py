@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -152,8 +153,12 @@ class UpdatePlan:
     inputs: dict = field(default_factory=dict)       # the inputs used: given, else pre-filled from the record
     prefilled: list = field(default_factory=list)    # "<input> = <value> (from the record of <label>)"
     in_place: bool = False
-    detected: str | None = None        # the detectors' line: what they read, or why they did not run
+    detected: str | None = None        # the detectors' line: what they did, or why they did not run
     detect_seconds: float | None = field(default=None, compare=False)       # how long the full read took
+    detect_mb: float | None = None     # the size of the gamestate the full read inflated
+    # each judged step's seconds, in the order judged (the detectors, and the run patches' done checks)
+    detect_timings: dict = field(default_factory=dict, compare=False)
+    seed: str | None = None            # the save's random_seed: names its save game (a pack's [applies] campaign)
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -168,108 +173,171 @@ class UpdatePlan:
         d.pop("rules", None)
         d.pop("user_packs", None)
         d.pop("detect_seconds", None)
+        d.pop("detect_timings", None)
         return d
 
-    def verdict_lines(self, paint: "Paint | None" = None) -> list[str]:
+    def verdict_lines(self, paint: "Paint | None" = None, seconds: float | None = None,
+                      width: int | None = None, layout: dict | None = None) -> list[str]:
         """The answer first (the wtf tools' shape): READY / ALREADY CURRENT / NOTHING TO DO, and REFUSED when the
-        plan refuses -- an already-current save can be refused as well (the reference pick), and both are said."""
+        plan refuses -- an already-current save can be refused as well (the reference pick), and both are said.
+        ``seconds``: the wall time from the command line to this answer, said after it. A line too long for
+        ``width`` wraps under its own text."""
         c = paint or Paint()
+        width = width or WIDTH_MAX
+        out = []
+        for i, (word, kind, text) in enumerate(self._verdicts()):
+            segs = [(text, None)] + ([(f"  ({seconds:.1f} s)", "note")] if seconds is not None and i == 0 else [])
+            got = wrap_segments(segs, c, width - len(word) - 2)
+            out.append(f"{c.verdict(word, kind)}  {got[0]}")
+            out += [" " * (len(word) + 2) + g for g in got[1:]]
+        return out + ([""] if _layout(layout)[1] else [])
+
+    def _verdicts(self) -> list[tuple[str, str, str]]:
+        """Each verdict: its word, its colour, and what it says."""
         out = []
         runs, skips = sum(s.will_run for s in self.steps), sum(not s.will_run for s in self.steps)
         if self.already_current:
-            out.append(f"{c.verdict('ALREADY CURRENT', 'info')}  the save is at the game's version and no pack is "
-                       "selected for it; nothing to do"
-                       + (" (the re-check's findings are in the notes)" if any(n.startswith("needed: ")
-                                                                                for n in self.notes) else ""))
+            out.append(("ALREADY CURRENT", "info", "the save is at the game's version and no pack is selected for "
+                        "it; nothing to do" + (" (the re-check's findings are in the notes)"
+                                               if any(n.startswith("needed: ") for n in self.notes) else "")))
         elif not self.refusals:
             if runs:
-                out.append(f"{c.verdict('READY', 'ok')}  {self.gap[0] or '?'} -> {self.gap[1] or '?'}: {runs} "
-                           f"patch(es) run, {skips} skipped")
+                out.append(("READY", "ok", f"{self.gap[0] or '?'} -> {self.gap[1] or '?'}: {runs} patch(es) run, "
+                                           f"{skips} skipped"))
             else:
-                out.append(f"{c.verdict('NOTHING TO DO', 'info')}  no selected patch runs")
+                out.append(("NOTHING TO DO", "info", "no selected patch runs"))
         if self.refusals:
-            out.append(f"{c.verdict('REFUSED', 'bad')}  {len(self.refusals)} reason(s), below; nothing is written")
-        return out + [""]
-
-    def lines(self, paint: "Paint | None" = None) -> list[str]:
-        """The plan, section by section. Refusals are not repeated here: ``refusal_lines`` prints each once."""
-        c = paint or Paint()
-        v = self.save_versions
-        L = lambda name: c.label(f"{name:10}")      # noqa: E731
-        sp = Path(self.save)
-        out = [f"{L('save')}{c.path(sp.name)}  {c.note('in ' + str(sp.parent))}",
-               f"{IND}version {v['version'] or '?'} (save_game_version {v['save_game_version']}, "
-               f"portraits_version {v['portraits_version']}), date {self.save_date or '?'}, "
-               f"{len(self.save_mods)} mod(s) listed"]
-        if self.game:
-            out.append(f"{L('game')}{self.game['version'] or 'version unknown'}  {c.path(self.game['path'])}  "
-                       f"{c.note('(from ' + self.game['source'] + ')')}")
-        else:
-            out.append(f"{L('game')}{c.warn('none found')}")
-        out += [f"{L('also')}{g['version'] or 'version unknown'}  {c.path(g['path'])}  "
-                f"{c.note('(from ' + g['source'] + '; not used)')}" for g in self.other_games]
-        if self.record:
-            out.append(f"{L('record')}{self.record}")
-        out += [f"{IND}{c.info('pre-filled')}: {x}" for x in self.prefilled]
-        out.append(f"{L('gap')}{self.gap[0] or '?'} -> {self.gap[1] or '?'}"
-                   + (c.note("  (none: the save is at the game's version)")
-                      if self.gap[0] and self.gap[0] == self.gap[1] else ""))
-        if self.uncovered:
-            out.append(f"{IND}{c.bad('NOT COVERED')}: the gap {self.gap[0]} -> {self.gap[1]}: no selected pack "
-                       "declares it covers it")
-        r = self.reference
-        if r.path:
-            out.append(f"{L('reference')}{c.path(r.path)}  {c.note('(' + r.how + ': ' + r.why + ')')}")
-        elif r.how == "not needed":
-            out.append(f"{L('reference')}{c.note('not needed (no patch that will run needs one)')}")
-        elif r.how == "refused":
-            out.append(f"{L('reference')}{c.warn('none chosen')}: "
-                       + (f"{len(r.ambiguous)} candidates; " if len(r.ambiguous) > 1 else "")
-                       + "see the refusal below")
-        else:
-            out.append(f"{L('reference')}{c.warn('none')} {c.note('(' + r.why + ')')}")
-        if not r.path and r.skips:
-            out.append(f"{IND}without one these skip: {c.warn(', '.join(r.skips))}")
-            if r.how != "refused":                  # several candidates: the fix is --reference, not making one
-                out.append(f"{IND}to make one:")
-                out += [f"{IND2}{i}. {s.format(save=self.save)}" for i, s in enumerate(REFERENCE_STEPS, 1)]
-        out.append(c.label("packs"))
-        for p in self.packs:
-            trust = f", {p.trust}" if p.trust else ""
-            state = c.ok("selected") if p.selected else c.note("not selected")
-            out.append(f"  {p.id} {c.note('(' + p.kind + trust + ')')}: {state}: {c.note(p.why)}")
-        out.append(f"{c.label('patches')}  {c.note('(in the order they run)')}")
-        width = max((len(s.name) for s in self.steps), default=0)
-        for s in self.steps:
-            counts = (f"  matched {s.matched:,} edited {s.edited:,}" if s.matched is not None else "")
-            if s.will_run:
-                said = f"  {c.note(s.reason)}" if s.reason != "runs" else ""     # a done check's verdict
-                out.append(f"  {s.id:4} {s.name:{width}}  {c.ok('runs   ')}  {c.note(s.pack)}{counts}{said}")
-            else:
-                why = c.warn(s.reason) if s.reason.startswith(ACTION_NEEDED) else c.note(s.reason)
-                out.append(f"  {s.id:4} {s.name:{width}}  {c.note('skipped')}  {c.note(f'{s.pack:10}')} {why}")
-        if any(s.will_run and s.matched is None and not s.reason.startswith(("needed:", "done:"))
-               for s in self.steps):
-            out.append(IND + c.note(f"edit counts: {NOT_KNOWABLE}"))
-        if self.detected:
-            secs = f" in {self.detect_seconds:.1f} s" if self.detect_seconds is not None else ""
-            out.append(f"{L('detectors')}{c.note(self.detected + secs)}")
-        out.append(f"{L('output')}{c.path(self.output)}" if self.output else f"{L('output')}none")
-        out += [f"{L('note')}{c.note(n)}" for n in self.notes]
+            out.append(("REFUSED", "bad", f"{len(self.refusals)} reason(s), below; nothing is written"))
         return out
 
-    def refusal_lines(self, paint: "Paint | None" = None) -> list[str]:
-        """Each refusal once: the reason, the files it names (their folder once, then the names), the fix."""
+    def lines(self, paint: "Paint | None" = None, width: int | None = None,
+              layout: dict | None = None) -> list[str]:
+        """The plan as blocks (djdarcy's layout, 2026-11-01): a caps header, field names right-aligned within the
+        block, one fact per line, a long value wrapped under its own column. Refusals are not repeated here:
+        ``refusal_lines`` prints each once. ``width``: the line width (out_width), default WIDTH_MAX."""
         c = paint or Paint()
+        width = width or WIDTH_MAX
+        v = self.save_versions
+        sp = Path(self.save)
+        save_rows = [("file", sp.name, "path"), ("folder", str(sp.parent), "path"),
+                     ("version", v["version"] or "?", None),
+                     ("format", f"save_game_version {v['save_game_version']}, portraits_version "
+                                f"{v['portraits_version']}", "note"),
+                     ("date", self.save_date or "?", None), ("mods", f"{len(self.save_mods)} listed", None)]
+        if self.seed:
+            save_rows.append(("seed", self.seed, "note"))
+        blocks = [("SAVE", save_rows), ("GAME", game_rows(self.game))]
+        blocks += [("ALSO", game_rows(g, also=True)) for g in self.other_games]
+        if self.record:
+            blocks.append(("RECORD", [("status", self.record, None)]
+                           + [("pre-filled", x, "info") for x in self.prefilled]))
+        gap = [("versions", f"{self.gap[0] or '?'} -> {self.gap[1] or '?'}", None)]
+        if self.gap[0] and self.gap[0] == self.gap[1]:
+            gap.append(("note", "none: the save is at the game's version", "note"))
+        if self.uncovered:
+            gap.append(("covered", f"NOT COVERED: the gap {self.gap[0]} -> {self.gap[1]}: no selected pack "
+                                   "declares it covers it", "bad"))
+        blocks.append(("GAP", gap))
+        r = self.reference
+        if r.path:
+            ref = [("save", r.path, "path"), ("chosen", f"{r.how}: {r.why}", "note")]
+        elif r.how == "not needed":
+            ref = [("status", "not needed (no patch that will run needs one)", "note")]
+        elif r.how == "refused":
+            ref = [("status", "none chosen: " + (f"{len(r.ambiguous)} candidates; " if len(r.ambiguous) > 1 else "")
+                    + "see the refusal below", "warn")]
+        else:
+            ref = [("status", f"none ({r.why})", "warn")]
+        if not r.path and r.skips:
+            ref.append(("skips", "without one these skip: " + ", ".join(r.skips), "warn"))
+            if r.how != "refused":                  # several candidates: the fix is --reference, not making one
+                ref += [("to make one" if i == 1 else "", f"{i}. {s.format(save=self.save)}", None)
+                        for i, s in enumerate(REFERENCE_STEPS, 1)]
+        blocks.append(("REFERENCE", ref))
+        packs = []
+        for p in self.packs:
+            trust = f", {p.trust}" if p.trust else ""
+            packs.append((p.id, [("selected" if p.selected else "not selected", "ok" if p.selected else "note"),
+                                 (f" ({p.kind}{trust}): ", "note"), (p.why, "note")], None))
+        blocks.append(("PACKS", packs))
+        blocks.append(("PATCHES", [("", "(in the order they run)", "note")]))
+        tail = []
+        if self.detected:
+            det = [("did", self.detected, "note")]
+            if self.detect_mb is not None:
+                read = f"the whole gamestate, {self.detect_mb:,.1f} MB" + (
+                    f", in {self.detect_seconds:.1f} s" if self.detect_seconds is not None else "")
+                det.append(("read", read, "note"))
+            if self.detect_timings:
+                t = self.detect_timings
+                slow = sorted(t, key=lambda k: -round(t[k], 1))[:3]     # ties stay in the order judged
+                det.append(("judged", f"{len(t)} step(s) in {sum(t.values()):.1f} s; slowest "
+                                      + ", ".join(f"{k} {t[k]:.1f} s" for k in slow), "note"))
+            tail.append(("DETECTORS", det))
+        tail.append(("OUTPUT", [("file", self.output, "path") if self.output else ("file", "none", "note")]))
+        if self.notes:
+            tail.append(("NOTES", [("", f"- {n}", "note") for n in self.notes]))
+        head = max(len(h) for h, _ in blocks + tail)
+        cols = value_columns(blocks + tail, layout, head)       # one computation: global and flow span both parts
+        out = render_blocks(blocks, c, width, head, layout, cols[:len(blocks)])
+        out += self._patch_rows(c, width)
+        return out + ([""] if _layout(layout)[1] else []) + render_blocks(tail, c, width, head, layout,
+                                                                           cols[len(blocks):])
+
+    def _patch_rows(self, c: "Paint", width: int) -> list[str]:
+        """The patches table: its own aligned columns; a reason too long for the row goes on the line below it,
+        under the name."""
         out = []
+        nw = max((len(s.name) for s in self.steps), default=0)
+        pw = max((len(s.pack) for s in self.steps), default=0)
+        for s in self.steps:
+            counts = f"matched {s.matched:,} edited {s.edited:,}" if s.matched is not None else ""
+            if s.will_run:
+                state, said = ("runs", "ok"), (s.reason if s.reason != "runs" else "")    # a done check's verdict
+                why = [(x, "note") for x in (counts, said) if x]
+            else:
+                state = ("skipped", "note")
+                why = [(s.reason, "warn" if s.reason.startswith(ACTION_NEEDED) else "note")]
+            row = [(f"{IND}{s.id:4} {s.name:{nw}}  ", None), (f"{state[0]:7}", state[1]), ("  ", None),
+                   (f"{s.pack:{pw}}", "note")]
+            rlen = sum(len(t) for t, _ in row)
+            text = "; ".join(t for t, _ in why)
+            if not text:
+                out.append(paint_segments(row, c).rstrip())
+            elif rlen + 2 + len(text) <= width:
+                out.append(paint_segments(row + [("  ", None)] + _joined(why), c))
+            else:                                  # the reason on its own line(s), under the name
+                out.append(paint_segments(row, c))
+                indent = len(IND) + 5
+                out += [" " * indent + seg for seg in wrap_segments(_joined(why), c, width - indent)]
+        if any(s.will_run and s.matched is None and not s.reason.startswith(("needed:", "done:"))
+               for s in self.steps):
+            lead = "edit counts: "
+            got = wrap_segments([(NOT_KNOWABLE, "note")], c, width - len(IND) - len(lead))
+            out.append(IND + c.note(lead) + got[0])
+            out += [IND + " " * len(lead) + g for g in got[1:]]
+        return out
+
+    def refusal_lines(self, paint: "Paint | None" = None, width: int | None = None,
+                      layout: dict | None = None) -> list[str]:
+        """Each refusal once: the reason, the files it names (their folder once, then the names), the fix; a long
+        line wraps under its own text."""
+        c = paint or Paint()
+        width = width or WIDTH_MAX
+        out = [""] if self.refusals and _layout(layout)[1] else []        # apart from the plan above it
         for x in self.refusals:
             d = self.fixes.get(x, {})
-            out.append(f"{c.bad('REFUSED')}: {x}")
+            lead = "REFUSED: "
+            got = wrap_segments([(x, None)], c, width - len(lead))
+            out.append(c.bad("REFUSED") + ": " + got[0])
+            out += [" " * len(lead) + g for g in got[1:]]
             if d.get("names"):
-                out.append(f"{IND}{c.note('in ' + d['folder'])}")
-                out += [f"{IND2}{c.path(n)}" for n in d["names"]]
+                out += [IND + g for g in wrap_segments([("in " + d["folder"], "note")], c, width - len(IND))]
+                out += [IND2 + g for n in d["names"] for g in wrap_segments([(n, "path")], c, width - len(IND2))]
             if d.get("fix"):
-                out.append(f"{IND}{c.info('fix')}: {d['fix']}")
+                got = wrap_segments([(d["fix"], None)], c, width - len(IND) - 5)
+                out.append(f"{IND}{c.info('fix')}: {got[0]}")
+                out += [" " * (len(IND) + 5) + g for g in got[1:]]
         return out
 
 
@@ -301,6 +369,153 @@ class Paint:
     def verdict(self, t: str, kind: str) -> str:
         code = {"ok": C.GREEN, "info": C.BLUE, "bad": C.BRIGHT_RED}[kind]
         return self._c(t, C.BOLD, code)
+
+    def by(self, t: str, style: str | None) -> str:
+        """``t`` in the named style (label, path, ok, warn, bad, info, note); None leaves it plain."""
+        return t if style is None or not t else getattr(self, style)(t)
+
+
+# ---- the block layout (djdarcy, 2026-11-01): one fact per line, never wrapped back under a header
+WIDTH_MIN, WIDTH_MAX = 60, 120      # the line width: the terminal's, within these (a pipe gets WIDTH_MAX)
+GAP = 2                             # between the header column and the longest field name ([display] gap)
+
+
+def _layout(layout: dict | None) -> tuple[int, bool]:
+    """(gap, blank lines between blocks) from the [display] settings (config.display_settings); defaults when None."""
+    layout = layout or {}
+    return int(layout.get("gap", GAP)), layout.get("spacing", SPACING) != "compact"
+
+
+def value_columns(blocks: list, layout: dict | None = None, head: int | None = None) -> list[int]:
+    """The column each block's values start at, by [display] align (djdarcy, 2026-11-01). A block's natural column
+    is its header, the gap, its longest field name and ": ".
+
+    - "blocks": every header padded to the longest header, then the gap, then the block's own field names (one
+      header column for all; each block's colons line up within it).
+    - "global": every block at the largest natural column, so every colon in the output lines up.
+    - "flow": a block of several rows at its own natural column; a one-row block at its own or the block above's,
+      whichever is larger (it never shrinks back under a block that was pushed out)."""
+    gap = _layout(layout)[0]
+    align = (layout or {}).get("align", ALIGN)
+    head = head if head is not None else max((len(h) for h, _ in blocks), default=0)
+
+    def fw(rows):
+        return max((len(f) for f, _, _ in rows), default=0)
+    natural = [len(h) + gap + (fw(rows) + 2 if fw(rows) else 0) for h, rows in blocks]
+    if align == "global":
+        return [max(natural, default=0)] * len(blocks)
+    if align == "flow":
+        out = []
+        for (h, rows), n in zip(blocks, natural):
+            out.append(n if len(rows) > 1 or not out else max(n, out[-1]))
+        return out
+    return [head + gap + (fw(rows) + 2 if fw(rows) else 0) for h, rows in blocks]
+
+
+# the [display] defaults (djdarcy, 2026-11-01; config.DISPLAY holds the same): flow alignment, no blank lines
+ALIGN = "flow"                      # [display] align: "flow", "global" or "blocks" (value_columns)
+SPACING = "compact"                 # [display] spacing: "compact" or "blank"
+
+
+def out_width(stream=None) -> int:
+    """The width to lay the plan out in: ``COLUMNS`` if set, else the terminal's (one short of its edge, so a
+    full line never wraps), else WIDTH_MAX; always within WIDTH_MIN..WIDTH_MAX."""
+    w = None
+    cols = os.environ.get("COLUMNS", "").strip()
+    if cols.isdigit():
+        w = int(cols)
+    else:
+        try:
+            if stream is not None and stream.isatty():
+                w = os.get_terminal_size(stream.fileno()).columns - 1
+        except (AttributeError, ValueError, OSError):
+            w = None
+    return min(WIDTH_MAX, max(WIDTH_MIN, w or WIDTH_MAX))
+
+
+def _spans(text: str, avail: int) -> list[tuple[int, int]]:
+    """Where ``text`` breaks into lines of at most ``avail`` characters: at a space when there is one, else hard."""
+    avail = max(avail, 10)
+    spans, i, n = [], 0, len(text)
+    while i < n:
+        if n - i <= avail:
+            spans.append((i, n))
+            break
+        cut = text.rfind(" ", i, i + avail + 1)
+        if cut <= i:
+            cut, nxt = i + avail, i + avail
+        else:
+            nxt = cut + 1
+        spans.append((i, cut))
+        i = nxt
+        while i < n and text[i] == " ":
+            i += 1
+    return spans or [(0, 0)]
+
+
+def wrap_segments(segs: list, c: "Paint", avail: int) -> list[str]:
+    """``segs`` ((text, style) pairs, read as one string) wrapped to ``avail`` columns, each line painted: the
+    colour follows the text across a break."""
+    text = "".join(t for t, _ in segs)
+    out = []
+    for a, b in _spans(text, avail):
+        line, at = [], 0
+        for t, style in segs:
+            lo, hi = max(a, at), min(b, at + len(t))
+            if lo < hi:
+                line.append(c.by(text[lo:hi], style))
+            at += len(t)
+        out.append("".join(line))
+    return out
+
+
+def paint_segments(segs: list, c: "Paint") -> str:
+    return "".join(c.by(t, style) for t, style in segs)
+
+
+def _joined(parts: list) -> list:
+    """(text, style) parts joined with "; " between them."""
+    out = []
+    for i, p in enumerate(parts):
+        out += ([("; ", None)] if i else []) + [p]
+    return out
+
+
+def game_rows(g: dict | None, also: bool = False) -> list:
+    """A game install's block rows: its version, folder, and how it was found."""
+    if g is None:
+        return [("found", "none (give --game-dir)", "warn")]
+    return [("version", g["version"] or "unknown", None), ("path", g["path"], "path"),
+            ("found", g["source"] + ("; not used" if also else ""), "note")]
+
+
+def render_blocks(blocks: list, c: "Paint", width: int, head: int | None = None,
+                  layout: dict | None = None, cols: list[int] | None = None) -> list[str]:
+    """Blocks of ``(HEADER, rows)``; a row is ``(field, value, style)``, or ``(field, [(text, style), ...], None)``
+    for a value in several colours. Each block's values start at its column (``cols``, default value_columns: the
+    [display] gap and align); its field names are right-aligned to end just before ": ". A value too long for the
+    line wraps under its own column. A field named "" shows no colon. A blank line separates the blocks unless
+    [display] spacing is "compact"."""
+    blank = _layout(layout)[1]
+    cols = cols if cols is not None else value_columns(blocks, layout, head)
+    out = []
+    for (h, rows), col in zip(blocks, cols):
+        if out and blank:
+            out.append("")
+        fw = max((len(f) for f, _, _ in rows), default=0)
+        name_end = col - 2 if fw else col              # where the field names end (their colon follows)
+        for i, (f, value, style) in enumerate(rows):
+            segs = value if isinstance(value, list) else [(str(value), style)]
+            lead = c.label(h) if i == 0 else ""
+            room = name_end - (len(h) if i == 0 else 0)
+            name = (c.note(f"{f:>{room}}") + (": " if f else "  ")) if fw else " " * room
+            bullet = "- " if isinstance(value, str) and value.startswith("- ") else ""    # wraps under its text
+            if bullet:
+                segs = [(str(value)[2:], style)]
+            got = wrap_segments(segs, c, width - col - len(bullet))
+            out.append(lead + name + c.by(bullet, style) + got[0])
+            out += [" " * (col + len(bullet)) + g for g in got[1:]]
+    return out
 
 
 def _game(g: GameInstall | None) -> dict | None:
@@ -365,7 +580,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
                 transplant: str | None = None, portraits_version: int | None = None,
-                use_record: bool = True, in_place: bool = False, detect: bool = False) -> UpdatePlan:
+                use_record: bool = True, in_place: bool = False, detect: bool = False,
+                progress=None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -380,7 +596,11 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     selected run patch declares a done check (to judge it), or with ``detect`` (the CLI's default): the built-in
     rules' detectors (detect.py) then judge each built-in step needed or done, and a save already on the game's
     version line is re-checked with them (unless its record says this tool version or a later one updated it).
-    The whole save is read once for both."""
+    The whole save is read once for both, and not at all when the plan is already refused (fail early: the
+    refusal is the answer, and fixing it comes first).
+
+    ``progress``: called with a short line naming each slow stage as it starts (the CLI's spinner)."""
+    stage = progress or (lambda text: None)
     save = Path(save)
     light = read_light(save)
     sv = save_versions(light.meta)
@@ -631,26 +851,44 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 s.reason = f"needs --var {name}" + (f" ({help_text})" if help_text else "")
             break
 
+    # ---- the gap: judged on major.minor (a hotfix of the same line is assumed compatible). Known before the full
+    # read, so a gap nothing covers refuses before it
+    uncovered = None
+    if gv and sv["version"] and not same_line and not covered and not refusals:
+        uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
+                     "[applies] span); nothing would bring the save to the game's version")
+        refusals.append(uncovered)
+        fixes[uncovered] = {"fix": "a pack in your packs folder whose [applies] declares this span "
+                                   "(docs/writing-a-patch.md), or `ck3update migrate` with the rules you choose"}
+    # fail early (djdarcy, 2026-11-01): a plan already refused does not read the whole save; its refusal is the
+    # answer, and status after the fix judges the rest
+    refused = bool(refusals)
+
     # ---- run patches' done checks: one already done does not run (the only full read of the save)
     checks = [s for s in steps if s.will_run and info[s.id]["patch"] is not None and info[s.id]["patch"].run
               and (info[s.id]["patch"].done or info[s.id]["patch"].run.get("done_command"))]
     full: dict = {}
+    timings: dict[str, float] = {}
 
     def gamestate() -> bytes:
         if "g" not in full:
-            import time
+            stage(f"reading the whole save ({save.stat().st_size / 1e6:,.1f} MB compressed)")
             t = time.perf_counter()
             full["g"] = sf.read_save(save).gamestate
             full["seconds"] = time.perf_counter() - t
         return full["g"]
-    if checks:
-        for s in checks:
+    if checks and not refused:
+        for n, s in enumerate(checks, 1):
             i = info[s.id]
+            g = gamestate()
+            stage(f"checking {s.id} {s.name} ({n} of {len(checks)}, pack {s.pack})")
+            t = time.perf_counter()
             try:
-                v, detail = run_verdict(gamestate(), i["patch"], save_file=save, values=values_for(s.id),
+                v, detail = run_verdict(g, i["patch"], save_file=save, values=values_for(s.id),
                                         may_run=i["may_run"])
             except PatchError as exc:
                 v, detail = "unknown", f"done_command not run: {exc}"
+            timings[s.id] = time.perf_counter() - t
             if v == "done":
                 s.will_run, s.reason = False, f"done: {detail}"
             else:
@@ -676,24 +914,39 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             notes.append(f"re-check skipped: the record of {rec.get('label', '?')} says this tool "
                          f"({done_by}) updated it")
             recheck_ids = []
-    if not detect or not recheck_ids:
+    if not detect or not recheck_ids or refused:
         for s in steps:
             if s.reason == RECHECK:                        # not re-checked: as before, the pack is not selected
                 s.reason = skip_why
-    if detect and (run_builtin or recheck_ids):
+    if refused and (checks or (detect and (run_builtin or recheck_ids))):
+        detected = "not run: the plan is refused (fail early); fix the refusal, then run status again"
+    elif detect and (run_builtin or recheck_ids):
         from .detect import Detection, Env, detect as run_detector, has_detector
         refbytes = None
         if ref.path and any(s.id in ("R14", "R16", "R17") for s in run_builtin):
+            stage("reading the reference save")
             refbytes = sf.read_save(ref.path).gamestate
         env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches)
         g = gamestate()
-        for s in run_builtin:
-            if s.reason == "runs" or s.reason.startswith("runs (named"):
-                s.reason = run_detector(s.id, g, env).line()
         # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
         # done, run what its detector finds needed, and never run blindly what cannot be judged
         applied = _applied_in_record(rec, save, shipped.id) if rec is not None else {}
         transplant_named = bool(set(TRANSPLANT) & named)
+        judge = [s for s in run_builtin if s.reason == "runs" or s.reason.startswith("runs (named")]
+        judge_ids = [s.id for s in judge] + [
+            rid for rid in recheck_ids if rid not in applied and rid not in REPORT_ONLY + SAME_LINE_ONLY
+            and not (rid in TRANSPLANT + ("R17",) and not transplant_named)]
+        names = {s.id: s.name for s in steps}
+
+        def run_detector_timed(rid: str):
+            stage(f"checking {rid} {names.get(rid, '')} ({judge_ids.index(rid) + 1} of {len(judge_ids)})")
+            t = time.perf_counter()
+            try:
+                return run_detector(rid, g, env)
+            finally:
+                timings[rid] = time.perf_counter() - t
+        for s in judge:
+            s.reason = run_detector_timed(s.id).line()
         for rid in recheck_ids:
             st = next(x for x in steps if x.id == rid)
             if rid in applied:
@@ -708,7 +961,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             # the transplant is never judged on an up-to-date save: it is "unknown", and what is unknown never runs
             transplant = rid in TRANSPLANT + ("R17",) and not transplant_named
             d = (Detection("unknown", why="the transplant is not judged on an up-to-date save") if transplant
-                 else run_detector(rid, g, env))
+                 else run_detector_timed(rid))
             if d.state == "needed":
                 st.will_run, st.reason = True, d.line()
             elif d.state == "done":
@@ -728,19 +981,10 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 need = [r for r in info[x.id]["requires"] if r in skipped]
                 if x.will_run and need:
                     x.will_run, x.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
-        detected = ("re-checked the save on the game's version line" if recheck_ids else "judged each built-in "
-                    "step") + f": read the whole gamestate ({len(g) / 1e6:,.1f} MB)"
+        detected = "re-checked the save on the game's version line" if recheck_ids else "judged each built-in step"
     elif not detect and (run_builtin or recheck):
         detected = "not run (the plan read only the first megabyte)"
 
-    # ---- the gap: judged on major.minor (a hotfix of the same line is assumed compatible)
-    uncovered = None
-    if gv and sv["version"] and not same_line and not covered and not refusals:
-        uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
-                     "[applies] span); nothing would bring the save to the game's version")
-        refusals.append(uncovered)
-        fixes[uncovered] = {"fix": "a pack in your packs folder whose [applies] declares this span "
-                                   "(docs/writing-a-patch.md), or `ck3update migrate` with the rules you choose"}
     if same_line and sv["version"] != gv and not covered and compare_versions(sv["version"], gv) == -1:
         notes.append(f"no pack declares {sv['version']} -> {gv} (same {gl[0]}.{gl[1]} line; assumed compatible)")
     already = same_line and not any(s.will_run for s in steps)
@@ -764,7 +1008,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),
                    pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
                    fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place,
-                   detected=detected, detect_seconds=full.get("seconds") if detected and "g" in full else None)
+                   detected=detected, detect_seconds=full.get("seconds") if "g" in full else None,
+                   detect_mb=len(full["g"]) / 1e6 if "g" in full else None, detect_timings=timings, seed=seed)
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p

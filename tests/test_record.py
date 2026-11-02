@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -16,7 +17,7 @@ import pytest
 from ck3_save_migrator import cli, record
 from ck3_save_migrator import userpacks as U
 from tests import test_update as TU
-from tests.test_update import OLD_BODY, OLD_META, build_ck3, game, old_save, run
+from tests.test_update import OLD_BODY, OLD_META, build_ck3, flat, game, old_save, run
 
 saves = TU.saves
 no_reference_from_the_environment = TU.no_reference_from_the_environment
@@ -65,8 +66,8 @@ def test_a_second_save_of_one_save_game_is_pre_filled_from_the_record(tmp_path, 
     code, out, err = update(capsys, later, g)
     assert code == 0, err
     assert mark.read_text(encoding="utf-8") == "W1"                # the pre-filled witness reached the patch
-    assert "pre-filled: --var witness=W1 (from the record of Campaign)" in out
-    assert "record    Campaign: last updated" in out and "from Campaign.ck3 (1 update)" in out
+    assert "pre-filled: --var witness=W1 (from the record of Campaign)" in flat(out)
+    assert "status: Campaign: last updated" in out and "from Campaign.ck3 (1 update)" in flat(out)
     rec = record.read_record("111")
     assert rec["label"] == "Campaign" and len(rec["update"]) == 2
     row = rec["update"][1]
@@ -85,7 +86,7 @@ def test_a_save_of_another_save_game_gets_its_own_record_and_no_pre_fill(tmp_pat
     other = saves / "Other.ck3"
     other.write_bytes(build_ck3(meta=OLD_META, body=OLD_BODY + b"random_seed=999\n"))
     code, out, _ = update(capsys, other, g)
-    assert code == 0 and "pre-filled" not in out and "record    none yet" in out
+    assert code == 0 and "pre-filled:" not in out and "status: none yet" in out
     assert "needs --var witness" in out
     assert sorted(p.name for p in record.games_dir().iterdir()) == ["111.toml", "999.toml"]
 
@@ -100,7 +101,9 @@ def test_a_recorded_folder_that_is_gone_is_not_used(tmp_path, saves, capsys):
     code, out, _ = run(capsys, "status", str(old_save(saves, "Later.ck3")), "--game-dir", str(g), "--allow-run",
                        "--reference", "none")
     assert code == 0
-    assert f"--var tools={tools.as_posix()}, which no longer exists; not used" in out
+    # the path is longer than the line, so it breaks mid-path: compare with the spacing taken out
+    nospace = lambda t: re.sub(r"\s", "", t)       # noqa: E731
+    assert nospace(f"--var tools={tools.as_posix()}, which no longer exists; not used") in nospace(out)
     assert "needs --var tools (the folder holding copy.py)" in out
 
 
@@ -110,7 +113,7 @@ def test_no_record_neither_reads_nor_writes(tmp_path, saves, capsys):
     assert not record.games_dir().exists()
     assert update(capsys, old_save(saves, "B.ck3"), g)[0] == 0          # now one is written
     code, out, _ = update(capsys, old_save(saves, "C.ck3"), g, "--no-record")
-    assert code == 0 and "record    not used (--no-record)" in out
+    assert code == 0 and "status: not used (--no-record)" in out
     assert len(record.read_record("111")["update"]) == 1
 
 
