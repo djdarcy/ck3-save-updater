@@ -6,8 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-11-01
+
+### Added
+- `status` and `update` print their plan as blocks: a header in capitals (`SAVE`, `GAME`, `REFERENCE`, ...), then one fact per line as `field: value`, laid out for the terminal's width (between 60 and 120 characters). A value too long for the line continues under its own column, never under a header; the patches table keeps its columns, and a reason too long for its row goes on the line below it.
+- A `[display]` table in the settings file chooses the layout: `gap` (the spaces after a header, default 2), `spacing` (`"compact"`, no blank lines, the default; or `"blank"`) and `align` (`"flow"`, the default: each block as tight as the gap allows, a one-line block keeping the column of a wider block above it; `"global"`: every colon in one column; `"blocks"`: every header padded to the longest). A value that is not valid stops the command, naming the file and the setting.
+- [Configuration](docs/config.md): every setting in the settings file, `[display]` with the three layouts side by side, and the environment variables.
+- While `status` or `update` reads and judges a save, a spinner on the terminal names the stage running (`reading the whole save`, then `checking R23 nickname-text (11 of 19)`) and the seconds so far, and is erased when the plan prints. It is drawn only on a terminal, and never with `--plain`, `-q` or `NO_COLOR`.
+- `--plain` on `status` and `update`: no colour and no spinner, for pasting the output.
+- The verdict line ends with the time the command took; the `DETECTORS` block shows the read of the save (its size and seconds) apart from the judging (the steps and their seconds, and the three slowest).
+- The `SAVE` block shows the save's seed (its `random_seed`), which names its save game: the value a pack's `campaign` scope uses.
+
 ### Changed
+- A plan that is already refused (several saves could be the reference, a gap no pack covers, no game found) does not read and judge the whole save: the refusal is the answer, in about a second instead of minutes on a large save. `DETECTORS` says they were not run and why. `status` and `update` still make the same plan.
+- `status` without a save prints the game and the save folder as blocks too.
 - The repository is now https://github.com/djdarcy/ck3-save-updater: the package's URLs (PyPI's links), the README's badges and links, and the changelog's compare links name it (the old URL redirects). The config and cache folders, the `ck3-save-migrator` command alias and the `ck3_save_migrator` package keep their names.
+- The roadmap (`ROADMAP.md`) is the plan in prose: where the tool comes from, what 0.4.0 holds and what is left before it, what comes next in order, and what the tool will not do.
+
+### Fixed
+- `ck3update disable`, `enable`, `trust` and `untrust` keep the `[display]` table when they rewrite the settings file (a table they do not know is still not kept; written down as a known gap).
 
 ## [0.3.18] - 2026-11-01
 
@@ -279,8 +296,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.18...HEAD
-[0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...v0.3.18
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.19...HEAD
+[0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...v0.3.19
+[0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...a87f1ac
 [0.3.17]: https://github.com/djdarcy/ck3-save-updater/compare/3e0ecc4...a6c23f0
 [0.3.16]: https://github.com/djdarcy/ck3-save-updater/compare/ea04cea...3e0ecc4
 [0.3.15]: https://github.com/djdarcy/ck3-save-updater/compare/c3ad245...ea04cea

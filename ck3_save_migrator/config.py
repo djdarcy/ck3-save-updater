@@ -4,6 +4,11 @@ player's own packs, and the code packs the player trusts (each with the hash of 
     disabled = ["R21"]
     pack_dirs = ["D:/my ck3 packs"]
 
+    [display]
+    gap = 2              # spaces between a header and its field names in status's output
+    spacing = "compact"  # "compact" (no blank lines, the default) or "blank" (a blank line between blocks)
+    align = "flow"       # "flow" (the default), "global" or "blocks": see docs/config.md
+
     [trusted]
     "my_fixes" = "<sha256 of the pack folder's files>"
 
@@ -54,7 +59,28 @@ def read_config(path: Path | None = None) -> dict:
     trusted = data.get("trusted", {})
     if not isinstance(trusted, dict) or not all(isinstance(v, str) for v in trusted.values()):
         raise ValueError(f"{path}: 'trusted' must be a table of pack id = \"<hash>\"")
+    display = data.get("display", {})
+    if not isinstance(display, dict):
+        raise ValueError(f"{path}: 'display' must be a table ([display])")
+    gap = display.get("gap", DISPLAY["gap"])
+    if not isinstance(gap, int) or isinstance(gap, bool) or not 1 <= gap <= 8:
+        raise ValueError(f"{path}: [display] gap must be a whole number of spaces from 1 to 8")
+    for key, allowed in (("spacing", SPACINGS), ("align", ALIGNS)):
+        if display.get(key, DISPLAY[key]) not in allowed:
+            raise ValueError(f"{path}: [display] {key} must be one of {', '.join(json.dumps(s) for s in allowed)}")
     return data
+
+
+# how status and update lay out their blocks ([display], docs/config.md): the spaces after a header, whether a blank
+# line separates the blocks ("blank") or not ("compact"), and how the blocks' value columns line up (plan.value_columns)
+DISPLAY = {"gap": 2, "spacing": "compact", "align": "flow"}       # djdarcy's pick, 2026-11-01
+SPACINGS = ("blank", "compact")
+ALIGNS = ("blocks", "global", "flow")
+
+
+def display_settings(path: Path | None = None) -> dict:
+    """The [display] settings, each defaulted: ``gap`` and ``spacing``."""
+    return {**DISPLAY, **read_config(path).get("display", {})}
 
 
 def disabled_ids(path: Path | None = None) -> list[str]:
@@ -88,6 +114,8 @@ def write_config(data: dict, path: Path | None = None) -> Path:
         lines.append(f"pack_dirs = [{', '.join(json.dumps(d) for d in data['pack_dirs'])}]")
     if data.get("transplant"):
         lines.append(f"transplant = {json.dumps(data['transplant'])}")
+    if data.get("display"):          # kept as written: the player's own layout choices
+        lines += ["", "[display]"] + [f"{k} = {json.dumps(v)}" for k, v in data["display"].items()]
     if data.get("trusted"):
         lines += ["", "[trusted]"] + [f"{json.dumps(k)} = {json.dumps(v)}" for k, v in sorted(data["trusted"].items())]
     atomic_write(path, "\n".join(lines) + "\n")

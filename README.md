@@ -71,7 +71,7 @@ pip install -e .
   ```
   It writes `My_Old_Campaign__updated__<game version>.ck3` beside the save, and its report beside that. The packs it runs are chosen by the save's and the game's versions; a reference save (a 1.20 game at your campaign's date) is found in the save folder when there is one, and when there is none `status` says which rules skip and how to make one. `migrate`, below, is the lower-level command it runs.
 
-  In a terminal the plan is coloured, verdict first; set `NO_COLOR` (or `CK3UPDATE_COLOR=never`) for plain text. Piped output is always plain unless `CK3UPDATE_COLOR=always`.
+  In a terminal the plan is coloured, verdict first, with a spinner naming the stage while a large save is read and judged; `--plain` (or `NO_COLOR`, or `CK3UPDATE_COLOR=never`) gives plain text for pasting. Piped output is always plain unless `CK3UPDATE_COLOR=always`. How the plan is laid out is a setting ([Configuration](docs/config.md)).
 - `ck3update inspect "My_Old_Campaign.ck3"` shows a save's header, metadata block, the files inside it and its versions, and the game installs found (Steam's own records, its libraries on any drive) with their versions. A save can be named by its path, or by its name in the game's `save games` folder.
 - Update a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest). This is the usual update; copy the result into your `save games` folder and load it from the game:
   ```bash
@@ -111,6 +111,7 @@ A packaged performance mod is planned; until then these are the workarounds. [Up
 - [New-map regions](docs/new-map-regions.md): how the regions 1.20 added are brought in from a 1.20 save.
 - [Checking a save](docs/lint.md): what `lint` checks, and the exit codes.
 - [Output and verbosity](docs/output-and-verbosity.md): `-v`, `-q`, `--show`, and where each kind of output goes.
+- [Configuration](docs/config.md): the settings file (rules turned off, packs folders, the transplant switch, how the plan is laid out) and the environment variables.
 - [Reports](docs/reports.md): what the `--report` JSON contains.
 - [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
 - [The reference save](docs/reference-save.md): making a 1.20 save at your campaign's date, with `reference-mod`.

@@ -71,7 +71,7 @@ def say(level: int, text: str, channel: str, err: bool = False) -> None:
     """One line of output on ``channel``; ``err`` sends it to stderr whatever the channel's destination. Errors are
     red and warnings yellow when the stream takes colour (colors.should_use_color: off under NO_COLOR or a pipe);
     a line that carries its own colour is left as it is."""
-    if level in (ERROR, WARNING) and "\033[" not in text:
+    if level in (ERROR, WARNING) and "\033[" not in text and not RUN["plain"]:
         text = C.colorize_for(sys.stderr if err else sys.stdout, text, C.BRIGHT_RED if level == ERROR else C.YELLOW)
     get_output().emit(level, text, channel=channel, file="stderr" if err else None)
 
@@ -343,25 +343,44 @@ LAST_PLAN = {}          # the last plan status or update made, and the rules upd
 
 
 def make_plan(args, *, writes: bool = False):
-    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder."""
+    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder. While it is
+    made, a spinner on stderr names the stage running (spinner.py: a terminal only; off under --plain, -q and
+    NO_COLOR)."""
     from .plan import plan_update
-    return plan_update(args.save, game_dir=args.game_dir, reference=args.reference, old_game_dir=args.old_game_dir,
-                       rules_spec=args.rules, output=getattr(args, "output", None), packs=args.pack,
-                       allow_run=args.allow_run, force=getattr(args, "force", False), create_packs_dir=writes,
-                       variables=read_patch_vars(args.var or [], args.vars), transplant=args.transplant,
-                       portraits_version=getattr(args, "portraits_version", None),
-                       use_record=not args.no_record,
-                       in_place=getattr(args, "in_place", False), detect=not args.no_detect)
+    from .spinner import Spinner, spinner_wanted
+    wanted = spinner_wanted(sys.stderr, plain=RUN["plain"], quiet=args.top_quiet + args.quiet)
+    with Spinner(wanted) as sp:
+        sp.update("making the plan")
+        return plan_update(args.save, game_dir=args.game_dir, reference=args.reference,
+                           old_game_dir=args.old_game_dir, rules_spec=args.rules, output=getattr(args, "output", None),
+                           packs=args.pack, allow_run=args.allow_run, force=getattr(args, "force", False),
+                           create_packs_dir=writes, variables=read_patch_vars(args.var or [], args.vars),
+                           transplant=args.transplant, portraits_version=getattr(args, "portraits_version", None),
+                           use_record=not args.no_record, in_place=getattr(args, "in_place", False),
+                           detect=not args.no_detect, progress=sp.update)
+
+
+# this run's settings the output helpers read: --plain, and when main() started (the verdict's wall time)
+RUN = {"plain": False, "started": None}
+
+
+def paint_for(stream):
+    """The plan's Paint for ``stream``: colour when the stream takes it (colors.should_use_color) and not --plain."""
+    from .plan import Paint
+    return Paint(C.should_use_color(stream) and not RUN["plain"])
 
 
 def say_plan(plan) -> None:
-    """The verdict first, then the plan; each refusal once, on stderr, with its fix (the wtf tools' shape)."""
-    from .plan import Paint
-    out = Paint(C.should_use_color(sys.stdout))
-    for line in plan.verdict_lines(out) + plan.lines(out):
+    """The verdict first, with the wall time since the command started, then the plan in blocks laid out for the
+    terminal's width; each refusal once, on stderr, with its fix (the wtf tools' shape)."""
+    from .config import display_settings
+    from .plan import out_width
+    out, width, layout = paint_for(sys.stdout), out_width(sys.stdout), display_settings()
+    secs = time.perf_counter() - RUN["started"] if RUN["started"] is not None else None
+    for line in plan.verdict_lines(out, secs, width, layout) + plan.lines(out, width, layout):
         say(MINIMAL, line, "rules")
     sys.stdout.flush()                  # the refusal (stderr) comes after the plan even when stdout is a pipe
-    for line in plan.refusal_lines(Paint(C.should_use_color(sys.stderr))):
+    for line in plan.refusal_lines(paint_for(sys.stderr), out_width(sys.stderr), layout):
         say(ERROR, line, "rules", err=True)
 
 
@@ -370,15 +389,19 @@ def cmd_status(args) -> int:
     found and the save folder."""
     if not args.save:
         from .discover import save_games_dir
+        from .plan import _game, game_rows, out_width, render_blocks
         installs = game_installs(args.game_dir)
-        for i, g in enumerate(installs):
-            say(MINIMAL, f"{'game' if i == 0 else 'also':10}: {describe_install(g)}", "io")
-        if not installs:
-            say(MINIMAL, "game      : none found (give --game-dir)", "io")
+        blocks = [("GAME", game_rows(_game(installs[0]) if installs else None))]
+        blocks += [("ALSO", game_rows(_game(g), also=True)) for g in installs[1:]]
         folder = save_games_dir()
-        saves = sorted(folder.glob("*.ck3")) if folder and folder.is_dir() else []
-        say(MINIMAL, f"saves     : {folder or 'the save folder could not be found'}"
-                     + (f"  ({len(saves)} save(s))" if folder and folder.is_dir() else "  (not found)"), "io")
+        if folder and folder.is_dir():
+            saves = [("folder", str(folder), "path"), ("count", f"{len(list(folder.glob('*.ck3')))} save(s)", None)]
+        else:
+            saves = [("folder", f"{folder} (not found)" if folder else "the save folder could not be found", "warn")]
+        blocks.append(("SAVES", saves))
+        from .config import display_settings
+        for line in render_blocks(blocks, paint_for(sys.stdout), out_width(sys.stdout), layout=display_settings()):
+            say(MINIMAL, line, "io")
         return 0
     plan = make_plan(args)
     LAST_PLAN.update(status=plan)
@@ -1235,6 +1258,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--no-detect", action="store_true",
                        help="do not read the whole save to judge each built-in rule needed or done (the plan then "
                             "reads only its first megabyte, and an up-to-date save is not re-checked)")
+        p.add_argument("--plain", action="store_true",
+                       help="plain text: no colour and no progress spinner (as NO_COLOR), for pasting the output")
         if not update:
             return
         p.add_argument("--in-place", action="store_true",
@@ -1421,7 +1446,9 @@ def join_rules_value(argv: list[str]) -> list[str]:
 
 
 def main(argv=None) -> int:
+    RUN.update(started=time.perf_counter(), plain=False)
     args = build_parser().parse_args(join_rules_value(sys.argv[1:] if argv is None else argv))
+    RUN["plain"] = bool(getattr(args, "plain", False))
     shows = args.top_show + args.show
     init_output(verbosity=resolve_verbosity(args.top_verbose + args.verbose, args.top_quiet + args.quiet,
                                             env_var="CK3SM_VERBOSITY"),
