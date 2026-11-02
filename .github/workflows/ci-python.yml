@@ -74,3 +74,15 @@ jobs:
         pip install build wheel twine
         python -m build
         twine check dist/*
+
+    - name: The wheel's licence metadata
+      run: |
+        python - <<'PY'
+        import glob, zipfile
+        whl = glob.glob("dist/*.whl")[0]
+        with zipfile.ZipFile(whl) as z:
+            meta = z.read(next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))).decode()
+        print("\n".join(ln for ln in meta.splitlines() if ln.startswith(("License", "Classifier: License"))))
+        assert "License-Expression: GPL-3.0-or-later" in meta.splitlines(), "no License-Expression in METADATA"
+        assert "Classifier: License ::" not in meta, "a licence classifier beside the expression"
+        PY
