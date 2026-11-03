@@ -48,3 +48,16 @@ def test_pip_version_pep440():
         assert any(c.isalpha() for c in pip_v.split(".")[-1])
     else:
         assert all(c.isdigit() or c == "." for c in pip_v)
+
+
+def test_dash_capital_v_prints_the_version_as_dash_dash_version_does(capsys):
+    """`ck3update -V` is the short form of `--version` (djdarcy, 2026-11-03)."""
+    import pytest
+    from ck3_save_migrator import cli
+    outs = []
+    for flag in ("-V", "--version"):
+        with pytest.raises(SystemExit) as ex:
+            cli.main([flag])
+        assert ex.value.code == 0
+        outs.append(capsys.readouterr().out)
+    assert outs[0] == outs[1] == f"{__app_name__} {get_display_version()}\n"
