@@ -93,6 +93,36 @@ def value_regex(value: str) -> re.Pattern:
 def resolve(data: bytes, positions: list[int]) -> dict[int, tuple[list[gs.Block], gs.Child]]:
     """For each offset that starts a child: (its ancestors, top-level section first and parent last; the child).
 
+    The ancestors come from the gamestate's block index (``blockindex``, built once per gamestate object); only each
+    candidate's innermost block is read, with the same child reader ``resolve_by_descent`` uses at that depth
+    (tokenised when small, streamed when large), so the answer is the same object for object."""
+    from .blockindex import index_for
+    idx = index_for(data)
+    by_parent: dict[int, tuple[list[int], list[int]]] = {}
+    for p, chain in idx.enclosing(positions).items():
+        top = chain[-1]
+        if top not in by_parent:
+            by_parent[top] = (chain, [])
+        by_parent[top][1].append(p)
+    out: dict[int, tuple[list[gs.Block], gs.Child]] = {}
+    for top, (chain, poss) in by_parent.items():
+        here = [idx.block(i) for i in chain]
+        parent, want = here[-1], set(poss)
+        if parent.close - parent.open <= _SMALL_BLOCK:
+            for c in gs.iter_children(data, *parent.body):
+                if c.key_start in want:
+                    out[c.key_start] = (here, c)
+        else:
+            for e in gs.iter_entries(data, *parent.body):
+                if e.start in want and e.key is not None:
+                    out[e.start] = (here, gs.Child(e.key, e.start, e.start + len(e.key), e.open, e.end, e))
+    return out
+
+
+def resolve_by_descent(data: bytes, positions: list[int]) -> dict[int, tuple[list[gs.Block], gs.Child]]:
+    """``resolve`` by descending from each top-level section through every enclosing body: the resolver before the
+    block index (2026-11-02), kept as the reference the index is tested against.
+
     Grouped passes, as in ``gamestate.child_at``: each block is scanned once for all offsets inside it, tokenised
     when small and streamed when large, so the work is proportional to the bytes scanned, not to the offsets."""
     wanted = sorted(set(positions))
