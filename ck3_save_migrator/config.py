@@ -75,9 +75,10 @@ def read_config(path: Path | None = None) -> dict:
 
 
 def index_cache_on(path: Path | None = None) -> bool:
-    """``[cache] index = true``: keep each save's block index in a temp folder the tool names, so the next command on
-    the same unchanged save skips the build. Off unless the player turns it on (the tool writes nothing unasked)."""
-    return bool(read_config(path).get("cache", {}).get("index", False))
+    """``[cache] index``: keep each save's block index in a temp folder the tool names, so the next command on the
+    same unchanged save skips the build. On by default (djdarcy, 2026-11-02), the plan saying when it wrote one;
+    ``[cache] index = false`` turns it off."""
+    return bool(read_config(path).get("cache", {}).get("index", True))
 
 
 # how status and update lay out their blocks ([display], docs/config.md): the spaces after a header, whether a blank

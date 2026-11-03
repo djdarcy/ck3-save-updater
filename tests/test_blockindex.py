@@ -95,9 +95,39 @@ def arrays(idx):
     return [list(a) for a in (idx.opens, idx.closes, idx.key_starts, idx.key_ends)] + [idx.unclosed]
 
 
-def test_the_cache_is_off_unless_turned_on(cache):
-    BI.index_for(RULES_BODY)
-    assert not cache.exists() or not list(cache.iterdir())          # nothing written unasked
+def test_the_cache_is_on_by_default_and_off_when_turned_off(cache):
+    BI.index_for(RULES_BODY)                                         # no [cache] table: on (djdarcy, 2026-11-02)
+    assert len(list(cache.glob("*.idx"))) == 1
+    BI.forget()
+    cache_on(False)
+    BI.index_for(OLD_BODY)
+    assert len(list(cache.glob("*.idx"))) == 1                       # off: nothing more written
+
+
+def test_only_the_newest_two_saves_are_kept(cache):
+    import os
+    import time
+    cache_on()
+    for i, body in enumerate((RULES_BODY, OLD_BODY, REF_BODY)):
+        BI.forget()
+        BI.index_for(body)
+        for f in cache.glob("*.idx"):                                # make the order of writing the age order
+            if f.stat().st_mtime > time.time() - 1:
+                os.utime(f, (time.time() - 100 + i, time.time() - 100 + i))
+    assert len(list(cache.glob("*.idx"))) == 2
+    BI.forget()
+    assert BI._load(BI._cache_file(RULES_BODY), RULES_BODY) is None  # the oldest went
+
+
+def test_the_plan_says_when_it_wrote_the_cache(cache, tmp_path, monkeypatch, capsys):
+    from tests.test_update import game, old_save, run
+    from ck3_save_migrator import plan as PL
+    folder = tmp_path / "save games"
+    folder.mkdir()
+    monkeypatch.setattr(PL, "save_games_dir", lambda: folder)
+    code, out, _ = run(capsys, "status", str(old_save(folder)), "--game-dir", str(game(tmp_path)), "--plain",
+                       "--reference", "none")
+    assert code == 0 and "wrote this save's block index to" in " ".join(out.split())
 
 
 def test_a_cached_index_is_read_back_without_building(cache, monkeypatch):

@@ -22,6 +22,8 @@ def hermetic_config(monkeypatch, tmp_path_factory):
     is a temporary folder apart from the test's own ``tmp_path``, so a test that checks what a command wrote there
     does not see the packs folder the commands create."""
     monkeypatch.setenv("CK3SM_CONFIG", str(tmp_path_factory.mktemp("ck3sm") / "ck3sm-config" / "config.toml"))
+    # the block-index cache is on by default (0.3.23): never in the real temp folder from a test
+    monkeypatch.setenv("CK3UPDATE_CACHE_DIR", str(tmp_path_factory.mktemp("ck3idx")))
 
 
 @pytest.fixture

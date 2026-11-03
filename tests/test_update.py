@@ -78,7 +78,9 @@ def flat(out: str) -> str:
 
 
 def untimed(out: str) -> str:
-    """The output with its wall times (which differ from run to run) replaced by a mark."""
+    """The output with what differs from run to run replaced by a mark: wall times, and the block-index cache's line
+    (the first run writes the cache, the next reads it)."""
+    out = re.sub(r"(?m)^( +cache: ).*(\n {10,}\S.*)*", r"\1...", out)
     return re.sub(r"slowest .*", "slowest ...", re.sub(r"\d+\.\d s\b", "#.# s", out))
 
 

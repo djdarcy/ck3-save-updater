@@ -92,6 +92,8 @@ _LAST: list = []        # [the BlockIndex built last]: one gamestate's index at 
 # ---- the on-disk cache ([cache] index = true; off by default: the tool writes nothing the player did not ask for)
 CACHE_VERSION = 1                  # bump when the index's layout, its key reading or its file format changes
 SWEEP_SECONDS = 24 * 3600          # entries older than this are removed when a new one is written
+KEEP = 2                           # at most this many saves' indexes are kept (the newest; djdarcy, 2026-11-02)
+LAST_EVENT: list = []              # ["wrote", path, bytes] or ["read", path, bytes]: what the plan tells the player
 _MAGIC = b"CK3IDX"
 
 
@@ -150,9 +152,12 @@ def _save(path: Path, idx: BlockIndex) -> None:
             array("q", idx.unclosed).tofile(f)
         os.replace(tmp, path)
         now = time.time()
-        for old in path.parent.glob("*.idx"):
-            if old != path and now - old.stat().st_mtime > SWEEP_SECONDS:
+        others = sorted((p for p in path.parent.glob("*.idx") if p != path), key=lambda p: p.stat().st_mtime,
+                        reverse=True)
+        for i, old in enumerate(others):
+            if i >= KEEP - 1 or now - old.stat().st_mtime > SWEEP_SECONDS:
                 old.unlink(missing_ok=True)
+        LAST_EVENT[:] = ["wrote", path, path.stat().st_size]
     except OSError:
         pass                                            # a cache that cannot be written only costs the next build
 
@@ -175,6 +180,8 @@ def index_for(data: bytes) -> BlockIndex:
     from ..config import index_cache_on
     use_cache = index_cache_on()
     idx = _load(_cache_file(data), data) if use_cache else None
+    if idx is not None:
+        LAST_EVENT[:] = ["read", _cache_file(data), _cache_file(data).stat().st_size]
     if idx is None:
         idx = BlockIndex(data)
         if use_cache:

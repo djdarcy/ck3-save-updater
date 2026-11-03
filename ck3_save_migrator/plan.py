@@ -159,6 +159,7 @@ class UpdatePlan:
     # each judged step's seconds, in the order judged (the detectors, and the run patches' done checks)
     detect_timings: dict = field(default_factory=dict, compare=False)
     seed: str | None = None            # the save's random_seed: names its save game (a pack's [applies] campaign)
+    cache_note: str | None = field(default=None, compare=False)   # the block-index cache: what it wrote or read
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -174,6 +175,7 @@ class UpdatePlan:
         d.pop("user_packs", None)
         d.pop("detect_seconds", None)
         d.pop("detect_timings", None)
+        d.pop("cache_note", None)
         return d
 
     def verdict_lines(self, paint: "Paint | None" = None, seconds: float | None = None,
@@ -271,6 +273,8 @@ class UpdatePlan:
             if self.detect_timings:
                 t = self.detect_timings
                 slow = sorted(t, key=lambda k: -round(t[k], 1))[:3]     # ties stay in the order judged
+                if self.cache_note:
+                    det.append(("cache", self.cache_note, "note"))
                 det.append(("judged", f"{len(t)} step(s) in {sum(t.values()):.1f} s; slowest "
                                       + ", ".join(f"{k} {t[k]:.1f} s" for k in slow), "note"))
             tail.append(("DETECTORS", det))
@@ -518,6 +522,17 @@ def render_blocks(blocks: list, c: "Paint", width: int, head: int | None = None,
     return out
 
 
+def _cache_note(event: list) -> str | None:
+    """The plan's word on the block-index cache (on by default): where it wrote or read the save's index."""
+    if not event:
+        return None
+    what, path, size = event
+    if what == "read":
+        return f"read this save's block index from the cache ({path.parent}), not built again"
+    return (f"wrote this save's block index to {path.parent} ({size / 1e6:,.0f} MB; the newest 2 kept, a day at "
+            "most; `ck3update cache clear` empties it, [cache] index = false turns it off)")
+
+
 def _game(g: GameInstall | None) -> dict | None:
     return None if g is None else {"source": g.source, "path": str(g.path), "version": g.version}
 
@@ -601,6 +616,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
 
     ``progress``: called with a short line naming each slow stage as it starts (the CLI's spinner)."""
     stage = progress or (lambda text: None)
+    from .patches import blockindex
+    blockindex.LAST_EVENT.clear()
     save = Path(save)
     light = read_light(save)
     sv = save_versions(light.meta)
@@ -1009,7 +1026,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                    pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
                    fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place,
                    detected=detected, detect_seconds=full.get("seconds") if "g" in full else None,
-                   detect_mb=len(full["g"]) / 1e6 if "g" in full else None, detect_timings=timings, seed=seed)
+                   detect_mb=len(full["g"]) / 1e6 if "g" in full else None, detect_timings=timings, seed=seed,
+                   cache_note=_cache_note(blockindex.LAST_EVENT))
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p
