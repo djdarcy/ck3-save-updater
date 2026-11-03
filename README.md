@@ -1,138 +1,130 @@
 # ck3-save-updater
 
-[![GitHub Workflow Status][workflow-badge]][workflow-url]
-[![Version][version-badge]][version-url]
-[![Python][python-badge]][python-url]
-[![License][license-badge]][license-url]
-[![GitHub Discussions][discussions-badge]][discussions-url]
+[![PyPI](https://img.shields.io/pypi/v/ck3-save-updater?color=green)](https://pypi.org/project/ck3-save-updater/)
+[![Release Date](https://img.shields.io/github/release-date/djdarcy/ck3-save-updater?color=green)](https://github.com/djdarcy/ck3-save-updater/releases)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/ck3-save-updater?period=total&units=international_system&left_color=black&right_color=green&left_text=downloads)](https://pypistats.org/packages/ck3-save-updater)
+[![CI](https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml/badge.svg)](https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![GitHub Discussions](https://img.shields.io/github/discussions/djdarcy/ck3-save-updater)](https://github.com/djdarcy/ck3-save-updater/discussions)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](docs/platform-support.md)
 
-[workflow-badge]: https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml/badge.svg
-[workflow-url]: https://github.com/djdarcy/ck3-save-updater/actions
-[version-badge]: https://img.shields.io/github/v/tag/djdarcy/ck3-save-updater
-[version-url]: https://github.com/djdarcy/ck3-save-updater/releases
-[python-badge]: https://img.shields.io/badge/python-%3E%3D3.10-darkgreen
-[python-url]: https://python.org/downloads
-[license-badge]: https://img.shields.io/badge/license-GPL--3.0--or--later-orange
-[license-url]: https://github.com/djdarcy/ck3-save-updater/blob/main/LICENSE
-[discussions-badge]: https://img.shields.io/badge/discussions-Welcome-lightgrey
-[discussions-url]: https://github.com/djdarcy/ck3-save-updater/discussions
+Brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
 
-Update old Crusader Kings III saves to the current game version: inspect, patch, and revive .ck3 save files.
+## What it has been measured on
 
-## What this is
+One campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, loads and plays in 1.20.1.2. Saves from other starting versions are expected to work, because each game version since has only added to what a save holds, but that is not yet proven. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Crusader Kings III will not load a save from an older game version once the save format has moved on far enough. `ck3update` rewrites such a save so the current game can load it: it removes what the new version rejects, moves data to where the new version expects it, and rebuilds religion from a save written by the target version, keeping custom faiths, religious heads and every character's faith. The save you give it is never changed; every result is a new file.
+Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), portrait DNA across portrait versions and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by an opt-in step that is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
 
-## Status: an early release
+## Install
 
-What is proven:
-
-- A 1.8.1 campaign with 34 mods, updated with this tool, loads and plays in 1.20.1.2.
-- The update is reproducible: the same save and the same options give the same result every time. A `.ck3` file is a zip, and a zip records when each file in it was written, so compare two saves by their content (`ck3update inspect` shows it), not by the bytes of the files.
-
-What is not handled yet:
-
-- The regions added to the map since the save's version are brought in from a 1.20 save of the same date. This is opt-in (`--rules all,R15,R14,R16`) and still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
-- Cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)).
-- Portrait DNA across portrait versions, and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)).
-- Mod content in general.
-
-A general updater, from any game version to any later one, is the roadmap ([#14](https://github.com/djdarcy/ck3-save-updater/issues/14)). The [CHANGELOG](CHANGELOG.md) says what each version covers.
-
-## Installation
-
-Python 3.10 or newer.
+Python 3.10 or newer:
 
 ```bash
 pip install ck3-save-updater
 ```
 
-This installs the `ck3update` command. The project's old name, `ck3-save-migrator`, still works as a second name for the same command for now.
+This installs the `ck3update` command (its old name, `ck3-save-migrator`, still works too). If your shell then says `'ck3update' is not recognized` (common on Windows after `pip install --user`, when pip puts the command in a folder that is not on PATH), run `python -m ck3_save_migrator setup`: it says where pip put the command and, on Windows, offers to add that folder to your PATH. After that, `ck3update setup` does the same ([Troubleshooting](docs/troubleshooting.md#ck3update-is-not-recognized)).
 
-If your shell then says `'ck3update' is not recognized` (common on Windows after `pip install --user`: pip puts the command in a folder that is not on PATH), run `python -m ck3_save_migrator setup`. It works without the command being on PATH, says where pip put it and, on Windows, offers to add that folder to your user PATH (`--dry-run` prints what it would do and changes nothing in PATH or the registry, `--yes` changes it without asking). See [Troubleshooting](docs/troubleshooting.md#ck3update-is-not-recognized).
+## Before you start
 
-To work on the code instead:
+**The tool never launches the game, and never changes the save you give it** unless you ask for `--in-place`, and then only after keeping the original as `<name>.bak.ck3`. Every other result is a new file beside your save. (One separate command, `ck3update soak`, does start the game, and says so in its name and help; `status` and `update` never do.)
+
+Have three things ready:
+
+- **The game folder.** The tool finds your installed game by itself through Steam's records, on any drive. If it does not, give `--game-dir "<...>\Crusader Kings III\game"` (or set `CK3_GAME_DIR`). `status` shows which install it used in its GAME block.
+- **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3" --out "<the game's mod folder>"` writes a small mod that adds a bookmark on your date; enable it, start a new game from that bookmark, and save at once. [The reference save](docs/reference-save.md) walks through it. Without one, `status` lists the rules that will skip and these same steps.
+- **Your [packs folder](docs/glossary.md#packs-folder)**, only if you have fixes of your own: `packs` beside the config file (`%APPDATA%\ck3-save-migrator\packs` on Windows, `~/.config/ck3-save-migrator/packs` elsewhere). The tool creates it the first time it loads rules, with `_example-pack`, a complete pack to copy when you write your own; the example itself never runs. You can ignore it to update a save.
+
+## See what it will do: `ck3update status`
 
 ```bash
-git clone https://github.com/djdarcy/ck3-save-updater.git
-cd ck3-save-updater
-pip install -e .
+ck3update status "My_Old_Campaign"
 ```
 
-## Usage
+Name the save by its path, or by its name in the game's `save games` folder. `status` writes nothing. It prints [the plan](docs/glossary.md#plan): what `update` will do, decided before anything runs.
 
-[Updating a save](docs/updating-a-save.md) walks through the whole flow; the steps in short:
+Read the first line first. It is the verdict:
 
-- Update a save to the game you have installed, by its name in the game's `save games` folder:
-  ```bash
-  ck3update status "My_Old_Campaign"     # what update will do: the game, the version gap, the patches, the reference save
-  ck3update update "My_Old_Campaign" --dry-run   # run it all in memory, with each patch's counts; nothing is written
-  ck3update update "My_Old_Campaign"
-  ```
-  It writes `My_Old_Campaign__updated__<game version>.ck3` beside the save, and its report beside that. The packs it runs are chosen by the save's and the game's versions; a reference save (a 1.20 game at your campaign's date) is found in the save folder when there is one, and when there is none `status` says which rules skip and how to make one. `migrate`, below, is the lower-level command it runs.
+- [READY](docs/glossary.md#ready): `update` will write an updated save, and the line says how many patches run;
+- [ALREADY CURRENT](docs/glossary.md#already-current): the save is at the game's version; there is nothing to do;
+- [NOTHING TO DO](docs/glossary.md#nothing-to-do): no patch will run;
+- [REFUSED](docs/glossary.md#refused): something has to be fixed first (below).
 
-  In a terminal the plan is coloured, verdict first, with a spinner naming the stage while a large save is read and judged; `--plain` (or `NO_COLOR`, or `CK3UPDATE_COLOR=never`) gives plain text for pasting. Piped output is always plain unless `CK3UPDATE_COLOR=always`. How the plan is laid out is a setting ([Configuration](docs/config.md)).
-- `ck3update inspect "My_Old_Campaign.ck3"` shows a save's header, metadata block, the files inside it and its versions, and the game installs found (Steam's own records, its libraries on any drive) with their versions. A save can be named by its path, or by its name in the game's `save games` folder.
-- Update a 1.8-era save for 1.20, with religion rebuilt from a save you made in 1.20 (start any game in 1.20 and save it; a save at the same start date is closest). This is the usual update; copy the result into your `save games` folder and load it from the game:
-  ```bash
-  ck3update migrate "My_Old_Campaign.ck3" --rules all --reference "A_New_1_20_Game.ck3" -o "My_Old_Campaign.migrated.ck3" --report "My_Old_Campaign.report.json"
-  ```
-  A save with a custom faith gives two outputs, one per way of carrying it ([Options](docs/options.md#custom-faiths)); `--dry-run` builds and verifies everything without writing a file.
-- Update with the new-map regions turned on, so the lands and rulers 1.20 added arrive held instead of being handed to the player. The reference should be a 1.20 save at your campaign's own date, because the new regions' rulers and families are copied from it as they are on that date; `--old-game-dir` is the game folder of the version your save was made with:
-  ```bash
-  ck3update migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 --reference "A_1_20_Game_At_My_Campaign_Date.ck3" --old-game-dir "Old_CK3/game"
-  ```
-- `ck3update lint "My_Old_Campaign.migrated.ck3"` checks a save before you load it and predicts what the game will complain about (`migrate` already runs it on every output).
-- `ck3update rules` lists the update rules and the game versions each one applies to; `ck3update check <save>` says which of them a save still needs, without changing anything. `--rules all,-R21` leaves one rule out, and `ck3update disable <id>` turns one off for every later run ([Turning rules off](docs/writing-a-patch.md#turning-rules-off)).
-- Your own fixes run in the same `migrate` call when you put their pack in your packs folder (`packs` beside the config file, created on the first run with a README and an example); a pack that runs code runs once you trust it with `ck3update trust <pack id>`, and `ck3update packs` lists what was found ([Your own packs folder](docs/writing-a-patch.md#your-own-packs-folder)).
-- `ck3update gamediff <old game> <new game> [--save <save>]` shows what a game update added, removed and changed, and which of it a save uses ([gamediff](docs/gamediff.md)).
-- `ck3update soak <save>` **starts the game**, loads the save, lets it run, closes it through Exit to Desktop and says whether it exited cleanly or crashed; your autosaves and mod list are put back afterwards ([soak](docs/soak.md)).
+Below the verdict come blocks, one per header: SAVE, GAME, RECORD, [GAP](docs/glossary.md#gap), REFERENCE, PACKS, PATCHES (every fix in the order it runs, with why it runs or is skipped), DETECTORS, OUTPUT (the file `update` will write) and NOTES. The [glossary](docs/glossary.md#what-status-prints) says what each holds; [Configuration](docs/config.md#display-how-the-plan-is-laid-out) says how to change the layout. `--plain` prints it without colour, for pasting.
+
+## Update it: `ck3update update`
+
+```bash
+ck3update update "My_Old_Campaign"
+```
+
+This runs the plan `status` printed and writes `My_Old_Campaign__updated__<game version>.ck3` beside your save, with a report beside it. It checks the result ([lint](docs/glossary.md#lint)) before it finishes. Copy the new file into the game's `save games` folder if it is not there already, start the game with the mods the save lists, and load it.
+
+- `--dry-run` runs everything in memory and writes nothing.
+- `--in-place` gives the updated save your save's own name, after keeping the original as `<name>.bak.ck3`; a clean result only.
+- The tool remembers each campaign it updated ([the record](docs/glossary.md#record)), so the next save of the same campaign is updated with the same inputs without your giving them again.
+
+## When it refuses
+
+A refused plan ends with each reason and a `fix:` line under it saying what to do:
+
+```
+REFUSED: the gap 1.8.1 -> 1.21.0: no selected pack declares it covers it (a pack's [applies] span); nothing would bring
+         the save to the game's version
+  fix: a pack in your packs folder whose [applies] declares this span (docs/writing-a-patch.md), or `ck3update migrate`
+       with the rules you choose
+```
+
+Do what the fix says, then run `status` again. Nothing is written while a plan is refused. [Troubleshooting](docs/troubleshooting.md) covers the common messages.
 
 ## Performance after updating a large save
 
-A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both causes measured so far are the game's own behaviour, which a big save makes visible; both have workarounds:
+A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both causes measured so far are the game's own behaviour, which a big save makes visible, and both have workarounds:
 
-- **Two top-bar alerts.** The game re-checks the player's alerts one at a time, even while paused. On the founding campaign two vanilla alerts cost about half a second per check each, freezing the game every 2 to 3 seconds:
+- **Two top-bar alerts.** The game re-checks the player's alerts one at a time, even while paused. On the measured campaign two vanilla alerts cost about half a second per check each, freezing the game every 2 to 3 seconds:
   - the tutorial advice for great projects: turn tutorial and reactive advice off in the game's settings;
   - the great-cathedral upgrade alert (for clergy rulers): a small local mod that turns the alert off removes it, and the cathedral decision itself still works from the decisions screen.
 - **Portraits.** Portraits on screen are recalculated every 30 frames, paused or not. A character window with a large family kept dozens rebuilding and froze for over half a second in every five. A mod that overrides `common/defines/jomini/portraits.txt` with a larger `PORTRAIT_CACHE_EXPIRE_FRAMES` (600 was tried) cut that about tenfold.
 
-A packaged performance mod is planned; until then these are the workarounds. [Updating a save](docs/updating-a-save.md#performance-after-updating-a-large-save) has the details.
+[Updating a save](docs/updating-a-save.md#performance-after-updating-a-large-save) has the details.
 
 ## Mods known to misbehave in 1.20
 
 - **Better Barbershop** (Workshop 2220326926) replaces the barbershop and interaction-menu windows, and in 1.20 the barbershop then shows no characters. Disabling it brings the built-in barbershop back.
 
-## More
+## Documentation
 
-- [Updating a save](docs/updating-a-save.md): the everyday flow, from `inspect` and `check` to `migrate`, `lint` and loading it, what to do when the game updates again, and performance after the update.
-- [Options](docs/options.md): the most used options of `migrate`.
-- [Rules](docs/rules.md): every rule, what it changes and why, and how to choose them.
-- [New-map regions](docs/new-map-regions.md): how the regions 1.20 added are brought in from a 1.20 save.
-- [Checking a save](docs/lint.md): what `lint` checks, and the exit codes.
-- [Output and verbosity](docs/output-and-verbosity.md): `-v`, `-q`, `--show`, and where each kind of output goes.
-- [Configuration](docs/config.md): the settings file (rules turned off, packs folders, the transplant switch, how the plan is laid out) and the environment variables.
-- [Reports](docs/reports.md): what the `--report` JSON contains.
-- [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
-- [The reference save](docs/reference-save.md): making a 1.20 save at your campaign's date, with `reference-mod`.
+- [Updating a save](docs/updating-a-save.md): the whole process, `status` then `update`, and doing it by hand.
+- [Glossary](docs/glossary.md): every term the tool uses, and every header `status` prints.
+- [The reference save](docs/reference-save.md): making a save at your campaign's date, with `reference-mod`.
 - [Troubleshooting](docs/troubleshooting.md): what the common messages mean and what to do.
-- [Writing a patch](docs/writing-a-patch.md): fixes as `patch.toml` files, run with `migrate --pack <folder>`.
+- [Configuration](docs/config.md): the settings file and the environment variables.
+- [Options](docs/options.md): the most used options.
+- [Rules](docs/rules.md): every built-in rule, what it changes and why.
+- [New-map regions](docs/new-map-regions.md): how the regions 1.20 added are brought in.
+- [Checking a save](docs/lint.md): what `lint` checks.
+- [Output and verbosity](docs/output-and-verbosity.md): `-v`, `-q`, `--show`.
+- [Reports](docs/reports.md): what the report beside each output contains.
+- [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
+- [Writing a patch](docs/writing-a-patch.md): your own fixes, as `patch.toml` files in your packs folder.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
-- [soak](docs/soak.md): load a save in the game and watch it (starts the game).
-- [Tools](docs/tools.md): `ck3update tools` lists and runs the project's standalone scripts as they are.
-- [Thinning a save's population](docs/thin-population.md): a diagnostic that writes a copy of a save with fewer characters.
+- [soak](docs/soak.md): load a save in the game and watch it (this one starts the game).
+- [Tools](docs/tools.md): `ck3update tools` lists and runs the project's standalone scripts.
+- [Thinning a save's population](docs/thin-population.md): a diagnostic copy of a save with fewer characters.
 - [Platform support](docs/platform-support.md): what the tool is tested on.
-
-## Development
-
-```bash
-pip install -e ".[dev]"
-pytest
-```
 
 ## Contributing
 
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the code of conduct, reporting bugs, suggesting enhancements and pull requests.
+Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the code of conduct, reporting bugs, suggesting enhancements and pull requests. To work on the code:
+
+```bash
+git clone https://github.com/djdarcy/ck3-save-updater.git
+cd ck3-save-updater
+pip install -e ".[dev]"
+pytest
+```
 
 Like the project? [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/djdarcy)
 

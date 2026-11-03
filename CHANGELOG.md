@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- A glossary (`docs/glossary.md`): every word the tool uses that a player may not know (the reference save, the transplant, packs and patches, the plan and its verdicts, detectors, the record, lint), and every header `status` prints, each with where you meet it.
+
+### Changed
+- The README now leads a first-time player from `pip install` through what to have ready, `ck3update status` and `ck3update update`, to what to do when a plan is refused, and says plainly what has been measured (one 34-mod campaign from 1.8.1 to 1.20.1.2) and what is only expected. "Updating a save" follows the same order, with the step-by-step `inspect` / `check` / `migrate` flow kept at its end.
+- The README's badges: the PyPI version, release date, downloads, CI, Python, licence, discussions and platforms.
+- The package's licence metadata is the current form (`License-Expression: GPL-3.0-or-later`, with the licence file included), which PyPI shows on the project page.
+- Platform support says what CI does on Linux: it builds the package there; the test suite runs on Windows.
+
 ## [0.3.21] - 2026-11-02
 
 ### Changed
