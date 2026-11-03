@@ -17,6 +17,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -554,7 +555,7 @@ def write_record(args, plan, written: list) -> None:
            "tool": f"{__app_name__} {get_display_version()}", "game_version": plan.gap[1],
            "patches": [{"id": r.id, "pack": by_id.get(r.id, "")} for r in getattr(args, "results", [])],
            "inputs": {k: v for k, v in {**plan.inputs, "wos_shape": args.wos_shape}.items() if v not in (None, {})},
-           "prefilled": [x.split(" (from the record")[0] for x in plan.prefilled]}
+           "prefilled": [f"{given}{value}" for given, value in plan.prefilled]}
     path = record.append_update(seed, Path(plan.save).stem, row)
     say(DEFAULT, f"  record        : {path}", "io")
 
@@ -753,8 +754,7 @@ def select_rules(spec: str, include_off: tuple[str, ...] = ()) -> list:
     named |= {find_rule(t).id for t in include_off}
     skipped = [r.id for r in rules if r.id in off and r.id not in named]
     if skipped:
-        say(MINIMAL, f"skipped by your config: {', '.join(skipped)} (name it in --rules to run it anyway, or "
-                     "`ck3update enable <id>`)", "rules")
+        say(MINIMAL, skipped_by_config(skipped), "rules")
     return [r for r in rules if r.id not in skipped]
 
 
@@ -860,7 +860,8 @@ def cmd_check(args) -> int:
     ctx = RuleContext(portraits_version=args.portraits_version)
     shipped = read_pack().patches
     from .detect import Env, detect
-    env = Env(game_dir=find_game_dir(getattr(args, "game_dir", None)), patches=shipped)
+    gd = find_game_dir(getattr(args, "game_dir", None))
+    env = Env(game_dir=gd, patches=shipped, mod_dirs=workshop_mod_dirs(save.meta, gd))
     rows = []
     for r in rules:
         p = shipped.get(r.id)
@@ -892,6 +893,14 @@ def cmd_check(args) -> int:
             "rules", err=True)
         return 5
     return 0
+
+
+def skipped_by_config(skipped: list[str]) -> str:
+    """The line for rules --rules all leaves out because the config turned them off: "name it" for one rule,
+    "name them" for several."""
+    it = "it" if len(skipped) == 1 else "them"
+    return (f"skipped by your config: {', '.join(skipped)} (name {it} in --rules to run {it} anyway, or "
+            "`ck3update enable <id>`)")
 
 
 def find_rule_or_user_patch(token: str):
@@ -1027,6 +1036,9 @@ def cmd_help(args) -> int:
     names = [pack.id for pack, _, _ in packs] + [x for pack, _, _ in packs for p in pack.ordered()
                                                  for x in (p.id, p.name)]
     close = difflib.get_close_matches(want, names, n=3)
+    if re.fullmatch(r"[A-Za-z]{1,4}\d+", want):        # a patch id: its pack is not installed here
+        raise ValueError(f"no pack found holds patch {want}; `ck3update packs` lists the packs found (your packs "
+                         "folder and pack_dirs)" + (f"; did you mean: {', '.join(close)}" if close else ""))
     raise ValueError(f"no rule, patch or pack named {want!r}" + (f"; did you mean: {', '.join(close)}" if close else
                                                                 ""))
 

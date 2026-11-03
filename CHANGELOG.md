@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A glossary (`docs/glossary.md`): every word the tool uses that a player may not know (the reference save, the transplant, packs and patches, the plan and its verdicts, detectors, the record, lint), and every header `status` prints, each with where you meet it.
 
 ### Changed
+- A save one hotfix behind the game is ALREADY CURRENT "on the game's version line (1.20)", no longer said to be "at the game's version".
+- Verbs agree with their lists: "needs R14, R16, which are skipped" ("which is skipped" for one), and "name them in --rules" for several rules turned off.
+- RECORD's pre-filled inputs: one row each, a long path or a list on its own lines under the value column, and the record they came from named once at the end.
+- R23's detector counts only the nicknames R23 can write a text for (from the game and the save's listed mods). One whose text no listed mod has is reported apart (`not fixable: 1 nickname whose text no listed mod has`, and in the notes); a save with only such nicknames is ALREADY CURRENT. One nickname reads "1 nickname without text".
+- A run patch whose `done_command` `status` runs says so on its row ("runs `<command>` to check").
+- `ck3update help <patch id>` for a patch whose pack is not installed says "no pack found holds patch <id>" and points at `ck3update packs`.
 - The README now leads a first-time player from `pip install` through what to have ready, `ck3update status` and `ck3update update`, to what to do when a plan is refused, and says plainly what has been measured (one 34-mod campaign from 1.8.1 to 1.20.1.2) and what is only expected. "Updating a save" follows the same order, with the step-by-step `inspect` / `check` / `migrate` flow kept at its end.
 - The README's badges: the PyPI version, release date, downloads, CI, Python, licence, discussions and platforms.
 - The package's licence metadata is the current form (`License-Expression: GPL-3.0-or-later`, with the licence file included), which PyPI shows on the project page.

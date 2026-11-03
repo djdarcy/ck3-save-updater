@@ -92,8 +92,13 @@ A reference save is never recorded, since it belongs to one date, and no part of
 
 ```
 RECORD      status: My_Old_Campaign: last updated 2026-11-01 14:02 by ck3-save-updater 0.3.17 from My_Old_Campaign.ck3 (1 update)
-        pre-filled: --var witness=W1 (from the record of My_Old_Campaign)
+        pre-filled: --var witness=W1
+        pre-filled: --var tools_dir
+                    D:/my ck3 tools/a folder whose path is longer than the line
+                    (from the record of My_Old_Campaign)
 ```
+
+One row per input; a value too long for the line, or a list, goes on its own lines under the value column; the record they came from is named once, after them.
 
 Any input you do not give this time takes the record's latest value ([pre-filled](glossary.md#pre-filled)); anything you give wins. A recorded folder or file that no longer exists is not used: the plan says the recorded value was missing, and a step that needs it is skipped with its usual "needs" reason. `--no-record` (on `status` and `update`) neither reads nor writes the record.
 
