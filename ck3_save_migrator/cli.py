@@ -1031,6 +1031,21 @@ def cmd_help(args) -> int:
                                                                 ""))
 
 
+def cmd_cache(args) -> int:
+    """`cache where` and `cache clear`: the block indexes kept when [cache] index = true (patches/blockindex.py)."""
+    from .config import index_cache_on
+    from .patches.blockindex import cache_dir, clear_cache
+    folder = cache_dir()
+    if args.action == "clear":
+        files, size = clear_cache()
+        say(MINIMAL, f"removed {files} cached index(es), {size / 1e6:,.1f} MB, from {folder}", "io")
+        return 0
+    entries = sorted(folder.glob("*.idx")) if folder.is_dir() else []
+    say(MINIMAL, f"{folder}: {len(entries)} cached index(es), {sum(p.stat().st_size for p in entries) / 1e6:,.1f} MB; "
+                 f"the cache is {'on' if index_cache_on() else 'off'} ([cache] index in the config)", "io")
+    return 0
+
+
 def cmd_packs(args) -> int:
     """Each of the player's own packs found: folder, id, kind and whether it runs."""
     ensure_packs_dir()
@@ -1373,6 +1388,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("packs", help="list your own packs (the packs folder beside the config file, and pack_dirs): "
                                      "folder, id, kind and whether each runs")
     p.set_defaults(func=cmd_packs)
+
+    p = sub.add_parser("cache", help="the block-index cache ([cache] index = true in the config): where it is, or "
+                                     "clear it")
+    p.add_argument("action", choices=("where", "clear"),
+                   help="where: the folder and what it holds; clear: remove every cached index")
+    p.set_defaults(func=cmd_cache)
 
     p = sub.add_parser("trust", help="let one of your packs that runs code run on every update, as its files are "
                                      "now; prints what it runs")

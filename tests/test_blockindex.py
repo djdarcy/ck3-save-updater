@@ -73,6 +73,100 @@ def test_an_edited_gamestate_is_never_answered_from_the_old_index():
     BI.forget()
 
 
+# --------------------------------------------------------------------------- the on-disk cache (S1 unit 4)
+@pytest.fixture
+def cache(tmp_path, monkeypatch):
+    """The cache folder in tmp_path; the config's [cache] switch written by each test as it needs."""
+    folder = tmp_path / "idx-cache"
+    monkeypatch.setenv("CK3UPDATE_CACHE_DIR", str(folder))
+    BI.forget()
+    yield folder
+    BI.forget()
+
+
+def cache_on(on: bool = True) -> None:
+    from ck3_save_migrator.config import config_path
+    p = config_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"[cache]\nindex = {'true' if on else 'false'}\n", encoding="utf-8")
+
+
+def arrays(idx):
+    return [list(a) for a in (idx.opens, idx.closes, idx.key_starts, idx.key_ends)] + [idx.unclosed]
+
+
+def test_the_cache_is_off_unless_turned_on(cache):
+    BI.index_for(RULES_BODY)
+    assert not cache.exists() or not list(cache.iterdir())          # nothing written unasked
+
+
+def test_a_cached_index_is_read_back_without_building(cache, monkeypatch):
+    cache_on()
+    built = arrays(BI.index_for(RULES_BODY))
+    assert len(list(cache.glob("*.idx"))) == 1
+    BI.forget()
+    monkeypatch.setattr(BI.BlockIndex, "__init__", lambda self, data: pytest.fail("built instead of read"))
+    again = BI.index_for(RULES_BODY)
+    assert arrays(again) == built and again.data is RULES_BODY
+
+
+def test_other_bytes_never_hit(cache):
+    cache_on()
+    BI.index_for(RULES_BODY)
+    BI.forget()
+    idx = BI.index_for(OLD_BODY)
+    assert idx.data is OLD_BODY and len(list(cache.glob("*.idx"))) == 2
+    assert P.resolve(OLD_BODY, every_position(OLD_BODY)) == P.resolve_by_descent(OLD_BODY, every_position(OLD_BODY))
+
+
+def test_a_damaged_cache_file_is_rebuilt(cache):
+    cache_on()
+    good = arrays(BI.index_for(RULES_BODY))
+    f = next(cache.glob("*.idx"))
+    f.write_bytes(f.read_bytes()[:-9])                               # cut short
+    BI.forget()
+    assert arrays(BI.index_for(RULES_BODY)) == good
+
+
+def test_entries_older_than_a_day_are_swept_when_one_is_written(cache):
+    import os
+    import time
+    cache_on()
+    BI.index_for(RULES_BODY)
+    old = next(cache.glob("*.idx"))
+    two_days = time.time() - 2 * 24 * 3600
+    os.utime(old, (two_days, two_days))
+    BI.forget()
+    BI.index_for(OLD_BODY)
+    assert not old.exists() and len(list(cache.glob("*.idx"))) == 1
+
+
+def test_cache_clear_and_where(cache, capsys):
+    from ck3_save_migrator import cli
+    cache_on()
+    BI.index_for(RULES_BODY)
+    assert cli.main(["cache", "where"]) == 0
+    assert "1 cached index(es)" in capsys.readouterr().out
+    assert cli.main(["cache", "clear"]) == 0
+    assert "removed 1 cached index(es)" in capsys.readouterr().out and not list(cache.glob("*.idx"))
+
+
+def test_the_cache_switch_survives_a_config_rewrite(cache):
+    from ck3_save_migrator import config
+    cache_on()
+    config.write_disabled(["R21"])                      # disable rewrites the file from the settings it knows
+    assert config.index_cache_on() and config.disabled_ids() == ["R21"]
+
+
+def test_a_bad_cache_setting_is_refused(cache, capsys):
+    from ck3_save_migrator import cli
+    from ck3_save_migrator.config import config_path
+    config_path().parent.mkdir(parents=True, exist_ok=True)
+    config_path().write_text('[cache]\nindex = "yes"\n', encoding="utf-8")
+    assert cli.main(["cache", "where"]) == 1
+    assert "[cache] index must be true or false" in capsys.readouterr().err
+
+
 def test_unbalanced_text_still_raises_as_before():
     d = b"x={\n\ty={\n\t\tz=1\n}\n"                     # one "}" missing
     from ck3_save_migrator import gamestate as gs

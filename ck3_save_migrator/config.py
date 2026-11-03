@@ -68,7 +68,16 @@ def read_config(path: Path | None = None) -> dict:
     for key, allowed in (("spacing", SPACINGS), ("align", ALIGNS)):
         if display.get(key, DISPLAY[key]) not in allowed:
             raise ValueError(f"{path}: [display] {key} must be one of {', '.join(json.dumps(s) for s in allowed)}")
+    cache = data.get("cache", {})
+    if not isinstance(cache, dict) or not isinstance(cache.get("index", False), bool):
+        raise ValueError(f"{path}: [cache] index must be true or false")
     return data
+
+
+def index_cache_on(path: Path | None = None) -> bool:
+    """``[cache] index = true``: keep each save's block index in a temp folder the tool names, so the next command on
+    the same unchanged save skips the build. Off unless the player turns it on (the tool writes nothing unasked)."""
+    return bool(read_config(path).get("cache", {}).get("index", False))
 
 
 # how status and update lay out their blocks ([display], docs/config.md): the spaces after a header, whether a blank
@@ -114,6 +123,8 @@ def write_config(data: dict, path: Path | None = None) -> Path:
         lines.append(f"pack_dirs = [{', '.join(json.dumps(d) for d in data['pack_dirs'])}]")
     if data.get("transplant"):
         lines.append(f"transplant = {json.dumps(data['transplant'])}")
+    if data.get("cache"):            # kept as written: the player's own cache choice
+        lines += ["", "[cache]"] + [f"{k} = {json.dumps(v)}" for k, v in data["cache"].items()]
     if data.get("display"):          # kept as written: the player's own layout choices
         lines += ["", "[display]"] + [f"{k} = {json.dumps(v)}" for k, v in data["display"].items()]
     if data.get("trusted"):
