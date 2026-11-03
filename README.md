@@ -45,13 +45,13 @@ ck3update update "My Save" --transplant auto
 
 **4. Play.** In the launcher, turn on the mods your old save used, and load `My Save__updated__...`.
 
-Faces may not look as they did: carrying portraits across the game's portrait versions is not done yet ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)). Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
+Faces are carried into the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you load with (rule R19, new in this release; [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)): turn on the same portrait mods before you update, or name them with `--portrait-mods`. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
 ## What it has been measured on
 
 One campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, loads and plays in 1.20.1.2. Saves from other starting versions are expected to work, because each game version since has only added to what a save holds, but that is not yet proven. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), portrait DNA across portrait versions and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by an opt-in step that is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
+Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), genes a portrait mod adds that the layout you load with lacks (they are dropped, and the report names them), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by an opt-in step that is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
 
 ## Install
 

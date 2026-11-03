@@ -62,8 +62,6 @@ CASES = {
     "R4": ("R4", META, R4_BODY, {}),
     "R5": ("R5", META, R5_BODY, {}),
     "R7-no-portraits": ("R7", META, b"date=987.10.27\n", {"portraits_version": None}),
-    "R7-portraits-5": ("R7", META, b"date=987.10.27\n", {"portraits_version": 5}),
-    "R7-portraits-3": ("R7", META, b"date=987.10.27\n", {"portraits_version": 3}),
     "R7-at-target": ("R7", AT_TARGET, b"x={\n}\n", {}),
     "R7-another-target": ("R7", META, b"x={\n}\n", {"target_version": "1.21.0", "target_save_game_version": 19}),
     "R11": ("R11", META, R11_BODY, {}),

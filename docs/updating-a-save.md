@@ -27,6 +27,7 @@ ck3update status My_Old_Campaign
 - GAP: the [gap](glossary.md#gap) between the two versions. The packs are chosen by it: each pack may say which saves and games it is for (`[applies]` in its `pack.toml`), and the built-in pack is for saves from 1.8 to before 1.20 going to a 1.20 game. A gap no selected pack covers is [NOT COVERED](glossary.md#covered-and-not-covered), and nothing is written;
 - REFERENCE: the reference save: given with `--reference`, named by `CK3_REFERENCE_SAVE`, or found in the save folder (a save written by the game's version on the save's date). It never picks a save that [descends from](glossary.md#descends-from) yours, and when two saves could each be the reference it asks you to choose one with `--reference`. With none, it lists the rules that will skip and the steps to make a reference. It is looked for only when a patch that will run needs one; otherwise it says "not needed";
 - PACKS and PATCHES: every [pack](glossary.md#pack) and [patch](glossary.md#patch), in the order they run, with whether each runs and why not (turned off, not trusted, not selected by `--rules`, needing a reference save or the old game folder that is not there, or needing a `--var` a [run patch](glossary.md#run-patch) names);
+- FACES: the [gene layouts](glossary.md#gene-layout) R19 carries the faces between (the save's, the target's, and where the target's mods came from) and the portraits_version it sets;
 - DETECTORS: what the [detectors](glossary.md#detector) read, and how long it took;
 - OUTPUT: the file `update` will write, `<name>__updated__<game version>.ck3` beside the save (`-o` for another);
 - NOTES: anything else, such as a save that crosses the map rework.
@@ -84,7 +85,7 @@ The record's `label` is the file name of the first save updated (later updates k
 - the input and output files with their sha256;
 - the tool version and the game version;
 - the patches that ran (id and pack);
-- the inputs it used: `--var` values (qualified names as given), `--old-game-dir`, `--transplant`, `--wos-shape` and `--portraits-version`.
+- the inputs it used: `--var` values (qualified names as given), `--old-game-dir`, `--transplant` and `--wos-shape` (an older record's `portraits_version` is read and not used: R19 sets it from the target).
 
 A reference save is never recorded, since it belongs to one date, and no part of any save is. A save whose `random_seed` cannot be read gets no record, and the plan says so.
 

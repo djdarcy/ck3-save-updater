@@ -327,7 +327,7 @@ def cmd_migrate(args) -> int:
     out = Path(args.output) if args.output else default_output(args.save)
     # director 2026-10-26 00:45 (S9): no --rules means the defaults, because a user who types `migrate save.ck3`
     # wants a migration; an explicit empty selection is refused (select raises)
-    rules = select_rules(args.rules if args.rules is not None else "all",
+    rules = select_rules(rules_with_no_dna(args.rules if args.rules is not None else "all", args),
                          include_off=("R7",) if args.bump_version else ())
     if args.bump_version:
         say(WARNING, "WARNING: --bump-version is deprecated and does nothing: the version bump (R7) is part of the "
@@ -357,7 +357,8 @@ def make_plan(args, *, writes: bool = False):
                            old_game_dir=args.old_game_dir, rules_spec=args.rules, output=getattr(args, "output", None),
                            packs=args.pack, allow_run=args.allow_run, force=getattr(args, "force", False),
                            create_packs_dir=writes, variables=read_patch_vars(args.var or [], args.vars),
-                           transplant=args.transplant, portraits_version=getattr(args, "portraits_version", None),
+                           transplant=args.transplant, no_dna=getattr(args, "no_dna", False),
+                           portrait_mods=portrait_mods_arg(args),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
                            detect=not args.no_detect, progress=sp.update)
 
@@ -457,7 +458,7 @@ def cmd_update(args) -> int:
             say(MINIMAL, f"pre-filled: --wos-shape {args.wos_shape} (from the record of {rec.get('label', '?')})",
                 "rules")
     args.old_game_dir = inputs.get("old_game_dir")
-    args.portraits_version = inputs.get("portraits_version")
+    args.dna_setup = plan.dna_setup                       # R19 uses the layouts the plan printed
     code = execute_rules(args, plan.rules, plan.user_packs, out, state={"plan": plan.as_dict()},
                          variables=inputs.get("vars") or {})
     LAST_PLAN.update(ran=[r.id for r in getattr(args, "results", [])])
@@ -595,11 +596,14 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
     installs = game_installs(args.game_dir)
     check_save_not_newer(save_versions(save.meta)["version"], installs[0] if installs else None)
     in_sha = args.in_sha = sha256(save.to_bytes())
-    ctx = RuleContext(game_dir=installs[0].path if installs else None, portraits_version=args.portraits_version,
+    ctx = RuleContext(game_dir=installs[0].path if installs else None,
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
                       expansion_orders=not args.no_expansion_orders)
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
+    ctx.state["portrait_mods"] = portrait_mods_arg(args)            # R19's target layout (None: dlc_load.json)
+    if getattr(args, "dna_setup", None) is not None:
+        ctx.state["dna_setup"] = args.dna_setup                     # update: the layouts its plan printed
     ctx.state["game_installs"] = installs                         # the report lists them
     ctx.state["save_versions"] = save_versions(save.meta)
     ctx.state["user_packs"] = [up.as_dict() for up in user_packs]           # the report lists them
@@ -617,7 +621,8 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
             ref_g = ref_gamestate[0] = read_save(reference).gamestate if reference else None
             mods, missing = listed_workshop_mods(save.meta, ctx.game_dir) if args.lint_mods == "save" else ([], [])
             known = load_game_data(ctx.game_dir, ref_g, mods, mods_missing=missing,
-                                   reference_name=str(reference) if reference else None)
+                                   reference_name=str(reference) if reference else None,
+                                   dna_length=target_dna_length(ctx.game_dir, args, ctx.state.get("dna_setup")))
         # the fresh-game title comparison only when the transplant ran: without R14 the save lacks every title the
         # target version added, by the user's choice, and that is not an error in the output
         transplanted = any(r.id == "R14" for r in rules)
@@ -716,7 +721,8 @@ def run_lint(save, args, reference_path: Path | None):
     reference = read_save(reference_path).gamestate if reference_path else None
     mods, missing = listed_workshop_mods(save.meta, game_dir) if getattr(args, "mods", "save") == "save" else ([], [])
     data = load_game_data(game_dir, reference, mods, mods_missing=missing,
-                          reference_name=str(reference_path) if reference_path else None)
+                          reference_name=str(reference_path) if reference_path else None,
+                          dna_length=target_dna_length(game_dir, args))
     return lint_gamestate(save.gamestate, known=data, reference=reference, game_dir=game_dir)
 
 
@@ -853,16 +859,20 @@ def cmd_check(args) -> int:
     """Each selected patch's verdict on this save, read only: needed, done, unknown (code and run patches, and
     Python rules with no declarative patch in the shipped pack) or fails (exit 5). Each is judged on the save as it
     is, not after the patches before it."""
-    rules = select_rules(args.rules if args.rules is not None else "all")
+    rules = select_rules(rules_with_no_dna(args.rules if args.rules is not None else "all", args))
     save = read_save_logged(args.save)
     for w in save.warnings:
         say(WARNING, f"WARNING: {w}", "io", err=True)
     g = save.gamestate
-    ctx = RuleContext(portraits_version=args.portraits_version)
+    ctx = RuleContext()
     shipped = read_pack().patches
     from .detect import Env, detect
     gd = find_game_dir(getattr(args, "game_dir", None))
-    env = Env(game_dir=gd, patches=shipped, mod_dirs=workshop_mod_dirs(save.meta, gd))
+    from . import dna as DNA
+    from .discover import game_version
+    env = Env(game_dir=gd, patches=shipped, mod_dirs=workshop_mod_dirs(save.meta, gd),
+              dna=DNA.setup(save_meta=save.meta, game_dir=gd, portrait_mods_given=portrait_mods_arg(args),
+                            target_version=game_version(gd)) if gd else None)
     rows = []
     for r in rules:
         p = shipped.get(r.id)
@@ -894,6 +904,27 @@ def cmd_check(args) -> int:
             "rules", err=True)
         return 5
     return 0
+
+
+def target_dna_length(game_dir, args, st=None) -> int | None:
+    """The DNA length lint expects: the target layout's (the installed game's genes plus the portrait mods the
+    player loads with: --portrait-mods, else dlc_load.json); None without a game folder that has genes."""
+    if game_dir is None:
+        return None
+    from . import dna as DNA
+    layout = st.target if st is not None else DNA.target_layout(game_dir, portrait_mods_arg(args))[0]
+    return layout.length if layout.places else None
+
+
+def rules_with_no_dna(spec: str, args) -> str:
+    """--no-dna: the same as leaving R19 out (--rules -R19)."""
+    return spec + ",-R19" if getattr(args, "no_dna", False) else spec
+
+
+def portrait_mods_arg(args) -> list[str] | None:
+    """--portrait-mods as a list (empty: vanilla), or None when not given (the launcher's dlc_load.json)."""
+    v = getattr(args, "portrait_mods", None)
+    return None if v is None else [x.strip() for x in v.split(",") if x.strip()]
 
 
 def skipped_by_config(skipped: list[str]) -> str:
@@ -1243,7 +1274,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--report", help="write a JSON report of the rules' counts to this path")
     p.add_argument("--bump-version", action="store_true",
                    help="deprecated, does nothing: R7 (version bump) is part of the default rules")
-    p.add_argument("--portraits-version", type=int, help="R7 also sets portraits_version to this")
+    p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
+    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+                   help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
+                        "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
     p.add_argument("--reference", help="a save written by the target game version, for R8-R12 "
                    "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference)")
     p.add_argument("--wos-shape", choices=("faith", "rite", "both"), default="both",
@@ -1293,6 +1327,10 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--transplant", choices=("auto", "off"),
                        help="auto: select the new-map rules (R14-R17) when the save crosses the 1.13 map rework "
                             "and a reference is present (default: transplant in the config, else off)")
+        p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
+        p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+                       help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
+                            "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
         p.add_argument("--no-record", action="store_true",
                        help="neither read nor write this save game's record (the inputs of its earlier updates)")
         p.add_argument("--no-detect", action="store_true",
@@ -1311,7 +1349,6 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--wos-shape", choices=("faith", "rite", "both"),
                        help="as for migrate: how custom faiths are carried (default: the record's, else both, two "
                             "outputs)")
-        p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version")
         p.add_argument("--no-lint", action="store_true", help="skip the checks run on the output")
         p.add_argument("--lint-mods", choices=("save", "none"), default="save",
                        help="as for migrate: which mods the checks assume")
@@ -1341,6 +1378,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mods", choices=("save", "none"), default="save",
                    help="which mods to assume active when the save loads: the Workshop mods the save lists "
                         "(default; those installed), or none (a vanilla load)")
+    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+                   help="the portrait mods the save will be loaded with, for the DNA length check (Workshop ids or "
+                        "folders; default: the gene-shipping mods dlc_load.json enables; '' for vanilla)")
     p.add_argument("--json", help="write the findings to this JSON file")
     p.set_defaults(func=cmd_lint)
 
@@ -1387,7 +1427,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--allow-run", action="store_true",
                    help="accepted so a migrate command line works unchanged; check runs no patch code, so it "
                         "changes nothing")
-    p.add_argument("--portraits-version", type=int, help="as for migrate: R7 also sets portraits_version to this")
+    p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
+    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+                   help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
+                        "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
     p.add_argument("--game-dir", help="the game's 'game' folder, for the detectors that read the game's data "
                                       "(R6, R15, R22; default: the newest install found)")
     p.set_defaults(func=cmd_check)

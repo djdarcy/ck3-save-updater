@@ -132,6 +132,10 @@ What the tool remembers about each campaign it has updated, kept by its [seed](#
 
 An input you did not give this time, taken from [the record](#record)'s latest update (a `--var`, `--old-game-dir`, `--transplant` and the like). RECORD lists each as `pre-filled`. Anything you give on the command line wins.
 
+### gene layout
+
+Which gene sits at which place in a face's `dna=` string: the order the game's `common/genes` files (and any portrait mod's) define. A new game version or other portrait mods change it. R19 carries every face from the layout it was written in to the one you will load with; the FACES block of `status` shows both.
+
 ## Checking a save
 
 ### lint
@@ -175,6 +179,10 @@ Every [pack](#pack) found, whether it was selected for this save and game and wh
 ### PATCHES
 
 Every [patch](#patch), in the order they run: its id and name, `runs` or `skipped`, its pack, and the reason: what its [detector](#detector) found, or why it is skipped.
+
+### FACES
+
+The [gene layouts](#gene-layout) R19 carries the faces between: the save's own (source), the reference save's for characters the transplant adds, and the target's (the game's genes plus the portrait mods you load with, and where those came from: `dlc_load.json` or `--portrait-mods`), each with its gene count and string length, and the portraits_version R19 sets.
 
 ### DETECTORS
 

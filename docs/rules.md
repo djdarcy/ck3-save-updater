@@ -60,7 +60,8 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 | R6 | dead-titles-report | 1.18.0 (map rework; exact major unverified) | changes nothing; reports titles the current game no longer defines. Needs the game folder (`--game-dir`, or found automatically) |
 | R11 | empty-modifiers | 1.8.1<v<=1.20.1.2 | deletes modifiers with an empty name (`modifier=""`, `""` in modifier lists, `type=""`) |
 | R23 | nickname-text | 1.8.1<v<=1.20.1.2 | writes the nickname's text (`nickname_text`) after every nickname that lacks it, the way 1.20 stores a nickname: its key and its rendered text. Without it, nicknames show as raw keys or garbled in game |
-| R7 | version-bump | n/a | sets the save's version fields to the target version; runs last. `--portraits-version` also sets the portraits version |
+| R19 | dna-layout | 1.8.1<v<=1.20.1.2 | rewrites every face (`dna=`) from the gene layout it was written in to the layout you will load with (the game's genes plus the portrait mods `dlc_load.json` enables, or `--portrait-mods`), gene by gene and template by template by name, and sets `portraits_version` to the target's. A character the transplant added is read in the reference save's layout. Runs after R17; `--no-dna` turns it off. See [Faces](#faces-r19) |
+| R7 | version-bump | n/a | sets the save's version fields to the target version; runs last |
 
 ### Religion rules (default)
 
@@ -90,4 +91,17 @@ A custom faith can be carried in two shapes, chosen with `--wos-shape`: as a fai
 
 ## Order
 
-The rules run in this order, which is the order `ck3update rules` lists: R1, R2, R3, R4, R5, R21, R20, R22, R6, R11, R8, R10, R9, R12, R15, R14, R16, R17, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the version bump runs last.
+The rules run in this order, which is the order `ck3update rules` lists: R1, R2, R3, R4, R5, R21, R20, R22, R6, R11, R8, R10, R9, R12, R23, R15, R14, R16, R17, R19, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the faces (R19) after them, so the people the transplant added are in the output, and before any pack of yours; the version bump runs last.
+
+## Faces (R19)
+
+A character's face is its `dna="..."` string: one 4-byte place per gene, in the order the game's `common/genes` files define (the gene layout: file-name order across the gene folders, then declaration order in each file; a mod's file of the same name replaces the game's whole, and special genes are not stored). A new game version or a different set of portrait mods changes the layout, and the game makes up a new face for a string in another layout ("Unexpected DNA string length").
+
+R19 reads each face in the layout it was written in: the save's own (its game version's genes, from `--old-game-dir` when given, else the installed game's, plus the portrait mods its mods list names, as installed today), or the reference save's for a character the transplant added. It writes it in the target layout: the installed game's genes plus the gene-shipping mods the launcher enables (`dlc_load.json`, in load order), or `--portrait-mods <id-or-folder>,...` (`--portrait-mods ""` for vanilla).
+
+- A gene in both: its place is copied, its templates renumbered by name, its values kept; colour genes are copied whole.
+- A template the target gene lacks falls to 0 (counted). A gene the target lacks is dropped (named); a gene the source lacks is set to the middle (template 0, value 128).
+- A face already in the target layout is left as it is. One longer than its layout loses the places past it (counted, and the plan says so); one shorter is left as it is (counted).
+- `portraits_version` is set to the target's: the reference save's own, else the built-in table by the game's version line (1.20: 5).
+
+`status` shows the layouts in its FACES block, and the report lists every character under its outcome.

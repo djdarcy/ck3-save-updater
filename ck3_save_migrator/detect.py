@@ -32,6 +32,7 @@ class Detection:
     # apart, never as needed, so a save whose only finding is one of these is done
     left: list[str] = field(default_factory=list)
     what_one: str = ""                 # ``what`` for a count of 1 ("nickname without text"), when it differs
+    notes: list[str] = field(default_factory=list)   # what the plan should say about how it fixes them
 
     def line(self) -> str:
         """The plan's words: ``needed: <count> <what>``, ``done: none found``, or ``unknown: <why>``; what its rule
@@ -56,6 +57,7 @@ class Env:
     game_dir: Path | None = None
     reference: bytes | None = None     # a reference save's gamestate (R14, R16, R17)
     mod_dirs: list = field(default_factory=list)     # the installed folders of the save's listed mods (R23's texts)
+    dna: object = None                 # R19's layouts and target portraits_version (dna.Setup), when built
     patches: dict = field(default_factory=dict)      # the built-in pack's patches, by id (the declarative ones)
     # detector -> (the gamestate object it read, its Detection): rules that share a detector (R14/R16/R17,
     # R8/R9/R10/R12, R6/R15) read the save once per plan. Kept with the object itself and reused only for that same
@@ -155,10 +157,42 @@ def _reference_titles(g, env):
                   "titles a fresh game has that the save lacks")
 
 
+def _r19(g, env):
+    """R19 counts the faces it would change and whether portraits_version differs from the target's. A face it
+    leaves for a stated reason (already in the target layout, shorter than its layout) is reported apart."""
+    if env.dna is None:
+        return Detection("unknown", why="needs the game folder (the target's gene layout)")
+    from .dna import plan_save
+    empty = [x.name for x in (env.dna.source, env.dna.target) if not x.places]
+    if empty:
+        return Detection("unknown", why=f"no genes found for {' and '.join(empty)} layout (no common/genes)")
+    res = plan_save(g, env.dna)
+    n = res.changed
+    pv = f"portraits_version {res.portraits_version[0]} -> {res.portraits_version[1]}" \
+        if res.portraits_version else ""
+    if n:
+        d = Detection("needed", n, "faces in another gene layout" + (f", and {pv}" if pv else ""),
+                      what_one="face in another gene layout" + (f", and {pv}" if pv else ""))
+    elif pv:
+        d = Detection("needed", None, pv)
+    else:
+        d = Detection("done")
+    left = res.left()
+    # what it cannot fix (a face shorter than its layout) is "not fixable"; a face already in the target layout is
+    # simply done, and said in the notes
+    d.left = [counted(left['left as is: shorter than its layout'], 'face shorter than its layout',
+                      'faces shorter than their layout')] if left.get("left as is: shorter than its layout") else []
+    d.notes = ([f"{counted(left['already target'], 'face is', 'faces are')} already in the target layout; left as "
+                f"{'it is' if left['already target'] == 1 else 'they are'}"] if left.get("already target") else []) + \
+        [f"{counted(c, 'face is', 'faces are')} longer than {layout} layout: the last "
+         f"{counted(k, 'place is', 'places are')} dropped" for (layout, k), c in sorted(res.dropped_places.items())]
+    return d
+
+
 DETECTORS = {
     "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _dead_titles,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
-    "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23,
+    "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
 }
 
 

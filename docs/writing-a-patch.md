@@ -220,8 +220,8 @@ default = true
 requires = []
 tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
 
-# The version is written quoted, the save game version as a number. portraits_version is set only when a value is
-# given (an edit whose template has no value is skipped).
+# The version is written quoted, the save game version as a number. portraits_version is R19's (the target's,
+# with the faces it carries).
 [[edit]]
 path = "meta_data"
 op = "set"
@@ -234,12 +234,6 @@ path = "meta_data"
 op = "set"
 key = "save_game_version"
 value = "@@target_save_game_version@@"
-
-[[edit]]
-path = "meta_data"
-op = "set"
-key = "portraits_version"
-value = "@@portraits_version@@"
 ```
 
 `rename_key`: rename every child key `key` to `to`. No shipped rule needs it; this one renames a key in the metadata:

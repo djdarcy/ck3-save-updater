@@ -61,7 +61,7 @@ include = ["ck3_save_migrator", "ck3_save_migrator.*"]
 
 [tool.setuptools.package-data]
 # the shipped patch packs: pack.toml, and one patch folder (a data directory, not a module) per patch
-"ck3_save_migrator.packs" = ["*/pack.toml", "*/*/patch.toml", "*/*/*.py"]
+"ck3_save_migrator.packs" = ["*/pack.toml", "*/*/patch.toml", "*/*/*.toml", "*/*/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
