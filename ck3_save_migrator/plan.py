@@ -671,6 +671,14 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     elif compare_versions(sv["version"], gv) == 1:
         refusals.append(f"the save was written by game version {sv['version']}, newer than the game at {game.path} "
                         f"(version {gv}); update brings a save from an older version to the game's")
+    # a given --old-game-dir is checked here, before anything runs: R15 reads its map, and a wrong folder would be
+    # read as a map with no titles (the 0.4.0 sweep's lint error, 2026-11-02); a recorded one is checked below
+    if old_game_dir and not (Path(old_game_dir) / "common" / "landed_titles").is_dir():
+        why = (f"--old-game-dir \"{old_game_dir}\" is not a folder" if not Path(old_game_dir).is_dir() else
+               f"--old-game-dir \"{old_game_dir}\" has no common/landed_titles: it is not a game's 'game' folder")
+        refusals.append(why)
+        fixes[why] = {"fix": "give the 'game' folder of the game version the save was made with (the one holding "
+                             "common and gfx)"}
 
     variables = dict(variables or {})
     seed = light.random_seed

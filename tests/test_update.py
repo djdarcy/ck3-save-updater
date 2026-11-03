@@ -207,6 +207,23 @@ def test_a_save_newer_than_the_game_is_refused(tmp_path, saves, capsys):
     assert code == 1 and "newer than the game" in err and "REFUSED" in out
 
 
+def test_an_old_game_dir_that_is_not_a_game_folder_is_refused_before_anything_runs(tmp_path, saves, capsys):
+    """The 0.4.0 sweep (2026-11-02): a shell ate the backslashes of --old-game-dir, R15 read a map with no titles,
+    and the output linted with two orphaned baronies. A given folder is checked first; a wrong one refuses."""
+    g, s = game(tmp_path), old_save(saves)
+    gone = tmp_path / "no-such-folder"
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--old-game-dir", str(gone), "--no-lint")
+    assert code == 1 and "REFUSED" in out and "is not a folder" in err and "fix: give the 'game' folder" in err
+    assert not list(saves.glob("*__updated__*"))                                   # nothing written
+    empty = tmp_path / "not-a-game"
+    empty.mkdir()
+    code, _, err = run(capsys, "status", str(s), "--game-dir", str(g), "--old-game-dir", str(empty))
+    assert code == 1 and "has no common/landed_titles" in err
+    (empty / "common" / "landed_titles").mkdir(parents=True)                       # now shaped like a game folder
+    code, _, err = run(capsys, "status", str(s), "--game-dir", str(g), "--old-game-dir", str(empty))
+    assert "old-game-dir" not in err
+
+
 def test_a_pack_without_a_span_says_so(tmp_path, saves):
     folder = U.packs_dir() / "mine"
     (folder / "M1-x").mkdir(parents=True)
