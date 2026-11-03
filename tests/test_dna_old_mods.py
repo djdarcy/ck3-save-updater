@@ -79,6 +79,12 @@ def test_an_entry_resolving_to_nothing_is_refused_by_name_and_nothing_is_written
     assert not (tmp_path / "out.ck3").exists()
 
 
+def has(out: str, text: str) -> bool:
+    """``text`` in the plan's output, ignoring whitespace: the plan wraps a long path inside the path itself, so a
+    temp folder longer than this machine's (CI's runneradmin) splits it across lines."""
+    return "".join(text.split()) in "".join(out.split())
+
+
 # --------------------------------------------------------------------------- FACES names each source mod
 def test_faces_names_each_source_mod_and_its_origin(tmp_path, saves, capsys):
     g = steam(tmp_path)
@@ -93,8 +99,7 @@ def test_faces_names_each_source_mod_and_its_origin(tmp_path, saves, capsys):
     own = old_layout(tmp_path / "own")
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g), "--reference", "none", "--plain",
                        "--old-portrait-mods", str(own))
-    flat = " ".join(out.split())
-    assert f"source mod: own: --old-portrait-mods: {own}" in flat and "not installed" not in flat
+    assert has(out, f"source mod: own: --old-portrait-mods: {own}") and "not installed" not in out
 
 
 # --------------------------------------------------------------------------- the record
@@ -111,18 +116,16 @@ def test_the_record_keeps_it_and_the_next_update_pre_fills_it(tmp_path, saves, c
     later = saves / "Faces_later.ck3"
     later.write_bytes(build_ck3(meta=TU.OLD_META, body=body))
     code, out, _ = run(capsys, "status", str(later), "--game-dir", str(g), "--reference", "none", "--plain")
-    flat = " ".join(out.split())
-    assert f"pre-filled: --old-portrait-mods {own}" in flat and "(from the record of Faces)" in flat
-    assert f"source mod: own: --old-portrait-mods: {own}" in flat
+    assert has(out, f"pre-filled: --old-portrait-mods {own}") and has(out, "(from the record of Faces)")
+    assert has(out, f"source mod: own: --old-portrait-mods: {own}")
     for f in (own / "common" / "genes").iterdir():                      # the recorded folder vanishes
         f.unlink()
     (own / "common" / "genes").rmdir()
     (own / "common").rmdir()
     own.rmdir()
     code, out, _ = run(capsys, "status", str(later), "--game-dir", str(g), "--reference", "none", "--plain")
-    flat = " ".join(out.split())
-    assert code == 0 and f"the record of Faces has --old-portrait-mods {own}, which no longer exists; not used" in flat
-    assert "pre-filled: --old-portrait-mods" not in flat
+    assert code == 0 and has(out, f"the record of Faces has --old-portrait-mods {own}, which no longer exists; not used")
+    assert not has(out, "pre-filled: --old-portrait-mods")
 
 
 # --------------------------------------------------------------------------- transplanted characters
