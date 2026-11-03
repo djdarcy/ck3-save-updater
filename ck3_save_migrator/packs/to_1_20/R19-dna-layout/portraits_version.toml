@@ -1,0 +1,4 @@
+# The target's portraits_version by the game's version line, when the plan has no reference save to read it from.
+# 1.20: 5, measured 2026-10-25 (a fresh 1.20.1.2 save writes portraits_version=5; 1.20 ignores stored DNA under 3).
+[lines]
+"1.20" = 5

@@ -1,0 +1,9 @@
+format = 1
+id = "R19"
+name = "dna-layout"
+title = "carry every face (dna=) into the target's gene layout, by gene and template name, and stamp its portraits_version"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.faces:r19_dna_layout"

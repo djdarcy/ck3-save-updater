@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Faces (R19, dna-layout, on by default): every face (`dna=`) is rewritten from the gene layout it was written in to the layout you will load with, gene by gene and template by template by name, and `portraits_version` is set to the target's, so the game keeps the faces instead of making up new ones. The source is the save's own layout (its game's genes, from `--old-game-dir` when given, plus the portrait mods it lists), or the reference save's for characters the transplant adds; the target is the installed game's genes plus the portrait mods the launcher enables (`dlc_load.json`), or `--portrait-mods`. `status` shows both in a new FACES block; the report lists every character under its outcome. `--no-dna` turns it off.
+
+### Changed
+- `--portraits-version` is gone from `migrate`, `status`, `update` and `check`: R19 sets the target's portraits_version, and R7 no longer touches it. A record that stores one still reads; the plan says once that it is no longer used.
+- lint's "Unexpected DNA string length" expects the length of the layout you load with (the game's genes plus your portrait mods), not vanilla's.
+
 ## [0.3.26] - 2026-11-02
 
 ### Added

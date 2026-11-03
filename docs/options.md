@@ -15,6 +15,8 @@ The most used options of `migrate`. `ck3update migrate --help` lists every optio
 | `--wos-shape` | how a custom faith is carried: `faith`, `rite` or `both` (the default, two outputs) |
 | `--no-lint` | skip the checks run on each output (see [Checking a save](lint.md)) |
 | `--lint-mods` | which mods the checks assume will be active: `save` (the Workshop mods the save lists, the default) or `none` |
+| `--portrait-mods` | the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order; default: the gene-shipping mods the launcher enables (`dlc_load.json`); `""` for vanilla |
+| `--no-dna` | leave every face in the save's own gene layout (R19 does not run; the same as `--rules -R19`) |
 | `--pack` | a folder of `patch.toml` fixes to apply after the selected rules (see [Writing a patch](writing-a-patch.md)) |
 
 ## Custom faiths

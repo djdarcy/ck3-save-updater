@@ -1000,7 +1000,10 @@ def _read_common(root: Path, data: GameData) -> None:
 
 
 def load_game_data(game_dir: Path | None, reference: bytes | None, mod_dirs: list[Path], *,
-                   reference_name: str | None = None, mods_missing: list[str] | None = None) -> GameData:
+                   reference_name: str | None = None, mods_missing: list[str] | None = None,
+                   dna_length: int | None = None) -> GameData:
+    """``dna_length``: the DNA string length of the layout the player loads with (dna.target_layout: the game's
+    genes plus its portrait mods), which the DNA row expects; without it, the reference save's own length."""
     data = GameData(mods_missing=list(mods_missing or []))
     if reference is not None:
         data.words.update(m.group(1) for m in _KEY.finditer(reference) if m.group(1))
@@ -1009,6 +1012,8 @@ def load_game_data(game_dir: Path | None, reference: bytes | None, mod_dirs: lis
         data.reference_types = {m.group(2) for m in _REF_SCALAR.finditer(reference) if m.group(1) == b"type"}
         data.sources.append("reference save")
         data.source_paths.append(f"reference save: {reference_name or '(given as bytes)'}")
+    if dna_length:                                # the layout the player loads with wins over the reference's own
+        data.dna_length = dna_length
     if game_dir is not None:
         exe = game_dir.parent / "binaries" / ("ck3.exe" if (game_dir.parent / "binaries" / "ck3.exe").exists() else "ck3")
         if exe.exists():
