@@ -261,20 +261,22 @@ to = "new_key"
 
 `insert`: insert text just inside a block, at its `start` (after `{`) or `end` (before `}`). An insert is not undone by running it again, so an inserting patch must say how to tell it has been applied: `done = { path = ..., key = ... }`, the place and the key whose presence means "already done". Without it the patch is refused.
 
+**Insert only keys the game itself writes.** A key the game does not define is reported when the save loads ("Unexpected token"), so it does nothing but add an error. The usual reason to insert is a field a newer game version's own saves carry and older saves lack. No shipped rule needs one yet; in this example `new_field` stands for such a field:
+
 <!-- example: insert -->
 ```toml
 format = 1
 id = "F2"
-name = "add-a-flag"
-title = "add migrated_by=yes to the metadata"
+name = "new-field-added"
+title = "add new_field, which 1.21's own saves carry, to the metadata of an older save"
 since = "1.21.0"
-done = { path = "meta_data", key = "migrated_by" }
+done = { path = "meta_data", key = "new_field" }
 
 [[edit]]
 path = "meta_data"
 op = "insert"
 position = "end"
-payload = "\tmigrated_by=yes\n"
+payload = "\tnew_field=no\n"
 ```
 
 ### Templates

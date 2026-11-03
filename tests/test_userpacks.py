@@ -119,7 +119,7 @@ def test_the_first_run_creates_the_folder_and_a_second_run_changes_nothing(tmp_p
     assert not folder.exists()
     assert cli.main(["rules"]) == 0
     files = sorted(p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file())
-    assert files == ["README.md", "_example-pack/X1-add-a-flag/patch.toml", "_example-pack/_X2-run-a-script/patch.toml",
+    assert files == ["README.md", "_example-pack/X1-load-screen-name/patch.toml", "_example-pack/_X2-run-a-script/patch.toml",
                      "_example-pack/pack.toml", "_example-pack/vars.toml"]
     assert (folder / "README.md").read_text(encoding="utf-8").startswith("# ADD RULES HERE")
     stamps = {p: p.stat().st_mtime_ns for p in folder.rglob("*")}
