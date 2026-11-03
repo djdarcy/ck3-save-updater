@@ -134,7 +134,7 @@ An input you did not give this time, taken from [the record](#record)'s latest u
 
 ### gene layout
 
-Which gene sits at which place in a face's `dna=` string: the order the game's `common/genes` files (and any portrait mod's) define. A new game version or other portrait mods change it. R19 carries every face from the layout it was written in to the one you will load with; the FACES block of `status` shows both.
+Which gene sits at which place in a face's `dna=` string: the order the game's `common/genes` files (and any portrait mod's) define. A new game version or other portrait mods change it. R19 carries every face from the layout it was written in to the one you will load with: the launcher's current playset (set it to the mods you will play with before `update`), or `--portrait-mods`. The source is the save's own portrait mods as installed now, or the builds you give with `--old-portrait-mods` when they have changed or gone. The FACES block of `status` shows both, with where each mod came from.
 
 ## Checking a save
 

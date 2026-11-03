@@ -34,7 +34,7 @@ That writes a small mod into the game's mod folder. Then, in the game:
 3. **Save at once**, before unpausing (any name will do, e.g. `Reference`), and quit to the desktop.
 4. Back in the launcher, turn the reference mod off again.
 
-**3. Check, then update:**
+**3. Set the launcher's playset, then check and update.** In the game's launcher, set the playset to the mods you will play with (portrait mods included) and close it: the faces are carried into that playset's [gene layout](docs/glossary.md#gene-layout). Then:
 
 ```
 ck3update status "My Save"
@@ -43,9 +43,9 @@ ck3update update "My Save"
 
 `status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. A save from before the 1.13 map rework also gets the regions the new map added, from the reference save; a newer save is left alone there.
 
-**4. Play.** In the launcher, turn on the mods your old save used, and load `My Save__updated__...`.
+**4. Play.** Start the game with that same playset, and load `My Save__updated__...`.
 
-Faces are carried into the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you load with (rule R19, new in this release; [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)): turn on the same portrait mods before you update, or name them with `--portrait-mods`. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
+Faces are carried into the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you load with (rule R19, new in this release; [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)): set the launcher's playset before you update, or name the mods with `--portrait-mods`. If a portrait mod the save was made with has since updated or gone, give the save's own build with `--old-portrait-mods`. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
 ## What it has been measured on
 
@@ -71,6 +71,7 @@ Have three things ready:
 
 - **The game folder.** The tool finds your installed game by itself through Steam's records, on any drive. If it does not, give `--game-dir "<...>\Crusader Kings III\game"` (or set `CK3_GAME_DIR`). `status` shows which install it used in its GAME block.
 - **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3" --out "<the game's mod folder>"` writes a small mod that adds a bookmark on your date; enable it, start a new game from that bookmark, and save at once. [The reference save](docs/reference-save.md) walks through it. Without one, `status` lists the rules that will skip and these same steps.
+- **The launcher's playset**, set to the mods you will play with: the faces are carried into that playset's [gene layout](docs/glossary.md#gene-layout) (its portrait mods, read from the launcher's `dlc_load.json`). `--portrait-mods` names them instead. If the portrait mods the save was made with have updated or gone since, keep a copy of the builds it used and give them with `--old-portrait-mods`.
 - **Your [packs folder](docs/glossary.md#packs-folder)**, only if you have fixes of your own: `packs` beside the config file (`%APPDATA%\ck3-save-migrator\packs` on Windows, `~/.config/ck3-save-migrator/packs` elsewhere). The tool creates it the first time it loads rules, with `_example-pack`, a complete pack to copy when you write your own; the example itself never runs. You can ignore it to update a save.
 
 ## See what it will do: `ck3update status`

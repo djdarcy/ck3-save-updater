@@ -170,7 +170,9 @@ class Plan:
                 and all(sp == p and (t is None or all(k == v for k, v in t.items())) for p, sp, t in self.moves)
                 and self.remapped == 0)
 
-    def apply(self, dna: bytes) -> bytes:
+    def apply(self, dna: bytes, impossible: Counter | None = None) -> bytes:
+        """``impossible``: counts, by gene, the template bytes the source gene defines no template for (a template
+        index past its highest): the sign that the source layout is not the one the face was written in."""
         out = bytearray()
         for _, sp, tmap in self.moves:
             if sp is None:
@@ -181,6 +183,12 @@ class Plan:
                 out += DEFAULT_PLACE
                 continue
             if tmap is not None:
+                if impossible is not None:
+                    g = self.source.genes[sp]
+                    top = max(g["tidx_by_name"].values(), default=None)
+                    n = (b[0] > top) + (b[2] > top) if top is not None else 0
+                    if n:
+                        impossible[g["name"]] += n
                 b = bytes([tmap.get(b[0], 0), b[1], tmap.get(b[2], 0), b[3]])
             out += b
         return bytes(out)
@@ -228,7 +236,7 @@ def b64d(s: bytes) -> bytes:
     return base64.b64decode(s + b"=" * (-len(s) % 4))
 
 
-def translate(s: bytes, plan: Plan) -> tuple[bytes, str, int]:
+def translate(s: bytes, plan: Plan, impossible: Counter | None = None) -> tuple[bytes, str, int]:
     """(the new string, its outcome, the places dropped). The source layout is decided per character; the length
     only checks it:
 
@@ -243,7 +251,8 @@ def translate(s: bytes, plan: Plan) -> tuple[bytes, str, int]:
         return s, "left as is: shorter than its layout", 0
     raw = b64d(s)
     extra = max(0, len(raw) // 4 - plan.source.places) if len(s) != src_len else 0
-    new = s if plan.identity and not extra else base64.b64encode(plan.apply(raw[:4 * plan.source.places]))
+    applied = plan.apply(raw[:4 * plan.source.places], impossible)          # counts even an identity
+    new = s if plan.identity and not extra else base64.b64encode(applied)
     return new, ("kept" if new == s else "translated"), extra
 
 
@@ -303,6 +312,24 @@ def mods_listed(meta: bytes) -> list[str]:
     return [m.decode("utf-8", "replace") for m in _MOD_LIST.findall(meta)]
 
 
+def resolve_given(x: str, game_dir: Path | None) -> Path | None:
+    """A ``--portrait-mods`` / ``--old-portrait-mods`` entry: a Workshop id (an installed Workshop mod) or a folder;
+    None when it is neither."""
+    from .discover import workshop_content_dir
+    x = x.strip()
+    if x.isdigit() and game_dir is not None:
+        d = workshop_content_dir(game_dir) / x
+        if d.is_dir():
+            return d
+    d = Path(x)
+    return d if d.is_dir() else None
+
+
+def unresolved(given: list[str], game_dir: Path | None) -> list[str]:
+    """The entries that name no installed mod and no folder (the plan refuses them)."""
+    return [x for x in given if x.strip() and resolve_given(x, game_dir) is None]
+
+
 def override_mods(given: list[str], game_dir: Path | None) -> tuple[list, list[str]]:
     """``--portrait-mods``: Workshop ids or folders, in that order (empty: vanilla)."""
     from .discover import workshop_content_dir
@@ -338,6 +365,7 @@ class Setup:
     portraits_why: str = ""
     notes: list[str] = field(default_factory=list)
     target_from: str = ""
+    source_mods: list = field(default_factory=list)   # (mod, where it came from) per source mod
 
     def plans(self) -> tuple[Plan, Plan | None]:
         if "_plans" not in self.__dict__:
@@ -348,7 +376,8 @@ class Setup:
     def describe(self) -> dict:
         return {"source": self.source.describe(), "target": self.target.describe(),
                 "reference": self.reference.describe() if self.reference else None,
-                "target_from": self.target_from, "portraits_version": self.portraits_version,
+                "target_from": self.target_from, "source_mods": [{"mod": m, "from": f} for m, f in self.source_mods],
+                "portraits_version": self.portraits_version,
                 "portraits_version_from": self.portraits_why, "notes": list(self.notes)}
 
 
@@ -384,14 +413,17 @@ def _line(v: str | None) -> str | None:
 
 def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None = None,
           reference_meta: bytes | None = None, portrait_mods_given: list[str] | None = None,
-          target_version: str | None = None, user: Path | None = None) -> Setup:
+          target_version: str | None = None, user: Path | None = None,
+          old_portrait_mods: list[str] | None = None) -> Setup:
     """The source, reference and target layouts and the target's portraits_version, each said where it came from.
 
     Source: the save's own vanilla genes (``old_game_dir``, else the installed game's, assumed) plus the portrait
     mods its mods list names (today's installed builds). Reference: the installed game plus the reference save's
     listed portrait mods. Target: the installed game plus the launcher's enabled gene-shipping mods
     (``dlc_load.json``), or ``portrait_mods_given`` (empty: vanilla). portraits_version: the reference save's own,
-    else the built-in table by the game's version line."""
+    else the built-in table by the game's version line. ``old_portrait_mods`` (``--old-portrait-mods``) replaces the
+    save's listed mods for the source layout, in the order given (empty: vanilla): the save's own builds, when the
+    installed ones have changed or gone. It speaks for the save's own characters only."""
     from .discover import save_versions
     user = user if user is not None else user_dir()
     notes = []
@@ -400,9 +432,34 @@ def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None 
     if not old_game_dir and vanilla is not None:
         notes.append(f"the save's own vanilla genes are taken from the installed game (no --old-game-dir): its "
                      f"{sv or '?'} genes are assumed to be the same")
-    src_mods, src_missing = portrait_mods(mods_listed(save_meta), user, game_dir)
-    notes += [f"the save lists {m}, which is not installed: its genes are not in the source layout"
-              for m in src_missing]
+    source_rows: list[tuple[str, str]] = []           # (mod, where it came from), one per source mod, for FACES
+    if old_portrait_mods is not None:
+        src_mods = []
+        for x in old_portrait_mods:
+            d = resolve_given(x, game_dir) if x.strip() else None
+            if d is None:
+                continue                                 # the plan refuses it, naming it
+            if has_genes(d):
+                src_mods.append((d.name, d))
+                source_rows.append((d.name, f"--old-portrait-mods: {d}"))
+            else:
+                source_rows.append((d.name, f"--old-portrait-mods: {d} (no common/genes: adds nothing)"))
+    else:
+        src_mods, src_missing = [], []
+        for e in mods_listed(save_meta):
+            d = resolve_mod(e, user, game_dir)
+            if d is None or not d.is_dir():
+                src_missing.append(e)
+                source_rows.append((Path(e).stem, "not installed"))
+            elif has_genes(d):
+                src_mods.append((Path(e).stem, d))
+                source_rows.append((Path(e).stem, f"the installed build of {e}: {d}"))
+        if src_missing:
+            more = len(src_missing) - 1
+            notes.append(f"the save lists {src_missing[0]}" + (f" (and {more} other{'s' if more != 1 else ''})"
+                                                               if more else "")
+                         + ", which is not installed; if it shipped portrait genes, the faces R19 translates may "
+                           "come out wrong; give the save's own build with --old-portrait-mods")
     base = [("vanilla", vanilla)] if vanilla is not None else []
     source = build_layout(f"the save's ({sv or '?'}"
                           + (f" + {', '.join(n for n, _ in src_mods)})" if src_mods else ", vanilla)"),
@@ -425,7 +482,12 @@ def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None 
             pv, why = table[line], f"the built-in table for the {line} line"
         else:
             why = f"unknown for the {line or '?'} line (no reference save, and no entry in the built-in table)"
-    return Setup(source, target, ref_layout, pv, why, notes, target_from)
+    dropped = [g["name"] for g in source.genes if g["name"] not in {t["name"] for t in target.genes}]
+    if dropped and source.places and target.places:
+        shown = ", ".join(dropped[:5]) + (", ..." if len(dropped) > 5 else "")
+        notes.append(f"the target layout drops {len(dropped)} gene{'s' if len(dropped) != 1 else ''} the faces use "
+                     f"({shown}); set the launcher's playset to the mods you will play with, or give --portrait-mods")
+    return Setup(source, target, ref_layout, pv, why, notes, target_from, source_rows)
 
 
 # --------------------------------------------------------------------------- the whole save
@@ -455,10 +517,15 @@ class Result:
     dropped_places: Counter = field(default_factory=Counter)   # (layout name, places dropped) -> strings
     portraits_version: tuple | None = None              # (from, to) when it changes
     lengths: Counter = field(default_factory=Counter)
+    impossible: Counter = field(default_factory=Counter)    # gene -> template bytes its source layout does not define
 
     @property
     def changed(self) -> int:
         return sum(len(self.outcomes.get(k, [])) for k in ("translated",)) + self.other.get("translated", 0)
+
+    def impossible_by_gene(self) -> list[tuple[str, int]]:
+        """The genes with template indexes their source layout does not define: the most first, then by name."""
+        return sorted(self.impossible.items(), key=lambda kv: (-kv[1], kv[0]))
 
     def left(self) -> dict:
         return {k: len(v) for k, v in self.outcomes.items() if k == "already target" or k.startswith("left")}
@@ -475,7 +542,7 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
         s = g[a:b]
         res.lengths[len(s)] += 1
         plan = ref if (cid in transplanted and ref is not None) else own
-        new, how, extra = translate(s, plan)
+        new, how, extra = translate(s, plan, res.impossible if plan is own else None)
         res.outcomes.setdefault(how, []).append(cid)
         if extra:
             res.dropped_places[(plan.source.name, extra)] += 1
@@ -485,7 +552,7 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
         if m.start(1) in covered:
             continue
         s = m.group(1)
-        new, how, extra = translate(s, own)
+        new, how, extra = translate(s, own, res.impossible)
         res.other[how] += 1
         if new != s:
             res.edits.append((m.start(1), m.end(1), new))

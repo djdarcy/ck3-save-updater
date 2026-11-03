@@ -34,7 +34,7 @@ from .patches.model import tomllib
 
 # portraits_version is not an input since R19 (it sets the target's); an old record that stores one still reads, and
 # the plan says once that it is no longer used
-INPUT_KEYS = ("vars", "old_game_dir", "transplant", "wos_shape")
+INPUT_KEYS = ("vars", "old_game_dir", "old_portrait_mods", "transplant", "wos_shape")
 
 
 def games_dir() -> Path:
