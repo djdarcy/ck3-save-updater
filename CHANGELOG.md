@@ -4,6 +4,20 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-03
+
+The first release on PyPI: `pip install ck3-save-updater`, then `ck3update`. It brings an old Crusader Kings III save forward to the game version you have installed, and was measured end to end on one campaign of 34 mods, from 1.8.1 to 1.20.1.2. Everything in 0.3.x below is part of it. In short:
+
+- `ck3update status "My Save"` says what an update will do, and whether it can, before anything runs; `ck3update update "My Save"` writes the updated save beside yours and never changes the one you give it (unless you ask for `--in-place`, which keeps the original as `<name>.bak.ck3`).
+- It finds the game, your save folder and the reference save by itself; `ck3update reference-mod` makes the bookmark mod for a reference save on your campaign's date. The README's Quick start walks through it, the game's part included.
+- Religion is rebuilt from the reference; a save from before the 1.13 map rework gets the new map's regions and their people; faces are carried into the gene layout of the portrait mods you play with.
+- Your own fixes go in a packs folder; `ck3update -h` lists every command by what it is for, and `ck3update help <rule>` explains each rule.
+
+The built-in rules cover saves from 1.8 on; an older save is refused with the gap named.
+
+### Added
+- Download and install tracking ([ghtraf](https://github.com/djdarcy/github-traffic-tracker)): a daily workflow keeps the Installs badge and the [stats page](https://djdarcy.github.io/ck3-save-updater/stats/) current.
+
 ## [0.3.30] - 2026-11-03
 
 ### Fixed
@@ -389,18 +403,19 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.30...HEAD
-[0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.29...v0.3.30
-[0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.28...v0.3.29
-[0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.27...v0.3.28
-[0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...v0.3.27
-[0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...v0.3.26
-[0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...v0.3.25
-[0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...v0.3.24
-[0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.22...v0.3.23
-[0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...v0.3.22
-[0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...v0.3.21
-[0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...v0.3.20
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/djdarcy/ck3-save-updater/compare/129a17e...v0.4.0
+[0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/72ca601...129a17e
+[0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/c596844...72ca601
+[0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/1a6a7a5...c596844
+[0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/4f0f998...1a6a7a5
+[0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/db54e04...4f0f998
+[0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/12e2d4e...db54e04
+[0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/ad77aaf...12e2d4e
+[0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/39da8d0...ad77aaf
+[0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/159560b...39da8d0
+[0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/45391ee...159560b
+[0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...45391ee
 [0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...014e275
 [0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...a87f1ac
 [0.3.17]: https://github.com/djdarcy/ck3-save-updater/compare/3e0ecc4...a6c23f0

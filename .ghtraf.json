@@ -1,0 +1,13 @@
+{
+  "owner": "djdarcy",
+  "repo": "ck3-save-updater",
+  "created": "2026-10-24",
+  "display_name": "CK3 Save Updater",
+  "badge_gist_id": "a5a1c9f7d7d4790b6c16cf492646e3b3",
+  "archive_gist_id": "e55fde6f448c4e19af9fb56ff90a5650",
+  "dashboard_dir": "docs/stats",
+  "schema_version": 1,
+  "ci_workflows": [
+    "CI (Python)"
+  ]
+}
