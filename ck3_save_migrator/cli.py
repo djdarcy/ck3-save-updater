@@ -34,7 +34,7 @@ COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still r
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
 from .config import atomic_write, config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
 from .userpacks import ensure_packs_dir, find_user_packs, runs_what, user_rules
-from .discover import GameInstall, compare_versions, discover_games, find_save, save_versions
+from .discover import GameInstall, compare_versions, discover_games, find_save, game_documents_dir, save_versions
 from .patches import PatchError, read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
 from .patches.pack import run_verdict
@@ -1194,11 +1194,20 @@ def cmd_reference_mod(args) -> int:
             say(DEFAULT, "  given on the command line, so not read from the history: "
                          + ", ".join(f"--{k}" for k in overridden), "io")
     b = make_bookmark(date=date, **fields)
-    for p in write_mod(b, Path(args.out)):
+    out = args.out
+    if out is None:                                  # the game's own mod folder, where the launcher looks
+        docs = game_documents_dir()
+        if docs is None:
+            raise FileNotFoundError("the game's documents folder was not found; give --out \"<the game's mod "
+                                    "folder>\"")
+        out = docs / "mod"
+    for p in write_mod(b, Path(out)):
         say(MINIMAL, f"wrote: {p}", "io")
-    say(MINIMAL, f"next: enable '{b.folder}' in the game's launcher, start a new game from the bookmark "
-                 f"'{b.date} Reference (ck3update)' and save at once (do not unpause)", "io")
-    say(MINIMAL, "then: pass that save to migrate as --reference (see docs/reference-save.md)", "io")
+    say(MINIMAL, f"next: in the game's launcher, enable the mod 'Reference bookmark {b.date} (ck3update)', start a "
+                 f"new game from the bookmark '{b.date} Reference (ck3update)' and save at once (do not unpause)",
+        "io")
+    say(MINIMAL, "then: `ck3update status` and `update` find that save by themselves in the save folder (or name it "
+                 "with --reference; see docs/reference-save.md)", "io")
     return 0
 
 
@@ -1462,7 +1471,8 @@ def build_parser() -> argparse.ArgumentParser:
                                   "'Character <history id>')")
     p.add_argument("--government", help="the ruler's government key (default: the title's history, else "
                                         "feudal_government)")
-    p.add_argument("--out", required=True, help="the folder to write the mod into (e.g. the game's mod folder)")
+    p.add_argument("--out", help="the folder to write the mod into (default: the game's mod folder, in its "
+                                 "documents folder, where the launcher looks)")
     p.set_defaults(func=cmd_reference_mod)
     # The commands are listed once, grouped, in the epilog (helptext.GROUPS), not again as argparse's flat list.
     # Each one's help line becomes its own description, so `ck3update <command> -h` opens with it.

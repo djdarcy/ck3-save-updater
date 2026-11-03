@@ -108,8 +108,28 @@ def test_the_command_writes_the_mod_and_prints_the_next_steps(tmp_path, capsys):
     assert cli.main(["reference-mod", *ARGS, "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert (tmp_path / "zz_ref_987_10_27" / "common" / "bookmarks" / "bookmarks" / "zz_ref.txt").is_file()
-    assert "enable 'zz_ref_987_10_27' in the game's launcher" in out and "--reference" in out
+    assert "enable the mod 'Reference bookmark 987.10.27 (ck3update)'" in out       # the name the launcher shows
+    assert "find that save by themselves" in out and "--reference" in out
     assert out.count("wrote: ") == 4
+
+
+def test_without_out_the_mod_goes_to_the_games_own_mod_folder(tmp_path, monkeypatch, capsys):
+    """The default --out (for the README's quick start). Both lookups point into tmp_path, so a broken default can
+    never write into the real documents folder."""
+    docs = tmp_path / "Crusader Kings III"
+    (docs / "mod").mkdir(parents=True)
+    monkeypatch.setattr(cli, "game_documents_dir", lambda: docs)
+    monkeypatch.setattr("ck3_save_migrator.discover.documents_dir", lambda: tmp_path)
+    assert cli.main(["reference-mod", *ARGS]) == 0
+    assert (docs / "mod" / "zz_ref_987_10_27" / "descriptor.mod").is_file()
+    assert (docs / "mod" / "zz_ref_987_10_27.mod").is_file()
+
+
+def test_without_out_and_no_documents_folder_it_asks_for_out(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "game_documents_dir", lambda: None)
+    monkeypatch.setattr("ck3_save_migrator.discover.documents_dir", lambda: tmp_path)
+    assert cli.main(["reference-mod", *ARGS]) == 1
+    assert "give --out" in capsys.readouterr().err
 
 
 def test_the_command_refuses_a_second_run_with_exit_1_naming_the_path(tmp_path, capsys):

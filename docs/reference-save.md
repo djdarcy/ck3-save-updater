@@ -10,11 +10,13 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
 
 ## Steps
 
-1. **Write the mod** into the game's `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`), giving your campaign's save so the date is read from it:
+1. **Write the mod**, giving your campaign's save so the date is read from it:
 
    ```bash
-   ck3update reference-mod --save "My_Old_Campaign.ck3" --out "<the game's mod folder>"
+   ck3update reference-mod --save "My_Old_Campaign"
    ```
+
+   It goes into the game's own `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`, found the way the save folder is, OneDrive included); `--out "<folder>"` writes it somewhere else.
 
    Or give the date yourself with `--date <y.m.d>` (the in-game date shown on the load screen; the save records it as `meta_date`).
 
@@ -23,12 +25,13 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
    Any of `--character`, `--title`, `--culture`, `--religion`, `--house`, `--birth`, `--name`, `--government` and `--female` overrides what the history says; with `--character` alone, the tool checks that this character is alive and holds a title on the date, and reads the rest. With every one of the first six given, the game folder is not needed.
 
    It writes a folder `zz_ref_<date>` (holding `descriptor.mod`, the bookmark and its English text; the bookmark and the text are UTF-8 with a byte-order mark, as the game expects) and, beside it, `zz_ref_<date>.mod`, which the launcher reads. It refuses to overwrite either if it already exists.
-2. **Enable the mod** in the game's launcher, in a playset with nothing else that changes bookmarks.
+2. **Enable the mod** in the game's launcher: it is listed as "Reference bookmark `<date>` (ck3update)". Use a playset with nothing else that changes bookmarks.
 3. **Start a new game** from the bookmark named "`<date>` Reference (ck3update)", with any character, and **save at once**, before unpausing, so the world is exactly as the game starts it on that date.
-4. **Pass that save** to `migrate`:
+4. **Run `status`, then `update`.** They find that save by themselves in the save folder: a save written by the game you have, on your campaign's date, preferring one made with this bookmark mod. Name it with `--reference "<path>"` when several could match (`status` lists them).
 
    ```bash
-   ck3update migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 --reference "My_1_20_Reference.ck3" --old-game-dir "Old_CK3/game"
+   ck3update status "My_Old_Campaign" --transplant auto
+   ck3update update "My_Old_Campaign" --transplant auto
    ```
 
 Disable the mod again for your normal games; it only adds a bookmark.

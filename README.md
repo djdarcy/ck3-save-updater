@@ -11,6 +11,42 @@
 
 Brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
 
+## Quick start
+
+Windows, with your old save in the game's save folder. Below it is called `My Save`: use your save's own name, without `.ck3`. Every command is safe to run: none of them changes your save.
+
+**1. Install** (Python 3.10 or newer):
+
+```
+pip install ck3-save-updater
+```
+
+**2. Make a reference save.** The tool rebuilds religion, and the regions the 1.20 map added, from a new game started by the game you have now, on your campaign's date. The game starts new games only on its own bookmark dates, so first add a bookmark on yours:
+
+```
+ck3update reference-mod --save "My Save"
+```
+
+That writes a small mod into the game's mod folder. Then, in the game:
+
+1. In the launcher, turn on the mod **Reference bookmark _your date_ (ck3update)** (your other mods can stay off), and play.
+2. Choose **New Game**, pick the bookmark **_your date_ Reference (ck3update)**, pick any character, and start.
+3. **Save at once**, before unpausing (any name will do, e.g. `Reference`), and quit to the desktop.
+4. Back in the launcher, turn the reference mod off again.
+
+**3. Check, then update:**
+
+```
+ck3update status "My Save" --transplant auto
+ck3update update "My Save" --transplant auto
+```
+
+`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. `--transplant auto` brings in the new map's regions when your save is older than that map, and does nothing otherwise.
+
+**4. Play.** In the launcher, turn on the mods your old save used, and load `My Save__updated__...`.
+
+Faces may not look as they did: carrying portraits across the game's portrait versions is not done yet ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)). Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
+
 ## What it has been measured on
 
 One campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, loads and plays in 1.20.1.2. Saves from other starting versions are expected to work, because each game version since has only added to what a save holds, but that is not yet proven. The [CHANGELOG](CHANGELOG.md) says what each release covers.
