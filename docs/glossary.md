@@ -14,7 +14,7 @@ The game's map was redrawn between 1.12 and 1.13: lands moved, provinces were ad
 
 ### transplant
 
-The new-map rules (R14 to R17), which bring the regions the [map rework](#map-rework) added into an older save, with their rulers, courts and families copied from the [reference save](#reference-save). They are opt-in: name them with `--rules all,R14,R15,R16`, or give `--transplant auto` (or `transplant = "auto"` in the config) and `update` selects them when a save crosses the rework and a reference is present. In PATCHES they show as `opt-in: not in --rules` until selected ([New-map regions](new-map-regions.md)).
+The new-map rules (R14 to R17), which bring the regions the [map rework](#map-rework) added into an older save, with their rulers, courts and families copied from the [reference save](#reference-save). `update` selects them by itself when a save crosses the rework and a reference is present (`--transplant auto`, the default); `--transplant off` leaves them out, and `--rules all,R14,R15,R16` names them by hand. When they are not selected, PATCHES shows them as `opt-in: not in --rules` ([New-map regions](new-map-regions.md)).
 
 ### seed
 

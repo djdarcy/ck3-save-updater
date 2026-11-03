@@ -1292,7 +1292,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--vars", metavar="FILE", help="a TOML file of variables for run patches")
         p.add_argument("--transplant", choices=("auto", "off"),
                        help="auto: select the new-map rules (R14-R17) when the save crosses the 1.13 map rework "
-                            "and a reference is present (default: transplant in the config, else off)")
+                            "and a reference is present; off: leave them to --rules (default: transplant in the "
+                            "config, else auto)")
         p.add_argument("--no-record", action="store_true",
                        help="neither read nor write this save game's record (the inputs of its earlier updates)")
         p.add_argument("--no-detect", action="store_true",

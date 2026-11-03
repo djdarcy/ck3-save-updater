@@ -868,6 +868,21 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if crosses and mode == "auto" and not ref.path and set(ref.skips) & set(TRANSPLANT):
         notes.append("this save crosses the 1.13-1.20 map rework: it needs a reference save to load in 1.20 (the "
                      "transplant copies the new regions from one); the steps to make one are above")
+    # A reference named by hand for the new-map steps must be on the campaign's date: they copy the new regions'
+    # people as the reference has them, and the wrong date brings the wrong generation. The search in the save
+    # folder only takes one on the date already; a religion-only reference may be from any date.
+    if ref.path and ref.how in ("given", "$CK3_REFERENCE_SAVE") and date and \
+            any(s.will_run and s.id in TRANSPLANT for s in steps):
+        try:
+            rdate = meta_date(read_light(Path(ref.path)).meta)
+        except (OSError, sf.SaveFormatError):
+            rdate = None
+        if rdate and rdate != date:
+            why = (f"the reference save is dated {rdate}, the save {date}: the new map's regions would be copied "
+                   "from the wrong moment")
+            refusals.append(why)
+            fixes[why] = {"fix": f"make one on {date} with `ck3update reference-mod --save \"<your save>\"` (README, "
+                                 "Quick start), or leave the new-map steps out (--transplant off)"}
 
     # ---- run patches' needs and variables, known before anything runs
     known_ctx = {"game_dir": str(game.path) if game else None, "reference": ref.path,
