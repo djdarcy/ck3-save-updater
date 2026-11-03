@@ -29,6 +29,7 @@ from dazzle_loglib import (
 
 from ._version import __app_name__, get_display_version
 from ._vendor import colors as C
+from . import helptext
 COMMAND = "ck3update"          # what people type; ``ck3-save-migrator`` still runs the same entry point
 from .lint import listed_workshop_mods, lint_gamestate, load_game_data, workshop_mod_dirs
 from .config import atomic_write, config_path, disabled_ids, trusted_packs, write_disabled, write_trusted
@@ -1207,9 +1208,12 @@ GAME_DIR_HELP = ("the game's 'game' folder (default: $CK3_GAME_DIR, else found t
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog=COMMAND, description="Migrate old Crusader Kings III saves forward to the current game version: inspect, patch, and revive .ck3 save files")
-    parser.add_argument("--version", action="version", version=f"{__app_name__} {get_display_version()}")
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser = argparse.ArgumentParser(prog=COMMAND, description=helptext.DESCRIPTION, epilog=helptext.epilog(),
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-V", "--version", action="version", version=f"{__app_name__} {get_display_version()}")
+    # not required: a bare `ck3update` prints where to start (main), not argparse's error
+    sub = parser.add_subparsers(dest="command", metavar="<command>",
+                                help="what to do: start with status (the commands are grouped below)")
 
     p = sub.add_parser("inspect", help="show a save's header, meta block, zip members and versions, and the game "
                                        "installs found")
@@ -1460,6 +1464,12 @@ def build_parser() -> argparse.ArgumentParser:
                                         "feudal_government)")
     p.add_argument("--out", required=True, help="the folder to write the mod into (e.g. the game's mod folder)")
     p.set_defaults(func=cmd_reference_mod)
+    # The commands are listed once, grouped, in the epilog (helptext.GROUPS), not again as argparse's flat list.
+    # Each one's help line becomes its own description, so `ck3update <command> -h` opens with it.
+    for choice in sub._choices_actions:
+        sp = sub.choices[choice.dest]
+        sp.description = sp.description or choice.help
+    sub._choices_actions.clear()
     # the verbosity flags before and after the sub-command, one chain (see add_verbosity_flags)
     add_verbosity_flags(parser, top=True)
     for sp in sub.choices.values():
@@ -1481,6 +1491,9 @@ def join_rules_value(argv: list[str]) -> list[str]:
 def main(argv=None) -> int:
     RUN.update(started=time.perf_counter(), plain=False)
     args = build_parser().parse_args(join_rules_value(sys.argv[1:] if argv is None else argv))
+    if args.command is None:                             # a bare `ck3update`: where to start, not an error
+        print(helptext.bare())
+        return 0
     RUN["plain"] = bool(getattr(args, "plain", False))
     shows = args.top_show + args.show
     init_output(verbosity=resolve_verbosity(args.top_verbose + args.verbose, args.top_quiet + args.quiet,

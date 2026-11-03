@@ -4,6 +4,17 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.25] - 2026-11-02
+
+### Added
+- `ck3update -h` says where to start: three lines (`status`, `status "My Save"`, `update "My Save"`), then every command once, grouped by what you want to do (updating a save, when something looks wrong, your own packs, setup, advanced), instead of one flat list of twenty.
+- `ck3update` with nothing after it prints the same "start here" lines and how to see every command, instead of an error.
+- `ck3update -V`, the short form of `--version`.
+- The release checklist (`tests/checklists/v0.4.0__Epic__general-updater.md`): from `pip install` to an updated save, on copies, for a person to run before 0.4.0; and the first sweep's results (`tests/checklists/results/`).
+
+### Changed
+- `ck3update <command> -h` opens with a line saying what the command does.
+
 ## [0.3.24] - 2026-11-02
 
 ### Fixed
@@ -332,7 +343,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...HEAD
+[0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...v0.3.22

@@ -299,8 +299,11 @@ def test_the_command_refuses_with_exit_2(world, monkeypatch, capsys):
 
 def test_the_command_says_it_starts_the_game_in_its_help(capsys):
     with pytest.raises(SystemExit):
-        cli.main(["--help"])
-    assert "START THE GAME" in capsys.readouterr().out
+        cli.main(["--help"])                     # the grouped list (helptext.GROUPS)
+    assert "soak            STARTS THE GAME" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        cli.main(["soak", "--help"])             # its own help opens with the warning
+    assert "START THE GAME" in capsys.readouterr().out.split("positional arguments:")[0]
 
 
 # --------------------------------------------------------------------------- copied, not rewritten
