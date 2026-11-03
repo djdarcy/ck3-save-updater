@@ -151,7 +151,8 @@ class UpdatePlan:
     fixes: dict = field(default_factory=dict)
     record: str | None = None          # the record line: "<label>: last updated ..." or why there is none
     inputs: dict = field(default_factory=dict)       # the inputs used: given, else pre-filled from the record
-    prefilled: list = field(default_factory=list)    # "<input> = <value> (from the record of <label>)"
+    prefilled: list = field(default_factory=list)    # [input, value]: "--var k=" and its value; "--transplant " ...
+    prefilled_from: str | None = None                # the record they came from (its label)
     in_place: bool = False
     detected: str | None = None        # the detectors' line: what they did, or why they did not run
     detect_seconds: float | None = field(default=None, compare=False)       # how long the full read took
@@ -199,8 +200,10 @@ class UpdatePlan:
         out = []
         runs, skips = sum(s.will_run for s in self.steps), sum(not s.will_run for s in self.steps)
         if self.already_current:
-            out.append(("ALREADY CURRENT", "info", "the save is at the game's version and no pack is selected for "
-                        "it; nothing to do" + (" (the re-check's findings are in the notes)"
+            at = (f"the save is on the game's version line ({_line_text(self.gap[1])}); no pack is selected for it; "
+                  "nothing to do") if self.gap[0] != self.gap[1] else \
+                "the save is at the game's version and no pack is selected for it; nothing to do"
+            out.append(("ALREADY CURRENT", "info", at + (" (the re-check's findings are in the notes)"
                                                if any(n.startswith("needed: ") for n in self.notes) else "")))
         elif not self.refusals:
             if runs:
@@ -231,8 +234,7 @@ class UpdatePlan:
         blocks = [("SAVE", save_rows), ("GAME", game_rows(self.game))]
         blocks += [("ALSO", game_rows(g, also=True)) for g in self.other_games]
         if self.record:
-            blocks.append(("RECORD", [("status", self.record, None)]
-                           + [("pre-filled", x, "info") for x in self.prefilled]))
+            blocks.append(("RECORD", [("status", self.record, None)] + self._prefill_rows(None, width)))
         gap = [("versions", f"{self.gap[0] or '?'} -> {self.gap[1] or '?'}", None)]
         if self.gap[0] and self.gap[0] == self.gap[1]:
             gap.append(("note", "none: the save is at the game's version", "note"))
@@ -283,10 +285,29 @@ class UpdatePlan:
             tail.append(("NOTES", [("", f"- {n}", "note") for n in self.notes]))
         head = max(len(h) for h, _ in blocks + tail)
         cols = value_columns(blocks + tail, layout, head)       # one computation: global and flow span both parts
+        for i, (h, rows) in enumerate(blocks):                  # a pre-fill too long for its column: value below
+            if h == "RECORD":
+                blocks[i] = (h, rows[:1] + self._prefill_rows(cols[i], width))
         out = render_blocks(blocks, c, width, head, layout, cols[:len(blocks)])
         out += self._patch_rows(c, width)
         return out + ([""] if _layout(layout)[1] else []) + render_blocks(tail, c, width, head, layout,
                                                                            cols[len(blocks):])
+
+    def _prefill_rows(self, col: int | None, width: int) -> list:
+        """RECORD's pre-filled rows: one per input; a list value, or a value too long for the line (``col`` known),
+        goes on its own lines under the value column; the record they came from is named once, after them."""
+        rows = []
+        for given, value in self.prefilled:
+            items = value if isinstance(value, list) else [value]
+            text = given + (" ".join(str(x) for x in items) if not isinstance(value, list) else str(value))
+            if isinstance(value, list) or (col is not None and len(text) > width - col):
+                rows.append(("pre-filled", given.rstrip(" ="), "info"))
+                rows += [("", str(x), "info") for x in items]
+            else:
+                rows.append(("pre-filled", text, "info"))
+        if rows and self.prefilled_from:
+            rows.append(("", f"(from the record of {self.prefilled_from})", "note"))
+        return rows
 
     def _patch_rows(self, c: "Paint", width: int) -> list[str]:
         """The patches table: its own aligned columns; a reason too long for the row goes on the line below it,
@@ -579,6 +600,18 @@ def _excluded_ids(spec: str) -> set[str]:
             and t.strip()[1:].lower() in by}
 
 
+def skipped_needs(need: list[str]) -> str:
+    """A step's reason when what it needs is skipped: "needs R14, which is skipped" / "needs R14, R16, which are
+    skipped"."""
+    return f"needs {', '.join(need)}, which {'is' if len(need) == 1 else 'are'} skipped"
+
+
+def _line_text(v: str | None) -> str:
+    """A version's line as text ("1.20.1.3" -> "1.20")."""
+    pv = _line(v)
+    return ".".join(str(x) for x in pv) if pv else (v or "?")
+
+
 def _line(v: str | None):
     pv = parse_version(v)
     return pv[:2] if pv and len(pv) >= 2 else pv
@@ -656,7 +689,6 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         else:
             rec_line = summary(rec)
             label = rec.get("label", "?")
-            src = f"(from the record of {label})"
             last = latest_inputs(rec)
 
             def missing(v) -> bool:
@@ -669,18 +701,18 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                     notes.append(f"the record of {label} has --var {k}={v}, which no longer exists; not used")
                     continue
                 variables[k] = v
-                prefilled.append(f"--var {k}={v} {src}")
+                prefilled.append([f"--var {k}=", v])
             rod = last.get("old_game_dir")
             if old_game_dir is None and rod:
                 if missing(rod):
                     notes.append(f"the record of {label} has --old-game-dir {rod}, which no longer exists; not used")
                 else:
                     old_game_dir = rod
-                    prefilled.append(f"--old-game-dir {rod} {src}")
+                    prefilled.append(["--old-game-dir ", rod])
             for name, given, flag in (("transplant", transplant, "--transplant"),
                                       ("portraits_version", portraits_version, "--portraits-version")):
                 if given is None and last.get(name) is not None:
-                    prefilled.append(f"{flag} {last[name]} {src}")
+                    prefilled.append([f"{flag} ", last[name]])
                     if name == "transplant":
                         transplant = last[name]
                     else:
@@ -906,6 +938,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             except PatchError as exc:
                 v, detail = "unknown", f"done_command not run: {exc}"
             timings[s.id] = time.perf_counter() - t
+            cmd = i["patch"].run.get("done_command") if i["patch"].done is None else None
+            if cmd and not detail.startswith("done_command not run"):     # status ran a program: say which
+                detail += f"; runs `{' '.join(str(x) for x in cmd)}` to check"
             if v == "done":
                 s.will_run, s.reason = False, f"done: {detail}"
             else:
@@ -919,7 +954,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         for s in steps:
             need = [r for r in info[s.id]["requires"] if r in skipped]
             if s.will_run and need:
-                s.will_run, s.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
+                s.will_run, s.reason, changed = False, skipped_needs(need), True
 
     # ---- the built-in rules' detectors (read only): needed or done, before anything runs
     detected, builtin = None, {r.id for r in REGISTRY}
@@ -943,7 +978,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         if ref.path and any(s.id in ("R14", "R16", "R17") for s in run_builtin):
             stage("reading the reference save")
             refbytes = sf.read_save(ref.path).gamestate
-        env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches)
+        from .lint import workshop_mod_dirs
+        env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches,
+                  mod_dirs=workshop_mod_dirs(light.meta, game.path if game else None))
         g = gamestate()
         # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
         # done, run what its detector finds needed, and never run blindly what cannot be judged
@@ -959,9 +996,12 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             stage(f"checking {rid} {names.get(rid, '')} ({judge_ids.index(rid) + 1} of {len(judge_ids)})")
             t = time.perf_counter()
             try:
-                return run_detector(rid, g, env)
+                d = run_detector(rid, g, env)
             finally:
                 timings[rid] = time.perf_counter() - t
+            if d.left:                                 # what its rule cannot fix: said once, in the notes
+                notes.append(f"{rid}: {'; '.join(d.left)}; it stays as it is")
+            return d
         for s in judge:
             s.reason = run_detector_timed(s.id).line()
         for rid in recheck_ids:
@@ -997,7 +1037,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             for x in steps:
                 need = [r for r in info[x.id]["requires"] if r in skipped]
                 if x.will_run and need:
-                    x.will_run, x.reason, changed = False, f"needs {', '.join(need)}, which is skipped", True
+                    x.will_run, x.reason, changed = False, skipped_needs(need), True
         detected = "re-checked the save on the game's version line" if recheck_ids else "judged each built-in step"
     elif not detect and (run_builtin or recheck):
         detected = "not run (the plan read only the first megabyte)"
@@ -1025,6 +1065,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     p = UpdatePlan(str(save), sv, date, mods, _game(game), [_game(g) for g in installs[1:]], (sv["version"], gv),
                    pack_rows, steps, ref, out, refusals, uncovered, already, notes, light.gamestate_bytes_read,
                    fixes=fixes, record=rec_line, inputs=inputs, prefilled=prefilled, in_place=in_place,
+                   prefilled_from=rec.get("label", "?") if prefilled and rec else None,
                    detected=detected, detect_seconds=full.get("seconds") if "g" in full else None,
                    detect_mb=len(full["g"]) / 1e6 if "g" in full else None, detect_timings=timings, seed=seed,
                    cache_note=_cache_note(blockindex.LAST_EVENT))

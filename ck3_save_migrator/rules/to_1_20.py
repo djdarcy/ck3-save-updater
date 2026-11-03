@@ -598,10 +598,46 @@ def _r23_found(d: bytes) -> list[tuple]:
     return found
 
 
-def r23_detect(d: bytes) -> tuple[int, list[str]]:
-    """Read only: the nicknames without their text that R23 writes, and up to five."""
+NO_TEXT = "no English localization in the game or its mods"
+
+
+def _r23_texts(found: list, game_dir, mod_dirs) -> tuple[list, bool]:
+    """For each nickname R23 found: (char id, key, insert position, text or None, source, templated, why). The
+    text is the one R23 writes; None when it can write none (no localization for the key in the game or the listed
+    mods, or a template code it does not render), with why. The rule and its detector both judge by this."""
+    roots = ([("game", game_dir)] if game_dir is not None else []) + \
+        [(f"mod {p.name}", p) for p in mod_dirs or []]
+    wanted = {k for _, k, _, _, _ in found} | {fn for _, _, _, _, fn in found if fn}
+    loc = english_localization(roots, wanted)
+    out = []
+    for cid, key, at, female, first in found:
+        hit = loc.get(key)
+        if hit is None:
+            out.append((cid, key, at, None, None, False,
+                        NO_TEXT if roots else "no game folder to read the localization from"))
+            continue
+        text, source = hit
+        templated = False
+        if "[" in text or "$" in text:
+            rendered, why = _render(text, female, loc.get(first, (first, ""))[0] if first else "")
+            if rendered is None:
+                out.append((cid, key, at, None, None, False, why))
+                continue
+            text, templated = rendered, True
+        out.append((cid, key, at, text, source, templated, ""))
+    return out, bool(roots)
+
+
+def r23_detect(d: bytes, game_dir=None, mod_dirs=()) -> tuple[int, list[str], Counter]:
+    """Read only: the nicknames without their text that R23 can write (from the game's and the listed mods'
+    localization), up to five of them, and the ones it cannot, counted by why."""
     found = _r23_found(d)
-    return len(found), [f"character {cid} ({key})" for cid, key, *_ in found[:5]]
+    if not found:
+        return 0, [], Counter()
+    texts, _ = _r23_texts(found, game_dir, mod_dirs)
+    fixable = [t for t in texts if t[3] is not None]
+    left = Counter("no text" if t[6] == NO_TEXT else "unrendered" for t in texts if t[3] is None)
+    return len(fixable), [f"character {t[0]} ({t[1]})" for t in fixable[:5]], left
 
 
 def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
@@ -620,27 +656,16 @@ def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
     found = _r23_found(d)
     if not found:
         return rule.result(matched=0, edited=0, extra={"found": 0})
-    roots = ([("game", ctx.game_dir)] if ctx.game_dir is not None else []) + \
-        [(f"mod {p.name}", p) for p in getattr(ctx, "mod_dirs", []) or []]
-    wanted = {k for _, k, _, _, _ in found} | {fn for _, _, _, _, fn in found if fn}
-    loc = english_localization(roots, wanted)
+    texts, _ = _r23_texts(found, ctx.game_dir, getattr(ctx, "mod_dirs", []) or [])
     p = gs.EditPass()
     by_source, templated, unresolved = Counter(), [], []
-    for cid, key, at, female, first in found:
+    for cid, key, at, text, source, was_templated, why in texts:
         p.count(rule.name).matched += 1
-        hit = loc.get(key)
-        if hit is None:
-            unresolved.append({"key": key, "id": cid, "reason": "no English localization in the game or its mods"
-                               if roots else "no game folder to read the localization from"})
+        if text is None:
+            unresolved.append({"key": key, "id": cid, "reason": why})
             continue
-        text, source = hit
-        if "[" in text or "$" in text:
-            rendered, why = _render(text, female, loc.get(first, (first, ""))[0] if first else "")
-            if rendered is None:
-                unresolved.append({"key": key, "id": cid, "reason": why})
-                continue
-            templated.append({"key": key, "id": cid, "text": rendered})
-            text = rendered
+        if was_templated:
+            templated.append({"key": key, "id": cid, "text": text})
         p.add(gs.Edit(at, at, b'\tnickname_text="' + _escape(text) + b'"\n', rule.name, f"{cid} {key}"))
         by_source["game" if source == "game" else "mod"] += 1
     p.apply_to(save)
