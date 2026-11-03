@@ -30,8 +30,8 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
 4. **Run `status`, then `update`.** They find that save by themselves in the save folder: a save written by the game you have, on your campaign's date, preferring one made with this bookmark mod. Name it with `--reference "<path>"` when several could match (`status` lists them).
 
    ```bash
-   ck3update status "My_Old_Campaign" --transplant auto
-   ck3update update "My_Old_Campaign" --transplant auto
+   ck3update status "My_Old_Campaign"
+   ck3update update "My_Old_Campaign"
    ```
 
 Disable the mod again for your normal games; it only adds a bookmark.

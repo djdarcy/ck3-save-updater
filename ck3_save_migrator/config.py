@@ -103,8 +103,9 @@ def pack_dirs(path: Path | None = None) -> list[str]:
 
 
 def transplant_mode(path: Path | None = None) -> str:
-    """``transplant = "auto"`` lets ``update`` select the new-map rules when a save needs them; "off" otherwise."""
-    return read_config(path).get("transplant", "off")
+    """``transplant``: "auto" (the default, djdarcy 2026-11-02: "it handles itself") selects the new-map rules
+    when a save crosses the 1.13 map rework and a reference is present; "off" leaves them to --rules."""
+    return read_config(path).get("transplant", "auto")
 
 
 def trusted_packs(path: Path | None = None) -> dict[str, str]:

@@ -37,11 +37,11 @@ That writes a small mod into the game's mod folder. Then, in the game:
 **3. Check, then update:**
 
 ```
-ck3update status "My Save" --transplant auto
-ck3update update "My Save" --transplant auto
+ck3update status "My Save"
+ck3update update "My Save"
 ```
 
-`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. `--transplant auto` brings in the new map's regions when your save is older than that map, and does nothing otherwise.
+`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. A save from before the 1.13 map rework also gets the regions the new map added, from the reference save; a newer save is left alone there.
 
 **4. Play.** In the launcher, turn on the mods your old save used, and load `My Save__updated__...`.
 
@@ -51,7 +51,7 @@ Faces may not look as they did: carrying portraits across the game's portrait ve
 
 One campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, loads and plays in 1.20.1.2. Saves from other starting versions are expected to work, because each game version since has only added to what a save holds, but that is not yet proven. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), portrait DNA across portrait versions and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by an opt-in step that is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)).
+Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), portrait DNA across portrait versions and the extra portrait genes some mods add ([#8](https://github.com/djdarcy/ck3-save-updater/issues/8)), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by default for a save from before it, when a reference save is found; that step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
 
 ## Install
 

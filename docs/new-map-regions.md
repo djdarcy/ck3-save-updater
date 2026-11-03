@@ -1,6 +1,6 @@
 # New-map regions
 
-Crusader Kings III 1.20 reworked the map. It added about 3,600 provinces and 5,700 titles that a 1.8-era save has never heard of (East and Southeast Asia, Tibet, Japan, ...), removed some titles the old map had, and redrew some county borders. Loaded as it is, an old save leaves every new title unheld, and the game hands them to the player. The new-map rules bring those regions in, held and populated, from a save written by 1.20 at your campaign's date. They are opt-in and still in progress.
+Crusader Kings III 1.20 reworked the map. It added about 3,600 provinces and 5,700 titles that a 1.8-era save has never heard of (East and Southeast Asia, Tibet, Japan, ...), removed some titles the old map had, and redrew some county borders. Loaded as it is, an old save leaves every new title unheld, and the game hands them to the player. The new-map rules bring those regions in, held and populated, from a save written by 1.20 at your campaign's date. `update` selects them by itself for such a save when a reference is found (`--transplant off` leaves them out); they are still in progress.
 
 ## Turning it on
 
