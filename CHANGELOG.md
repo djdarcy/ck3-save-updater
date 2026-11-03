@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-11-02
+
+### Changed
+- `status`, `update` and `check` read the save once for checks that several rules share: the new-map rules (R14, R16, R17) share one check, the religion rules (R8, R9, R10, R12) another, the dead-title rules (R6, R15) a third. Each check's answer is kept only for the save in memory it was made from, so a dry run and a real update never share an answer.
+
 ## [0.3.19] - 2026-11-01
 
 ### Added
@@ -296,8 +301,9 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.19...HEAD
-[0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...v0.3.19
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...HEAD
+[0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...v0.3.20
+[0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...014e275
 [0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...a87f1ac
 [0.3.17]: https://github.com/djdarcy/ck3-save-updater/compare/3e0ecc4...a6c23f0
 [0.3.16]: https://github.com/djdarcy/ck3-save-updater/compare/ea04cea...3e0ecc4
