@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.28] - 2026-11-03
+
+### Changed
+- The sample pack (`_example-pack` in your packs folder) now changes the name the load screen shows for the save, to "Edited with ck3update", with `set` on a key every save has, so you can see a pack of your own at work. It used to add a `migrated_by` key the game does not know, which the game reports as an error when the save loads. A packs folder made by an earlier version keeps its old sample: delete `_example-pack` and run any command to get the new one.
+- The insert example in [Writing a patch](docs/writing-a-patch.md) no longer uses an unknown key, and the guide says to insert only keys the game itself writes.
+
+### Added
+- A test that no shipped rule and no sample patch writes a key the game does not define, checked against the keys of a save the game wrote itself.
+
 ## [0.3.27] - 2026-11-02
 
 ### Changed
@@ -361,7 +370,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.27...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.28...HEAD
+[0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.27...v0.3.28
 [0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...v0.3.27
 [0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...v0.3.25

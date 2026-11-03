@@ -55,6 +55,11 @@ MUTATIONS = [
     ("the date check also on religion-only use", "ck3_save_migrator/plan.py",
      "            any(s.will_run and s.id in TRANSPLANT for s in steps):\n", "            True:\n",
      ["tests/test_requirements.py::test_a_named_reference_on_another_date_is_fine_for_religion_alone"]),
+    # 0.3.28 (S2): the example sets the load-screen name; the guard catches a key the game does not define
+    ("the example writes an unknown key", "ck3_save_migrator/userpacks.py",
+     'key = "meta_player_name"\n', 'key = "migrated_by"\n',
+     ["tests/test_shipped_keys.py::test_no_shipped_patch_writes_a_key_the_game_does_not_define",
+      "tests/test_shipped_keys.py::test_the_example_changes_the_load_screen_name_once"]),
     # the sweep's H1: a given --old-game-dir that is not a game folder refuses
     ("a wrong --old-game-dir accepted", "ck3_save_migrator/plan.py",
      '    if old_game_dir and not (Path(old_game_dir) / "common" / "landed_titles").is_dir():\n', "    if False:\n",

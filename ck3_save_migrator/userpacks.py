@@ -58,19 +58,19 @@ id = "example"
 title = "An example pack: copy this folder, rename it without the underscore, change it"
 order = ["X1"]
 ''',
-    "X1-add-a-flag/patch.toml": '''# A patch of edits: adds migrated_by=yes to the save's metadata, once.
+    "X1-load-screen-name/patch.toml": '''# A patch of edits: changes the name the game's load screen shows for this save, so you can see that it ran.
+# Change only keys the game itself writes: a key it does not know is reported as an error ("Unexpected token").
 format = 1
 id = "X1"
-name = "add-a-flag"
-title = "add migrated_by=yes to the metadata"
+name = "load-screen-name"
+title = "show \\"Edited with ck3update\\" as the save's name on the load screen"
 since = "1.20.1.2"
-done = { path = "meta_data", key = "migrated_by" }   # its presence means the patch has run
 
 [[edit]]
 path = "meta_data"
-op = "insert"
-position = "end"
-payload = "\\tmigrated_by=yes\\n"
+op = "set"                        # set changes nothing when the value is already this one
+key = "meta_player_name"
+value = '"Edited with ck3update"'
 ''',
     "_X2-run-a-script/patch.toml": '''# A run patch: runs a program of yours over the save.
 # This folder starts with "_", so it is not loaded.

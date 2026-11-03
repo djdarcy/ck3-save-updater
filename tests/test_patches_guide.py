@@ -45,7 +45,7 @@ def test_the_insert_example_runs_once(tmp_path):
     p = load(tmp_path, "insert")
     save = sf.parse_save(build_ck3(meta=b"meta_data={\n\tversion=1\n}\n", body=b""))
     apply_patch(save, p, {})
-    assert save.gamestate == b"meta_data={\n\tversion=1\n\tmigrated_by=yes\n}\n"
+    assert save.gamestate == b"meta_data={\n\tversion=1\n\tnew_field=no\n}\n"
     assert status(save.gamestate, p) == "done"
     apply_patch(save, p, {})
-    assert save.gamestate.count(b"migrated_by") == 1
+    assert save.gamestate.count(b"new_field") == 1
