@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.30] - 2026-11-03
+
+### Fixed
+- `update --in-place` names the lint report by the file that exists (`<name>.lint.json`), not by the temporary name the report had for a moment before the swap.
+
+### Changed
+- The README's Quick start says what its commands write (a small mod in the game's mod folder, a new file beside your save) instead of "every command is safe to run"; the reference bookmark is turned on with no other mod that changes bookmarks; "Before you start" lists four things, and its `reference-mod` example no longer passes the `--out` it does not need.
+- [The reference save](docs/reference-save.md): `status` and `update` find the reference by themselves; a reference named on another date is refused for the new-map steps; `--out` must name a folder that exists.
+
 ## [0.3.29] - 2026-11-03
 
 ### Added
@@ -380,7 +389,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.29...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.30...HEAD
+[0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.29...v0.3.30
 [0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.28...v0.3.29
 [0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.27...v0.3.28
 [0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...v0.3.27

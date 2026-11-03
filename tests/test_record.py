@@ -157,6 +157,19 @@ def test_in_place_gives_the_same_bytes_as_dash_o_and_keeps_a_backup(tmp_path, sa
     assert not list(saves.glob("*ck3update-tmp*"))
 
 
+def test_in_place_names_the_lint_report_by_its_final_name(tmp_path, saves, capsys):
+    """The 0.4.0 re-sweep (R9): an in-place update printed `lint report: B.ck3update-tmp.lint.json`, a file that is
+    renamed to B.lint.json a moment later. The line names the file that exists."""
+    g = game(tmp_path)
+    b = old_save(saves, "B.ck3")
+    code, said, err = run(capsys, "update", str(b), "--game-dir", str(g), "--reference", "none", "--allow-run",
+                          "--in-place", "--no-record")
+    assert code == 0, err
+    lines = [ln for ln in said.splitlines() if "lint report" in ln]
+    assert len(lines) == 1 and lines[0].rstrip().endswith("B.lint.json") and "ck3update-tmp" not in lines[0]
+    assert (saves / "B.lint.json").is_file()
+
+
 def test_in_place_refuses_an_existing_backup_without_force(tmp_path, saves, capsys):
     g = game(tmp_path)
     s = old_save(saves, "A.ck3")

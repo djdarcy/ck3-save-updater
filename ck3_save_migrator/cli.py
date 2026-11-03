@@ -230,7 +230,8 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
         if not result.dry_run:
             lint_path = out.with_suffix(".lint.json")      # X.migrated.ck3 -> X.migrated.lint.json
             atomic_write(lint_path, json.dumps(lint_rep.as_dict(), indent=2, ensure_ascii=False))
-            say(DEFAULT, f"  lint report   : {lint_path}", "io")
+            if ".ck3update-tmp" not in out.name:          # --in-place: said once it has its final name
+                say(DEFAULT, f"  lint report   : {lint_path}", "io")
     if report_path:
         report = {
             "tool": f"{__app_name__} {get_display_version()}",
@@ -516,6 +517,7 @@ def _follow_output(src: Path, dst: Path, report: Path | None, new_report: Path |
     lint = src.with_suffix(".lint.json")
     if lint.exists():
         os.replace(lint, dst.with_suffix(".lint.json"))
+        say(DEFAULT, f"  lint report   : {dst.with_suffix('.lint.json')}", "io")
     if report is not None and report.is_file():
         data = json.loads(report.read_text(encoding="utf-8"))
         data["output"] = str(dst.resolve())
