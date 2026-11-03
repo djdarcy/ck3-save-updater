@@ -1,8 +1,8 @@
 # The reference save
 
-Several rules copy what they need from a save written by the current game: the religion rules (R8 to R12) rebuild religion from it, and the new-map rules (R14 to R16) bring in the regions 1.20 added, with their rulers, courts and families. That save is the reference, passed to `migrate` as `--reference`.
+Several rules copy what they need from a save written by the current game: the religion rules (R8 to R12) rebuild religion from it, and the new-map rules (R14 to R16) bring in the regions 1.20 added, with their rulers, courts and families. That save is the reference: `status` and `update` find it by themselves in the save folder, or you name it with `--reference`.
 
-For religion, any 1.20 save will do; one at the same start date is closest. For the new-map regions it matters much more: the reference should be a fresh 1.20 game started on your campaign's own date. The new regions' people are copied as they are in the reference, so the reference has to show the world at the same moment as your campaign.
+For religion, any 1.20 save will do; one at the same start date is closest. For the new-map regions it matters much more: the reference must be a fresh 1.20 game started on your campaign's own date (a reference named with `--reference` on another date is refused when the new-map steps would run). The new regions' people are copied as they are in the reference, so the reference has to show the world at the same moment as your campaign.
 
 ## Why a mod is needed
 
@@ -16,7 +16,7 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
    ck3update reference-mod --save "My_Old_Campaign"
    ```
 
-   It goes into the game's own `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`, found the way the save folder is, OneDrive included); `--out "<folder>"` writes it somewhere else.
+   It goes into the game's own `mod` folder (in your documents folder, under `Paradox Interactive/Crusader Kings III/mod`, found the way the save folder is, OneDrive included); `--out "<folder>"` writes it into another folder, which must already exist.
 
    Or give the date yourself with `--date <y.m.d>` (the in-game date shown on the load screen; the save records it as `meta_date`).
 
