@@ -6,7 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.22] - 2026-11-02
+
 ### Added
+- An optional cache of each save's block index: with `[cache] index = true` in the settings file, the index the `**` patches search with is kept in a temp folder the tool names, so a second `status` or `update` on the same unchanged save loads it (0.2 s) instead of building it again (about 8 s on a large save). Off by default. Entries older than a day are removed when a new one is written; `ck3update cache where` shows the folder, `ck3update cache clear` empties it. An entry is used only for the exact same bytes. See [Configuration](docs/config.md).
 - A glossary (`docs/glossary.md`): every word the tool uses that a player may not know (the reference save, the transplant, packs and patches, the plan and its verdicts, detectors, the record, lint), and every header `status` prints, each with where you meet it.
 
 ### Changed
@@ -315,7 +318,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.22...HEAD
+[0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...v0.3.20
 [0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...014e275

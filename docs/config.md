@@ -33,6 +33,7 @@ A setting that is not valid (a word that is not one of its choices, a number out
 | `transplant` | `update` selects the new-map rules (R14-R17) by itself when a save from before the 1.13 map rework needs them | `"auto"` or `"off"` | `"off"` | editing the file; `--transplant` overrides it for one run |
 | `[trusted]` | the packs that run code which you have trusted, each with the fingerprint of its files when trusted | pack id = fingerprint | none | `ck3update trust <pack id>`, `ck3update untrust <pack id>` (never by hand) |
 | `[display]` | how `status` and `update` lay out their plan | below | below | editing the file |
+| `[cache] index` | keep each save's block index (what the `**` patches search with) in a temp folder, so a second command on the same unchanged save skips building it again (about 10 s on a large save); entries older than a day are removed, and `ck3update cache clear` removes them all (`ck3update cache where` shows the folder) | `true` or `false` | `false` | editing the file |
 
 The commands that change the file (`disable`, `enable`, `trust`, `untrust`) keep every setting above as you wrote it, `[display]` included.
 
