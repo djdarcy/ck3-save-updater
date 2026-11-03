@@ -178,7 +178,7 @@ def test_a_trusted_done_command_runs_on_a_copy_of_the_save(tmp_path, saves):
     s = ref_save(saves, "A.ck3")
     before = s.read_bytes()
     q1 = next(x for x in PL.plan_update(s, game_dir=str(game(tmp_path)), allow_run=True).steps if x.id == "Q1")
-    assert not q1.will_run and q1.reason == "done: done_command says it is done (exit 0)"
+    assert not q1.will_run and q1.reason.startswith("done: done_command says it is done (exit 0); runs `")
     assert s.read_bytes() == before                                      # the program changed its copy only
     assert Path(seen.read_text(encoding="utf-8")).resolve() != s.resolve()
 
@@ -274,7 +274,7 @@ def test_with_the_switch_on_and_no_reference_the_steps_are_given(tmp_path, saves
     assert not set(PL.TRANSPLANT) & set(p.running())
     assert any("needs a reference save to load in 1.20" in n for n in p.notes)
     r15 = next(s for s in p.steps if s.id == "R15")
-    assert r15.reason == "needs R14, R16, which is skipped"        # never refused later as a missing prerequisite
+    assert r15.reason == "needs R14, R16, which are skipped"        # never refused later as a missing prerequisite
     assert "ck3update reference-mod" in "\n".join(p.lines())
 
 
