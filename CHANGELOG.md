@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.21] - 2026-11-02
+
+### Changed
+- `status` and `update` are faster on large saves: the rules that search the whole save for what they fix (R5, R11, and any pack patch whose path uses `**`) find where each match sits from an index of every block, built once per save, instead of walking down from the top for each search. On the founding 1.8.1 save (222 MB), the checks `status` runs before anything else went from 215 s to 98 s, and a full `update` from 678 s to 542 s, with the same output byte for byte. The patch path syntax is unchanged.
+
 ## [0.3.20] - 2026-11-02
 
 ### Changed
@@ -301,7 +306,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...HEAD
+[0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...v0.3.21
 [0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...v0.3.20
 [0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...014e275
 [0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...a87f1ac
