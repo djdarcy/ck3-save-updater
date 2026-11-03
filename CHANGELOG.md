@@ -4,7 +4,10 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.24] - 2026-11-02
+
+### Fixed
+- An `--old-game-dir` that is not a folder, or not a game's `game` folder, is refused at once with how to fix it. Before, a mistyped path was taken as an old map with no titles: the update ran on, and two baronies ended up with no county above them (a lint error in the output).
 
 ## [0.3.23] - 2026-11-02
 
@@ -329,7 +332,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...HEAD
+[0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.22...v0.3.23
 [0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.21...v0.3.22
 [0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.20...v0.3.21
