@@ -54,7 +54,7 @@ The checks run on every output found something the game reads by number that is 
 
 Faces are stored in the save as portrait data (DNA), in the gene layout of the game version and portrait mods that wrote it. The game makes up a new face for a string in another layout; `lint` reports it as "Unexpected DNA string length". R19 carries every face into the layout you load with ([Faces](rules.md#faces-r19)).
 
-What helps: turn on, in the launcher, the portrait mods you will play with before you run `update` (R19 reads them from `dlc_load.json`), or name them with `--portrait-mods`. `status` shows the layouts it will use in its FACES block. Give `--old-game-dir` for the old game's own genes. A save stores faces only for some characters, so not every face can be carried over from it.
+What helps: turn on, in the launcher, the portrait mods you will play with before you run `update` (R19 reads them from `dlc_load.json`), or name them with `--portrait-mods`. `status` shows the layouts it will use in its FACES block. Give `--old-game-dir` for the old game's own genes, and `--old-portrait-mods` for the old builds of the portrait mods the save used, when they have updated or gone since (NOTES says "the source layout is probably not the save's" when the faces do not fit it). A save stores faces only for some characters, so not every face can be carried over from it.
 
 ## The Way of Scarcity, or another custom faith, is missing
 

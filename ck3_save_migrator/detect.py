@@ -186,6 +186,13 @@ def _r19(g, env):
                 f"{'it is' if left['already target'] == 1 else 'they are'}"] if left.get("already target") else []) + \
         [f"{counted(c, 'face is', 'faces are')} longer than {layout} layout: the last "
          f"{counted(k, 'place is', 'places are')} dropped" for (layout, k), c in sorted(res.dropped_places.items())]
+    bad = sum(res.impossible.values())
+    if bad:                     # the wrong-layout signal: counted apart from templates_lost, never a refusal
+        genes = ", ".join(g for g, _ in res.impossible_by_gene()[:5]) + (", ..." if len(res.impossible) > 5 else "")
+        d.notes += [f"{counted(bad, 'template index', 'template indexes')} the source layout does not define "
+                    f"({genes})",
+                    "the source layout is probably not the save's; give the save's own mod builds with "
+                    "--old-portrait-mods"]
     return d
 
 

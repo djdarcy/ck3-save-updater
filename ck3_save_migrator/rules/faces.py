@@ -23,6 +23,7 @@ def setup_for(save: CK3Save, ctx) -> D.Setup:
     from ..discover import game_version
     st = D.setup(save_meta=save.meta, game_dir=ctx.game_dir, old_game_dir=ctx.old_game_dir, reference_meta=ref_meta,
                  portrait_mods_given=ctx.state.get("portrait_mods"),
+                 old_portrait_mods=ctx.state.get("old_portrait_mods"),
                  target_version=game_version(ctx.game_dir) if ctx.game_dir else ctx.target_version)
     ctx.state["dna_setup"] = st
     return st
@@ -54,6 +55,9 @@ def r19_dna_layout(save: CK3Save, ctx, rule):
                                                        for (n, k), c in sorted(res.dropped_places.items())],
                               "shorter, left as is": len(res.outcomes.get("left as is: shorter than its layout", []))},
         "dna_lengths_in": dict(res.lengths),
+        # a template index the source gene does not define: the source layout is probably not the save's
+        "template_indexes_the_source_layout_does_not_define": {"count": sum(res.impossible.values()),
+                                                                "by_gene": dict(res.impossible_by_gene())},
         "portraits_version": ({"from": res.portraits_version[0], "to": res.portraits_version[1]}
                               if res.portraits_version else {"to": st.portraits_version, "changed": False}),
     })

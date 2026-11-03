@@ -359,6 +359,7 @@ def make_plan(args, *, writes: bool = False):
                            create_packs_dir=writes, variables=read_patch_vars(args.var or [], args.vars),
                            transplant=args.transplant, no_dna=getattr(args, "no_dna", False),
                            portrait_mods=portrait_mods_arg(args),
+                           old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
                            detect=not args.no_detect, progress=sp.update)
 
@@ -595,6 +596,7 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
     _check_paths(args, outputs(branch), existence=True)        # before any rule runs
     installs = game_installs(args.game_dir)
     check_save_not_newer(save_versions(save.meta)["version"], installs[0] if installs else None)
+    refuse_old_portrait_mods(args, installs[0].path if installs else None)      # before any rule runs
     in_sha = args.in_sha = sha256(save.to_bytes())
     ctx = RuleContext(game_dir=installs[0].path if installs else None,
                       reference=reference, wos_shape=shapes[0],
@@ -602,6 +604,7 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
                       expansion_orders=not args.no_expansion_orders)
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
     ctx.state["portrait_mods"] = portrait_mods_arg(args)            # R19's target layout (None: dlc_load.json)
+    ctx.state["old_portrait_mods"] = portrait_mods_arg(args, "old_portrait_mods")   # its source (None: the save's)
     if getattr(args, "dna_setup", None) is not None:
         ctx.state["dna_setup"] = args.dna_setup                     # update: the layouts its plan printed
     ctx.state["game_installs"] = installs                         # the report lists them
@@ -868,10 +871,12 @@ def cmd_check(args) -> int:
     shipped = read_pack().patches
     from .detect import Env, detect
     gd = find_game_dir(getattr(args, "game_dir", None))
+    refuse_old_portrait_mods(args, gd)
     from . import dna as DNA
     from .discover import game_version
     env = Env(game_dir=gd, patches=shipped, mod_dirs=workshop_mod_dirs(save.meta, gd),
               dna=DNA.setup(save_meta=save.meta, game_dir=gd, portrait_mods_given=portrait_mods_arg(args),
+                            old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
                             target_version=game_version(gd)) if gd else None)
     rows = []
     for r in rules:
@@ -916,14 +921,25 @@ def target_dna_length(game_dir, args, st=None) -> int | None:
     return layout.length if layout.places else None
 
 
+def refuse_old_portrait_mods(args, game_dir) -> None:
+    """migrate and check (no plan): an --old-portrait-mods entry naming no installed mod and no folder is refused."""
+    given = portrait_mods_arg(args, "old_portrait_mods")
+    if given:
+        from .dna import unresolved
+        bad = unresolved(given, game_dir)
+        if bad:
+            raise ValueError(f"--old-portrait-mods \"{bad[0]}\" is no installed Workshop mod and no folder; give the "
+                             "Workshop id of an installed mod, or the folder of the save's own build of the mod")
+
+
 def rules_with_no_dna(spec: str, args) -> str:
     """--no-dna: the same as leaving R19 out (--rules -R19)."""
     return spec + ",-R19" if getattr(args, "no_dna", False) else spec
 
 
-def portrait_mods_arg(args) -> list[str] | None:
-    """--portrait-mods as a list (empty: vanilla), or None when not given (the launcher's dlc_load.json)."""
-    v = getattr(args, "portrait_mods", None)
+def portrait_mods_arg(args, name: str = "portrait_mods") -> list[str] | None:
+    """--portrait-mods (or --old-portrait-mods) as a list (empty: vanilla), or None when not given."""
+    v = getattr(args, name, None)
     return None if v is None else [x.strip() for x in v.split(",") if x.strip()]
 
 
@@ -1275,6 +1291,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--bump-version", action="store_true",
                    help="deprecated, does nothing: R7 (version bump) is part of the default rules")
     p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
+    p.add_argument("--old-portrait-mods", metavar="ID_OR_FOLDER,...",
+                   help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
+                        "folders, in load order: the save's own builds when the installed ones changed or are gone "
+                        "(default: the installed build of each mod the save lists; '' for vanilla)")
     p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                    help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
                         "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
@@ -1329,6 +1349,10 @@ def build_parser() -> argparse.ArgumentParser:
                             "and a reference is present; off: leave them to --rules (default: transplant in the "
                             "config, else auto)")
         p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
+        p.add_argument("--old-portrait-mods", metavar="ID_OR_FOLDER,...",
+                       help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
+                            "folders, in load order: the save's own builds when the installed ones changed or are gone "
+                            "(default: the installed build of each mod the save lists; '' for vanilla)")
         p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                        help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
                             "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
@@ -1379,6 +1403,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--mods", choices=("save", "none"), default="save",
                    help="which mods to assume active when the save loads: the Workshop mods the save lists "
                         "(default; those installed), or none (a vanilla load)")
+    p.add_argument("--old-portrait-mods", metavar="ID_OR_FOLDER,...",
+                   help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
+                        "folders, in load order: the save's own builds when the installed ones changed or are gone "
+                        "(default: the installed build of each mod the save lists; '' for vanilla)")
     p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                    help="the portrait mods the save will be loaded with, for the DNA length check (Workshop ids or "
                         "folders; default: the gene-shipping mods dlc_load.json enables; '' for vanilla)")

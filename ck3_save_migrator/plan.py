@@ -618,8 +618,9 @@ def _faces_rows(st, transplanting: bool) -> list[tuple[str, str]]:
     rows = [("source", lay(st.source)), ("target", lay(st.target)), ("from", st.target_from)]
     if st.reference is not None and transplanting:
         rows.insert(1, ("transplanted", lay(st.reference)))
+    rows[1:1] = [("source mod", f"{m}: {origin}") for m, origin in st.source_mods]
     mods = [(label, d) for label, d in st.target.spec if label != "vanilla"]
-    rows += [("mod", f"{label}: {d}") for label, d in mods]
+    rows += [("target mod", f"{label}: {d}") for label, d in mods]
     rows.append(("portraits", f"portraits_version {st.portraits_version if st.portraits_version is not None else '?'}"
                               f" ({st.portraits_why})"))
     return rows
@@ -654,7 +655,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
                 transplant: str | None = None, use_record: bool = True, in_place: bool = False,
                 detect: bool = False, progress=None, no_dna: bool = False,
-                portrait_mods: list[str] | None = None) -> UpdatePlan:
+                portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -705,6 +706,16 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         fixes[why] = {"fix": "give the 'game' folder of the game version the save was made with (the one holding "
                              "common and gfx)"}
 
+    # a given --old-portrait-mods entry that names no installed mod and no folder is refused, naming it (a recorded
+    # one is checked below, and is not used rather than refused)
+    if old_portrait_mods is not None:
+        from .dna import unresolved
+        for x in unresolved(old_portrait_mods, game.path if game else None):
+            why = f"--old-portrait-mods \"{x}\" is no installed Workshop mod and no folder"
+            refusals.append(why)
+            fixes[why] = {"fix": "give the Workshop id of an installed mod, or the folder of the save's own build of "
+                                 "the mod (the one holding common/genes)"}
+
     variables = dict(variables or {})
     seed = light.random_seed
 
@@ -742,13 +753,24 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 else:
                     old_game_dir = rod
                     prefilled.append(["--old-game-dir ", rod])
+            ropm = last.get("old_portrait_mods")
+            if old_portrait_mods is None and ropm is not None:
+                from .dna import unresolved
+                gone = unresolved(list(ropm), game.path if game else None)
+                if gone:
+                    notes.append(f"the record of {label} has --old-portrait-mods {', '.join(gone)}, which no longer "
+                                 "exists; not used")
+                else:
+                    old_portrait_mods = list(ropm)
+                    prefilled.append(["--old-portrait-mods ", ",".join(ropm) if ropm else "''"])
             if transplant is None and last.get("transplant") is not None:
                 prefilled.append(["--transplant ", last["transplant"]])
                 transplant = last["transplant"]
             if last.get("portraits_version") is not None:
                 notes.append("the record's portraits_version is no longer used; R19 sets it from the target")
     # --wos-shape shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
-    inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant}
+    inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
+              "old_portrait_mods": old_portrait_mods}
 
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
@@ -1021,7 +1043,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         from . import dna as D
         ref_meta = read_light(Path(ref.path)).meta if ref.path else None
         dna_setup = D.setup(save_meta=light.meta, game_dir=game.path, old_game_dir=old_game_dir,
-                            reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv)
+                            reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv,
+                            old_portrait_mods=old_portrait_mods)
         faces = _faces_rows(dna_setup, transplanting=bool(chosen & set(TRANSPLANT)))
         notes.extend(dna_setup.notes)
     if not detect or not recheck_ids or refused:
