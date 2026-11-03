@@ -1326,7 +1326,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--vars", metavar="FILE", help="a TOML file of variables for run patches")
         p.add_argument("--transplant", choices=("auto", "off"),
                        help="auto: select the new-map rules (R14-R17) when the save crosses the 1.13 map rework "
-                            "and a reference is present (default: transplant in the config, else off)")
+                            "and a reference is present; off: leave them to --rules (default: transplant in the "
+                            "config, else auto)")
         p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
         p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                        help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "

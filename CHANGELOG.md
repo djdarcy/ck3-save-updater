@@ -13,6 +13,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--portraits-version` is gone from `migrate`, `status`, `update` and `check`: R19 sets the target's portraits_version, and R7 no longer touches it. A record that stores one still reads; the plan says once that it is no longer used.
 - lint's "Unexpected DNA string length" expects the length of the layout you load with (the game's genes plus your portrait mods), not vanilla's.
 
+## [0.3.27] - 2026-11-02
+
+### Changed
+- The new-map steps are on by default (`transplant = "auto"`): a save from before the 1.13 map rework gets the regions the new map added whenever a reference save is found, with no `--transplant` flag; a newer save is untouched. `--transplant off` (or `transplant = "off"` in the settings file) leaves them out. The Quick start and the docs drop the flag.
+
+### Added
+- A reference save named with `--reference` (or `CK3_REFERENCE_SAVE`) on a date other than the save's own is refused when the new-map steps would run, since they copy the new regions' rulers and families as the reference has them: the plan says both dates and how to make one on the right date. The reference the tool finds by itself is already on the save's date; a reference used only for religion may be from any date.
+
 ## [0.3.26] - 2026-11-02
 
 ### Added
@@ -362,7 +370,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.27...HEAD
+[0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...v0.3.27
 [0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...v0.3.24

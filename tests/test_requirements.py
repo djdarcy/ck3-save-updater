@@ -255,9 +255,17 @@ def transplant_plan(tmp_path, saves, **kw):
 
 
 def test_with_the_switch_off_the_transplant_is_skipped_and_the_line_shown(tmp_path, saves):
-    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref.ck3")))
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref.ck3")), transplant="off")
     assert not set(PL.TRANSPLANT) & set(p.running())
     assert any("crosses the 1.13-1.20 map rework" in n and "--transplant auto" in n for n in p.notes)
+
+
+def test_auto_is_the_default_with_nothing_in_the_config(tmp_path, saves):
+    """djdarcy, 2026-11-02: the transplant default "handles itself": a save from before the map rework with a
+    reference gets the new-map steps without --transplant."""
+    assert config.transplant_mode() == "auto"
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref.ck3")))
+    assert {"R14", "R16", "R17"} <= set(p.running())
 
 
 def test_with_the_switch_on_and_a_reference_the_transplant_is_selected(tmp_path, saves):
@@ -267,6 +275,30 @@ def test_with_the_switch_on_and_a_reference_the_transplant_is_selected(tmp_path,
     p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref2.ck3")), transplant="auto",
                         rules_spec="all,-R15")
     assert {"R14", "R16", "R17"} <= set(p.running()) and "R15" not in p.running()
+
+
+def test_a_named_reference_on_another_date_refuses_the_new_map_steps(tmp_path, saves):
+    """The transplant copies the new regions' people as the reference has them; a reference named by hand on
+    another date would bring the wrong generation, so the plan refuses before anything runs."""
+    wrong = ref_save(tmp_path, "Wrong.ck3", date=b"1066.9.15")
+    p = transplant_plan(tmp_path, saves, reference=str(wrong))
+    why = "the reference save is dated 1066.9.15, the save 987.10.27: the new map's regions would be copied from " \
+          "the wrong moment"
+    assert why in p.refusals
+    assert "ck3update reference-mod" in p.fixes[why]["fix"] and "--transplant off" in p.fixes[why]["fix"]
+
+
+def test_a_named_reference_on_another_date_is_fine_for_religion_alone(tmp_path, saves):
+    wrong = ref_save(tmp_path, "Wrong.ck3", date=b"1066.9.15")
+    p = transplant_plan(tmp_path, saves, reference=str(wrong), transplant="off")
+    assert not any("would be copied from the wrong moment" in r for r in p.refusals)
+    assert "R8" in p.running()                                     # the religion rules still use it
+
+
+def test_a_named_reference_on_the_campaign_date_is_not_refused(tmp_path, saves):
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Right.ck3")))
+    assert not any("would be copied from the wrong moment" in r for r in p.refusals)
+    assert {"R14", "R16", "R17"} <= set(p.running())
 
 
 def test_with_the_switch_on_and_no_reference_the_steps_are_given(tmp_path, saves):

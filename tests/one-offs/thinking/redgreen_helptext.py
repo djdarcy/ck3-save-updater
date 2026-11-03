@@ -45,6 +45,16 @@ MUTATIONS = [
      "enable the mod 'Reference bookmark {b.date} (ck3update)', start a ",
      "enable '{b.folder}', start a ",
      ["tests/test_refmod.py::test_the_command_writes_the_mod_and_prints_the_next_steps"]),
+    # 0.3.27: auto by default; a named reference on another date refuses the new-map steps
+    ("the transplant default back to off", "ck3_save_migrator/config.py",
+     '    return read_config(path).get("transplant", "auto")\n', '    return read_config(path).get("transplant", "off")\n',
+     ["tests/test_requirements.py::test_auto_is_the_default_with_nothing_in_the_config"]),
+    ("a wrong-date reference accepted", "ck3_save_migrator/plan.py",
+     "        if rdate and rdate != date:\n", "        if False:\n",
+     ["tests/test_requirements.py::test_a_named_reference_on_another_date_refuses_the_new_map_steps"]),
+    ("the date check also on religion-only use", "ck3_save_migrator/plan.py",
+     "            any(s.will_run and s.id in TRANSPLANT for s in steps):\n", "            True:\n",
+     ["tests/test_requirements.py::test_a_named_reference_on_another_date_is_fine_for_religion_alone"]),
     # the sweep's H1: a given --old-game-dir that is not a game folder refuses
     ("a wrong --old-game-dir accepted", "ck3_save_migrator/plan.py",
      '    if old_game_dir and not (Path(old_game_dir) / "common" / "landed_titles").is_dir():\n', "    if False:\n",
