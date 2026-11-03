@@ -29,7 +29,7 @@ PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 PROJECT_PHASE = ""  # "prealpha", "alpha", "beta", "stable", or ""
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.3.28_main_110-20261103-1a6a7a58"
+__version__ = "0.3.28_main_111-20261103-c5968441"
 __app_name__ = "ck3-save-updater"
 
 

@@ -248,6 +248,9 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
         return _skip(rule, "nothing planned: R14 (titles, provinces) and R16 (people) plan what this rule writes")
     ep = t.edits()
     ep.apply_to(save)
+    # the characters the transplant added (output ids): R19 reads their faces in the reference save's layout
+    cm = t.tr.spaces["character"]
+    ctx.state["transplanted_characters"] = {str(cm.translate(i)) for i in t.carry["character"] if i not in cm.join}
     rep = t.report.as_dict()
     rep["kept_scopes_remapped"] = _remap_kept_scopes(save, t)
     rep["holy_sites"] = _reattach_holy_sites(save, ctx)

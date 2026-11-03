@@ -90,8 +90,8 @@ def test_r5_leaves_its_near_misses():
     assert res.edited == 4 and b"k={ =2 }" in save.gamestate and b'"first\n=second"' in save.gamestate
 
 
-@pytest.mark.parametrize("name, edits", [("R7-no-portraits", 2), ("R7-portraits-5", 3), ("R7-portraits-3", 2),
-                                         ("R7-at-target", 0), ("R7-another-target", 2)])
+# R7-portraits-5 and -3 are gone: R7 no longer sets portraits_version, R19 stamps the target's (S4 i)
+@pytest.mark.parametrize("name, edits", [("R7-no-portraits", 2), ("R7-at-target", 0), ("R7-another-target", 2)])
 def test_r7_edits(name, edits):
     save, res = run_case(name)
     assert res.edited == edits

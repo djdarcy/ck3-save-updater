@@ -388,9 +388,10 @@ class TestR7:
         assert b"portraits_version=3" in back.meta
         assert back.gamestate.startswith(back.meta) and back.warnings == []
 
-    def test_portraits_only_when_given(self, save):
+    def test_r7_never_sets_portraits_version(self, save):
+        """R19 stamps the target's portraits_version with the faces it carries (S4 i); R7 no longer touches it."""
         run(save, "R7", R.RuleContext(portraits_version=5))
-        assert b"portraits_version=5" in save.gamestate
+        assert b"portraits_version=3" in save.gamestate and b"portraits_version=5" not in save.gamestate
 
     def test_r7_in_all_and_last(self):
         # A3 (2026-10-24): with save_game_version=8 the 1.20 loader runs a legacy conversion that
@@ -414,17 +415,17 @@ class TestRegistry:
 
     def test_registry_order_is_dependency_order(self):
         assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
-                                              "R12", "R23", "R15", "R14", "R16", "R17", "R7"]
+                                              "R12", "R23", "R15", "R14", "R16", "R17", "R19", "R7"]
 
     def test_transplant_rules_are_opt_in_and_bring_the_write_step(self):
         assert "R14" not in [r.id for r in R.select("all")]
         assert [r.id for r in R.select("R14")] == ["R14", "R17"]
-        assert [r.id for r in R.select("all", include_off=("new-titles",))][-3:] == ["R14", "R17", "R7"]
+        assert [r.id for r in R.select("all", include_off=("new-titles",))][-4:] == ["R14", "R17", "R19", "R7"]
 
     def test_all_rules_compose(self, save, tmp_path):
         res = R.run_rules(save, R.select("all"), R.RuleContext(game_dir=make_game_dir(tmp_path / "g")))
         assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12",
-                                       "R23", "R7"]
+                                       "R23", "R19", "R7"]
         assert all("skipped" in r.extra for r in res if r.id in ("R8", "R10", "R9", "R12"))   # no reference
         sf.write_save(save, tmp_path / "o.ck3")
         back = sf.read_save(tmp_path / "o.ck3")
@@ -448,7 +449,7 @@ class TestCLI:
         assert r.returncode == 0, r.stderr
         rep = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
         assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
-                                                   "R12", "R23", "R7"]
+                                                   "R12", "R23", "R19", "R7"]
         assert not list(tmp_path.glob("*__wos-*"))          # no reference -> no branch, one output
         assert rep["rules"][0]["edited"] == 2 and rep["output_sha256"] == sf.sha256((tmp_path / "out.ck3").read_bytes())
 
@@ -491,7 +492,7 @@ def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prereq
     with the write step (R17) brought along; such a selection lacks no prerequisite."""
     ids = [r.id for r in R.select("all,R14,R15,R16")]
     assert ids == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R23", "R15", "R14",
-                   "R16", "R17", "R7"]
+                   "R16", "R17", "R19", "R7"]
     assert R.missing_prerequisites(R.select("all,R14,R15,R16")) == []
 
 

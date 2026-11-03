@@ -95,9 +95,7 @@ Built from the project's test fixtures (a tiny synthetic 1.8.1 save, no referenc
       "extra": {
         "edits": [
           {"edit": 1, "op": "set", "paths": ["meta_data"], "found": 1, "edits": 1, "blocks": 1, "blocks_hit": 1},
-          {"edit": 2, "op": "set", "paths": ["meta_data"], "found": 1, "edits": 1},
-          {"edit": 3, "op": "set", "paths": ["meta_data"], "found": 0, "edits": 0,
-           "skipped": "no value for @@portraits_version@@"}
+          {"edit": 2, "op": "set", "paths": ["meta_data"], "found": 1, "edits": 1}
         ]
       }
     }

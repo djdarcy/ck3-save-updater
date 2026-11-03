@@ -374,7 +374,7 @@ def test_a_pack_after_r17_runs_between_r17_and_r7(tmp_path, saves, capsys):
                        "--rules", "all,R14,R16", "--no-lint", "--wos-shape", "faith")
     assert code == 0, err
     ran = cli.LAST_PLAN["ran"]
-    assert ran[-3:] == ["R17", "A1", "R7"]
+    assert ran[-4:] == ["R17", "R19", "A1", "R7"]                 # R19 finishes what R17 wrote: the pack follows
     assert run(capsys, "update", str(old_save(saves, "C2.ck3")), "--game-dir", str(g), "--no-lint")[0] == 0
     assert cli.LAST_PLAN["ran"][-2:] == ["A1", "R7"]                       # R17 skipped: still before R7
 
