@@ -23,18 +23,6 @@
   "edited": 2,
   "sha256": "15f05505f41874bdad7e6a3a737a7a0a34634e763cb04909a308b9b600b371a9"
  },
- "R7-portraits-5": {
-  "rule": "R7",
-  "matched": 3,
-  "edited": 3,
-  "sha256": "fff867e72e6f361035cac9a27829f1a230987ff7afe4ee5e017554fa01dbf7cb"
- },
- "R7-portraits-3": {
-  "rule": "R7",
-  "matched": 3,
-  "edited": 2,
-  "sha256": "15f05505f41874bdad7e6a3a737a7a0a34634e763cb04909a308b9b600b371a9"
- },
  "R7-at-target": {
   "rule": "R7",
   "matched": 2,

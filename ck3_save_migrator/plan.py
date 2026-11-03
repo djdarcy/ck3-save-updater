@@ -154,6 +154,7 @@ class UpdatePlan:
     prefilled: list = field(default_factory=list)    # [input, value]: "--var k=" and its value; "--transplant " ...
     prefilled_from: str | None = None                # the record they came from (its label)
     in_place: bool = False
+    faces: list = field(default_factory=list)        # R19's layouts, as (field, value) rows for the FACES block
     detected: str | None = None        # the detectors' line: what they did, or why they did not run
     detect_seconds: float | None = field(default=None, compare=False)       # how long the full read took
     detect_mb: float | None = None     # the size of the gamestate the full read inflated
@@ -161,6 +162,7 @@ class UpdatePlan:
     detect_timings: dict = field(default_factory=dict, compare=False)
     seed: str | None = None            # the save's random_seed: names its save game (a pack's [applies] campaign)
     cache_note: str | None = field(default=None, compare=False)   # the block-index cache: what it wrote or read
+    dna_setup: object = field(default=None, repr=False, compare=False)    # dna.Setup, shared with the run
     rules: list = field(default_factory=list, repr=False, compare=False)    # the Rule of each step that runs
     user_packs: list = field(default_factory=list, repr=False, compare=False)   # userpacks.UserPack, for the report
 
@@ -173,6 +175,7 @@ class UpdatePlan:
     def as_dict(self) -> dict:
         d = asdict(self)
         d.pop("rules", None)
+        d.pop("dna_setup", None)
         d.pop("user_packs", None)
         d.pop("detect_seconds", None)
         d.pop("detect_timings", None)
@@ -280,6 +283,8 @@ class UpdatePlan:
                 det.append(("judged", f"{len(t)} step(s) in {sum(t.values()):.1f} s; slowest "
                                       + ", ".join(f"{k} {t[k]:.1f} s" for k in slow), "note"))
             tail.append(("DETECTORS", det))
+        if self.faces:
+            tail.insert(0, ("FACES", [(f, v, "note" if f != "target" else None) for f, v in self.faces]))
         tail.append(("OUTPUT", [("file", self.output, "path") if self.output else ("file", "none", "note")]))
         if self.notes:
             tail.append(("NOTES", [("", f"- {n}", "note") for n in self.notes]))
@@ -600,6 +605,27 @@ def _excluded_ids(spec: str) -> set[str]:
             and t.strip()[1:].lower() in by}
 
 
+# built-in rules that belong to the one before them: a user pack placed after R17 (the transplant's write) runs after
+# R19 too, which carries the faces of the people R17 wrote, so the faces are done before any user pack
+BUILT_IN_FOLLOWERS = {"R17": ("R19",)}
+
+
+def _faces_rows(st, transplanting: bool) -> list[tuple[str, str]]:
+    """The FACES block: the layouts R19 translates between (with their folders and gene counts) and the
+    portraits_version it stamps."""
+    def lay(x) -> str:
+        return f"{x.name}: {x.places} genes, {x.length} characters"
+    rows = [("source", lay(st.source)), ("target", lay(st.target)), ("from", st.target_from)]
+    if st.reference is not None and transplanting:
+        rows.insert(1, ("transplanted", lay(st.reference)))
+    rows[1:1] = [("source mod", f"{m}: {origin}") for m, origin in st.source_mods]
+    mods = [(label, d) for label, d in st.target.spec if label != "vanilla"]
+    rows += [("target mod", f"{label}: {d}") for label, d in mods]
+    rows.append(("portraits", f"portraits_version {st.portraits_version if st.portraits_version is not None else '?'}"
+                              f" ({st.portraits_why})"))
+    return rows
+
+
 def skipped_needs(need: list[str]) -> str:
     """A step's reason when what it needs is skipped: "needs R14, which is skipped" / "needs R14, R16, which are
     skipped"."""
@@ -627,9 +653,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 old_game_dir: str | None = None, rules_spec: str | None = None, output: str | None = None,
                 packs: list[str] | None = None, allow_run: bool = False, save_folder: Path | None = None,
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
-                transplant: str | None = None, portraits_version: int | None = None,
-                use_record: bool = True, in_place: bool = False, detect: bool = False,
-                progress=None) -> UpdatePlan:
+                transplant: str | None = None, use_record: bool = True, in_place: bool = False,
+                detect: bool = False, progress=None, no_dna: bool = False,
+                portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -680,6 +706,16 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         fixes[why] = {"fix": "give the 'game' folder of the game version the save was made with (the one holding "
                              "common and gfx)"}
 
+    # a given --old-portrait-mods entry that names no installed mod and no folder is refused, naming it (a recorded
+    # one is checked below, and is not used rather than refused)
+    if old_portrait_mods is not None:
+        from .dna import unresolved
+        for x in unresolved(old_portrait_mods, game.path if game else None):
+            why = f"--old-portrait-mods \"{x}\" is no installed Workshop mod and no folder"
+            refusals.append(why)
+            fixes[why] = {"fix": "give the Workshop id of an installed mod, or the folder of the save's own build of "
+                                 "the mod (the one holding common/genes)"}
+
     variables = dict(variables or {})
     seed = light.random_seed
 
@@ -717,17 +753,24 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 else:
                     old_game_dir = rod
                     prefilled.append(["--old-game-dir ", rod])
-            for name, given, flag in (("transplant", transplant, "--transplant"),
-                                      ("portraits_version", portraits_version, "--portraits-version")):
-                if given is None and last.get(name) is not None:
-                    prefilled.append([f"{flag} ", last[name]])
-                    if name == "transplant":
-                        transplant = last[name]
-                    else:
-                        portraits_version = last[name]
+            ropm = last.get("old_portrait_mods")
+            if old_portrait_mods is None and ropm is not None:
+                from .dna import unresolved
+                gone = unresolved(list(ropm), game.path if game else None)
+                if gone:
+                    notes.append(f"the record of {label} has --old-portrait-mods {', '.join(gone)}, which no longer "
+                                 "exists; not used")
+                else:
+                    old_portrait_mods = list(ropm)
+                    prefilled.append(["--old-portrait-mods ", ",".join(ropm) if ropm else "''"])
+            if transplant is None and last.get("transplant") is not None:
+                prefilled.append(["--transplant ", last["transplant"]])
+                transplant = last["transplant"]
+            if last.get("portraits_version") is not None:
+                notes.append("the record's portraits_version is no longer used; R19 sets it from the target")
     # --wos-shape shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
     inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
-              "portraits_version": portraits_version}
+              "old_portrait_mods": old_portrait_mods}
 
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
@@ -765,7 +808,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         if recheck else set()
     for r in REGISTRY:
         reason, run = "runs", True
-        if not ok and r.id not in candidates:
+        if not ok and (r.id not in candidates or (r.id == "R19" and no_dna)):
             reason, run = skip_why, False
         elif not ok and r.id in chosen and (r.id in named or (r.id == "R17" and set(TRANSPLANT) & named)):
             reason = "runs (named in --rules; the pack's span does not select this save)"
@@ -773,6 +816,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             reason, run = "turned off in your config (`ck3update enable` turns it back on)", False
         elif not ok:
             reason, run = RECHECK, False                  # judged below: the record, then its detector
+        elif r.id == "R19" and no_dna:
+            reason, run = "turned off by --no-dna (the faces stay in the save's own gene layout)", False
         elif r.id not in chosen:
             reason, run = ("opt-in: not in --rules" if not r.default else "not selected by --rules"), False
         elif r.id in off and r.id not in named:
@@ -844,6 +889,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             refusals.append(f"pack {pk.id}: after = {pk.after!r} names no patch of the packs before it")
             steps += own
             continue
+        while at + 1 < len(steps) and steps[at + 1].id in BUILT_IN_FOLLOWERS.get(pk.after, ()):
+            at += 1                                    # R19 finishes what R17 wrote: a pack after R17 follows both
         while at + 1 < len(steps) and getattr(steps[at + 1], "_after", None) == pk.after:
             at += 1                                    # several packs after one patch: in loading order
         for s in own:
@@ -886,7 +933,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
 
     # ---- run patches' needs and variables, known before anything runs
     known_ctx = {"game_dir": str(game.path) if game else None, "reference": ref.path,
-                 "old_game_dir": old_game_dir, "portraits_version": portraits_version}
+                 "old_game_dir": old_game_dir}
 
     def values_for(sid: str) -> dict:
         i = info[sid]
@@ -989,6 +1036,17 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             notes.append(f"re-check skipped: the record of {rec.get('label', '?')} says this tool "
                          f"({done_by}) updated it")
             recheck_ids = []
+    # ---- R19's layouts (the gene folders only, never the save): source, reference and target, and portraits_version
+    dna_setup, faces = None, []
+    r19 = next((s for s in steps if s.id == "R19"), None)
+    if game is not None and r19 is not None and not no_dna and (r19.will_run or r19.reason == RECHECK):
+        from . import dna as D
+        ref_meta = read_light(Path(ref.path)).meta if ref.path else None
+        dna_setup = D.setup(save_meta=light.meta, game_dir=game.path, old_game_dir=old_game_dir,
+                            reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv,
+                            old_portrait_mods=old_portrait_mods)
+        faces = _faces_rows(dna_setup, transplanting=bool(chosen & set(TRANSPLANT)))
+        notes.extend(dna_setup.notes)
     if not detect or not recheck_ids or refused:
         for s in steps:
             if s.reason == RECHECK:                        # not re-checked: as before, the pack is not selected
@@ -1003,7 +1061,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             refbytes = sf.read_save(ref.path).gamestate
         from .lint import workshop_mod_dirs
         env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches,
-                  mod_dirs=workshop_mod_dirs(light.meta, game.path if game else None))
+                  mod_dirs=workshop_mod_dirs(light.meta, game.path if game else None), dna=dna_setup)
         g = gamestate()
         # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
         # done, run what its detector finds needed, and never run blindly what cannot be judged
@@ -1023,7 +1081,10 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             finally:
                 timings[rid] = time.perf_counter() - t
             if d.left:                                 # what its rule cannot fix: said once, in the notes
-                notes.append(f"{rid}: {'; '.join(d.left)}; it stays as it is")
+                many = sum(int(m.group(1).replace(",", "")) for x in d.left
+                           if (m := re.match(r"([\d,]+) ", x))) != 1
+                notes.append(f"{rid}: {'; '.join(d.left)}; " + ("they stay as they are" if many else "it stays as it is"))
+            notes.extend(f"{rid}: {n}" for n in d.notes)
             return d
         for s in judge:
             s.reason = run_detector_timed(s.id).line()
@@ -1091,7 +1152,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                    prefilled_from=rec.get("label", "?") if prefilled and rec else None,
                    detected=detected, detect_seconds=full.get("seconds") if "g" in full else None,
                    detect_mb=len(full["g"]) / 1e6 if "g" in full else None, detect_timings=timings, seed=seed,
-                   cache_note=_cache_note(blockindex.LAST_EVENT))
+                   cache_note=_cache_note(blockindex.LAST_EVENT), faces=faces)
+    p.dna_setup = dna_setup
     p.rules = [rules[s.id] for s in steps if s.will_run]
     p.user_packs = found
     return p

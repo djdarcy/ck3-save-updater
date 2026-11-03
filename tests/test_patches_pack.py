@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 from ck3_save_migrator.patches import read_pack, rules_from_pack
-from ck3_save_migrator.rules import REGISTRY, _ORDER, religion_1_20, to_1_20, transplant_1_20
+from ck3_save_migrator.rules import REGISTRY, _ORDER, faces, religion_1_20, to_1_20, transplant_1_20
 
 ROOT = Path(__file__).resolve().parents[1]
 DECLARATIVE = {"R1", "R4", "R5", "R7", "R11"}
@@ -38,7 +38,7 @@ def test_the_registry_is_the_shipped_pack():
 
 
 # rules added after v0.3.11 (where each goes: after the rule named)
-ADDED = {"R23": "R12"}
+ADDED = {"R23": "R12", "R19": "R17"}
 
 
 def since_v0_3_11():
@@ -66,7 +66,7 @@ def test_the_registry_is_v0_3_11s_field_by_field():
 def test_each_code_patch_runs_the_very_function_v0_3_11_ran():
     """The 14 code patches name the same functions v0.3.11's registry held; the 5 retired rules are declarative."""
     old = json.loads((ROOT / "tests" / "fixtures" / "patches" / "registry_v0.3.11.json").read_text(encoding="utf-8"))
-    python = {r.id: r.apply for mod in (to_1_20, religion_1_20, transplant_1_20) for r in mod.RULES}
+    python = {r.id: r.apply for mod in (to_1_20, religion_1_20, transplant_1_20, faces) for r in mod.RULES}
     for r, o in zip(since_v0_3_11(), old):
         if r.id in DECLARATIVE:
             assert r.apply.patch.kind == "declarative" and r.id not in python, r.id
@@ -149,9 +149,9 @@ def test_the_built_wheel_carries_the_pack_and_loads_it_from_an_empty_directory(t
     empty = tmp_path / "empty"
     empty.mkdir()
     code = ("import ck3_save_migrator.patches as P; rs = P.rules_from_pack(); "
-            "assert len(rs) == 20, len(rs); import ck3_save_migrator, sys; "
+            "assert len(rs) == 21, len(rs); import ck3_save_migrator, sys; "
             "print(len(rs), ck3_save_migrator.__file__)")
     r = subprocess.run([str(py), "-I", "-c", code], cwd=empty, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     count, where = r.stdout.split()
-    assert count == "20" and str(env) in where and str(ROOT) not in where
+    assert count == "21" and str(env) in where and str(ROOT) not in where

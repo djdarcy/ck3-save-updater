@@ -32,7 +32,9 @@ from pathlib import Path
 from .config import atomic_write, config_path
 from .patches.model import tomllib
 
-INPUT_KEYS = ("vars", "old_game_dir", "transplant", "wos_shape", "portraits_version")
+# portraits_version is not an input since R19 (it sets the target's); an old record that stores one still reads, and
+# the plan says once that it is no longer used
+INPUT_KEYS = ("vars", "old_game_dir", "old_portrait_mods", "transplant", "wos_shape")
 
 
 def games_dir() -> Path:
