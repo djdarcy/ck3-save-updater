@@ -50,7 +50,6 @@ def fixture_save():
 @pytest.mark.parametrize("rid,detector,counted", [
     ("R2", T.r2_detect, "edited"),            # R2's matched counts every flag; what it re-encodes is its edits
     ("R21", T.r21_detect, "matched"),
-    ("R23", T.r23_detect, "matched"),
 ])
 def test_a_detector_counts_what_its_rule_matches_and_nothing_on_its_output(tmp_path, rid, detector, counted):
     save = fixture_save()
@@ -58,6 +57,14 @@ def test_a_detector_counts_what_its_rule_matches_and_nothing_on_its_output(tmp_p
     res = RULE[rid].run(save, RuleContext(game_dir=localized_game(tmp_path)))
     assert n > 0 and n == getattr(res, counted) and len(examples) == min(n, 5)
     assert detector(save.gamestate) == (0, [])             # the kill-check: the fixed save is not "needed"
+
+
+def test_the_r23_detector_counts_what_r23_writes_and_nothing_on_its_output(tmp_path):
+    save, g = fixture_save(), localized_game(tmp_path)
+    n, examples, left = T.r23_detect(save.gamestate, g, [])
+    res = RULE["R23"].run(save, RuleContext(game_dir=g))
+    assert n == res.edited == 2 and len(examples) == 2 and not left
+    assert T.r23_detect(save.gamestate, g, [])[:2] == (0, [])     # the kill-check
 
 
 def test_the_r2_detector_counts_only_what_r2_can_re_encode():
@@ -83,7 +90,7 @@ def test_the_r3_check_fires_on_inline_names_without_title_name_data_and_not_on_r
 def test_detect_lines(tmp_path):
     g = fixture_save().gamestate
     env = D.Env(game_dir=None)
-    assert D.detect("R23", g, env).line() == "needed: 2 nicknames without text"
+    assert D.detect("R23", g, env).line() == "unknown: needs the game folder (its localization)"
     assert D.detect("R22", g, env).line() == "unknown: needs the game folder (the target map)"
     assert D.detect("R14", g, env).state == "unknown"                       # needs a reference
     assert D.detect("R8", g, env).line().startswith("needed: the save has no rites/faiths database")
@@ -142,7 +149,7 @@ def test_a_current_save_missing_r23s_fix_runs_r23_alone(tmp_path, saves, capsys)
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g))
     assert code == 0 and out.startswith("READY") and "1 patch(es) run" in out
     st = steps_of(out)
-    assert "runs" in st["R23"] and "needed: 1 nicknames without text" in st["R23"]
+    assert "runs" in st["R23"] and "needed: 1 nickname without text" in st["R23"]
     assert "done: none found" in st["R21"]
     code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
     assert code == 0, err
@@ -208,7 +215,7 @@ def test_a_record_naming_an_older_version_re_checks(tmp_path, saves, capsys):
     s = current_save(saves)
     record.append_update("222", "Current", {"date": "d", "tool": "ck3-save-updater 0.0.1"})
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(localized_game(tmp_path)))
-    assert code == 0 and "needed: 1 nicknames without text" in steps_of(out)["R23"]
+    assert code == 0 and "needed: 1 nickname without text" in steps_of(out)["R23"]
 
 
 def test_rules_naming_a_rule_outside_the_line_still_refuses_another_line(tmp_path, saves, capsys):

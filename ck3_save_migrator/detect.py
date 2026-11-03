@@ -28,14 +28,26 @@ class Detection:
     what: str = ""
     examples: list[str] = field(default_factory=list)
     why: str = ""                      # unknown: what it would need
+    # what it found that its rule cannot fix, each said in full ("1 nickname whose text no listed mod has"); counted
+    # apart, never as needed, so a save whose only finding is one of these is done
+    left: list[str] = field(default_factory=list)
+    what_one: str = ""                 # ``what`` for a count of 1 ("nickname without text"), when it differs
 
     def line(self) -> str:
-        """The plan's words: ``needed: <count> <what>``, ``done: none found``, or ``unknown: <why>``."""
+        """The plan's words: ``needed: <count> <what>``, ``done: none found``, or ``unknown: <why>``; what its rule
+        cannot fix follows, as ``not fixable: ...``."""
+        rest = f"; not fixable: {'; '.join(self.left)}" if self.left else ""
         if self.state == "needed":
-            return f"needed: {self.count:,} {self.what}" if self.count is not None else f"needed: {self.what}"
+            what = self.what_one if self.count == 1 and self.what_one else self.what
+            return (f"needed: {self.count:,} {what}" if self.count is not None else f"needed: {self.what}") + rest
         if self.state == "done":
-            return "done: none found"
+            return "done: nothing it can fix" + rest if self.left else "done: none found"
         return f"unknown: {self.why}"
+
+
+def counted(n: int, one: str, many: str) -> str:
+    """``1 nickname`` / ``2 nicknames``."""
+    return f"{n:,} {one if n == 1 else many}"
 
 
 @dataclass
@@ -43,6 +55,7 @@ class Env:
     """What a detector may need besides the gamestate."""
     game_dir: Path | None = None
     reference: bytes | None = None     # a reference save's gamestate (R14, R16, R17)
+    mod_dirs: list = field(default_factory=list)     # the installed folders of the save's listed mods (R23's texts)
     patches: dict = field(default_factory=dict)      # the built-in pack's patches, by id (the declarative ones)
     # detector -> (the gamestate object it read, its Detection): rules that share a detector (R14/R16/R17,
     # R8/R9/R10/R12, R6/R15) read the save once per plan. Kept with the object itself and reused only for that same
@@ -75,8 +88,20 @@ def _r21(g, env):
 
 
 def _r23(g, env):
-    from .rules.to_1_20 import r23_detect
-    return _found(*r23_detect(g), "nicknames without text")
+    """R23 counts what it can fix with the game's and the listed mods' localization; a nickname whose text none
+    of them has (a mod the save does not list, play6: VIET_nick_crow_lady) is reported apart, never as needed."""
+    from .rules.to_1_20 import _r23_found, r23_detect
+    if env.game_dir is None:                  # what it can fix depends on the game's localization
+        return Detection("unknown", why="needs the game folder (its localization)") if _r23_found(g) \
+            else Detection("done")
+    n, examples, left = r23_detect(g, env.game_dir, env.mod_dirs)
+    d = _found(n, examples, "nicknames without text")
+    d.what_one = "nickname without text"
+    d.left = ([f"{counted(left['no text'], 'nickname', 'nicknames')} whose text no listed mod has"]
+              if left["no text"] else []) + \
+        ([f"{counted(left['unrendered'], 'nickname', 'nicknames')} whose text R23 cannot render"]
+         if left["unrendered"] else [])
+    return d
 
 
 def _r3(g, env):

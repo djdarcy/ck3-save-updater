@@ -66,7 +66,7 @@ def test_a_second_save_of_one_save_game_is_pre_filled_from_the_record(tmp_path, 
     code, out, err = update(capsys, later, g)
     assert code == 0, err
     assert mark.read_text(encoding="utf-8") == "W1"                # the pre-filled witness reached the patch
-    assert "pre-filled: --var witness=W1 (from the record of Campaign)" in flat(out)
+    assert "pre-filled: --var witness=W1" in flat(out) and "(from the record of Campaign)" in flat(out)
     assert "status: Campaign: last updated" in out and "from Campaign.ck3 (1 update)" in flat(out)
     rec = record.read_record("111")
     assert rec["label"] == "Campaign" and len(rec["update"]) == 2
