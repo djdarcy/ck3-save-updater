@@ -22,7 +22,9 @@ from ck3_save_migrator.patches import apply_patch, read_pack  # noqa: E402
 
 def main():
     base, r19, folder = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
-    out_a, out_b = folder / "MIGRATE_TEST__040_example.ck3", folder / "MIGRATE_TEST__040_faces.ck3"
+    suffix = sys.argv[4] if len(sys.argv) > 4 else ""      # a second staging under new names, never an overwrite
+    out_a = folder / f"MIGRATE_TEST__040_example{suffix}.ck3"
+    out_b = folder / f"MIGRATE_TEST__040_faces{suffix}.ck3"
     for o in (out_a, out_b):
         if o.exists():
             raise SystemExit(f"refusing to overwrite {o}")

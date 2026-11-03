@@ -3,17 +3,17 @@
 [![PyPI](https://img.shields.io/pypi/v/ck3-save-updater?color=green)](https://pypi.org/project/ck3-save-updater/)
 [![Release Date](https://img.shields.io/github/release-date/djdarcy/ck3-save-updater?color=green)](https://github.com/djdarcy/ck3-save-updater/releases)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/ck3-save-updater?period=total&units=international_system&left_color=black&right_color=green&left_text=downloads)](https://pypistats.org/packages/ck3-save-updater)
-[![CI](https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml/badge.svg)](https://github.com/djdarcy/ck3-save-updater/actions/workflows/ci-python.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL%20v3-green.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
+[![Installs](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/djdarcy/a5a1c9f7d7d4790b6c16cf492646e3b3/raw/installs.json)](https://djdarcy.github.io/ck3-save-updater/stats/#installs)
 [![GitHub Discussions](https://img.shields.io/github/discussions/djdarcy/ck3-save-updater)](https://github.com/djdarcy/ck3-save-updater/discussions)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](docs/platform-support.md)
 
-Brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
+`ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
 
 ## Quick start
 
-Windows, with your old save in the game's save folder. Below it is called `My Save`: use your save's own name, without `.ck3`. None of these commands changes your save: `reference-mod` adds a small mod to the game's mod folder, and `update` writes a new file beside your save.
+Wherever you see `My Save`, put your save's name (without `.ck3`). Your save itself is never changed, the update is written to a new file beside it.
 
 **1. Install** (Python 3.10 or newer):
 
@@ -29,29 +29,29 @@ ck3update reference-mod --save "My Save"
 
 That writes a small mod into the game's mod folder. Then, in the game:
 
-1. In the launcher, turn on the mod **Reference bookmark _your date_ (ck3update)** (with no other mod that changes bookmarks; your usual mods can stay off), and play.
+1. In the launcher, turn on the mod **Reference bookmark _your date_ (ck3update)** and play. Your usual mods can stay off, but leave out any other mod that changes bookmarks.
 2. Choose **New Game**, pick the bookmark **_your date_ Reference (ck3update)**, pick any character, and start.
 3. **Save at once**, before unpausing (any name will do, e.g. `Reference`), and quit to the desktop.
 4. Back in the launcher, turn the reference mod off again.
 
-**3. Set the launcher's playset, then check and update.** In the game's launcher, set the playset to the mods you will play with (portrait mods included) and close it: the faces are carried into that playset's [gene layout](docs/glossary.md#gene-layout). Then:
+**3. Set the launcher's playset, then check and update.** In the game's launcher, set the playset to the mods you will play with, portrait mods included, then close the launcher. The faces are converted to match that playset's [gene layout](docs/glossary.md#gene-layout). Then:
 
 ```
 ck3update status "My Save"
 ck3update update "My Save"
 ```
 
-`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. A save from before the 1.13 map rework also gets the regions the new map added, from the reference save; a newer save is left alone there.
+`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. If your save is from before the 1.13 map rework, the update also brings in the regions the new map added, copied from the reference save.
 
 **4. Play.** Start the game with that same playset, and load `My Save__updated__...`.
 
-Faces are carried into the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you load with (rule R19; [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)): set the launcher's playset before you update, or name the mods with `--portrait-mods`. If a portrait mod the save was made with has since updated or gone, give the save's own build with `--old-portrait-mods`. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
+Faces are converted to the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you play with (rule R19, [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)). Set the launcher's playset before you update, or name the mods with `--portrait-mods`. If a portrait mod your save was made with has since been updated or removed, point `--old-portrait-mods` at the build the save used. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
-## What it has been measured on
+## What ck3update has been measured against
 
-One campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, loads and plays in 1.20.1.2. Saves from other starting versions are expected to work, because each game version since has only added to what a save holds, but that is not yet proven. The [CHANGELOG](CHANGELOG.md) says what each release covers.
+I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been tested end to end. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), genes a portrait mod adds that the layout you load with lacks (they are dropped, and the report names them), and mod content in general. The regions the [map rework](docs/glossary.md#map-rework) added are brought in by default for a save from before it, when a reference save is found; that step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
+Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), genes a portrait mod adds that the layout you load with lacks (they are dropped, and the report names them), and mod content in general. For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found. That step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
 
 ## Install
 
@@ -121,7 +121,7 @@ Do what the fix says, then run `status` again. Nothing is written while a plan i
 A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both causes measured so far are the game's own behaviour, which a big save makes visible, and both have workarounds:
 
 - **Two top-bar alerts.** The game re-checks the player's alerts one at a time, even while paused. On the measured campaign two vanilla alerts cost about half a second per check each, freezing the game every 2 to 3 seconds:
-  - the tutorial advice for great projects: turn tutorial and reactive advice off in the game's settings;
+  - the tutorial advice for great projects: **turn tutorial and reactive advice off** in the game's settings;
   - the great-cathedral upgrade alert (for clergy rulers): a small local mod that turns the alert off removes it, and the cathedral decision itself still works from the decisions screen.
 - **Portraits.** Portraits on screen are recalculated every 30 frames, paused or not. A character window with a large family kept dozens rebuilding and froze for over half a second in every five. A mod that overrides `common/defines/jomini/portraits.txt` with a larger `PORTRAIT_CACHE_EXPIRE_FRAMES` (600 was tried) cut that about tenfold.
 
@@ -132,6 +132,8 @@ A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both
 - **Better Barbershop** (Workshop 2220326926) replaces the barbershop and interaction-menu windows, and in 1.20 the barbershop then shows no characters. Disabling it brings the built-in barbershop back.
 
 ## Documentation
+
+The [documentation guide](docs/README.md) groups these pages by what you are trying to do. It is also the front page of [the project's site](https://djdarcy.github.io/ck3-save-updater/).
 
 - [Updating a save](docs/updating-a-save.md): the whole process, `status` then `update`, and doing it by hand.
 - [Glossary](docs/glossary.md): every term the tool uses, and every header `status` prints.
@@ -154,7 +156,7 @@ A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both
 
 ## Contributing
 
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the code of conduct, reporting bugs, suggesting enhancements and pull requests. To work on the code:
+Contributions are welcome (see [CONTRIBUTING.md](CONTRIBUTING.md) for details about bug reports, feature requests, and pull requests). To help work on the code:
 
 ```bash
 git clone https://github.com/djdarcy/ck3-save-updater.git
@@ -163,7 +165,9 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Like the project? [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/djdarcy)
+Like the project?
+
+ [!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/djdarcy)
 
 ## License
 
