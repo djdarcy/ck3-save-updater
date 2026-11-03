@@ -44,6 +44,10 @@ class Env:
     game_dir: Path | None = None
     reference: bytes | None = None     # a reference save's gamestate (R14, R16, R17)
     patches: dict = field(default_factory=dict)      # the built-in pack's patches, by id (the declarative ones)
+    # detector -> (the gamestate object it read, its Detection): rules that share a detector (R14/R16/R17,
+    # R8/R9/R10/R12, R6/R15) read the save once per plan. Kept with the object itself and reused only for that same
+    # object, never by path or by content: a dry run and a real run on one file never share a verdict.
+    memo: dict = field(default_factory=dict, repr=False, compare=False)
 
 
 def _found(n: int, examples: list[str], what: str) -> Detection:
@@ -139,10 +143,16 @@ def has_detector(rule_id: str, env: Env | None = None) -> bool:
 
 
 def detect(rule_id: str, g: bytes, env: Env) -> Detection:
-    """The rule's detection on gamestate ``g`` (read only)."""
+    """The rule's detection on gamestate ``g`` (read only). A detector several rules share runs once per ``env`` for
+    the same gamestate object (``Env.memo``)."""
     fn = DETECTORS.get(rule_id)
     if fn is not None:
-        return fn(g, env)
+        hit = env.memo.get(fn)
+        if hit is not None and hit[0] is g:
+            return hit[1]
+        d = fn(g, env)
+        env.memo[fn] = (g, d)
+        return d
     p = env.patches.get(rule_id)
     if p is not None and p.kind == "declarative":
         from .patches.pack import verdict

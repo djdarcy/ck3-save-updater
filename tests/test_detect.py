@@ -257,3 +257,56 @@ def test_a_company_title_keyed_for_another_company_is_a_warning():
     f = next(f for f in rep.findings if f.check == "a mercenary company's title key is x_mc_<company id>")
     assert f.severity == "warn" and f.examples == ["company 7: its title key is x_mc_8"]
     assert not re.search(r"\bR\d+\b", f.check + f.gloss + " ".join(f.examples))     # it names no rule
+
+
+# --------------------------------------------------------------------------- 9. the detector cache (S1 unit 1)
+def counting(monkeypatch, rule_ids):
+    """One counting detector standing in for the shared one behind ``rule_ids``; returns the call list."""
+    calls = []
+    real = D.DETECTORS[rule_ids[0]]
+
+    def shared(g, env):
+        calls.append(g)
+        return real(g, env)
+    for rid in rule_ids:
+        monkeypatch.setitem(D.DETECTORS, rid, shared)
+    return calls
+
+
+def test_rules_that_share_a_detector_read_the_save_once(monkeypatch):
+    calls = counting(monkeypatch, ["R8", "R9", "R10", "R12"])
+    g, env = fixture_save().gamestate, D.Env()
+    got = [D.detect(r, g, env) for r in ("R8", "R9", "R10", "R12")]
+    assert len(calls) == 1
+    assert all(x is got[0] for x in got) and got[0].state == "needed"
+
+
+def test_another_gamestate_object_is_judged_again_even_with_the_same_bytes(monkeypatch):
+    """Never keyed by content or path: a gamestate an edit replaced must be read afresh (a dry run and a real run
+    on the same file never share a verdict)."""
+    calls = counting(monkeypatch, ["R8", "R9"])
+    g, env = fixture_save().gamestate, D.Env()
+    twin = bytes(bytearray(g))
+    assert twin == g and twin is not g
+    D.detect("R8", g, env)
+    D.detect("R9", twin, env)
+    D.detect("R9", g, env)
+    assert len(calls) == 3                       # the twin is read; returning to g reads again (one entry per detector)
+
+
+def test_a_new_env_starts_empty(monkeypatch):
+    calls = counting(monkeypatch, ["R8", "R9"])
+    g = fixture_save().gamestate
+    D.detect("R8", g, D.Env())
+    D.detect("R9", g, D.Env())
+    assert len(calls) == 2
+
+
+def test_check_reads_a_shared_detector_once(tmp_path, capsys, monkeypatch):
+    calls = counting(monkeypatch, ["R8", "R9", "R10", "R12"])
+    s = tmp_path / "f.ck3"
+    s.write_bytes(build_ck3(meta=RULES_META, body=BODY))
+    assert cli.main(["check", str(s), "--game-dir", str(localized_game(tmp_path))]) == 0
+    out = capsys.readouterr().out
+    assert len(calls) == 1
+    assert sum(1 for ln in out.splitlines() if "no rites/faiths database" in ln) == 4    # every rule still says it
