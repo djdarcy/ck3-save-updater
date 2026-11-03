@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.26] - 2026-11-02
+
+### Added
+- A Quick start in the README: install, make the reference save (the command, then each step in the game's launcher and menu), `status`, `update`, and loading the result.
+
+### Changed
+- `ck3update` alone, and the top of `ck3update -h`, give the three steps in order: the reference save's bookmark mod (and what to do in the game), `status`, `update`, pointing at the README's Quick start for the rest.
+- `ck3update reference-mod` writes into the game's own mod folder when `--out` is not given (found the way the save folder is, OneDrive included). Its closing lines name the mod as the launcher lists it, and say that `status` and `update` find the new save by themselves.
+- [The reference save](docs/reference-save.md) walks through `status` and `update` instead of `migrate`.
+
 ## [0.3.25] - 2026-11-02
 
 ### Added
@@ -343,7 +353,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.26...HEAD
+[0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.25...v0.3.26
 [0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.24...v0.3.25
 [0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.23...v0.3.24
 [0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.3.22...v0.3.23

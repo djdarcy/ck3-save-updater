@@ -22,11 +22,15 @@ def test_every_command_is_in_exactly_one_group_and_no_group_names_a_missing_one(
     assert set(listed) == parser_cmds
 
 
-def test_help_starts_with_status_and_shows_each_group(capsys):
+def test_help_starts_with_the_three_steps_and_shows_each_group(capsys):
+    """The steps in order: the reference save's mod (and the game's part), status, update (djdarcy, 2026-11-02)."""
     out = top_help(capsys)
     assert out.splitlines()[0].endswith("<command> ...")     # not the twenty-name brace
-    assert 'ck3update status "My Save"' in out and 'ck3update update "My Save"' in out
-    assert out.index("start here:") < out.index("updating a save:")
+    steps = ['1. ck3update reference-mod --save "My Save"', "then in the game:", '2. ck3update status "My Save"',
+             '3. ck3update update "My Save"']
+    assert [out.index(s) for s in steps] == sorted(out.index(s) for s in steps)
+    assert 'README, "Quick start"' in out
+    assert out.index("start here") < out.index("updating a save:")
     for heading, _ in helptext.GROUPS:
         assert f"\n{heading}:\n" in out
     assert "{inspect,migrate" not in out
@@ -43,7 +47,8 @@ def test_bare_command_prints_where_to_start_and_succeeds(capsys):
     got = capsys.readouterr()
     assert got.err == ""
     assert got.out.startswith(helptext.DESCRIPTION)
-    assert "start here:" in got.out and got.out.rstrip().endswith("ck3update -h lists every command.")
+    assert helptext.START_HERE in got.out and got.out.rstrip().endswith("ck3update -h lists every command.")
+    assert '1. ck3update reference-mod --save "My Save"' in got.out
 
 
 def test_a_command_help_opens_with_its_one_line_description(capsys):

@@ -11,14 +11,15 @@ installed. The save you give it is never changed: the updated copy is
 written beside it."""
 
 START_HERE = """\
-start here:
-  ck3update status              # finds your game and your save folder
-  ck3update status "My Save"    # what update would do, and whether it can
-  ck3update update "My Save"    # writes "My Save__updated__<game version>.ck3"
+start here (every step, the game's own included: README, "Quick start"):
+  1. ck3update reference-mod --save "My Save"
+     then in the game: turn on the mod it names, start a new game from its
+     bookmark, and save at once
+  2. ck3update status "My Save"     # what update would do; writes nothing
+  3. ck3update update "My Save"     # writes "My Save__updated__<version>.ck3"
 
   "My Save" is a path, or a save's name in the game's save folder (with or
-  without .ck3). status writes nothing. If it says REFUSED, the line under
-  it says what to run."""
+  without .ck3). If status says REFUSED, the line under it says what to do."""
 
 # (heading, [(the command as shown, the commands it covers, what it is for)])
 GROUPS = [
@@ -42,7 +43,7 @@ GROUPS = [
     ("setup", [
         ("setup", ("setup",), "'ck3update' not recognized? finds it and fixes PATH"),
         ("cache", ("cache",), "where the speed-up cache is, or clear it"),
-        ("reference-mod", ("reference-mod",), "make the mod that starts a game for a reference save"),
+        ("reference-mod", ("reference-mod",), "a bookmark mod that starts a new game on your save's date"),
     ]),
     ("advanced", [
         ("migrate", ("migrate",), "write a migrated copy without the plan"),
