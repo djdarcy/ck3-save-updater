@@ -4,10 +4,13 @@
 # Moved from the 2026-11-03 session scratchpad (play7_claude_shots.sh) for the #40 goal; generalised to any staged save.
 # Usage: play7_shots.sh [run-name] [save file name in save games] [seconds before STOP]
 #   defaults: faces040-play7-claude MIGRATE_TEST__play7.ck3 60 (seconds in game before the normal close)
+#   any further arguments go to launch_load_test.py as harness options (2026-11-04, the culture goal's U0), e.g.
+#   "--h-console=save MIGRATE_TEST__u0_resaved" for a first-day re-save (the game starts paused)
 set -u
 NAME="${1:-faces040-play7-claude}"
 SAVEFILE="${2:-MIGRATE_TEST__play7.ck3}"
 WAITS="${3:-60}"
+HARNESS=("${@:4}")
 D="/c/Users/Extreme/Documents/Paradox Interactive/Crusader Kings III"
 R="/c/code/ck3-save-migrator"
 B="$R/private/data/backups/$(date +%Y-%m-%d__%H-%M-%S)__dlc_load.json"
@@ -33,6 +36,6 @@ echo "wrote the Claude playset into dlc_load.json"
 cd "$R"
 # 2026-11-03: the game now closes itself normally ($WAITS s after it is in game: WM_CLOSE, then Exit to Desktop),
 # instead of a STOP file that left ck3.exe open; launch_load_test notes whether the process is still running.
-python -I tests/one-offs/launch_load_test.py "$NAME" -gdpr-compliant -debug_mode "-loadsave=$SAVEFILE" "--h-exit-after=$WAITS"
+python -I tests/one-offs/launch_load_test.py "$NAME" -gdpr-compliant -debug_mode "-loadsave=$SAVEFILE" "--h-exit-after=$WAITS" "${HARNESS[@]}"
 RUN=$(ls -td private/data/runs/*"$NAME" | head -1)
 echo "run: $RUN"; ls "$RUN/shots"; grep "In Game\|stop:\|exit\|process after run" "$RUN/timeline.txt" | cut -c1-160
