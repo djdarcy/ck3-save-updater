@@ -303,7 +303,9 @@ class TestFamilies:
         assert any("no game folder" in s for s in rep.skipped)
         tokens = {f.check for f in rep.findings if f.check.startswith("Unexpected token:")}
         assert tokens                                                       # the table needs no game data
-        assert not [f for f in rep.findings if f.severity == "reject"]      # what is left is all converted on load
+        # what is left is converted on load, or a field a rule carries (exposure_type: R26, 2026-11-04)
+        assert [f.check for f in rep.findings if f.severity == "reject"] == \
+            ["Unexpected token: exposure_type (in culture_manager)"]
 
 
 # --------------------------------------------------------------------------- real save (opt-in)

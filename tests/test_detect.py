@@ -233,11 +233,18 @@ CONVERTED = (b"schemes={\n\tactive={\n\t\t0={\n\t\t\towner_influence=11\n\t\t\tr
              b"\tcoat_of_arms_id=1\n\ttitle_name_data={\n\t\tname=\"X\"\n\t}\n}\n\t}\n}\n")
 
 
-def test_the_six_converted_families_are_info():
+def test_the_four_converted_families_are_info_and_the_spread_marker_pair_is_a_reject_naming_r26():
+    """2026-11-04 (the culture goal's U3/U5): 1.20 drops exposure_marker and exposure_type rather than converting
+    them; the culture forgets the innovation it was learning, and R26 carries it."""
     rep = L.lint_gamestate(CONVERTED, known=L.GameData(words={b"x"}, sources=["x"]))
     tokens = {f.check: f for f in rep.findings if f.check.startswith("Unexpected token:")}
-    assert len(tokens) == 6 and all(f.severity == "info" and f.gloss == L.CONVERTED_GLOSS for f in tokens.values())
-    assert rep.count("reject") == 0 and rep.errors == 0
+    assert len(tokens) == 6
+    spread = {k: f for k, f in tokens.items() if "exposure_" in k}
+    others = {k: f for k, f in tokens.items() if k not in spread}
+    assert len(others) == 4 and all(f.severity == "info" and f.gloss == L.CONVERTED_GLOSS for f in others.values())
+    assert len(spread) == 2 and all(f.severity == "reject" and "R26 spread-marker" in f.gloss for f in spread.values())
+    assert "forgets which innovation" in spread["Unexpected token: exposure_marker (in culture_manager)"].gloss
+    assert rep.errors == 0
 
 
 def test_lint_exits_0_on_a_save_with_only_converted_families(tmp_path):

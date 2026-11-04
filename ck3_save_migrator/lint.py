@@ -300,8 +300,9 @@ def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
 
 def check_registries(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
     """INV-6 (census 2026-10-26): every culture made from a game template is on ``template_cultures``, the list of
-    the cultures the game made from its definitions (vanilla 1.20 at 987: 244 of 244). A warning: whether the
-    game resolves ``culture:<key>`` through the list is not measured yet."""
+    the cultures the game made from its definitions (vanilla 1.20 at 987: 244 of 244). The game resolves
+    ``culture:<key>`` through this list: the 2026-10-27 bisect left it out of an updated save and the load logged
+    40,036 "Failed to fetch a valid culture" errors, none with it in. It stays a warning."""
     idx = idx or SectionIndex(g)
     tl, cu = idx.block("culture_manager/template_cultures"), idx.block("culture_manager/cultures")
     if tl is None or cu is None:
@@ -316,7 +317,7 @@ def check_registries(g: bytes, rep: LintReport, idx: SectionIndex | None = None)
             missing.append(f"{m.group(1).decode()} ({e.key.decode()})")
     rep.add("template cultures are registered", "warn", sorted(missing),
             gloss="Cultures made from a game template but missing from the game's list of them; scripts that "
-                  "name the culture may not find it")
+                  "name the culture cannot find it (the game's 'Failed to fetch a valid culture' errors)")
 
 
 def check_contracts(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -1059,10 +1060,20 @@ REJECTED_AT = {
 }
 # The game converts these on load, so they are not losses (info, not rejects): measured on 1.20.1.2's re-save of an
 # updated save (2026-10-31), which carries none of them.
-CONVERTED_ON_LOAD = {(b"schemes", b"owner_influence"), (b"schemes", b"ready"), (b"culture_manager", b"exposure_type"),
-                     (b"culture_manager", b"exposure_marker"), (b"landed_titles", b"localization_key"),
+CONVERTED_ON_LOAD = {(b"schemes", b"owner_influence"), (b"schemes", b"ready"), (b"landed_titles", b"localization_key"),
                      (b"landed_titles", b"renamed")}
 CONVERTED_GLOSS = "the game converts this on load (measured on 1.20.1.2's re-save of an updated save, 2026-10-31)"
+# Rejected fields whose content a rule carries, with what the player loses without it. exposure_marker and
+# exposure_type were on the converted list until 2026-11-04: the re-save carries neither, but because 1.20 drops
+# them, and with them the innovation each culture was learning (all 201 markers on the founding save).
+FIXED_BY = {
+    (b"culture_manager", b"exposure_marker"):
+        "the game drops it on load, and the culture forgets which innovation it was learning; R26 spread-marker "
+        "carries it into spread_marker",
+    (b"culture_manager", b"exposure_type"):
+        "how the innovation spreads (border, realm, religion), which 1.20 no longer records; R26 spread-marker "
+        "drops it as it carries the marker",
+}
 # entries rejected only at one depth below the section's entries: 1.20 accepts localization_key inside a title's
 # title_name_data (where it writes it itself) and rejects it directly in the title (where 1.8.1 put it):
 # the 987 load logged 5, the 5 title-level ones, with 3 more inside title_name_data unlogged
@@ -1131,7 +1142,7 @@ def check_families(g: bytes, rep: LintReport, data: GameData, idx: SectionIndex)
         if n:
             converted = (section, key) in CONVERTED_ON_LOAD
             rep.add(f"Unexpected token: {key.decode()} (in {section.decode()})", "info" if converted else "reject",
-                    [evidence], gloss=CONVERTED_GLOSS if converted else
+                    [evidence], gloss=CONVERTED_GLOSS if converted else FIXED_BY.get((section, key)) or
                     f"A field the current game no longer has ({key.decode()} in {section.decode()}); "
                     "the game skips it when loading")
             rep.findings[-1].count = n

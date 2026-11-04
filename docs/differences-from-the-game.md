@@ -17,6 +17,8 @@ When the current game loads a save from an older version, it converts what it ca
 - **Monastic orders**: the 1.20 orders that hold land in the old world are added as the new version has them, and listed in the report as expansion content. `--no-expansion-orders` leaves them out.
 - **County records**: every county the tool brings in gets its record (culture, faith or rite, development), which the game reads for epidemics, buildings and tournaments. Without it the game's error log fills with "culture trigger [Failed context switch]" within a minute of play.
 - **China's situations** (the dynastic cycle) and every culture 1.20 added.
+- **What each culture is learning.** The game drops the marker naming the innovation a culture is picking up from another, though it keeps the progress. The tool keeps the marker.
+- **Perks, regiments and artifact bonuses the game renamed.** The game deletes what it no longer knows by name. The tool renames the Scholar perk to Erudite, Teutonic Knights to Order Serjeants, and an artifact's scheme-power bonus to the same bonus on scheme phase duration.
 
 ## It keeps the campaign's religion
 
