@@ -26,7 +26,7 @@ The game starts new games only on its bookmark dates. Unless your campaign happe
 
    It writes a folder `zz_ref_<date>` (holding `descriptor.mod`, the bookmark and its English text; the bookmark and the text are UTF-8 with a byte-order mark, as the game expects) and, beside it, `zz_ref_<date>.mod`, which the launcher reads. It refuses to overwrite either if it already exists.
 2. **Enable the mod** in the game's launcher: it is listed as "Reference bookmark `<date>` (ck3update)". Use a playset with nothing else that changes bookmarks.
-3. **Start a new game** from the bookmark named "`<date>` Reference (ck3update)", with any character, and **save at once**, before unpausing, so the world is exactly as the game starts it on that date.
+3. **Start a new game** from the bookmark named "`<date>` Reference (ck3update)", with any character, and **save as soon as it loads**, before you unpause, so the world is exactly as the game starts it on that date.
 4. **Run `status`, then `update`.** They find that save by themselves in the save folder: a save written by the game you have, on your campaign's date, preferring one made with this bookmark mod. Name it with `--reference "<path>"` when several could match (`status` lists them).
 
    ```bash

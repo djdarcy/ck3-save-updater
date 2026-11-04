@@ -25,6 +25,7 @@ def setup_for(save: CK3Save, ctx) -> D.Setup:
                  portrait_mods_given=ctx.state.get("portrait_mods"),
                  old_portrait_mods=ctx.state.get("old_portrait_mods"),
                  target_version=game_version(ctx.game_dir) if ctx.game_dir else ctx.target_version)
+    st.face_changes = tuple(ctx.state.get("face_changes") or ())   # --face-changes (none by default: 0.4.0's R19)
     ctx.state["dna_setup"] = st
     return st
 

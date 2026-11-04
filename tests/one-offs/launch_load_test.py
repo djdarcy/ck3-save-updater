@@ -177,6 +177,8 @@ def main(run_name: str, args: list[str]) -> int:
     # harness options (not passed to the game): --h-console=CMD types CMD into the debug console once, a few
     # seconds after the 'In Game' idler; repeatable, sent in order
     consoles = [a.split("=", 1)[1] for a in args if a.startswith("--h-console=")]
+    # --h-exit-console=CMD: at the close, type CMD into the console instead of posting WM_CLOSE (e.g. "quit")
+    exit_console = next((a.split("=", 1)[1] for a in args if a.startswith("--h-exit-console=")), None)
     # --h-key=NAME: keys posted once, in order, after the console commands (space, plus, 1-5, ...)
     keys = [a.split("=", 1)[1] for a in args if a.startswith("--h-key=")]
     # --h-max=SECONDS: run length cap (default 15 min); --h-guard-autosave: back up the user's autosave*.ck3 first
@@ -310,10 +312,16 @@ def main(run_name: str, args: list[str]) -> int:
             ready = in_game_at and hwnd and not consoles and (keys_sent or not keys)
             if exit_after is not None and exit_posted_at is None and ready and time.time() - in_game_at > exit_after:
                 import ctypes
-                ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)          # WM_CLOSE: opens "Exit Game"
                 exit_posted_at = time.time()
                 exit_clicks = 0
-                note(f"exit: WM_CLOSE posted {exit_after}s after in game (opens the Exit Game dialog)")
+                if exit_console:
+                    # 2026-11-03 (djdarcy: close properly, no autosave, no kill): a console command the game runs
+                    # itself, typed by posted keys as --h-console does; the ladder below still follows if it fails
+                    post_console(hwnd, exit_console)
+                    note(f"exit: console '{exit_console}' typed {exit_after}s after in game")
+                else:
+                    ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)      # WM_CLOSE: opens "Exit Game"
+                    note(f"exit: WM_CLOSE posted {exit_after}s after in game (opens the Exit Game dialog)")
             # the close ladder (2026-11-03, the #40 goal): the game drops a WM_CLOSE while it is busy, and has ignored
             # posted clicks on its dialog, so: click, WM_CLOSE again, click, a real click only when the game window
             # is the foreground window (never a click into someone else's window), and at 60 s taskkill by PID
