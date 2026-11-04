@@ -4,6 +4,18 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.10] - 2026-11-04
+
+### Added
+- A new step renames perks, regiments and artifact bonuses that the current game no longer has to the ones that replaced them. Without it, the game deletes them when the save loads.
+  - The Scholar perk becomes Erudite, which sits in the same place in the same tree.
+  - Teutonic Knights become Order Serjeants: the holy-order heavy infantry with the nearest strength.
+  - An artifact's bonus to scheme power becomes the same bonus to scheme phase duration, for the same scheme and tier.
+- Each replacement was chosen by what the thing is, never by its name alone.
+- A key is renamed only when neither the game nor the save's mods still define it, and its replacement is defined. Anything else is left as it is and listed in the report.
+- On the founding campaign this keeps 142 characters' Scholar perk, 11 regiments and 247 artifact bonuses.
+- `status` counts what the step would rename.
+
 ## [0.4.9] - 2026-11-04
 
 Developer tooling for comparing an updated save with the game's own re-save of it. Nothing a player runs changes in this version.
@@ -471,7 +483,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...HEAD
+[0.4.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...v0.4.7

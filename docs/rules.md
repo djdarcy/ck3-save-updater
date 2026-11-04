@@ -61,6 +61,7 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 | R11 | empty-modifiers | 1.8.1<v<=1.20.1.2 | deletes modifiers with an empty name (`modifier=""`, `""` in modifier lists, `type=""`) |
 | R23 | nickname-text | 1.8.1<v<=1.20.1.2 | writes the nickname's text (`nickname_text`) after every nickname that lacks it, the way 1.20 stores a nickname: its key and its rendered text. Without it, nicknames show as raw keys or garbled in game |
 | R19 | dna-layout | 1.8.1<v<=1.20.1.2 | rewrites every face (`dna=`) from the gene layout it was written in to the layout you will load with (the game's genes plus the portrait mods `dlc_load.json` enables, or `--portrait-mods`), gene by gene and template by template by name, and sets `portraits_version` to the target's. A character the transplant added is read in the reference save's layout. Runs after R17; `--no-dna` turns it off. See [Faces](#faces-r19) |
+| R25 | successor-keys | 1.8.1<v<=1.20.1.2 | renames perks, regiment types and artifact modifiers the current game no longer defines to the ones that took their place: the Scholar perk becomes Erudite, Teutonic Knights become Order Serjeants, and an artifact's scheme-power bonus becomes the same bonus to scheme phase duration. Without it, 1.20 silently deletes them when the save loads. Each successor was matched on what the thing is (a perk's place in its tree, a regiment's kind and strength), and a key is renamed only when the game and the save's mods no longer define it and do define its successor; anything else is left and reported. Needs the game folder |
 | R7 | version-bump | n/a | sets the save's version fields to the target version; runs last |
 
 ### Religion rules (default)
@@ -91,7 +92,7 @@ A custom faith can be carried in two shapes, chosen with `--wos-shape`: as a fai
 
 ## Order
 
-The rules run in this order, which is the order `ck3update rules` lists: R1, R2, R3, R4, R5, R21, R20, R22, R6, R11, R8, R10, R9, R12, R23, R15, R14, R16, R17, R19, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the faces (R19) after them, so the people the transplant added are in the output, and before any pack of yours; the version bump runs last.
+The rules run in this order, which is the order `ck3update rules` lists: R1, R2, R3, R4, R5, R21, R20, R22, R6, R11, R8, R10, R9, R12, R23, R15, R14, R16, R17, R19, R25, R7. R11 runs before R8 because it reads the old religion layout; R10, R9 and R12 run after R8 because they read what it built; the new-map rules run after religion; the faces (R19) after them, so the people the transplant added are in the output, and before any pack of yours; the version bump runs last.
 
 ## Faces (R19)
 

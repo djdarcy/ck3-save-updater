@@ -415,17 +415,17 @@ class TestRegistry:
 
     def test_registry_order_is_dependency_order(self):
         assert [r.id for r in R.REGISTRY] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
-                                              "R12", "R23", "R15", "R14", "R16", "R17", "R19", "R7"]
+                                              "R12", "R23", "R15", "R14", "R16", "R17", "R19", "R25", "R7"]
 
     def test_transplant_rules_are_opt_in_and_bring_the_write_step(self):
         assert "R14" not in [r.id for r in R.select("all")]
         assert [r.id for r in R.select("R14")] == ["R14", "R17"]
-        assert [r.id for r in R.select("all", include_off=("new-titles",))][-4:] == ["R14", "R17", "R19", "R7"]
+        assert [r.id for r in R.select("all", include_off=("new-titles",))][-5:] == ["R14", "R17", "R19", "R25", "R7"]
 
     def test_all_rules_compose(self, save, tmp_path):
         res = R.run_rules(save, R.select("all"), R.RuleContext(game_dir=make_game_dir(tmp_path / "g")))
         assert [r.id for r in res] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12",
-                                       "R23", "R19", "R7"]
+                                       "R23", "R19", "R25", "R7"]
         assert all("skipped" in r.extra for r in res if r.id in ("R8", "R10", "R9", "R12"))   # no reference
         sf.write_save(save, tmp_path / "o.ck3")
         back = sf.read_save(tmp_path / "o.ck3")
@@ -449,7 +449,7 @@ class TestCLI:
         assert r.returncode == 0, r.stderr
         rep = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
         assert [x["id"] for x in rep["rules"]] == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9",
-                                                   "R12", "R23", "R19", "R7"]
+                                                   "R12", "R23", "R19", "R25", "R7"]
         assert not list(tmp_path.glob("*__wos-*"))          # no reference -> no branch, one output
         assert rep["rules"][0]["edited"] == 2 and rep["output_sha256"] == sf.sha256((tmp_path / "out.ck3").read_bytes())
 
@@ -476,6 +476,8 @@ class TestCLI:
 def test_real_987_counts():
     save = sf.read_save(REAL_987)
     res = {r.id: r for r in R.run_rules(save, R.select("all", include_off=("R7",)), R.RuleContext(game_dir=GAME))}
+    # 142 scholar_perk, 11 teutonic_knights, 247 artifact scheme-power modifiers (2026-11-04, the culture goal's U4)
+    assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (400, 400, {})
     assert (res["R1"].matched, res["R1"].edited) == (76433, 76433)
     assert (res["R2"].matched, res["R2"].edited, len(res["R2"].extra["left_unchanged"])) == (48357, 48357, 0)
     assert (res["R3"].matched, res["R3"].edited) == (12702, 12702 + 12702 + 3508 + 45 + 43)
@@ -492,7 +494,7 @@ def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prereq
     with the write step (R17) brought along; such a selection lacks no prerequisite."""
     ids = [r.id for r in R.select("all,R14,R15,R16")]
     assert ids == ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R23", "R15", "R14",
-                   "R16", "R17", "R19", "R7"]
+                   "R16", "R17", "R19", "R25", "R7"]
     assert R.missing_prerequisites(R.select("all,R14,R15,R16")) == []
 
 
