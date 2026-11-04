@@ -592,6 +592,12 @@ def _people(g: bytes):
                 yield e.key.decode(), e.start + m.start(1), e.start + m.end(1)
 
 
+# The share of template bytes naming an undefined template from which R19 says the source layout is probably not
+# the save's. Measured on the founding save (#40 S8, 2026-11-03): the installed EPE as source gives 51,153 such
+# bytes (about 1.9%); the 2023 builds plus the December 2022 stand-in give 19 (under 0.001%). 0.1% sits between.
+WRONG_LAYOUT_SHARE = 0.001
+
+
 @dataclass
 class Result:
     edits: list = field(default_factory=list)            # (start, end, replacement)
@@ -601,6 +607,15 @@ class Result:
     portraits_version: tuple | None = None              # (from, to) when it changes
     lengths: Counter = field(default_factory=Counter)
     impossible: Counter = field(default_factory=Counter)    # gene -> template bytes its source layout does not define
+    template_bytes: int = 0                                 # template bytes read in the source layout (the denominator)
+
+    @property
+    def wrong_layout(self) -> bool:
+        """The source layout is probably not the save's: at least WRONG_LAYOUT_SHARE of the template bytes read
+        name a template the source gene does not define. A handful below that is a stand-in layout's gap (one mod
+        build's extra template), counted and reported, but no reason to doubt the layout."""
+        bad = sum(self.impossible.values())
+        return bool(bad) and (not self.template_bytes or bad / self.template_bytes >= WRONG_LAYOUT_SHARE)
 
     @property
     def changed(self) -> int:
@@ -620,12 +635,14 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
     own, ref = st.plans()
     res = Result()
     covered = set()
+    per_face = 2 * sum(1 for _, sp, t in own.moves if sp is not None and t is not None)   # template bytes checked
     for cid, a, b in _people(g):
         covered.add(a)
         s = g[a:b]
         res.lengths[len(s)] += 1
         plan = ref if (cid in transplanted and ref is not None) else own
         new, how, extra = translate(s, plan, res.impossible if plan is own else None)
+        res.template_bytes += per_face if plan is own and how in ("kept", "translated") else 0
         res.outcomes.setdefault(how, []).append(cid)
         if extra:
             res.dropped_places[(plan.source.name, extra)] += 1
@@ -636,6 +653,7 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
             continue
         s = m.group(1)
         new, how, extra = translate(s, own, res.impossible)
+        res.template_bytes += per_face if how in ("kept", "translated") else 0
         res.other[how] += 1
         if new != s:
             res.edits.append((m.start(1), m.end(1), new))

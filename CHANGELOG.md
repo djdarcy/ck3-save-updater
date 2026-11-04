@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-11-03
+
+### Changed
+- `status` warns that the save's old portrait mods are probably not the ones its faces were made with only when a real share of the faces disagree with them: at least 0.1% of the face templates it reads. A handful below that is still counted, with a line saying it is too few to doubt the mods. It is usually one template a single mod build added. Before, a single one raised the warning.
+- The update's report gives the number of face templates read beside that count, and whether it reached the warning.
+
+### Documentation
+- The rules reference describes `--face-changes` (renames, merges, fallback) and the warning's threshold.
+
 ## [0.4.4] - 2026-11-03
 
 ### Added
@@ -433,7 +442,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.1...v0.4.2
