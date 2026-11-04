@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-11-04
+
+### Added
+- `--face-changes known-genes` carries face genes that a later build of a portrait mod added to every face, without that old build.
+  - The tool ships a small table of them: gene and template names only, none of the mod's own work.
+  - It knows Ethnicities & Portraits Expanded's three genes from late 2022: the lower-lid size and eye-shape genes, which today's build still draws, and a hair-aging gene it no longer has.
+  - A face that carries those genes keeps their values. Every other face is read as before.
+  - Off by default, like the other face changes. The update's report counts the faces it read this way.
+
 ## [0.4.6] - 2026-11-03
 
 ### Documentation
@@ -447,7 +456,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.3...v0.4.4

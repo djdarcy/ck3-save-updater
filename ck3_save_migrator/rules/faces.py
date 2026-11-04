@@ -50,7 +50,9 @@ def r19_dna_layout(save: CK3Save, ctx, rule):
         "outcomes": {k: sorted(v, key=int) for k, v in sorted(res.outcomes.items())},
         "outcome_counts": {k: len(v) for k, v in sorted(res.outcomes.items())},
         "other_dna": dict(res.other),
-        "plans": [own.counts()] + ([ref.counts()] if ref is not None else []),
+        "plans": [own.counts()] + ([ref.counts()] if ref is not None else [])
+                 + [p.counts() for p in st.tail_plans().values()],
+        "faces_read_with_known_genes": res.known_genes,
         "layouts": st.describe(),
         "length_mismatches": {"longer, tail dropped": [{"layout": n, "places_dropped": k, "faces": c}
                                                        for (n, k), c in sorted(res.dropped_places.items())],

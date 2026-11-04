@@ -1,0 +1,19 @@
+# Names only: the three genes Ethnicities & Portraits Expanded appended to every face in its late-2022 builds (after
+# EPE 1.6.0's 130 places), with their template names and index numbers as EPE 1.8.1 defines them. No settings, no
+# blendshapes, nothing EPE draws: R19 reads only gene names, template names and index numbers, to carry a face's
+# bytes by name into today's layout (--face-changes known-genes). Measured on a 1.8.1 save of January 2023, #40.
+morph_genes = {
+	hair_aging = {
+		vanilla_hair_aging = { index = 0 }
+		late_hair_aging = { index = 1 }
+		no_hair_aging = { index = 2 }
+	}
+	gene_bs_eye_lower_lid_size = {
+		vanilla_eye_lower_lid_size = { index = 0 }
+		eye_lower_lid_size = { index = 1 }
+	}
+	gene_bs_eye_shape = {
+		vanilla_eye_shape = { index = 0 }
+		eye_shape_01 = { index = 1 }
+	}
+}
