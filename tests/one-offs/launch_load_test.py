@@ -181,8 +181,11 @@ def main(run_name: str, args: list[str]) -> int:
     keys = [a.split("=", 1)[1] for a in args if a.startswith("--h-key=")]
     # --h-max=SECONDS: run length cap (default 15 min); --h-guard-autosave: back up the user's autosave*.ck3 first
     # and restore any that changed when the run ends (a long run writes the yearly autosave)
-    global MAX_SECONDS
+    global MAX_SECONDS, EXE
     MAX_SECONDS = next((int(a.split("=", 1)[1]) for a in args if a.startswith("--h-max=")), MAX_SECONDS)
+    # --h-exe=PATH (2026-11-03, #40's old look): run another build's ck3.exe, e.g. the full 1.8.2 kept under
+    # private/data/versions/1.8.2/binaries; it shares this Documents folder, so run it under docs_guard.py
+    EXE = next((Path(a.split("=", 1)[1]) for a in args if a.startswith("--h-exe=")), EXE)
     guard = "--h-guard-autosave" in args
     # --h-keepalive: after the keys are sent, compare the date area of each shot with the previous one; the date
     # moves several times a second at speed, so an unchanged date means the game paused itself (on a message or
@@ -311,14 +314,37 @@ def main(run_name: str, args: list[str]) -> int:
                 exit_posted_at = time.time()
                 exit_clicks = 0
                 note(f"exit: WM_CLOSE posted {exit_after}s after in game (opens the Exit Game dialog)")
+            # the close ladder (2026-11-03, the #40 goal): the game drops a WM_CLOSE while it is busy, and has ignored
+            # posted clicks on its dialog, so: click, WM_CLOSE again, click, a real click only when the game window
+            # is the foreground window (never a click into someone else's window), and at 60 s taskkill by PID
+            # (djdarcy 2026-11-03 18:16: "Sure in the future you're permitted.")
             if exit_posted_at is not None and proc.poll() is None:
+                import ctypes
                 waited = time.time() - exit_posted_at
                 if exit_clicks == 0 and waited > 4:
                     note("exit: " + click_client(hwnd, *EXIT_TO_DESKTOP) + " (Exit to Desktop)")
                     exit_clicks = 1
-                elif exit_clicks == 1 and waited > 25:
-                    note("exit: still running; " + click_client(hwnd, *EXIT_TO_DESKTOP, real=True) + " (Exit to Desktop)")
+                elif exit_clicks == 1 and waited > 8:
+                    ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)
+                    note("exit: still running; WM_CLOSE posted again (the first is dropped while the game is busy)")
                     exit_clicks = 2
+                elif exit_clicks == 2 and waited > 12:
+                    note("exit: " + click_client(hwnd, *EXIT_TO_DESKTOP) + " (Exit to Desktop, after the 2nd WM_CLOSE)")
+                    exit_clicks = 3
+                elif exit_clicks == 3 and waited > 30:
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    time.sleep(0.5)
+                    if ctypes.windll.user32.GetForegroundWindow() == hwnd:
+                        note("exit: still running; " + click_client(hwnd, *EXIT_TO_DESKTOP, real=True)
+                             + " (Exit to Desktop, game window in front)")
+                    else:
+                        note("exit: still running; the game window is not in front, so no real click")
+                    exit_clicks = 4
+                elif exit_clicks == 4 and waited > 60:
+                    r = subprocess.run(["taskkill", "/PID", str(proc.pid), "/F"], capture_output=True, text=True)
+                    note(f"exit: normal close failed for 60 s; taskkill /PID {proc.pid} /F -> "
+                         f"{(r.stdout or r.stderr).strip()}")
+                    exit_clicks = 5
             if exit_posted_at is not None and time.time() - exit_posted_at > 120:
                 stop_reason = "exit posted but the game was still running 120 s later"
                 break
@@ -400,6 +426,8 @@ def main(run_name: str, args: list[str]) -> int:
             note(f"exit result: {'CRASH ON EXIT ' + str(sorted(new)) if new else 'clean exit (no crash folder within 30 s)'}"
                  f", rc={rc}, {int(time.time() - exit_posted_at)}s after WM_CLOSE")
         note(f"stop: {stop_reason} after {int(time.time() - t0)}s; error.log lines seen: {error_lines}")
+        # the exit check (2026-11-03): say plainly whether the game is still running; never killed here
+        note(f"process after run: {'STILL RUNNING (pid %d)' % proc.pid if proc.poll() is None else 'exited'}")
         if LOGS.exists():
             shutil.copytree(LOGS, run / "logs", dirs_exist_ok=True)
         if CRASHES.exists():

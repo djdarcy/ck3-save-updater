@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-11-03
+
+Developer tooling for the work on carrying more of each face (#40). Nothing a player runs changes in this version.
+
+### Added
+- A way to compare a character's face as the old game drew it with how the updated save draws it today: scripts that launch an old game build or today's game on a staged test save, put any character's face on the player's portrait, close the game afterwards, and crop the portraits side by side.
+- A guard for the game's Documents folder around those runs. It backs up the settings and mod list, puts them back afterwards, never writes a save, and reports anything it could not restore.
+- Probes that measure which genes of an old portrait-mod build carry over to today's: by the face shapes each gene moves, by whether each saved face's template still exists, and by fitting saved faces against candidate mod builds.
+
 ## [0.4.0] - 2026-11-03
 
 The first release on PyPI: `pip install ck3-save-updater`, then `ck3update`. It brings an old Crusader Kings III save forward to the game version you have installed, and was measured end to end on one campaign of 34 mods, from 1.8.1 to 1.20.1.2. Everything in 0.3.x below is part of it. In short:
@@ -403,7 +412,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/djdarcy/ck3-save-updater/compare/129a17e...v0.4.0
 [0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/72ca601...129a17e
 [0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/c596844...72ca601
