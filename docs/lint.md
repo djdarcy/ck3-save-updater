@@ -85,7 +85,7 @@ Each finding is described in plain words first. For what the game will log, the 
 Each of these is a kind of line the current game writes to its error log, with the predicted number of lines:
 
 - `Unexpected DNA string length`: portrait data in an older format (needs a reference save);
-- `Unexpected token`: fields the current game no longer has. Six of them are listed as info, not as lines the game will log as losses: the game converts them on load (measured on 1.20.1.2's re-save of an updated save, 2026-10-31, which carries none of them): `owner_influence` and `ready` in schemes, `exposure_type` and `exposure_marker` in culture_manager, `localization_key` and `renamed` in landed_titles;
+- `Unexpected token`: fields the current game no longer has. Four of them are listed as info, not as lines the game will log as losses: the game converts them on load (measured on 1.20.1.2's re-save of an updated save, 2026-10-31, which carries none of them): `owner_influence` and `ready` in schemes, `localization_key` and `renamed` in landed_titles. `exposure_marker` and `exposure_type` in culture_manager are rejects: the re-save carries neither because the game drops them, and with them the innovation each culture was learning. The R26 rule carries that innovation into the field the current game reads, and the lint line says so;
 - `Failed to read key reference`: names of modifiers, perks, innovations, artifact looks and the like that the game and the active mods no longer define;
 - `Unknown on action`: queued events waiting on trigger points the game or the active mods no longer have;
 - `is not a valid title template`: titles the current game no longer defines, which load without a name;

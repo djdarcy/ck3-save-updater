@@ -4,6 +4,17 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.12] - 2026-11-04
+
+### Changed
+- `lint` no longer calls the cultures' old innovation-spread fields "converted on load".
+  - The game drops them, and with them the innovation each culture was learning.
+  - They are now listed as rejects that say what is lost and name the step that keeps it.
+- `lint`'s warning about cultures missing from the game's list of template cultures now says what goes wrong: scripts that name the culture cannot find it.
+
+### Docs
+- The lint guide and "Differences from the game" describe the cultures' spread targets and the renamed perks, regiments and artifact bonuses.
+
 ## [0.4.11] - 2026-11-04
 
 ### Added
@@ -491,7 +502,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...HEAD
+[0.4.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...v0.4.9
