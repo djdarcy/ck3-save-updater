@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-11-04
+
+Developer tooling for comparing an updated save with the game's own re-save of it. Nothing a player runs changes in this version.
+
+### Added
+- A way to have the game re-save an updated save straight after loading it, with nothing played, for comparison.
+- Probes that compare culture entries, county cultures and characters' cultures across the original save, the updated save and the game's re-save.
+
 ## [0.4.8] - 2026-11-04
 
 ### Changed
@@ -463,7 +471,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...HEAD
+[0.4.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...v0.4.6
