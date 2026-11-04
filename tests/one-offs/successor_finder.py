@@ -36,10 +36,15 @@ def blocks(folder: Path) -> dict:
     """top-level `key = { ... }` blocks of every .txt in folder: key -> (body, file name)."""
     out = {}
     for f in sorted(glob.glob(str(folder / "*.txt"))):
-        t = Path(f).read_text(encoding="utf-8-sig", errors="replace")
+        t = re.sub(r"#[^\n]*", "", Path(f).read_text(encoding="utf-8-sig", errors="replace"))
         for m in re.finditer(r"(?m)^([A-Za-z_0-9]+)\s*=\s*\{", t):
-            end = t.find("\n}", m.end())
-            out[m.group(1)] = (t[m.end():end], Path(f).name)
+            # match the braces: a one-line `key = { a = 1 }` ends on its own line (searching for "\n}" ran on
+            # into the following definitions, 2026-11-04)
+            depth, i = 1, m.end()
+            while depth and i < len(t):
+                depth += {"{": 1, "}": -1}.get(t[i], 0)
+                i += 1
+            out[m.group(1)] = (t[m.end():i - 1], Path(f).name)
     return out
 
 
@@ -123,13 +128,18 @@ def find_modifier(key):
         eff = dict((k, float(v)) for k, v in re.findall(r"\b([a-z_]+)\s*=\s*(-?[\d.]+)", old[key][0]))
         if eff:
             best = None
+            # a modifier of a family (artifact_...) is matched within its family first: an artifact's bonus becoming
+            # an event's modifier tells the player a wrong story (2026-11-04)
+            fam = key.split("_")[0] + "_" if key.startswith("artifact_") else ""
             for k, (b, f) in new.items():
                 ne = dict((a, float(v)) for a, v in re.findall(r"\b([a-z_]+)\s*=\s*(-?[\d.]+)", b))
-                if set(ne) != set(eff):
-                    continue
-                dist = sum(abs(ne[a] - eff[a]) for a in eff)
+                if set(ne) != set(eff) or any((ne[a] > 0) != (eff[a] > 0) for a in eff):
+                    continue                    # a bonus never becomes a penalty, nor the reverse
+                dist = (0 if k.startswith(fam) else 1000) + sum(abs(ne[a] - eff[a]) for a in eff)
                 if best is None or dist < best[0]:
                     best = (dist, k, f, ne)
+            if best and best[0] >= 1000:
+                best = (best[0] - 1000, best[1], best[2] + ", outside its family", best[3])
             if best:
                 conf = "likely" if best[0] == 0 else "unsure"
                 return best[1], "same effects" + (" and values" if best[0] == 0 else ", nearest values"), conf, \
@@ -175,7 +185,10 @@ FINDERS = {"maa": find_maa, "perk": find_perk, "modifier": find_modifier, "innov
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    argv = sys.argv[1:]
+    if "--json" in argv:                       # its value is a path, not a key
+        del argv[argv.index("--json") + 1]
+    args = [a for a in argv if not a.startswith("--")]
     rows = []
     for a in args:
         kind, key = a.split(":", 1)

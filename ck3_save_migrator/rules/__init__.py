@@ -24,9 +24,9 @@ __all__ = ["REGISTRY", "Rule", "RuleContext", "RuleResult", "missing_prerequisit
 # R10/R9/R12 (they read the transplanted databases), R23 after them (the same family: per-character fields 1.20
 # added), the transplant after religion (its translation joins faiths and rites by identity, which R8
 # established) and written by R17, the faces (R19) after it so the transplanted people are in the output, the
-# successor keys (R25) after everything that writes, the version bump last. The shipped pack's pack.toml gives this
+# successor keys (R25) and the cultures' spread markers (R26) after everything that writes, the version bump last. The shipped pack's pack.toml gives this
 # order; building the registry checks it.
-_ORDER = ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R23", "R15", "R14", "R16", "R17", "R19", "R25", "R7"]
+_ORDER = ["R1", "R2", "R3", "R4", "R5", "R21", "R20", "R22", "R6", "R11", "R8", "R10", "R9", "R12", "R23", "R15", "R14", "R16", "R17", "R19", "R25", "R26", "R7"]
 REGISTRY: list[Rule] = rules_from_pack()
 if [r.id for r in REGISTRY] != _ORDER:
     raise ImportError(f"the shipped pack's order {[r.id for r in REGISTRY]} is not the registry order {_ORDER}")
