@@ -159,6 +159,21 @@ def test_a_template_index_the_source_gene_does_not_define_is_counted_apart(tmp_p
     assert not any("probably not the save's" in n for n in D.detect("R19", good, D.Env(game_dir=g, dna=st)).notes)
 
 
+def test_a_handful_among_many_faces_is_reported_without_doubting_the_layout(tmp_path):
+    """CONSEQUENCE: 4 (behaviour) -- a stand-in layout's one-template gap is not called the wrong layout (#40 S8)."""
+    g = steam(tmp_path)
+    st = dna.setup(save_meta=meta([]), game_dir=g, old_game_dir=old_layout(tmp_path / "src"), user=tmp_path)
+    bad = b64((10, 20, 30, 40), (1, 2, 3, 4), (5, 50, 1, 60), (0, 70, 0, 80), (0, 90, 0, 100))   # gene_a 5 only
+    from tests.test_dna import char
+    gstate = b"living={\n" + char(1, bad) + b"".join(char(i, OLD_FACE) for i in range(2, 1001)) + b"}\n"
+    res = dna.plan_save(gstate, st)
+    assert sum(res.impossible.values()) == 1 and res.template_bytes >= 1000 and not res.wrong_layout
+    notes = D.detect("R19", gstate, D.Env(game_dir=g, dna=st)).notes
+    assert "1 template index the source layout does not define (gene_a)" in notes
+    assert not any("probably not the save's" in n for n in notes)
+    assert any(n.startswith("too few to doubt the source layout (1 of ") for n in notes)
+
+
 def test_the_report_counts_them_by_gene(tmp_path):
     from ck3_save_migrator.rules import REGISTRY, RuleContext
     g = steam(tmp_path)
@@ -168,7 +183,8 @@ def test_the_report_counts_them_by_gene(tmp_path):
     ctx = RuleContext(game_dir=g)
     ctx.state["dna_setup"] = st
     res = next(r for r in REGISTRY if r.id == "R19").run(save, ctx)
-    assert res.extra["template_indexes_the_source_layout_does_not_define"] == {"count": 1, "by_gene": {"gene_a": 1}}
+    assert res.extra["template_indexes_the_source_layout_does_not_define"] == {
+        "count": 1, "of_template_bytes": 20, "wrong_layout": True, "by_gene": {"gene_a": 1}}
 
 
 # --------------------------------------------------------------------------- the missing-mod note

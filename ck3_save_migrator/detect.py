@@ -190,9 +190,13 @@ def _r19(g, env):
     if bad:                     # the wrong-layout signal: counted apart from templates_lost, never a refusal
         genes = ", ".join(g for g, _ in res.impossible_by_gene()[:5]) + (", ..." if len(res.impossible) > 5 else "")
         d.notes += [f"{counted(bad, 'template index', 'template indexes')} the source layout does not define "
-                    f"({genes})",
-                    "the source layout is probably not the save's; give the save's own mod builds with "
-                    "--old-portrait-mods"]
+                    f"({genes})"]
+        if res.wrong_layout:
+            d.notes += ["the source layout is probably not the save's; give the save's own mod builds with "
+                        "--old-portrait-mods"]
+        else:                   # a stand-in layout's gap: too few of the template bytes read to doubt the layout
+            d.notes += [f"too few to doubt the source layout ({bad:,} of {res.template_bytes:,} template bytes); "
+                        "those faces take the gene's first template there"]
     return d
 
 

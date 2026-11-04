@@ -97,11 +97,20 @@ The rules run in this order, which is the order `ck3update rules` lists: R1, R2,
 
 A character's face is its `dna="..."` string: one 4-byte place per gene, in the order the game's `common/genes` files define (the gene layout: file-name order across the gene folders, then declaration order in each file; a mod's file of the same name replaces the game's whole, and special genes are not stored). A new game version or a different set of portrait mods changes the layout, and the game makes up a new face for a string in another layout ("Unexpected DNA string length").
 
-R19 reads each face in the layout it was written in: the save's own (its game version's genes, from `--old-game-dir` when given, else the installed game's, plus the portrait mods its mods list names, as installed today), or the reference save's for a character the transplant added; `--old-portrait-mods` replaces the save's listed mods with the builds you give (the save's own, when the installed ones changed or are gone). A template index the source gene does not define is counted apart: it means the source layout is probably not the save's. It writes it in the target layout: the installed game's genes plus the gene-shipping mods the launcher enables (`dlc_load.json`, in load order), or `--portrait-mods <id-or-folder>,...` (`--portrait-mods ""` for vanilla).
+R19 reads each face in the layout it was written in: the save's own (its game version's genes, from `--old-game-dir` when given, else the installed game's, plus the portrait mods its mods list names, as installed today), or the reference save's for a character the transplant added; `--old-portrait-mods` replaces the save's listed mods with the builds you give (the save's own, when the installed ones changed or are gone). A template index the source gene does not define is counted apart. When at least 0.1% of the template indexes read are such, `status` says the source layout is probably not the save's. A handful below that is reported without that warning: it is usually one mod build's extra template. It writes it in the target layout: the installed game's genes plus the gene-shipping mods the launcher enables (`dlc_load.json`, in load order), or `--portrait-mods <id-or-folder>,...` (`--portrait-mods ""` for vanilla).
 
 - A gene in both: its place is copied, its templates renumbered by name, its values kept; colour genes are copied whole.
 - A template the target gene lacks falls to 0 (counted). A gene the target lacks is dropped (named); a gene the source lacks is set to the middle (template 0, value 128).
 - A face already in the target layout is left as it is. One longer than its layout loses the places past it (counted, and the plan says so); one shorter is left as it is (counted).
 - `portraits_version` is set to the target's: the reference save's own, else the built-in table by the game's version line (1.20: 5).
+
+`--face-changes NAME,...` (on `update`, `status`, `migrate` and `check`) turns on changes beyond the rules above. Each is off by default, and the choice is kept in the update's record:
+
+- `renames`: a gene a portrait mod renamed between builds is carried under its new name, instead of being dropped while the new gene is set to the middle. The known rename: Ethnicities & Portraits Expanded's head-roundness gene, today in its head-shape gene.
+- `merges`: a gene a portrait mod folded into another is carried as that gene's new template. It applies only where the face's own value of that gene draws nothing, so nothing the face has is replaced. The known merge: Ethnicities & Portraits Expanded's second eye-fold gene, today a template of its eye-fold gene.
+- `fallback`: a template the target gene lacks goes to the closest-named template instead of 0. It never goes to a template that draws nothing (`no_...`) unless the lost one was one too. With no close name, it leaves 0 unless 0 draws nothing.
+- `none` (the default) keeps the rules above as they are.
+
+The report lists, per plan, the genes renamed, merged and dropped, and each template moved by `fallback`.
 
 `status` shows the layouts in its FACES block, and the report lists every character under its outcome.

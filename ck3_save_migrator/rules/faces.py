@@ -58,6 +58,8 @@ def r19_dna_layout(save: CK3Save, ctx, rule):
         "dna_lengths_in": dict(res.lengths),
         # a template index the source gene does not define: the source layout is probably not the save's
         "template_indexes_the_source_layout_does_not_define": {"count": sum(res.impossible.values()),
+                                                                "of_template_bytes": res.template_bytes,
+                                                                "wrong_layout": res.wrong_layout,
                                                                 "by_gene": dict(res.impossible_by_gene())},
         "portraits_version": ({"from": res.portraits_version[0], "to": res.portraits_version[1]}
                               if res.portraits_version else {"to": st.portraits_version, "changed": False}),
