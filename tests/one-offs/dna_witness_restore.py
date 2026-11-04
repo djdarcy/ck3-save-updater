@@ -42,16 +42,18 @@ def main():
     # renames, so the faces the witness restores carry the same face changes as the faces R19 carries. Without it,
     # the prototype plan as before (play7 stays byte for byte).
     fc = sys.argv[sys.argv.index("--face-changes") + 1].split(",") if "--face-changes" in sys.argv else []
-    if "renames" in fc:
+    if {"renames", "merges", "fallback"} & set(fc):
         from ck3_save_migrator import dna as R
-        rplan = R.build_plan(R.build_layout("a", W.LAYOUT_A), R.build_layout("c", W.LAYOUT_C), R.RENAMES)
+        rplan = R.build_plan(R.build_layout("a", W.LAYOUT_A), R.build_layout("c", W.LAYOUT_C),
+                             R.RENAMES if "renames" in fc else None, R.MERGES if "merges" in fc else None,
+                             "fallback" in fc)
         if [g["name"] for g in rplan.source.genes] != [g["name"] for g in a]:
             raise SystemExit("layout (a) differs between the prototype and R19's builder; refusing")
 
         class _P:                                    # the prototype plan's interface over R19's plan
             apply = staticmethod(lambda raw: rplan.apply(raw))
         plan_a = _P()
-        print(f"witness faces translated with R19's planner, renamed: {rplan.renamed}")
+        print(f"witness faces translated with R19's planner, renamed: {rplan.renamed}, merged: {rplan.merged}")
     chars = lambda nbytes: len(base64.b64encode(bytes(nbytes)))      # noqa: E731
     readable = {chars(532), chars(524)}             # 712 (1.8.1) and 700 (967): layout (a) at its 130 places
 
