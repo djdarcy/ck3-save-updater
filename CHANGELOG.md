@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-11-03
+
+### Documentation
+- A hand-run checklist for the face changes (`tests/checklists/v0.4.5__Feature__face-changes.md`): the default left unchanged, each switch and its report, the wrong-layout warning, and a side-by-side screenshot round in the game.
+
 ## [0.4.5] - 2026-11-03
 
 ### Changed
@@ -442,7 +447,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.2...v0.4.3
