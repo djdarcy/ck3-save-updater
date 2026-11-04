@@ -163,6 +163,7 @@ class Plan:
     dropped: list = field(default_factory=list)
     templates_lost: int = 0
     moved: int = 0
+    renamed: list = field(default_factory=list)        # source genes carried under a new name (RENAMES)
 
     @property
     def identity(self) -> bool:
@@ -196,14 +197,31 @@ class Plan:
     def counts(self) -> dict:
         return {"source": self.source.name, "target": self.target.name, "kept": self.kept, "remapped": self.remapped,
                 "moved": self.moved,
-                "defaulted": self.defaulted, "dropped": self.dropped, "templates_lost": self.templates_lost}
+                "defaulted": self.defaulted, "dropped": self.dropped, "templates_lost": self.templates_lost,
+                "renamed": self.renamed}
 
 
-def build_plan(source: Layout, target: Layout) -> Plan:
+# Genes renamed between portrait-mod builds: old name -> new name, each with the measurement that shows it is the
+# same control (both move the same blendshapes, and the target keeps the old template names). Applied only with
+# --face-changes renames, and only when the source lacks the new name and the target lacks the old one.
+RENAMES = {
+    # EPE 1.6.0's gene moves "bs_head_round_shape"; today's EPE moves it from gene_bs_head_shape, whose templates
+    # keep the old names vanilla_head_round_shape / head_round_shape (2026-11-03, tests/one-offs/gene_cousins.py)
+    "gene_bs_head_round_shape": "gene_bs_head_shape",
+}
+
+
+def build_plan(source: Layout, target: Layout, renames: dict | None = None) -> Plan:
     plan = Plan(source, target)
     pos = {g["name"]: i for i, g in enumerate(source.genes)}
+    tnames = {g["name"] for g in target.genes}
+    renamed_to = {new: old for old, new in (renames or {}).items()
+                  if old in pos and new not in pos and old not in tnames}
+    plan.renamed = sorted(renamed_to.values())
     for p, g in enumerate(target.genes):
         sp = pos.get(g["name"])
+        if sp is None and g["name"] in renamed_to:
+            sp = pos[renamed_to[g["name"]]]
         if sp is None:
             plan.defaulted.append(g["name"])
             plan.moves.append((p, None, None))
@@ -228,7 +246,7 @@ def build_plan(source: Layout, target: Layout) -> Plan:
             plan.remapped += 1
         plan.moves.append((p, sp, tmap))
     names = {g["name"] for g in target.genes}
-    plan.dropped = [g["name"] for g in source.genes if g["name"] not in names]
+    plan.dropped = [g["name"] for g in source.genes if g["name"] not in names and g["name"] not in plan.renamed]
     return plan
 
 
@@ -366,11 +384,13 @@ class Setup:
     notes: list[str] = field(default_factory=list)
     target_from: str = ""
     source_mods: list = field(default_factory=list)   # (mod, where it came from) per source mod
+    face_changes: tuple = ()                    # --face-changes: the named changes beyond 0.4.0's R19 ("renames")
 
     def plans(self) -> tuple[Plan, Plan | None]:
         if "_plans" not in self.__dict__:
-            self.__dict__["_plans"] = (build_plan(self.source, self.target),
-                                       build_plan(self.reference, self.target) if self.reference else None)
+            ren = RENAMES if "renames" in self.face_changes else None
+            self.__dict__["_plans"] = (build_plan(self.source, self.target, ren),
+                                       build_plan(self.reference, self.target, ren) if self.reference else None)
         return self.__dict__["_plans"]
 
     def describe(self) -> dict:

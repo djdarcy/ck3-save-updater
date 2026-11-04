@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-11-03
+
+### Added
+- `--face-changes renames` (on `update`, `status`, `migrate` and `check`): carries a face gene that a portrait mod renamed between builds under its new name, instead of dropping the old gene and giving the new one a neutral value. The first rename it knows is Ethnicities & Portraits Expanded's head-roundness gene. Off by default, so faces come out as in 0.4.0 unless you ask for it; `--face-changes none` says so explicitly. The choice is kept in the update's record, so a re-run repeats it. The update's report lists which genes were carried under a new name.
+
+### Changed
+- The help's first lines now say the README's Quick start walks through every step, and the reference-save step reads "save as soon as it loads, before you unpause" (in `ck3update`, `reference-mod`, `status` and the docs).
+- The download-statistics page's banner is the original with a transparent background, so it blends with the page.
+
 ## [0.4.1] - 2026-11-03
 
 Developer tooling for the work on carrying more of each face (#40). Nothing a player runs changes in this version.
@@ -412,7 +421,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/djdarcy/ck3-save-updater/compare/129a17e...v0.4.0
 [0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/72ca601...129a17e

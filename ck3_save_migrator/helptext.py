@@ -11,10 +11,10 @@ installed. The save you give it is never changed: the updated copy is
 written beside it."""
 
 START_HERE = """\
-start here (every step, the game's own included: README, "Quick start"):
+start here (the README's "Quick start" walks through every step):
   1. ck3update reference-mod --save "My Save"
      then in the game: turn on the mod it names, start a new game from its
-     bookmark, and save at once
+     bookmark, and save as soon as it loads, before you unpause
   2. ck3update status "My Save"     # what update would do; writes nothing
   3. ck3update update "My Save"     # writes "My Save__updated__<version>.ck3"
 

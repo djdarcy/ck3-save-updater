@@ -29,7 +29,7 @@ def test_help_starts_with_the_three_steps_and_shows_each_group(capsys):
     steps = ['1. ck3update reference-mod --save "My Save"', "then in the game:", '2. ck3update status "My Save"',
              '3. ck3update update "My Save"']
     assert [out.index(s) for s in steps] == sorted(out.index(s) for s in steps)
-    assert 'README, "Quick start"' in out
+    assert 'README\'s "Quick start"' in out          # djdarcy 2026-11-03: "the game's own included" read awkwardly
     assert out.index("start here") < out.index("updating a save:")
     for heading, _ in helptext.GROUPS:
         assert f"\n{heading}:\n" in out

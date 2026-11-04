@@ -53,7 +53,7 @@ NOT_KNOWABLE = "not knowable before running (update --dry-run runs the patches i
 REFERENCE_STEPS = (
     "ck3update reference-mod --save \"{save}\" --out \"<the game's mod folder>\"",
     "enable the mod it writes in the game's launcher",
-    "start a new game from its bookmark and save at once, before unpausing",
+    "start a new game from its bookmark, and save as soon as it loads, before you unpause",
     "run this update again (the new save is found in the save folder; or give it with --reference)",
     "docs/reference-save.md explains each step",
 )
@@ -655,7 +655,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 force: bool = False, create_packs_dir: bool = False, variables: dict | None = None,
                 transplant: str | None = None, use_record: bool = True, in_place: bool = False,
                 detect: bool = False, progress=None, no_dna: bool = False,
-                portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None) -> UpdatePlan:
+                portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None,
+                face_changes: list[str] | None = None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -770,7 +771,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 notes.append("the record's portraits_version is no longer used; R19 sets it from the target")
     # --wos-shape shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
     inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
-              "old_portrait_mods": old_portrait_mods}
+              "old_portrait_mods": old_portrait_mods, "face_changes": face_changes}
 
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
@@ -1045,6 +1046,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         dna_setup = D.setup(save_meta=light.meta, game_dir=game.path, old_game_dir=old_game_dir,
                             reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv,
                             old_portrait_mods=old_portrait_mods)
+        dna_setup.face_changes = tuple(face_changes or ())      # before any plan is built (Setup caches them)
         faces = _faces_rows(dna_setup, transplanting=bool(chosen & set(TRANSPLANT)))
         notes.extend(dna_setup.notes)
     if not detect or not recheck_ids or refused:

@@ -361,6 +361,7 @@ def make_plan(args, *, writes: bool = False):
                            transplant=args.transplant, no_dna=getattr(args, "no_dna", False),
                            portrait_mods=portrait_mods_arg(args),
                            old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
+                           face_changes=face_changes_arg(args),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
                            detect=not args.no_detect, progress=sp.update)
 
@@ -607,6 +608,7 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
     ctx.state["portrait_mods"] = portrait_mods_arg(args)            # R19's target layout (None: dlc_load.json)
     ctx.state["old_portrait_mods"] = portrait_mods_arg(args, "old_portrait_mods")   # its source (None: the save's)
+    ctx.state["face_changes"] = face_changes_arg(args) or []                     # --face-changes (none: 0.4.0's R19)
     if getattr(args, "dna_setup", None) is not None:
         ctx.state["dna_setup"] = args.dna_setup                     # update: the layouts its plan printed
     ctx.state["game_installs"] = installs                         # the report lists them
@@ -921,6 +923,21 @@ def target_dna_length(game_dir, args, st=None) -> int | None:
     from . import dna as DNA
     layout = st.target if st is not None else DNA.target_layout(game_dir, portrait_mods_arg(args))[0]
     return layout.length if layout.places else None
+
+
+FACE_CHANGES = ("renames",)        # the named changes R19 can make beyond 0.4.0's (dna.RENAMES for "renames")
+
+
+def face_changes_arg(args) -> list[str] | None:
+    """--face-changes as a list of known change names ('none' or '' for none), or None when not given."""
+    given = getattr(args, "face_changes", None)
+    if given is None:
+        return None
+    names = [x.strip() for x in given.split(",") if x.strip() and x.strip() != "none"]
+    unknown = [n for n in names if n not in FACE_CHANGES]
+    if unknown:
+        raise ValueError(f"--face-changes \"{unknown[0]}\" is not a known change; known: none, {', '.join(FACE_CHANGES)}")
+    return names
 
 
 def refuse_old_portrait_mods(args, game_dir) -> None:
@@ -1253,7 +1270,8 @@ def cmd_reference_mod(args) -> int:
     for p in write_mod(b, Path(out)):
         say(MINIMAL, f"wrote: {p}", "io")
     say(MINIMAL, f"next: in the game's launcher, enable the mod 'Reference bookmark {b.date} (ck3update)', start a "
-                 f"new game from the bookmark '{b.date} Reference (ck3update)' and save at once (do not unpause)",
+                 f"new game from the bookmark '{b.date} Reference (ck3update)', and save as soon as it loads, "
+                 f"before you unpause",
         "io")
     say(MINIMAL, "then: `ck3update status` and `update` find that save by themselves in the save folder (or name it "
                  "with --reference; see docs/reference-save.md)", "io")
@@ -1297,7 +1315,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
                         "folders, in load order: the save's own builds when the installed ones changed or are gone "
                         "(default: the installed build of each mod the save lists; '' for vanilla)")
-    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+    p.add_argument("--face-changes", metavar="NAME,...", help="R19 changes beyond 0.4.0's, by name: renames (genes renamed between portrait-mod builds, carried under their new name); none (the default) keeps 0.4.0's faces"); p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                    help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
                         "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
     p.add_argument("--reference", help="a save written by the target game version, for R8-R12 "
@@ -1355,7 +1373,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
                             "folders, in load order: the save's own builds when the installed ones changed or are gone "
                             "(default: the installed build of each mod the save lists; '' for vanilla)")
-        p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+        p.add_argument("--face-changes", metavar="NAME,...", help="R19 changes beyond 0.4.0's, by name: renames (genes renamed between portrait-mod builds, carried under their new name); none (the default) keeps 0.4.0's faces"); p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                        help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
                             "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
         p.add_argument("--no-record", action="store_true",
@@ -1409,7 +1427,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="the portrait mods the save was written with (R19's source layout), as Workshop ids or "
                         "folders, in load order: the save's own builds when the installed ones changed or are gone "
                         "(default: the installed build of each mod the save lists; '' for vanilla)")
-    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+    p.add_argument("--face-changes", metavar="NAME,...", help="R19 changes beyond 0.4.0's, by name: renames (genes renamed between portrait-mod builds, carried under their new name); none (the default) keeps 0.4.0's faces"); p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                    help="the portrait mods the save will be loaded with, for the DNA length check (Workshop ids or "
                         "folders; default: the gene-shipping mods dlc_load.json enables; '' for vanilla)")
     p.add_argument("--json", help="write the findings to this JSON file")
@@ -1459,7 +1477,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="accepted so a migrate command line works unchanged; check runs no patch code, so it "
                         "changes nothing")
     p.add_argument("--no-dna", action="store_true", help="leave every face (dna=) in the save's own gene layout: R19 does not run (the same as --rules -R19)")
-    p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
+    p.add_argument("--face-changes", metavar="NAME,...", help="R19 changes beyond 0.4.0's, by name: renames (genes renamed between portrait-mod builds, carried under their new name); none (the default) keeps 0.4.0's faces"); p.add_argument("--portrait-mods", metavar="ID_OR_FOLDER,...",
                    help="the portrait mods the faces are carried into (R19), as Workshop ids or folders, in load order "
                         "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
     p.add_argument("--game-dir", help="the game's 'game' folder, for the detectors that read the game's data "
