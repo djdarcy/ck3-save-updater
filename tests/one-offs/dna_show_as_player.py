@@ -7,7 +7,13 @@ and birth date to <age> years before the save's date. The game draws and keeps t
 portrait shows the donor's face at that age. A viewing aid only: the output is a MIGRATE_TEST__ save, never a
 migration result.
 
-Usage: python -I tests/one-offs/dna_show_as_player.py <in.ck3> <donor save> <donor id> <age> <out.ck3>
+Usage: python -I tests/one-offs/dna_show_as_player.py <in.ck3> <donor save> <donor id> <age> <out.ck3> [--keep-layout]
+
+--with-dress: also copy the donor's culture= and faith= (portrait clothing follows them); same-save donors only.
+--with-body: also copy traits (by name) and weight.
+--keep-layout (2026-11-03, #40's judge): copy the donor's face as it is, untranslated -- for a donor whose save is
+already in <in.ck3>'s layout (a 1.8.1 face onto a 1.8.1 save for the old build; a play7 or candidate face onto the
+same save for 1.20). The output's file name must start with MIGRATE_TEST__ (refused otherwise).
 """
 import base64
 import re
@@ -35,20 +41,25 @@ def entry(g: bytes, cid: bytes):
 
 def main():
     src_p, donor_p, did, age, out = sys.argv[1], sys.argv[2], sys.argv[3].encode(), int(sys.argv[4]), sys.argv[5]
+    if not Path(out).name.startswith("MIGRATE_TEST__"):
+        raise SystemExit(f"refused: the output must be a MIGRATE_TEST__ save, not {Path(out).name}")
     dg = sf.read_save(donor_p).gamestate
     de = entry(dg, did)
     blob = dg[de.start:de.end]
     old = re.search(rb'\n\t+dna="([^"]*)"', blob).group(1)
     female = re.search(rb"\n\t+female=yes", blob) is not None
-    src = D.dna_order(D.load_layout(P.SRC))
-    dst_spec = P.DST
-    if "--dst-mods" in sys.argv:
-        # layout (c): 1.20 + the current Workshop mods, in the 987 save's order (CFP, EPE), the patch last
-        ws = Path(r"E:\SteamLibrary\steamapps\workshop\content\1158310")
-        dst_spec = P.DST + [("cfp", ws / "2220098919"), ("epe", ws / "2507209632"), ("patch", ws / "2996881191")]
-    dst = D.dna_order(D.load_layout(dst_spec))
-    raw = base64.b64decode(old + b"=" * (-len(old) % 4))
-    new = base64.b64encode(X.build(src, dst).apply(raw[: 4 * len(src)]))
+    if "--keep-layout" in sys.argv:
+        new = old
+    else:
+        src = D.dna_order(D.load_layout(P.SRC))
+        dst_spec = P.DST
+        if "--dst-mods" in sys.argv:
+            # layout (c): 1.20 + the current Workshop mods, in the 987 save's order (CFP, EPE), the patch last
+            ws = Path(r"E:\SteamLibrary\steamapps\workshop\content\1158310")
+            dst_spec = P.DST + [("cfp", ws / "2220098919"), ("epe", ws / "2507209632"), ("patch", ws / "2996881191")]
+        dst = D.dna_order(D.load_layout(dst_spec))
+        raw = base64.b64decode(old + b"=" * (-len(old) % 4))
+        new = base64.b64encode(X.build(src, dst).apply(raw[: 4 * len(src)]))
 
     save = sf.read_save(src_p)
     g = save.gamestate
@@ -63,6 +74,21 @@ def main():
     if female:
         body = re.sub(rb"(\n\tbirth=\S+)", lambda m: m.group(1) + b"\n\tfemale=yes", body, count=1)
     notes = []
+    if "--with-dress" in sys.argv:
+        # portrait clothing follows culture and faith (djdarcy 2026-11-03 18:46: Uilleam in Beidh's clothes "might be
+        # throwing me off"): copy the donor's culture= and faith= onto the player. Ids are only meaningful within one
+        # save, so this is for a donor from the same save (or the same campaign line with unchanged ids)
+        for key in (b"culture", b"faith"):
+            dm = re.search(rb"\n\t" + key + rb"=(\d+)", blob)
+            if not dm:
+                notes.append(f"{key.decode()}: the donor has none, the player's kept")
+                continue
+            if re.search(rb"\n\t" + key + rb"=\d+", body):
+                body = re.sub(rb"(\n\t" + key + rb"=)\d+", lambda m: m.group(1) + dm.group(1), body, count=1)
+            else:
+                body = re.sub(rb"(\n\tbirth=\S+)", lambda m: m.group(1) + b"\n\t" + key + b"=" + dm.group(1), body,
+                              count=1)
+            notes.append(f"{key.decode()} {dm.group(1).decode()} copied")
     if "--with-body" in sys.argv:
         # traits are indices into each save's own traits_lookup: translate by trait NAME; weight is copied as is
         def lookup(gg):

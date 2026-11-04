@@ -55,7 +55,9 @@ def main() -> int:
     if hashlib.sha256((bdir / "dlc_load.json").read_bytes()).hexdigest() != sha:
         raise SystemExit("backup did not verify; nothing changed")
     cfg = json.loads(original)
-    cfg["enabled_mods"] = MODS + extra + [f"mod/{d.name}" for d in descriptors]
+    # --only-also (2026-11-03, #40's old look): enable only the --mod and --also mods, not today's CFP/EPE/patch
+    base = [] if "--only-also" in sys.argv[2:cut] else MODS
+    cfg["enabled_mods"] = base + extra + [f"mod/{d.name}" for d in descriptors]
     DLC.write_text(json.dumps(cfg), encoding="utf-8")
     print(f"[mods] enabled {cfg['enabled_mods']}; backup {bdir}")
     try:
