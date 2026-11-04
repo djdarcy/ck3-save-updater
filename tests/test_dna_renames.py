@@ -51,6 +51,12 @@ def test_a_rename_never_applies_when_the_source_already_has_the_new_name(tmp_pat
     assert plan.renamed == []                          # the source's own gene_bs_head_shape wins; no double source
 
 
+def test_a_rename_is_not_reported_when_the_target_lacks_the_new_name(tmp_path):
+    src, dst = layouts(tmp_path)
+    plan = dna.build_plan(src, dst, {"gene_bs_head_round_shape": "gene_not_in_target"})
+    assert plan.renamed == [] and "gene_bs_head_round_shape" in plan.dropped
+
+
 def test_the_face_changes_option_parses_known_names_and_refuses_others():
     import argparse
     import pytest

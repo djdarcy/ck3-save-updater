@@ -11,7 +11,10 @@ translated from layout (a) into layout (c) with the prototype's own plan (dna_wh
 so the bytes are the ones play7 holds. Nothing else is touched: R19 already translated the other faces and
 stamped portraits_version.
 
-Usage: python -I tests/one-offs/dna_witness_restore.py <in.ck3> <967 witness.ck3> <out.ck3>
+With --face-changes renames (0.4.3) the witness faces are translated with R19's own planner and its rename table
+instead, so they carry the same face changes as the faces R19 carries; empty or none keeps the prototype plan.
+
+Usage: python -I tests/one-offs/dna_witness_restore.py <in.ck3> <967 witness.ck3> <out.ck3> [--face-changes NAMES]
 """
 from __future__ import annotations
 
@@ -35,6 +38,20 @@ def main():
     a = D.dna_order(D.load_layout(W.LAYOUT_A))
     c = D.dna_order(D.load_layout(W.LAYOUT_C))
     plan_a = X.build(a, c)
+    # --face-changes renames (2026-11-03, #40 unit W): translate the witness faces with R19's own planner and its
+    # renames, so the faces the witness restores carry the same face changes as the faces R19 carries. Without it,
+    # the prototype plan as before (play7 stays byte for byte).
+    fc = sys.argv[sys.argv.index("--face-changes") + 1].split(",") if "--face-changes" in sys.argv else []
+    if "renames" in fc:
+        from ck3_save_migrator import dna as R
+        rplan = R.build_plan(R.build_layout("a", W.LAYOUT_A), R.build_layout("c", W.LAYOUT_C), R.RENAMES)
+        if [g["name"] for g in rplan.source.genes] != [g["name"] for g in a]:
+            raise SystemExit("layout (a) differs between the prototype and R19's builder; refusing")
+
+        class _P:                                    # the prototype plan's interface over R19's plan
+            apply = staticmethod(lambda raw: rplan.apply(raw))
+        plan_a = _P()
+        print(f"witness faces translated with R19's planner, renamed: {rplan.renamed}")
     chars = lambda nbytes: len(base64.b64encode(bytes(nbytes)))      # noqa: E731
     readable = {chars(532), chars(524)}             # 712 (1.8.1) and 700 (967): layout (a) at its 130 places
 
