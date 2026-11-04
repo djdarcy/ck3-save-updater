@@ -702,6 +702,9 @@ SUCCESSORS = (
               r"artifact_\1_scheme_phase_duration_add_\2_modifier", "modifiers",
               "the scheme rework replaced scheme power with phase duration; the same scheme and tier",
               "00_artifact_modifiers.txt, 1.20.1.2"),
+    Successor("modifier", "modifier", r"fp2_hawk_of_quarysh_(\w+?)_modifier", r"fp2_hawk_of_quraysh_\1_modifier",
+              "modifiers", "a spelling fix: the same definition (effect, file, place) under the corrected name",
+              "03_dlc_fp2_modifiers.txt, 1.8.2 line 566 and 1.20.1.2 line 571"),
 )
 _DEFINED = re.compile(rb"(?m)^([A-Za-z0-9_][\w.\-]*)\s*=\s*\{")
 

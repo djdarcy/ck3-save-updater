@@ -133,6 +133,18 @@ def test_teutonic_knights_become_order_serjeants():
     assert (row.kind, row.field, row.new) == ("men-at-arms", "type", "order_serjeants")
 
 
+def test_a_timed_modifier_takes_its_respelled_name(tmp_path):
+    """1.20 corrected Quarysh to Quraysh in the Hawk of Quraysh modifiers (the same definitions, 1.8.2 and 1.20.1.2
+    03_dlc_fp2_modifiers.txt); a character's timed modifier={ modifier="..." } keeps its effect."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "fp2_hawk_of_quraysh_martial_modifier")
+    body = (b"living={\n1={\n\tmodifier={\n\t\tmodifier=\"fp2_hawk_of_quarysh_martial_modifier\"\n"
+            b"\t\texpiration_date=995.12.1\n\t}\n}\n}\n")
+    out, res = run(g, body)
+    assert b'modifier="fp2_hawk_of_quraysh_martial_modifier"' in out and b"quarysh" not in out
+    assert res.extra["mapped"] == {"fp2_hawk_of_quarysh_martial_modifier -> fp2_hawk_of_quraysh_martial_modifier": 1}
+
+
 def test_every_row_cites_how_it_was_matched_and_on_what():
     assert all(r.how and r.source and r.folder for r in SUCCESSORS)
 
