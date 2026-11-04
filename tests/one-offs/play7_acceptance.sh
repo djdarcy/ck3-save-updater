@@ -30,8 +30,11 @@ echo "== --rules all,R14,R15,R16"
 python -m ck3_save_migrator update "$SAVE" --rules all,R14,R15,R16 "${FACES[@]}" "${EXTRA[@]}" --reference "$REF" \
   --wos-shape faith --allow-run -o "$O/rules.ck3" --no-record --plain -q; echo "exit=$?"
 hashes "$O/rules.ck3" "rules:"
+# ONE_ARM=1 skips the second arm (djdarcy 2026-11-04: test by yield; the two arms have agreed on every run of #40)
+if [ -z "${ONE_ARM:-}" ]; then
 echo "== --transplant auto"
 python -m ck3_save_migrator update "$SAVE" --transplant auto "${FACES[@]}" "${EXTRA[@]}" --reference "$REF" \
   --wos-shape faith --allow-run -o "$O/auto.ck3" --no-record --plain -q; echo "exit=$?"
 hashes "$O/auto.ck3" "auto:"
-echo "expect: e31b5718 1289c61a"
+fi
+echo "expect: 04ee46d2 1289c61a (play8, the default since 0.4.8); --face-changes none: e31b5718 1289c61a (play7)"
