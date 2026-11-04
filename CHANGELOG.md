@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-11-04
+
+### Changed
+- The face changes are on by default: `renames`, `merges`, `fallback` and `known-genes`. An update now carries more of each old face without any option.
+- `--face-changes none` brings back 0.4.0's faces, and a list picks some of the changes.
+- On the founding campaign the difference is small: spot checks in the game found the faces close to before, with the late-2022 eye genes of about 2,700 newer characters now kept.
+
 ## [0.4.7] - 2026-11-04
 
 ### Added
@@ -456,7 +463,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...HEAD
+[0.4.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.4...v0.4.5

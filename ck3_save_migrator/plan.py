@@ -1046,7 +1046,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         dna_setup = D.setup(save_meta=light.meta, game_dir=game.path, old_game_dir=old_game_dir,
                             reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv,
                             old_portrait_mods=old_portrait_mods)
-        dna_setup.face_changes = tuple(face_changes or ())      # before any plan is built (Setup caches them)
+        dna_setup.face_changes = tuple(D.DEFAULT_FACE_CHANGES if face_changes is None else face_changes)  # before
+        # any plan is built (Setup caches them); not given: every change (0.4.8), "none": 0.4.0's faces
         faces = _faces_rows(dna_setup, transplanting=bool(chosen & set(TRANSPLANT)))
         notes.extend(dna_setup.notes)
     if not detect or not recheck_ids or refused:

@@ -238,6 +238,11 @@ MERGES = {
 }
 
 
+# --face-changes when not given (0.4.8, djdarcy 2026-11-04, after the joint look at the founding campaign: "good
+# enough"): every change. --face-changes none keeps 0.4.0's faces.
+DEFAULT_FACE_CHANGES = ("renames", "merges", "fallback", "known-genes")
+
+
 # Genes a later portrait-mod build appended to every face, shipped with the tool as names only (gene names, template
 # names, index numbers; none of the mod's settings), so a player without that build can still carry them: (the
 # folder under known_genes/, the gene the earlier build's layout ends with). Applied with --face-changes known-genes,
