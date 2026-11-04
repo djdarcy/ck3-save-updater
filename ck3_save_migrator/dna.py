@@ -22,6 +22,7 @@ founding save on 2026-10-25:
 from __future__ import annotations
 
 import base64
+import difflib
 import json
 import re
 from collections import Counter
@@ -164,6 +165,9 @@ class Plan:
     templates_lost: int = 0
     moved: int = 0
     renamed: list = field(default_factory=list)        # source genes carried under a new name (RENAMES)
+    merges: list = field(default_factory=list)         # (target place, source place, {src tidx: (dst tidx, scale)})
+    merged: list = field(default_factory=list)         # source genes folded into another gene's template (MERGES)
+    fell_back: list = field(default_factory=list)      # (gene, lost template, template used) under fallback
 
     @property
     def identity(self) -> bool:
@@ -192,13 +196,23 @@ class Plan:
                         impossible[g["name"]] += n
                 b = bytes([tmap.get(b[0], 0), b[1], tmap.get(b[2], 0), b[3]])
             out += b
+        for p, sp, tm in self.merges:
+            m = dna[sp * 4: sp * 4 + 4]
+            if len(m) < 4:
+                continue
+            for k in (0, 2):                                       # each allele: (template, value)
+                hit = tm.get(m[k])
+                if hit and m[k + 1] and not out[p * 4 + k + 1]:   # the merged gene set, the main template at weight 0
+                    out[p * 4 + k] = hit[0]
+                    out[p * 4 + k + 1] = min(255, round(m[k + 1] * hit[1]))
         return bytes(out)
 
     def counts(self) -> dict:
         return {"source": self.source.name, "target": self.target.name, "kept": self.kept, "remapped": self.remapped,
                 "moved": self.moved,
                 "defaulted": self.defaulted, "dropped": self.dropped, "templates_lost": self.templates_lost,
-                "renamed": self.renamed}
+                "renamed": self.renamed, "merged": self.merged,
+                "fell_back": [f"{g}: {a} -> {b}" for g, a, b in self.fell_back]}
 
 
 # Genes renamed between portrait-mod builds: old name -> new name, each with the measurement that shows it is the
@@ -210,8 +224,38 @@ RENAMES = {
     "gene_bs_head_round_shape": "gene_bs_head_shape",
 }
 
+# Genes folded into another gene between portrait-mod builds: old gene -> (the gene it joined, {old template name:
+# (new template name, value scale)}). A gene holds one template per allele, so the old gene's value is carried
+# only where the gene it joined is at weight 0 for that allele (value byte 0: every template involved moves its
+# blendshape from 0 up), so nothing the face already has is overwritten. The scale keeps the blendshape weight:
+# new value = old value * old max / new max. Applied only with --face-changes merges.
+MERGES = {
+    # EPE 1.6.0's gene_bs_eye_fold_2 template eye_fold_2 moves "bs_eye_fold_2" from 0 to 1.0 (male, female);
+    # today's EPE moves it from gene_bs_eye_fold_shape's eye_fold_shape_neg_02, from 0 to 0.95 (2026-11-03,
+    # tests/one-offs/gene_cousins.py; on the founding campaign 7 of 25,040 faces in the 967 save set it,
+    # 0 of 11,226 in the 1.8.1 save: tests/one-offs/thinking/eye_fold_census.py)
+    "gene_bs_eye_fold_2": ("gene_bs_eye_fold_shape", {"eye_fold_2": ("eye_fold_shape_neg_02", 1.0 / 0.95)}),
+}
 
-def build_plan(source: Layout, target: Layout, renames: dict | None = None) -> Plan:
+
+def closest_template(tname: str, dmap: dict) -> str | None:
+    """--face-changes fallback: the target template a lost source template goes to, instead of index 0. The
+    closest name (difflib, cutoff 0.6); never a "no_" template (one that draws nothing) unless the lost template
+    was one too; and when no name is close, the lowest-index template that is not "no_", but only where index 0
+    is a "no_" template (elsewhere index 0 stays, as without the switch)."""
+    void = not tname.startswith("no_")
+    pool = [n for n in dmap if not (void and n.startswith("no_"))]
+    near = difflib.get_close_matches(tname, pool, n=1, cutoff=0.6)
+    if near:
+        return near[0]
+    by_index = sorted(dmap, key=dmap.get)
+    if void and by_index and by_index[0].startswith("no_"):
+        return next((n for n in by_index if not n.startswith("no_")), None)
+    return None
+
+
+def build_plan(source: Layout, target: Layout, renames: dict | None = None, merges: dict | None = None,
+               fallback: bool = False) -> Plan:
     plan = Plan(source, target)
     pos = {g["name"]: i for i, g in enumerate(source.genes)}
     tnames = {g["name"] for g in target.genes}
@@ -239,6 +283,10 @@ def build_plan(source: Layout, target: Layout, renames: dict | None = None) -> P
                 tmap[si] = dmap[tname]
             else:
                 plan.templates_lost += 1
+                near = closest_template(tname, dmap) if fallback else None
+                if near is not None:
+                    tmap[si] = dmap[near]
+                    plan.fell_back.append((g["name"], tname, near))
         plan.moved += sp != p
         if len(tmap) == len(smap) and all(k == v for k, v in tmap.items()):
             plan.kept += 1
@@ -246,7 +294,19 @@ def build_plan(source: Layout, target: Layout, renames: dict | None = None) -> P
             plan.remapped += 1
         plan.moves.append((p, sp, tmap))
     names = {g["name"] for g in target.genes}
-    plan.dropped = [g["name"] for g in source.genes if g["name"] not in names and g["name"] not in plan.renamed]
+    tpos = {g["name"]: i for i, g in enumerate(target.genes)}
+    for old, (into, tnames_map) in (merges or {}).items():
+        if old not in pos or old in names or into not in tpos or into not in pos:
+            continue
+        sg, tg = source.genes[pos[old]], target.genes[tpos[into]]
+        tm = {sg["tidx_by_name"][o]: (tg["tidx_by_name"][n], scale) for o, (n, scale) in tnames_map.items()
+              if o in sg["tidx_by_name"] and n in tg["tidx_by_name"]}
+        if tm:
+            plan.merges.append((tpos[into], pos[old], tm))
+            plan.merged.append(old)
+    plan.merged.sort()
+    plan.dropped = [g["name"] for g in source.genes
+                    if g["name"] not in names and g["name"] not in plan.renamed and g["name"] not in plan.merged]
     return plan
 
 
@@ -389,8 +449,11 @@ class Setup:
     def plans(self) -> tuple[Plan, Plan | None]:
         if "_plans" not in self.__dict__:
             ren = RENAMES if "renames" in self.face_changes else None
-            self.__dict__["_plans"] = (build_plan(self.source, self.target, ren),
-                                       build_plan(self.reference, self.target, ren) if self.reference else None)
+            mer = MERGES if "merges" in self.face_changes else None
+            fb = "fallback" in self.face_changes
+            self.__dict__["_plans"] = (build_plan(self.source, self.target, ren, mer, fb),
+                                       build_plan(self.reference, self.target, ren, mer, fb) if self.reference
+                                       else None)
         return self.__dict__["_plans"]
 
     def describe(self) -> dict:
