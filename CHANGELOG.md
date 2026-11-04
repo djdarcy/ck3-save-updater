@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.11] - 2026-11-04
+
+### Added
+- Each culture keeps the innovation it was learning from a neighbour, a co-religionist or its realm.
+  - Older saves name that innovation in a field the current game no longer reads, so the game forgot it on load. The progress was kept, but the culture lost track of what it was picking up.
+  - The update now writes it where the current game reads it.
+  - On the founding campaign that is 201 cultures, and 407 fewer errors when the save loads.
+
 ## [0.4.10] - 2026-11-04
 
 ### Added
@@ -483,7 +491,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...HEAD
+[0.4.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.7...v0.4.8

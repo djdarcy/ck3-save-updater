@@ -1,0 +1,26 @@
+format = 1
+id = "R26"
+name = "spread-marker"
+title = "keep each culture's innovation-spread target: exposure_marker becomes spread_marker, exposure_type goes"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+
+# 1.8 marks the innovation a culture is learning from another with exposure_marker (the innovation), culture_marker
+# (the culture it comes from) and exposure_type (border, realm or religion). 1.20 writes spread_marker and
+# culture_marker, and rejects the two old fields ("Unexpected token"; 201 and 206 on the founding save), so the culture
+# loses its target; the progress itself is kept either way. Measured 2026-11-04 (the culture goal's U3,
+# tests/one-offs/poc_spread_marker.py): with the rename, the game's first-day re-save keeps all 201 markers unchanged
+# and the 407 errors are gone.
+
+[[edit]]
+path = "culture_manager/cultures/*"
+op = "rename_key"
+key = "exposure_marker"
+to = "spread_marker"
+
+[[edit]]
+path = "culture_manager/cultures/*"
+op = "delete_key"
+key = "exposure_type"
