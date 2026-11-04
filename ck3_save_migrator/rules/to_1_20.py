@@ -10,6 +10,7 @@ import base64
 import re
 from bisect import bisect_right
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 from .. import gamestate as gs
@@ -675,6 +676,136 @@ def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
                               "unresolved": unresolved})
 
 
+# --------------------------------------------------------------------------- R25
+@dataclass(frozen=True)
+class Successor:
+    """One row of R25's table: a key the target game no longer defines, and the key that took its place."""
+    kind: str       # perk | men-at-arms | modifier
+    field: str      # the save field whose value, or one-line list, holds the key
+    old: str        # the key, or a pattern whose groups name a family of keys (matched whole)
+    new: str        # the successor, or a template filled from old's groups (\1, \2)
+    folder: str     # the common/ folder that defines keys of this kind
+    how: str        # what the match rests on
+    source: str     # the definitions compared
+
+
+# Matched on what each thing is, never on the name alone (tests/one-offs/successor_finder.py; the culture goal's U2,
+# 2026-11-04). Old definitions: the 1.8.2 game; new: the installed 1.20.1.2. Unsure matches wait on djdarcy (HOLD).
+SUCCESSORS = (
+    Successor("perk", "perk", "scholar_perk", "erudite_perk", "lifestyle_perks",
+              "the same tree (scholarship), the same position {1 5}, the same parent (sanctioned_loopholes_perk)",
+              "00_learning_2_scholarship_tree_perks.txt, 1.8.2 and 1.20.1.2"),
+    Successor("men-at-arms", "type", "teutonic_knights", "order_serjeants", "men_at_arms_types",
+              "holy-order heavy infantry with the nearest damage and toughness (36/26 -> 36/24)",
+              "00_holy_order_maa_types.txt, 1.8.2 and 1.20.1.2"),
+    Successor("modifier", "modifiers", r"artifact_([a-z_]+)_scheme_power_add_(\d+)_modifier",
+              r"artifact_\1_scheme_phase_duration_add_\2_modifier", "modifiers",
+              "the scheme rework replaced scheme power with phase duration; the same scheme and tier",
+              "00_artifact_modifiers.txt, 1.20.1.2"),
+)
+_DEFINED = re.compile(rb"(?m)^([A-Za-z0-9_][\w.\-]*)\s*=\s*\{")
+
+
+def defined_keys(roots, folder: str) -> set[str]:
+    """The top-level keys ``<root>/common/<folder>/**/*.txt`` define, over every root (the game, then the mods)."""
+    keys: set[str] = set()
+    for root in roots:
+        base = Path(root) / "common" / folder
+        if base.is_dir():
+            for f in sorted(base.rglob("*.txt")):
+                text = f.read_bytes().removeprefix(b"\xef\xbb\xbf")       # the game's files carry a BOM
+                keys.update(m.group(1).decode() for m in _DEFINED.finditer(text))
+    return keys
+
+
+def _in_field(d: bytes, s: int, field: bytes) -> bool:
+    """Whether the token at ``s`` is ``field``'s value (``field=x``, ``field="x"``) or in its one-line list
+    (``field={ a x b }``)."""
+    q = s - 1 if s and d[s - 1] == 0x22 else s                      # step over an opening quote
+    if d[q - len(field) - 1:q] == field + b"=":
+        k = q - len(field) - 1
+    else:
+        brace = d.rfind(b"{", 0, s)
+        if brace < 0 or d.rfind(b"}", brace, s) >= 0 or d.rfind(b"\n", brace, s) >= 0 or \
+                d[brace - len(field) - 1:brace] != field + b"=":
+            return False
+        k = brace - len(field) - 1
+    return k == 0 or d[k - 1] in b" \t\r\n{"
+
+
+def r25_found(d: bytes, game_dir, mod_dirs=()) -> tuple[list[tuple], Counter]:
+    """Every old key of the table in its field: ``(start, end, old, new)`` for those it maps, and a count of those it
+    leaves, by why (the old key is still defined; no successor is defined)."""
+    roots = [game_dir, *mod_dirs]
+    found, left = [], Counter()
+    defined: dict[str, set[str]] = {}
+    for row in SUCCESSORS:
+        # the pattern starts with the key itself so the regex engine can scan for its literal prefix (a lookbehind
+        # first made the scan of a 222 MB save take 10 s); the byte before is checked here instead
+        token = re.compile(rb"(" + row.old.encode() + rb")(?![\w.\-])")
+        field = row.field.encode()
+        for m in token.finditer(d):
+            if m.start() and (chr(d[m.start() - 1]).isalnum() or d[m.start() - 1] in b"_.-") or \
+                    not _in_field(d, m.start(), field):
+                continue
+            if row.folder not in defined:
+                defined[row.folder] = defined_keys(roots, row.folder)
+            old = m.group(1).decode()
+            new = re.fullmatch(row.old, old).expand(row.new)
+            if old in defined[row.folder]:
+                left[f"{old}: still defined"] += 1
+            elif new not in defined[row.folder]:
+                left[f"{old}: no {new} defined"] += 1
+            else:
+                found.append((m.start(), m.end(), old, new))
+    return found, left
+
+
+def r25_detect(d: bytes, game_dir, mod_dirs=()) -> tuple[int, list[str], Counter]:
+    found, left = r25_found(d, game_dir, mod_dirs)
+    by = Counter(f"{old} -> {new}" for _, _, old, new in found)
+    return len(found), [f"{k} ({n:,})" for k, n in by.most_common(5)], left
+
+
+def r25_successor_keys(save: CK3Save, ctx, rule) -> object:
+    """Map each key the target game no longer defines to the key that took its place, from a cited table
+    (``SUCCESSORS``), in the field that holds it: a character's ``perk={ ... }``, a regiment's ``type=``, an
+    artifact's ``modifiers={ ... }``.
+
+    Measured on the founding save (2026-11-04): 1.20 deletes on load what it cannot read, so 142 characters lose
+    ``scholar_perk``, 11 regiments of ``teutonic_knights`` are disbanded, and 246 artifact modifiers of the
+    ``artifact_<scheme>_scheme_power_add_<n>_modifier`` family vanish. Each successor was matched on what the thing
+    is (the perk's tree, position and parent; the regiment's class, type and stats; the scheme rework's family),
+    never on the name alone. A key is mapped only when the game and the save's listed mods no longer define it and
+    do define its successor, so the rule never writes a key the game does not know; the rest is reported. A list
+    that already holds the successor loses the old key instead.
+    """
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common").is_dir():
+        return rule.result(extra={"skipped": f"no game data at {ctx.game_dir}"})
+    d = save.gamestate
+    found, left = r25_found(d, ctx.game_dir, getattr(ctx, "mod_dirs", []) or [])
+    p = gs.EditPass()
+    mapped, dropped = Counter(), Counter()
+    for s, e, old, new in found:
+        p.count(rule.name).matched += 1
+        line_start, line_end = d.rfind(b"\n", 0, s) + 1, d.find(b"\n", e)
+        others = d[line_start:line_end]
+        if d[s - 1:s] != b'"' and re.search(rb"(?<![\w.\-])" + re.escape(new.encode()) + rb"(?![\w.\-])", others):
+            a, b = (s, e + 1) if d[e:e + 1] == b" " else (s - 1 if d[s - 1:s] == b" " else s, e)
+            p.add(gs.Edit(a, b, b"", rule.name, f"{old} (its list already has {new})"))
+            dropped[f"{old} -> {new}"] += 1
+        else:
+            p.add(gs.Edit(s, e, new.encode(), rule.name, f"{old} -> {new}"))
+            mapped[f"{old} -> {new}"] += 1
+    p.apply_to(save)
+    c = p.count(rule.name)
+    return rule.result(matched=c.matched, edited=c.edited,
+                       extra={"mapped": dict(mapped.most_common()), "dropped_duplicates": dict(dropped),
+                              "left": dict(left.most_common()),
+                              "table": [{"kind": r.kind, "old": r.old, "new": r.new, "how": r.how, "source": r.source}
+                                        for r in SUCCESSORS]})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -694,4 +825,7 @@ RULES = [
          "report titles the game no longer defines (no edit)", r6_dead_titles),
     Rule("R23", "nickname-text", UNKNOWN_SINCE,
          "write the nickname's text (nickname_text) after every nickname that lacks it", r23_nickname_text),
+    Rule("R25", "successor-keys", UNKNOWN_SINCE,
+         "map perks, regiment types and artifact modifiers the game no longer defines to their successors",
+         r25_successor_keys),
 ]
