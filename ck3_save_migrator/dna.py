@@ -238,6 +238,31 @@ MERGES = {
 }
 
 
+# Genes a later portrait-mod build appended to every face, shipped with the tool as names only (gene names, template
+# names, index numbers; none of the mod's settings), so a player without that build can still carry them: (the
+# folder under known_genes/, the gene the earlier build's layout ends with). Applied with --face-changes known-genes,
+# to a face exactly that many places longer than the save's layout (2026-11-03, #40: EPE's December 2022 build added
+# 3 genes after EPE 1.6.0's 130; a 1.8.1 save of January 2023 holds 712-character faces against a 696 layout).
+KNOWN_GENES = Path(__file__).resolve().parent / "known_genes"
+KNOWN_TAILS = [("epe_2022-12_tail", "gene_eyebrow_inner_width")]
+
+
+def tail_layouts(source: Layout) -> list[Layout]:
+    """The source layout with each known build's appended genes, where they fit: the source ends with the gene the
+    build follows, and the build's genes come after every source gene, none of them already there."""
+    out = []
+    names = [g["name"] for g in source.genes]
+    for folder, after in KNOWN_TAILS:
+        d = KNOWN_GENES / folder
+        if not names or names[-1] != after or not has_genes(d):
+            continue
+        ext = build_layout(f"{source.name} + {folder} (known genes)", list(source.spec) + [(folder, d)])
+        extra = [g["name"] for g in ext.genes[len(names):]]
+        if [g["name"] for g in ext.genes[:len(names)]] == names and extra and not set(extra) & set(names):
+            out.append(ext)
+    return out
+
+
 def closest_template(tname: str, dmap: dict) -> str | None:
     """--face-changes fallback: the target template a lost source template goes to, instead of index 0. The
     closest name (difflib, cutoff 0.6); never a "no_" template (one that draws nothing) unless the lost template
@@ -456,6 +481,19 @@ class Setup:
                                        else None)
         return self.__dict__["_plans"]
 
+    def tail_plans(self) -> dict[int, Plan]:
+        """--face-changes known-genes: face length -> the plan that reads a face of that length with a known
+        build's appended genes (tail_layouts). Empty without the switch."""
+        if "_tails" not in self.__dict__:
+            out = {}
+            if "known-genes" in self.face_changes:
+                ren = RENAMES if "renames" in self.face_changes else None
+                mer = MERGES if "merges" in self.face_changes else None
+                for ext in tail_layouts(self.source):
+                    out[ext.length] = build_plan(ext, self.target, ren, mer, "fallback" in self.face_changes)
+            self.__dict__["_tails"] = out
+        return self.__dict__["_tails"]
+
     def describe(self) -> dict:
         return {"source": self.source.describe(), "target": self.target.describe(),
                 "reference": self.reference.describe() if self.reference else None,
@@ -608,6 +646,7 @@ class Result:
     lengths: Counter = field(default_factory=Counter)
     impossible: Counter = field(default_factory=Counter)    # gene -> template bytes its source layout does not define
     template_bytes: int = 0                                 # template bytes read in the source layout (the denominator)
+    known_genes: int = 0                                    # faces read with a known build's genes (known-genes)
 
     @property
     def wrong_layout(self) -> bool:
@@ -633,16 +672,25 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
     """Every change R19 makes to gamestate ``g`` (read only here): the dna strings and portraits_version."""
     transplanted = set(transplanted or ())
     own, ref = st.plans()
+    tails = st.tail_plans()                        # face length -> own plan with a known build's genes (known-genes)
     res = Result()
     covered = set()
-    per_face = 2 * sum(1 for _, sp, t in own.moves if sp is not None and t is not None)   # template bytes checked
+
+    def per_face(plan):                            # template bytes one face's translation checks
+        return 2 * sum(1 for _, sp, t in plan.moves if sp is not None and t is not None)
+
+    def own_for(s):                                # the save's own layout, or it with a known build's genes
+        return tails.get(len(s), own)
+
     for cid, a, b in _people(g):
         covered.add(a)
         s = g[a:b]
         res.lengths[len(s)] += 1
-        plan = ref if (cid in transplanted and ref is not None) else own
-        new, how, extra = translate(s, plan, res.impossible if plan is own else None)
-        res.template_bytes += per_face if plan is own and how in ("kept", "translated") else 0
+        plan = ref if (cid in transplanted and ref is not None) else own_for(s)
+        mine = plan is not ref or ref is None
+        new, how, extra = translate(s, plan, res.impossible if mine else None)
+        res.template_bytes += per_face(plan) if mine and how in ("kept", "translated") else 0
+        res.known_genes += plan is not own and mine
         res.outcomes.setdefault(how, []).append(cid)
         if extra:
             res.dropped_places[(plan.source.name, extra)] += 1
@@ -652,8 +700,10 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
         if m.start(1) in covered:
             continue
         s = m.group(1)
-        new, how, extra = translate(s, own, res.impossible)
-        res.template_bytes += per_face if how in ("kept", "translated") else 0
+        plan = own_for(s)
+        new, how, extra = translate(s, plan, res.impossible)
+        res.template_bytes += per_face(plan) if how in ("kept", "translated") else 0
+        res.known_genes += plan is not own
         res.other[how] += 1
         if new != s:
             res.edits.append((m.start(1), m.end(1), new))

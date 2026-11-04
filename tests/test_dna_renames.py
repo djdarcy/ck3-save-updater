@@ -64,7 +64,7 @@ def test_the_face_changes_option_parses_known_names_and_refuses_others():
     from ck3_save_migrator import record
     arg = lambda v: cli.face_changes_arg(argparse.Namespace(face_changes=v))  # noqa: E731
     assert arg(None) is None and arg("none") == [] and arg("") == [] and arg("renames") == ["renames"]
-    assert arg("renames,merges,fallback") == ["renames", "merges", "fallback"]      # every switch R19 knows
+    assert arg("renames,merges,fallback,known-genes") == ["renames", "merges", "fallback", "known-genes"]
     with pytest.raises(ValueError, match="not a known change"):
         arg("renames,colours")
     assert "face_changes" in record.INPUT_KEYS                 # a recorded run reproduces its face changes
