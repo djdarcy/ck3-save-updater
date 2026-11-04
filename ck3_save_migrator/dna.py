@@ -216,7 +216,7 @@ def build_plan(source: Layout, target: Layout, renames: dict | None = None) -> P
     pos = {g["name"]: i for i, g in enumerate(source.genes)}
     tnames = {g["name"] for g in target.genes}
     renamed_to = {new: old for old, new in (renames or {}).items()
-                  if old in pos and new not in pos and old not in tnames}
+                  if old in pos and new not in pos and old not in tnames and new in tnames}
     plan.renamed = sorted(renamed_to.values())
     for p, g in enumerate(target.genes):
         sp = pos.get(g["name"])
