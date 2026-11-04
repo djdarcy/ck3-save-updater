@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-11-04
+
+### Added
+- The Hawk of Quraysh modifiers keep working. The current game corrected their spelling (Quarysh became Quraysh), and an older save still used the old name, so the game dropped them on load. One character on the founding campaign keeps the bonus.
+
 ## [0.4.12] - 2026-11-04
 
 ### Changed
@@ -502,7 +507,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.9...v0.4.10
