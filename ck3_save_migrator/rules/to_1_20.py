@@ -1025,6 +1025,99 @@ def r28_marriage_bed(save: CK3Save, ctx, rule) -> object:
                               "relations": pairs})
 
 
+# --------------------------------------------------------------------------- R29
+SECRECY_BASE = b"20"   # secrecy_base_value's BASE (common/script_values/00_scheme_values.txt, 1.20.1.2)
+SECRECY_NONE = b"100"  # what 1.20 holds for a type with no base_secrecy (measured 2026-11-04: its own fresh sway
+#                        403/403, learn_language 151/151, courting 14/14, befriend 7/7 at 100)
+_FALLBACK_AGENTS = re.compile(rb"agents_added\s*\}\s*\}\s*\}((?:\s*add_agent_slot\s*=\s*\w+)+)")
+_FREEZE_DAYS = re.compile(rb"(?m)^\t*scheme_freeze_days=\S+[ \t]*$")
+_NO_SECRECY = re.compile(rb"(?m)^(\t*secrecy=)-1[ \t]*$")
+_NO_CHARACTER = b"4294967295"
+
+
+def scheme_type_defaults(roots) -> dict[bytes, tuple[bool, list[bytes]]]:
+    """Per scheme type the game and the mods define (later roots win): whether it has a ``base_secrecy``, and the
+    agent slots its ``on_start`` adds for a scheme started from script -- the "fallback agents" block, taken when
+    the owner lacks the ``agents_added`` variable."""
+    out: dict[bytes, tuple[bool, list[bytes]]] = {}
+    for root in roots:
+        base = Path(root) / "common" / "schemes" / "scheme_types"
+        if not base.is_dir():
+            continue
+        for f in sorted(base.rglob("*.txt")):
+            t = re.sub(rb"#[^\n]*", b"", f.read_bytes().removeprefix(b"\xef\xbb\xbf"))
+            for m in _DEFINED.finditer(t):
+                try:
+                    body = t[m.end() - 1:gs.match_brace(t, m.end() - 1)]
+                except gs.GamestateError:
+                    continue
+                fb = _FALLBACK_AGENTS.search(body)
+                out[m.group(1)] = (b"base_secrecy" in body,
+                                   re.findall(rb"add_agent_slot\s*=\s*(\w+)", fb.group(1)) if fb else [])
+    return out
+
+
+def r29_found(d: bytes) -> list[gs.Block]:
+    """The schemes an older game wrote, still frozen by its ``scheme_freeze_days`` field."""
+    try:
+        act = gs.locate(d, "schemes/active")
+    except gs.GamestateError:
+        return []
+    return [e for e in gs.iter_entries(d, *act.body) if e.key and _FREEZE_DAYS.search(d, e.open, e.close)]
+
+
+def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
+    """Thaw the schemes an older game wrote, and give them what 1.20's start-up gives a scheme started from script.
+
+    1.8 wrote ``scheme_freeze_days=0`` into every scheme, and 1.20 reads it as frozen for good: no carried plot ever
+    moves (the PoC of 2026-11-04 deleted the field and 712 schemes ran again). A carried scheme also skips 1.20's
+    start-up, so two things are missing. Its secrecy stays 1.8's -1, which 1.20 reads as "before on_ready"
+    (``ck3+0x2b4a200``: a negative secrecy logs the error and reads as 0) until its first update recomputes it; a
+    type with a ``base_secrecy`` gets the formula's base, 20, in its place, and a type without one gets 100, what 1.20
+    holds for its own schemes of such types. And it has no agent slots, which only
+    ``on_start`` adds; a type whose ``on_start`` has the fallback for a scheme started from script (an owner without
+    ``agents_added``) gets those slots, empty, as the game's own fallback leaves them. Both come from the game's and
+    the listed mods' scheme definitions, so a type the game does not define is only thawed.
+    """
+    d = save.gamestate
+    found = r29_found(d)
+    if not found:
+        return rule.result(matched=0, edited=0)
+    roots = ([ctx.game_dir] if ctx.game_dir else []) + list(getattr(ctx, "mod_dirs", []) or [])
+    defaults = scheme_type_defaults(roots)
+    p = gs.EditPass()
+    secrecy = slots = 0
+    for e in found:
+        p.count(rule.name).matched += 1
+        fz = _FREEZE_DAYS.search(d, e.open, e.close)
+        a, b = gs.removal_span(d, fz.start(), fz.end())
+        p.add(gs.Edit(a, b, b"", rule.name, "thaw"))
+        ty = re.search(rb'(?m)^\t*type="?(\w+)', d[e.open:e.close])
+        has_base, agents = defaults.get(ty.group(1) if ty else b"", (False, []))
+        ns = _NO_SECRECY.search(d, e.open, e.close)
+        if ns and ty and ty.group(1) in defaults:
+            p.add(gs.Edit(ns.start(), ns.end(), ns.group(1) + (SECRECY_BASE if has_base else SECRECY_NONE),
+                          rule.name, "secrecy"))
+            secrecy += 1
+        if agents and d.find(b"agent_slots=", e.open, e.close) < 0:
+            ind = b"\t" * (len(fz.group(0)) - len(fz.group(0).lstrip(b"\t")))
+            new = b"".join(ind + b"agent_slots={\n" + ind + b"\tid=%d\n" % i + ind + b"\tcharacter=" + _NO_CHARACTER +
+                           b"\n" + ind + b"\tcontribution=0\n" + ind + b"\ttype=" + ag + b"\n" + ind + b"\tscheme=" +
+                           e.key + b"\n" + ind + b"}\n" for i, ag in enumerate(agents))
+            at = d.rfind(b"\n", e.open, e.close) + 1 or e.close           # before the entry's closing line
+            nid = re.search(rb"(?m)^(\t*next_id=)\d+[ \t]*$", d[e.open:e.close])
+            if nid:
+                s = e.open + nid.start()
+                p.add(gs.Edit(s, e.open + nid.end(), nid.group(1) + b"%d" % len(agents), rule.name, "next_id"))
+            else:
+                new += ind + b"next_id=%d\n" % len(agents)
+            p.add(gs.Edit(at, at, new, rule.name, "agent slots"))
+            slots += 1
+    p.apply_to(save)
+    return rule.result(matched=len(found), edited=len(found),
+                       extra={"thawed": len(found), "secrecy_set": secrecy, "agent_slots_added": slots})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -1052,4 +1145,7 @@ RULES = [
     Rule("R28", "marriage-bed", UNKNOWN_SINCE,
          "carry 1.8's 'Rejected From Marriage Bed' into 1.20's no-fertility relation with the spouse",
          r28_marriage_bed),
+    Rule("R29", "scheme-thaw", UNKNOWN_SINCE,
+         "thaw the old game's frozen schemes, with the secrecy and agent slots 1.20's start-up gives them",
+         r29_scheme_thaw),
 ]

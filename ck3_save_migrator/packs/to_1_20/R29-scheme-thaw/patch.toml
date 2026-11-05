@@ -1,0 +1,9 @@
+format = 1
+id = "R29"
+name = "scheme-thaw"
+title = "thaw the old game's frozen schemes, with the secrecy and agent slots 1.20's start-up gives them"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r29_scheme_thaw"
