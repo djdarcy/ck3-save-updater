@@ -117,6 +117,10 @@ class Report:
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
+    attached: list = field(default_factory=list)               # copied rulers given a campaign liege (attach_plan)
+    attach_independent: list = field(default_factory=list)     # 1.20 liege in the player's realm, land not: kept out
+    attach_skipped: list = field(default_factory=list)         # no campaign ruler above him: 1.20's placement stands
+    contracts_created: int = 0                                 # contracts written for rulers 1.20 had independent
 
     def as_dict(self) -> dict:
         r = self.rewrite
@@ -130,6 +134,8 @@ class Report:
                 "settled": self.settled, "settled_landless_rulers": self.settled_landless_rulers,
                 "kept_by_holder": self.kept_by_holder, "kept_skipped": self.kept_skipped,
                 "kept_relinked": self.kept_relinked,
+                "attached": self.attached, "attach_independent": self.attach_independent,
+                "attach_skipped": self.attach_skipped, "contracts_created": self.contracts_created,
                 "orphans_reparented": self.orphans_reparented,
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
@@ -954,6 +960,173 @@ class Transplant:
         self.report.kept_relinked = out["relinked"]
         return out
 
+    def attach_plan(self) -> dict:
+        """Where a copied ruler's lands put him (djdarcy 2026-11-05, transplant DWP addenda 13:07 to 13:50).
+
+        1. A ruler whose capital county, or most of whose counties, 1.20 carved from land the player's realm held
+           joins the player's realm: his liege is the campaign ruler who controlled that land, the nearest one
+           above count tier over his capital's land (else over the land most of his counties came from).
+        2. Otherwise 1.20's placement stands: where his 1.20 liege is a title the campaign holds, he becomes the
+           vassal of its campaign holder, unless that title is in the player's realm while his land was not (the
+           player gains no one he never controlled: he stays independent, as Ruling 3 left him).
+        3. A ruler whose highest title is not below his would-be liege's primary keeps 1.20's placement.
+        Titles R15's hand-back or the redrawn-county rule give to the campaign are not his, and are left out.
+
+        Returns {"rulers": {ref char: row}, "titles": {ref title: out liege title}, "contracts": {ref contract:
+        liege}, "create": {ref char: (liege, contract_group)}, "old_drop": {ref char: {out contract ids}}}."""
+        if "_attach" in self._ent:
+            return self._ent["_attach"]
+        out = {"rulers": {}, "titles": {}, "contracts": {}, "create": {}, "old_drop": defaultdict(set)}
+        self._ent["_attach"] = out
+        tm, km = self.tr.spaces["title"], self.tr.spaces["vassal_contract"]
+        keys = self.title_keys()
+        rank = lambda k: TIER_RANK.get(k[:1], 0)                 # noqa: E731
+        ref, rcap = {}, {}                                        # ref title -> (de jure, holder, de facto); seat
+        for r, e in self.entries(TITLES).items():
+            b = self.ref[e.open:min(e.close, e.open + 4096)]
+            ref[r] = tuple(int(m.group(1)) if (m := re.search(rb"\n\t" + f + rb"=(\d+)", b)) else None
+                           for f in (b"de_jure_liege", b"holder", b"de_facto_liege"))
+            m = re.search(rb"\n\tcapital=(\d+)", b)
+            if m:
+                rcap[r] = int(m.group(1))
+        sv = {}                                                   # save title -> (de jure, holder, de facto)
+        for i, e in T.entries(self.save, TITLES):
+            b = self.save[e.open:min(e.close, e.open + 4096)]
+            sv[i] = tuple(int(m.group(1)) if (m := re.search(rb"\n\t" + f + rb"=(\d+)", b)) else None
+                          for f in (b"de_jure_liege", b"holder", b"de_facto_liege"))
+        pm = re.search(rb"currently_played_characters=\{\s*(\d+)", self.save)
+        player = int(pm.group(1)) if pm else None
+
+        def chain(i):
+            seen, k, up = {i}, sv.get(i, (None,) * 3)[2], []
+            while k is not None and k not in seen:
+                up.append(k)
+                seen.add(k)
+                k = sv.get(k, (None,) * 3)[2]
+            return up
+
+        def players(i):                                      # the title's realm is the player's
+            top = (chain(i) or [i])[-1]
+            return player is not None and sv.get(top, (None,) * 3)[1] == player
+
+        def land_liege(c):                                   # nearest title above count tier over a save county
+            return next((k for k in chain(c) if rank(self.save_title_key(k)) > TIER_RANK["c"]), None)
+
+        chars = self._save_chars()
+
+        def primary(c):                                      # a campaign character's primary title (save id)
+            e = chars.get(c)
+            d = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.save[e.start:e.end]) if e is not None else None
+            ids = d.group(1).split() if d else []
+            return int(ids[0]) if ids else None
+
+        def held_rank(c):                                    # a campaign character's highest title tier (his
+            e = chars.get(c)                                 # first-listed may be a runtime x_ title: the player's
+            d = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.save[e.start:e.end]) if e is not None else None
+            return max((rank(self.save_title_key(int(i))) for i in (d.group(1).split() if d else [])), default=0)
+
+        def ruler_over(c, top):                              # the first title over a save county whose holder
+            for k in ([c] + chain(c)) if c is not None else []:   # outranks a ruler of tier ``top``
+                h = sv.get(k, (None,) * 3)[1]
+                if h is not None and primary(h) is not None and held_rank(h) > top:
+                    return k
+            return None
+
+        hp, settle = self.holdings_plan(), self.settle_plan()
+        taken = set(hp["titles"]) | set(settle) | {d["capital"] for d in settle.values() if d["capital"] is not None}
+        holds: dict[int, list[int]] = defaultdict(list)
+        for r, (_, h, _) in ref.items():
+            if h is not None and h in self.carry["character"] and r in self.carry["title"] and r not in taken \
+                    and r not in tm.join:
+                holds[h].append(r)
+        rvc = {}                                                  # ref vassal -> (ref contract, ref liege)
+        vents = self.entries(CARRIED["vassal_contract"])
+        groups: dict[bytes, Counter] = defaultdict(Counter)       # government -> contract groups of its vassals
+        govt = {}
+
+        def government(x):
+            if x not in govt:
+                ch = self.character(x)
+                m = re.search(rb'\n\t+government="?(\w+)', self.ref[ch[1].start:ch[1].end]) if ch else None
+                govt[x] = m.group(1) if m else b""
+            return govt[x]
+        for i, e in vents.items():
+            b = self.ref[e.start:e.end]
+            v, lg = re.search(rb"\n\t+vassal=(\d+)", b), re.search(rb"\n\t+liege=(\d+)", b)
+            if v and lg:
+                rvc[int(v.group(1))] = (i, int(lg.group(1)))
+                g = re.search(rb"\n\t+contract_group=(\w+)", b)
+                if g:
+                    groups[government(int(v.group(1)))][g.group(1)] += 1
+        for x, rs in sorted(holds.items()):
+            top = max(rank(keys[r]) for r in rs)
+            if top <= TIER_RANK["b"]:
+                continue                                  # a baron's liege is his county
+            counties = [r for r in rs if keys[r].startswith("c_")]
+            land = {}
+            for c in counties:                            # the campaign county the land came from, if anyone held it
+                olds = {sv[tm.join[b]][0] for b, f in ref.items() if f[0] == c and b in tm.join and tm.join[b] in sv}
+                held = sorted(o for o in olds - {None} if sv.get(o, (None,) * 3)[1] is not None)
+                land[c] = held[0] if held else None
+            ch = self.character(x)
+            rc = re.search(rb"\n\t\trealm_capital=(\d+)", self.ref[ch[1].start:ch[1].end]) if ch else None
+            cap = ref.get(int(rc.group(1)), (None,) * 3)[0] if rc else None
+            mine = [c for c in counties if land[c] is not None and players(land[c])]
+            row = {"ruler": self.tr.spaces["character"].translate(x), "titles": sorted(keys[r] for r in rs)}
+            tops = [r for r in rs if rank(keys[r]) == top]
+            if not counties:
+                # a landless title (By God Alone's ecclesiastical seats, the Byzantine noble families): no land to
+                # test, and 1.20 makes none independent (0 of 32, djdarcy 14:03). 1.20's own liege at its
+                # campaign holder; where nobody holds it, the ruler over the land its seat county stands on
+                df = next((ref[r][2] for r in tops if ref[r][2] is not None), None)
+                if df is None:
+                    continue                              # 1.20 makes it independent (a holy order): it stays so
+                lt = tm.join.get(df)
+                why = "landless: 1.20's liege, at its campaign holder"
+                if lt is None or ruler_over(lt, top) != lt:         # nobody holds it, or its holder is not above
+                    seat = next((rcap[r] for r in tops if r in rcap), None)
+                    lt = ruler_over(tm.join.get(seat) if seat is not None else None, top)
+                    why = "landless: the ruler over its seat's land"
+                if lt is None:
+                    row.update(liege=None, why="landless, and nobody in the campaign holds its liege or its seat")
+                    self.report.attach_skipped.append(row)
+                    continue
+            elif mine and (cap in mine or 2 * len(mine) > len(counties)):
+                basis = cap if cap in mine else Counter(land_liege(land[c]) for c in mine).most_common(1)[0][0]
+                lt = land_liege(land[basis]) if basis in land else basis
+                why = "capital on the player's land" if cap in mine else "most counties on the player's land"
+            else:
+                df = next((ref[r][2] for r in rs if rank(keys[r]) == top and ref[r][2] is not None), None)
+                if df is None or df not in tm.join:
+                    continue                              # 1.20 has him independent, or under a copied ruler
+                lt = tm.join[df]
+                if players(lt):
+                    row.update(liege=None, why="1.20 liege is in the player's realm, his land was not: independent")
+                    self.report.attach_independent.append(row)
+                    continue
+                why = "1.20 liege is a campaign title"
+            liege = sv.get(lt, (None,) * 3)[1] if lt is not None else None
+            lp = primary(liege) if liege is not None else None
+            if liege is None or lp is None or held_rank(liege) <= top:
+                row.update(liege=None, why=f"{why}, but no campaign ruler above him there (stays as 1.20 has him)")
+                self.report.attach_skipped.append(row)
+                continue
+            row.update(liege=liege, liege_title=self.save_title_key(lp), why=why)
+            out["rulers"][x] = row
+            for r in rs:
+                if rank(keys[r]) == top:
+                    out["titles"][r] = lp
+            vc = rvc.get(x)
+            if vc is not None and vc[0] in self.carry["vassal_contract"]:
+                out["contracts"][vc[0]] = liege
+                if vc[1] in self.carry["character"]:
+                    out["old_drop"][vc[1]].add(km.translate(vc[0]))
+            else:
+                g = groups.get(government(x))
+                out["create"][x] = (liege, g.most_common(1)[0][0] if g else None)
+            self.report.attached.append(row)
+        return out
+
     def kept_scope_remap(self) -> dict[int, tuple[int, str]]:
         """Old save id of each held title R15 removed -> (output id of its successor, old key): the successor its
         holder regained in the hand-back, else the first successor the output has. For re-pointing stored scopes
@@ -1085,6 +1258,12 @@ class Transplant:
         for i, (holder, x) in hp["contracts"].items():
             contract_liege[i] = holder
             x_vc[x].add(kmap.translate(i))
+        # where a copied ruler's lands put him (attach_plan): his contract binds him to his campaign liege
+        at = self.attach_plan()
+        attach_gains: dict[int, list[int]] = defaultdict(list)   # campaign liege -> contracts (output ids) gained
+        for i, liege in at["contracts"].items():
+            contract_liege[i] = liege
+            attach_gains[liege].append(kmap.translate(i))
         for x, lost in x_drop.items():
             ch = self.character(x)
             m = re.search(rb"\n\t\tdomain=\{([^}]*)\}", self.ref[ch[1].start:ch[1].end]) if ch else None
@@ -1097,6 +1276,8 @@ class Transplant:
             text = rewrite(kind, e)
             if p in self.employer:
                 text = _set_employer(text, self.employer[p])
+            if p in at["old_drop"]:                 # a vassal attach_plan gave a campaign liege leaves his list
+                text = _edit_landed_list(text, b"vassal_contracts", drop=at["old_drop"][p])
             if cm.translate(p) in gains:            # step 1c: a campaign baron's contract, now this ruler's
                 text = _edit_landed_list(text, b"vassal_contracts", add=gains.pop(cm.translate(p)))
             if p in x_drop:
@@ -1126,6 +1307,8 @@ class Transplant:
                 text = _set_title_field(text, b"holder", holder)
                 if set_liege:                       # never on a barony: its de facto liege is its county
                     text = _set_title_field(text, b"de_facto_liege", liege)
+            elif t in at["titles"]:                 # attach_plan: his top titles answer to his campaign liege
+                text = _set_title_field(text, b"de_facto_liege", at["titles"][t])
             elif t in hp["repoint"]:                # a displaced ruler's title whose liege was handed back
                 text = _set_title_field(text, b"de_facto_liege", hp["repoint"][t])
             k = self.title_keys().get(t, "").encode()
@@ -1160,6 +1343,31 @@ class Transplant:
                     text = re.sub(rb"(\n\t+liege=)\d+", lambda m: m.group(1) + str(contract_liege[i]).encode(),
                                   text, count=1)
                 payload[kind].append(text)
+        # a ruler 1.20 had independent has no contract: write one, in the shape of the save's own (vassal, liege,
+        # date, levels, and the contract group 1.20 gives vassals of his government)
+        if at["create"]:
+            vkind = CARRIED["vassal_contract"]
+            used = {kmap.translate(i) for i in self.carry["vassal_contract"]}
+            for path in ("vassal_contracts/active", "vassal_contracts/database"):
+                try:
+                    used |= {i for i, _ in T.entries(self.save, path)}
+                except T.TranslationError:
+                    continue
+            # an id is a slot index plus a generation in the top byte (translate.index / generation): a new
+            # contract takes a slot no contract uses. "Largest id + 1" shared slot 1723 onwards with campaign
+            # contracts of generation 0, and the game crashed at ck3+0x2ab8862 (s15, s17, 2026-11-05)
+            nxt = max((T.index(i) for i in used), default=0) + 1
+            dm = re.search(rb"(?m)^date=([\d.]+)", self.save)
+            date = dm.group(1).decode() if dm else "1.1.1"
+            for x, (liege, group) in sorted(at["create"].items()):
+                body = (f"{nxt}={{\n\t\t\tvassal={cm.translate(x)}\n\t\t\tliege={liege}\n\t\t\tdate={date}\n"
+                        f"\t\t\tlevels={{ 1 }}\n" + (f"\t\t\tcontract_group={group.decode()}\n" if group else "")
+                        + "\t\t}")
+                payload[vkind].append(body.encode())
+                attach_gains[liege].append(nxt)
+                rep.contracts_created += 1
+                nxt += 1
+        self._ent["_attach_gains"] = attach_gains
         created = []
         for kind, items in payload.items():
             body = b"".join(x + b"\n" for x in items)
@@ -1487,6 +1695,8 @@ class Transplant:
             ops[old]["vc_drop"].add(cid)
             rep.contracts_moved += 1
         for x, cids in self._ent.get("_gains_left", {}).items():
+            ops[x]["vc_add"].extend(cids)
+        for x, cids in self._ent.get("_attach_gains", {}).items():   # attach_plan: campaign lieges gain vassals
             ops[x]["vc_add"].extend(cids)
         self._settle_save_side(ep, stitles, head, ops)
         self._kept_save_side(ep, ops)

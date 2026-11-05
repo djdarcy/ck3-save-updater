@@ -261,9 +261,32 @@ def test_a_disabled_spinner_writes_nothing_and_starts_no_thread():
     assert s.getvalue() == "" and sp._thread is None
 
 
+def test_the_spinner_colours_the_frame_stage_counter_and_seconds_apart():
+    """djdarcy, 2026-11-05: the frame noticeable but not the star, the stage and its counter in focus (the counter
+    the same hue, brighter), the seconds receding."""
+    from ck3_save_migrator._vendor import colors as C
+    s = FakeTTY()
+    with SP.Spinner(True, s, color=True) as sp:
+        sp.update("checking R11 empty-modifiers (10 of 26)")
+    drawn = s.getvalue().split("\r")[1]
+    frame = next(f for f in SP.SPINNERS[SP.DEFAULT_SPINNER]["frames"] if f in drawn)
+    assert drawn.startswith(C.colorize(frame, *SP.FRAME_STYLE) + " ")
+    assert C.colorize("checking R11 empty-modifiers", *SP.TEXT_STYLE) in drawn
+    assert C.colorize(" (10 of 26)", *SP.COUNT_STYLE) in drawn
+    assert re.search(re.escape(SP.TIME_STYLE[0]) + r"  \d+ s" + re.escape(C.RESET), drawn)
+    assert SP.split_counter("reading the whole save (98 MB)") == ("reading the whole save (98 MB)", "")
+
+
+def test_a_spinner_without_colour_writes_no_escape():
+    s = FakeTTY()
+    with SP.Spinner(True, s, color=False) as sp:
+        sp.update("checking R11 empty-modifiers (10 of 26)")
+    assert "\033[" not in s.getvalue() and "checking R11 empty-modifiers (10 of 26)" in s.getvalue()
+
+
 def test_the_spinner_draws_the_stage_and_erases_itself():
     s = FakeTTY()
-    with SP.Spinner(True, s) as sp:
+    with SP.Spinner(True, s, color=False) as sp:
         sp.update("checking R23 nickname-text (3 of 12)")
     text = s.getvalue()
     assert "checking R23 nickname-text (3 of 12)" in text and text.endswith("\r")

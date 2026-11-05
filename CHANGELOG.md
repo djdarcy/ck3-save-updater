@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.26] - 2026-11-05
+
+### Changed
+- The rulers the current game adds to the new-map regions now take a place in the realms around them. A new ruler whose capital, or most of whose counties, the new map carved from land your realm held becomes a vassal inside your realm, under whoever ruled that land. Elsewhere a new ruler keeps the place the current game gives him, under the campaign's ruler where the current game puts him under a title the campaign holds. You never gain a vassal on land your realm did not hold. On the founding campaign that is 40 rulers. Among them are the archbishops of France under the King of France, Rome and Ravenna under the Papal State, York, Split and Constantinople's noble families under the player, and the former Caspian-Pontic emperor and his seven counties under the Duke of Pecheneg. Holy orders and the rulers the current game leaves independent stay independent. Each placement is listed in the report with its reason.
+- The progress spinner is in colour: the star yellow, the stage cyan, its counter bold, the seconds dim. `--plain`, `NO_COLOR` and a pipe still turn colour off.
+
+### Fixed
+- The update's report listed 95 holy sites as lost even though the new-map step gives each its barony back. They are now listed as recovered, and only sites with no home in the current game stay under "lost". On the founding campaign that is one, a custom faith's site.
+
 ## [0.4.25] - 2026-11-05
 
 ### Changed
@@ -612,7 +621,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...HEAD
+[0.4.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...v0.4.26
 [0.4.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...v0.4.25
 [0.4.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...v0.4.24
 [0.4.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...v0.4.23

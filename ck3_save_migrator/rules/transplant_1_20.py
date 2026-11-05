@@ -254,6 +254,8 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     rep = t.report.as_dict()
     rep["kept_scopes_remapped"] = _remap_kept_scopes(save, t)
     rep["holy_sites"] = _reattach_holy_sites(save, ctx)
+    # R8 reported these as lost before the transplant existed; the report moves them to "recovered" (#6)
+    rep["recovered"] = [{"what": "holy_site_barony", "index": i} for i in rep["holy_sites"].pop("reattached_indices")]
     return rule.result(matched=sum(t.report.inserted.values()), edited=len(ep.edits), extra=rep)
 
 
@@ -296,7 +298,7 @@ def _reattach_holy_sites(save: CK3Save, ctx) -> dict:
     from .. import gamestate as gs
     pending = ctx.state.get("holy_sites_without_barony", [])
     if not pending:
-        return {"reattached": 0, "still_without_barony": []}
+        return {"reattached": 0, "still_without_barony": [], "reattached_indices": []}
     g = save.gamestate
     ids = {k.decode(): i for k, i in T.keyed(g, TITLES).items()}
     sites = dict(T.entries(g, "religion/holy_sites"))
@@ -316,9 +318,10 @@ def _reattach_holy_sites(save: CK3Save, ctx) -> dict:
         at = g.rfind(b"\n", 0, e.close) + 1
         indent = re.match(rb"[\t ]*", g[at:]).group() or b"\t\t"
         ep.add(gs.Edit(at, at, indent + b"\t" + f"barony={bid}\n".encode(), "R17", "holy site barony"))
-        done.append(s["barony"])
+        done.append(s["index"])
     ep.apply_to(save)
-    return {"reattached": len(done), "still_without_barony": sorted(x for x in missing if x)}
+    return {"reattached": len(done), "still_without_barony": sorted(x for x in missing if x),
+            "reattached_indices": done}
 
 
 from . import Rule  # noqa: E402  (Rule is defined before this module is imported)

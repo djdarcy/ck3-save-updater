@@ -233,6 +233,7 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             if ".ck3update-tmp" not in out.name:          # --in-place: said once it has its final name
                 say(DEFAULT, f"  lint report   : {lint_path}", "io")
     if report_path:
+        lost, recovered = report_losses(results)
         report = {
             "tool": f"{__app_name__} {get_display_version()}",
             "input": str(Path(args.save).resolve()), "input_sha256": in_sha,
@@ -245,12 +246,22 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             **({"plan": ctx.state["plan"]} if "plan" in ctx.state else {}),     # update: the plan it executed
             "reference": str(ctx.reference) if ctx.reference else None, "wos_shape": ctx.wos_shape,
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
-            "lost": [x for r in results for x in r.extra.get("lost", [])],
+            "lost": lost,
+            "recovered": recovered,
             "rules": [r.as_dict() for r in results],
             "lint": lint_rep.as_dict() if lint_rep is not None else None,
         }
         atomic_write(Path(report_path), json.dumps(report, indent=2, ensure_ascii=False))
         say(DEFAULT, f"  report        : {report_path}", "io")
+
+
+def report_losses(results) -> tuple[list, list]:
+    """The report's "lost" and "recovered" lists. What one rule reports lost and a later rule brings back (a holy
+    site whose barony the transplant adds after the religion rules ran) is listed as recovered, not lost (#6)."""
+    recovered = [y for r in results for y in r.extra.get("recovered", [])]
+    back = {(y["what"], y["index"]) for y in recovered}
+    lost = [x for r in results for x in r.extra.get("lost", []) if (x.get("what"), x.get("index")) not in back]
+    return lost, recovered
 
 
 def _transplant_summary(r) -> str:

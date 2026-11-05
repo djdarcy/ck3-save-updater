@@ -512,6 +512,138 @@ def test_1c_bis_a_baron_of_the_players_family_is_promoted(tmp_path):
     assert b"employer=41" in living[ruler]
 
 
+def _attach_fixture(tmp_path):
+    save_body, ref_body = _attach_bodies()
+    save, res = migrate(tmp_path, save_body, ref_body)
+    g = save.gamestate
+    return res["R17"].extra, g, titles_by_key(g), bodies(g, "living")
+
+
+def _attach_bodies():
+    """The player (39) holds k_p; his count 40 holds c_old, whose baronies b_e1 and b_e2 are empty. An AI duke (50)
+    holds d_ai over his count 51's c_ai, with empty b_e3 and b_e4. 1.20 carves three new counties from the empty
+    baronies: c_newp (b_e1, b_e2) for ruler 9, independent in 1.20; c_newai (b_e3) for ruler 8, under d_ai in 1.20;
+    c_newx (b_e4) for ruler 6, under the player's k_p in 1.20 though its land was the AI duke's."""
+    ld = "\tlanded_data={{\n\t\tdomain={{ {} }}\n\t\tvassal_contracts={{ {} }}\n\t}}\n"
+    save_body = gamestate(
+        living=char(39, ld.format("0", "0")) + char(40, ld.format("1 2", "")) + char(50, ld.format("6", "1"))
+        + char(51, ld.format("7 8", "")),
+        titles=title(0, "k_p", "\tholder=39\n\tde_jure_vassals={ 1 }\n")
+        + title(1, "c_old", "\tholder=40\n\tde_facto_liege=0\n\tde_jure_liege=0\n\tde_jure_vassals={ 2 3 4 }\n")
+        + title(2, "b_held", "\tholder=40\n\tde_jure_liege=1\n\tde_facto_liege=1\n")
+        + title(3, "b_e1", "\tde_jure_liege=1\n") + title(4, "b_e2", "\tde_jure_liege=1\n")
+        + title(6, "d_ai", "\tholder=50\n\tde_jure_vassals={ 7 }\n")
+        + title(7, "c_ai", "\tholder=51\n\tde_facto_liege=6\n\tde_jure_liege=6\n\tde_jure_vassals={ 8 9 10 }\n")
+        + title(8, "b_ai", "\tholder=51\n\tde_jure_liege=7\n\tde_facto_liege=7\n")
+        + title(9, "b_e3", "\tde_jure_liege=7\n") + title(10, "b_e4", "\tde_jure_liege=7\n"),
+        title_index=11,
+        extra="provinces={\n1={\n}\n}\nvassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=40\n\t\t\tliege=39\n"
+              "\t\t}\n\t\t1={\n\t\t\tvassal=51\n\t\t\tliege=50\n\t\t}\n\t}\n}\ncurrently_played_characters={ 39 }\n",
+    )
+    rl = "\tlanded_data={{\n\t\tdomain={{ {} }}\n\t\trealm_capital={}\n\t}}\n"
+    ref_body = gamestate(
+        living=char(9, rl.format("11", "3")) + char(8, rl.format("12", "9")) + char(6, rl.format("13", "10")),
+        titles=title(0, "k_p", "") + title(1, "c_old", "") + title(2, "b_held", "")
+        + title(3, "b_e1", "\tde_jure_liege=11\n") + title(4, "b_e2", "\tde_jure_liege=11\n")
+        + title(6, "d_ai", "") + title(7, "c_ai", "") + title(8, "b_ai", "")
+        + title(9, "b_e3", "\tde_jure_liege=12\n") + title(10, "b_e4", "\tde_jure_liege=13\n")
+        + title(11, "c_newp", "\tholder=9\n\tde_jure_vassals={ 3 4 }\n")
+        + title(12, "c_newai", "\tholder=8\n\tde_facto_liege=6\n\tde_jure_vassals={ 9 }\n")
+        + title(13, "c_newx", "\tholder=6\n\tde_facto_liege=0\n\tde_jure_vassals={ 10 }\n"),
+        extra="provinces={\n1={\n}\n}\n",
+    )
+    return save_body, ref_body
+
+
+def _contract_to(g, vassal: int) -> tuple[bytes, int] | None:
+    c = gs.locate(g, "vassal_contracts/active")
+    m = re.search(rb"\n\t*(\d+)=\{\s*vassal=" + str(vassal).encode() + rb"\s*liege=(\d+)", g[c.open:c.close])
+    return (m.group(1), int(m.group(2))) if m else None
+
+
+def test_a_new_ruler_on_land_the_players_realm_held_joins_it(tmp_path):
+    """djdarcy 2026-11-05: a county 1.20 carved from land the player's realm held puts its ruler in that realm, as
+    the vassal of the campaign ruler who controlled the land; 1.20 had him independent, so a contract is written
+    and the liege lists it."""
+    ex, g, t, living = _attach_fixture(tmp_path)
+    rows = {r["titles"][0]: r for r in ex["attached"]}
+    assert rows["c_newp"]["liege"] == 39 and rows["c_newp"]["why"] == "capital on the player's land"
+    assert b"de_facto_liege=0" in t["c_newp"][1]                  # k_p, the player's primary title
+    ruler = int(re.search(rb"holder=(\d+)", t["c_newp"][1]).group(1))
+    cid, liege = _contract_to(g, ruler)
+    assert liege == 39 and re.search(rb"vassal_contracts=\{[^}]*\b" + cid + rb"\b", living[39])
+    assert ex["contracts_created"] >= 1
+
+
+def test_a_written_contract_takes_a_slot_no_other_contract_uses(tmp_path):
+    """A contract id is a slot index plus a generation in the top byte. "Largest id + 1" gave a new contract the
+    slot of a campaign contract of another generation, and the game crashed (ck3+0x2ab8862, s15 and s17,
+    2026-11-05: 29 shared slots). Here a contract of generation 15 has slot 5 and a campaign contract has slot 6."""
+    from ck3_save_migrator import translate as T
+    save_body, ref_body = _attach_bodies()
+    high = (15 << 24) | 5
+    save_body = save_body.replace(b"\t\t1={\n\t\t\tvassal=51\n", f"\t\t{high}={{\n\t\t\tvassal=901\n\t\t\tliege=902\n"
+                                  f"\t\t}}\n\t\t6={{\n\t\t\tvassal=903\n\t\t\tliege=904\n\t\t}}\n\t\t1={{\n\t\t\tvassal=51\n"
+                                  .encode(), 1)
+    save, res = migrate(tmp_path, save_body, ref_body)
+    g = save.gamestate
+    ids = [int(e.key) for e in gs.iter_entries(g, *gs.locate(g, "vassal_contracts/active").body)]
+    assert res["R17"].extra["contracts_created"] >= 1 and high in ids and 6 in ids
+    slots = [T.index(i) for i in ids]
+    assert len(slots) == len(set(slots)), sorted(slots)
+
+
+def test_a_new_ruler_whose_1_20_liege_is_a_campaign_ai_title_becomes_its_holders_vassal(tmp_path):
+    """Where 1.20 put him: under d_ai, which the campaign's AI duke 50 holds."""
+    ex, g, t, living = _attach_fixture(tmp_path)
+    rows = {r["titles"][0]: r for r in ex["attached"]}
+    assert rows["c_newai"]["liege"] == 50 and rows["c_newai"]["why"] == "1.20 liege is a campaign title"
+    assert b"de_facto_liege=6" in t["c_newai"][1]
+    ruler = int(re.search(rb"holder=(\d+)", t["c_newai"][1]).group(1))
+    cid, liege = _contract_to(g, ruler)
+    assert liege == 50 and re.search(rb"vassal_contracts=\{[^}]*\b" + cid + rb"\b", living[50])
+
+
+def test_a_new_ruler_under_the_players_title_on_land_he_never_held_stays_independent(tmp_path):
+    """The player gains no one he never controlled: 1.20 puts c_newx under k_p, but its land was the AI duke's."""
+    ex, g, t, living = _attach_fixture(tmp_path)
+    assert [r["titles"] for r in ex["attach_independent"]] == [["c_newx"]]
+    assert b"de_facto_liege" not in t["c_newx"][1]
+    assert _contract_to(g, int(re.search(rb"holder=(\d+)", t["c_newx"][1]).group(1))) is None
+
+
+def test_a_landless_seat_follows_its_1_20_liege_into_the_players_realm(tmp_path):
+    """djdarcy 14:03: a landless 1.20 title (an ecclesiastical seat) is never independent in 1.20, so it takes
+    1.20's own liege at its campaign holder, even inside the player's realm: the land test has no land to read.
+    d_et_seat sits under k_p in 1.20 with its seat at c_old; the player holds k_p."""
+    save_body, ref_body = _attach_bodies()
+    ref_body = ref_body.replace(b"living={\n", b"living={\n" + char(5, "\tlanded_data={\n\t\tdomain={ 14 }\n\t}\n")
+                                .encode(), 1)
+    ref_body = ref_body.replace(
+        b"13={\n\tkey=c_newx\n", title(14, "d_et_seat", "\tholder=5\n\tde_facto_liege=0\n\tcapital=1\n").encode()
+        + b"13={\n\tkey=c_newx\n", 1)
+    # a holy order, landless and independent in 1.20, stays independent (s14: 12 orders were attached by mistake)
+    ref_body = ref_body.replace(b"living={\n", b"living={\n" + char(4, "\tlanded_data={\n\t\tdomain={ 15 }\n\t}\n")
+                                .encode(), 1).replace(
+        b"13={\n\tkey=c_newx\n", title(15, "d_order", "\tholder=4\n\tcapital=1\n").encode() + b"13={\n\tkey=c_newx\n", 1)
+    # the player's first-listed title is a runtime x_x_ title, as on the founding save (s14: York and Split were
+    # skipped because the rank was read from it): his rank is his highest title's
+    save_body = save_body.replace(b"domain={ 0 }", b"domain={ 11 0 }", 1).replace(
+        b"\tindex=11", b"\tindex=12", 1).replace(b"6={\n\tkey=d_ai\n", title(11, "x_x_9", "\tholder=39\n").encode()
+                                                  + b"6={\n\tkey=d_ai\n", 1)
+    save, res = migrate(tmp_path, save_body, ref_body)
+    g = save.gamestate
+    rows = {r["titles"][0]: r for r in res["R17"].extra["attached"]}
+    assert rows["d_et_seat"]["liege"] == 39 and rows["d_et_seat"]["why"] == "landless: 1.20's liege, at its campaign holder"
+    assert "d_order" not in rows
+    t = titles_by_key(g)
+    assert b"de_facto_liege=11" in t["d_et_seat"][1]            # the player's primary, the x_x_ title
+    cid, liege = _contract_to(g, int(re.search(rb"holder=(\d+)", t["d_et_seat"][1]).group(1)))
+    assert liege == 39
+    assert b"de_facto_liege" not in t["d_order"][1]
+    assert _contract_to(g, int(re.search(rb"holder=(\d+)", t["d_order"][1]).group(1))) is None
+
+
 def test_1c_bis_a_promoted_baron_gets_the_county_as_his_primary_title(tmp_path):
     """The first domain entry is the primary title. A promoted baron's county must come before his barony: with the
     barony first, 1.20 making him independent sets the county's liege to the county itself, and its "which kingdom"
