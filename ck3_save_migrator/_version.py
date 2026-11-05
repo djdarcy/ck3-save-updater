@@ -21,7 +21,7 @@ Version levels:
 # Version components - edit these for version bumps
 MAJOR = 0
 MINOR = 4
-PATCH = 15
+PATCH = 16
 PHASE = ""  # Per-MINOR feature set: "" (stable), "alpha", "beta", "rc1", etc.
 PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 
@@ -29,7 +29,7 @@ PRE_RELEASE_NUM = 1  # PEP 440 pre-release number (e.g., a1, b2)
 PROJECT_PHASE = ""  # "prealpha", "alpha", "beta", "stable", or ""
 
 # Auto-updated by git hooks - do not edit manually
-__version__ = "0.4.15_main_133-20261104-25625f2b"
+__version__ = "0.4.16_main_134-20261104-91190450"
 __app_name__ = "ck3-save-updater"
 
 

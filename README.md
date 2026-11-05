@@ -13,7 +13,7 @@
 
 ## Quick start
 
-Wherever you see `My Save`, put your save's name (without `.ck3`). Your save itself is never changed, the update is written to a new file beside it.
+Wherever you see `My Save`, put your save's name (with or without `.ck3`). Your save itself is never changed, the update is written to a new file beside it.
 
 **1. Install** (Python 3.10 or newer):
 
@@ -49,9 +49,15 @@ Faces are converted to the [gene layout](docs/glossary.md#gene-layout) of the ga
 
 ## What ck3update has been measured against
 
-I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been tested end to end. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
+I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been fully tested. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Not handled yet: cultures the game renamed or removed ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)), genes a portrait mod adds that the layout you load with lacks (they are dropped, and the report names them), and mod content in general. For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found. That step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
+Not handled yet:
+
+- Some things the current game removed with no replacement, such as about 30 timed modifiers on characters and counties ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)). The game drops them when the save loads.
+- Plots (schemes) carried from an older save. The current game keeps them but freezes them for good. A fix is in progress.
+- Mod content in general.
+
+For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found. That step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
 
 ## Install
 
@@ -70,7 +76,7 @@ This installs the `ck3update` command (its old name, `ck3-save-migrator`, still 
 Have these ready:
 
 - **The game folder.** The tool finds your installed game by itself through Steam's records, on any drive. If it does not, give `--game-dir "<...>\Crusader Kings III\game"` (or set `CK3_GAME_DIR`). `status` shows which install it used in its GAME block.
-- **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3"` writes a small mod into the game's mod folder that adds a bookmark on your date; enable it, start a new game from that bookmark, and save at once. [The reference save](docs/reference-save.md) walks through it. Without one, `status` lists the rules that will skip and these same steps.
+- **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3"` writes a small mod into the game's mod folder that adds a bookmark on your date; enable it, start a new game from that bookmark, and save as soon as it loads, before you unpause. [The reference save](docs/reference-save.md) walks through it. Without one, `status` lists the rules that will skip and these same steps.
 - **The launcher's playset**, set to the mods you will play with: the faces are carried into that playset's [gene layout](docs/glossary.md#gene-layout) (its portrait mods, read from the launcher's `dlc_load.json`). `--portrait-mods` names them instead. If the portrait mods the save was made with have updated or gone since, keep a copy of the builds it used and give them with `--old-portrait-mods`.
 - **Your [packs folder](docs/glossary.md#packs-folder)**, only if you have fixes of your own: `packs` beside the config file (`%APPDATA%\ck3-save-migrator\packs` on Windows, `~/.config/ck3-save-migrator/packs` elsewhere). The tool creates it the first time it loads rules, with `_example-pack`, a complete pack to copy when you write your own; the example itself never runs. You can ignore it to update a save.
 
