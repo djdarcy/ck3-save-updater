@@ -738,6 +738,12 @@ SUCCESSORS = (
               "('Agricultural Innovation') from 1.18 on, with the identical effect (+0.2 development growth, -10% "
               "build cost, +5 county opinion)",
               "fp2_yearly_events.txt and 03_dlc_fp2_modifiers.txt, 1.17.1 and 1.18.4"),
+    Successor("modifier", "modifier", "hold_court_7040_tax_cut", "court_tax_relief_county_modifier",
+              "modifiers", "the same idea and name, 'Tax Relief' a ruler grants at court: 1.13 removed the hold-court "
+              "event that gave the old one, and 1.20's 'Empty Granaries' (hold_court.6000) grants this one, which is "
+              "stronger (-50% tax, +15 county opinion against -20% tax, -50% development growth); djdarcy's call, "
+              "2026-11-04: let it through",
+              "01_dlc_roco_modifiers_george.txt (1.12.5) and 00_court_event_modifiers_claudia.txt (1.20.1.2)"),
 )
 _DEFINED = re.compile(rb"(?m)^([A-Za-z0-9_][\w.\-]*)\s*=\s*\{")
 

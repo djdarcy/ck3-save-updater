@@ -479,12 +479,17 @@ def test_real_987_counts():
     # 142 scholar_perk, 11 teutonic_knights, 247 artifact scheme-power modifiers, 1 Hawk of Quarysh (2026-11-04, U4)
     # + HOLD answers (S1): 25 chu_ko_nu, 229 innovation_bombard, 49 medium_animal_hide, 5 artifact bonus steps
     # + item 6 (S2): 12 at +1, 1 at +3, 26 at +4 (the six at +2 wait on djdarcy's look)
-    assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (748, 748, {})
+    assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (757, 757, {})
     assert (res["R1"].matched, res["R1"].edited) == (76433, 76433)
     assert (res["R2"].matched, res["R2"].edited, len(res["R2"].extra["left_unchanged"])) == (48357, 48357, 0)
     assert (res["R3"].matched, res["R3"].edited) == (12702, 12702 + 12702 + 3508 + 45 + 43)
-    assert res["R4"].extra["blanks_removed"] == {"meta_data": 69, "top-level": 69}
-    assert res["R5"].extra["by_parent"] == {"decision_cooldowns": 98, "interaction_cooldowns": 1}
+    # R4 is a patch since 0.3.12 and reports no blanks_removed; check its result instead: no "" left in either copy
+    g = save.gamestate
+    meta = gs.find_child(g, gs.find_section(g, "meta_data"), "game_rules")
+    assert g[meta.open:meta.close].count(b'""') == 0
+    assert sum(g[b.open:b.close].count(b'""') for b in gs.find_sections(g, "game_rules")) == 0
+    # R5 is a patch since 0.3.12 and no longer splits by parent: 98 decision + 1 interaction cooldowns = 99
+    assert (res["R5"].matched, res["R5"].edited) == (99, 99)
     assert len(res["R6"].extra["dead"]) == 96
     assert res["R6"].extra["converted_by_game"] == {"d_knights_hospitaler": "d_knights_hospitaller"}
     assert res["R7"].edited == 2
