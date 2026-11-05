@@ -1,0 +1,9 @@
+format = 1
+id = "R30"
+name = "asset-renames"
+title = "point artifact pictures, armour models and coat-of-arms emblems at the names the current game ships"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r30_asset_renames"

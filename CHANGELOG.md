@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.22] - 2026-11-05
+
+### Fixed
+- Artifacts keep their pictures and models. The current game renamed some artifact pictures, the armour artifacts' 3D models and one coat-of-arms emblem, so items like Excalibur and the Skull Cap of Charlemagne showed no picture. The update now points them at the new names. On the founding campaign that is 470 references.
+
+### Changed
+- Artifacts that gave +2 opinion with all vassals now give +5 and −3, which adds up to +2. The current game has no +2 of its own.
 ## [0.4.21] - 2026-11-05
 
 ### Added
@@ -578,7 +585,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...HEAD
+[0.4.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...v0.4.22
 [0.4.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...v0.4.21
 [0.4.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...v0.4.20
 [0.4.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...v0.4.19

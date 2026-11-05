@@ -133,10 +133,6 @@ A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both
 
 [Updating a save](docs/updating-a-save.md#performance-after-updating-a-large-save) has the details.
 
-## Mods known to misbehave in 1.20
-
-- **Better Barbershop** (Workshop 2220326926) replaces the barbershop and interaction-menu windows, and in 1.20 the barbershop then shows no characters. Disabling it brings the built-in barbershop back.
-
 ## Documentation
 
 The [documentation guide](docs/README.md) groups these pages by what you are trying to do. It is also the front page of [the project's site](https://djdarcy.github.io/ck3-save-updater/).

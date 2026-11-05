@@ -211,6 +211,25 @@ def test_the_all_vassal_opinion_bonus_stays_universal(tmp_path):
     assert res.edited == 3
 
 
+def test_a_plus_two_becomes_the_plus_five_minus_three_pair(tmp_path):
+    """djdarcy's tooltip look (2026-11-05): the +2 all-vassal bonus becomes +5 and -3, both keys in the list."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "hold_court_8010_vassal_modifier", "artifact_vassal_opinion_penalty_1_modifier")
+    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_court_grandeur_baseline_add_3_modifier "
+            b"artifact_vassal_opinion_2_modifier }\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert (b"modifiers={ artifact_court_grandeur_baseline_add_3_modifier hold_court_8010_vassal_modifier "
+            b"artifact_vassal_opinion_penalty_1_modifier }") in out
+
+
+def test_a_pair_is_not_written_unless_both_keys_are_defined(tmp_path):
+    g = tmp_path / "game"
+    define(g, "modifiers", "hold_court_8010_vassal_modifier")
+    body = b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_2_modifier }\n\t\t}\n\t}\n}\n"
+    out, res = run(g, body)
+    assert b"artifact_vassal_opinion_2_modifier" in out and res.edited == 0
+
+
 def test_every_row_cites_how_it_was_matched_and_on_what():
     assert all(r.how and r.source and r.folder for r in SUCCESSORS)
 
