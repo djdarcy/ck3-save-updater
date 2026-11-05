@@ -76,6 +76,20 @@ def test_verbose_adds_timing_and_io(saves, capsys):
     assert "rules applied" in out                        # the default narration is still there
 
 
+def test_a_holy_site_the_transplant_reattaches_is_recovered_not_lost():
+    """#6: R8 reports a holy site lost when its barony is not on the old map; R17 adds the barony and reattaches it.
+    The report lists it as recovered, and keeps what stays lost (a site with no 1.20 type)."""
+    from types import SimpleNamespace as R
+    results = [R(extra={"lost": [{"what": "holy_site_barony", "index": "52", "barony": "b_samarkand"},
+                                 {"what": "holy_site_barony", "index": "72", "barony": "b_angkor"},
+                                 {"what": "holy_site_type", "index": "9", "type": "armagh"}]}),
+               R(extra={}),
+               R(extra={"recovered": [{"what": "holy_site_barony", "index": "52"}]})]
+    lost, recovered = cli.report_losses(results)
+    assert [(x["what"], x["index"]) for x in lost] == [("holy_site_barony", "72"), ("holy_site_type", "9")]
+    assert recovered == [{"what": "holy_site_barony", "index": "52"}]
+
+
 def test_verbosity_flags_work_before_and_after_the_sub_command():
     parse = cli.build_parser().parse_args
     for argv, want in ((["-v", "rules"], 1), (["rules", "-v"], 1), (["-v", "rules", "-v"], 2), (["-q", "rules"], -1)):

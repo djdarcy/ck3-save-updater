@@ -14,10 +14,13 @@ still changes at every step.
 """
 
 import os
+import re
 import shutil
 import sys
 import threading
 import time
+
+from ._vendor import colors as C
 
 # -- Star family: point -> cross -> star -> burst -> breathe back --
 
@@ -127,14 +130,33 @@ def _theme(stream, name: str) -> dict:
     return theme
 
 
+# The line's colours (djdarcy, 2026-11-05): the frame shows work is happening without being the star, the stage
+# and its counter carry the focus (the counter the same hue, a step brighter, so it catches the eye as it climbs),
+# and the seconds recede.
+FRAME_STYLE = (C.YELLOW,)
+TEXT_STYLE = (C.CYAN,)
+COUNT_STYLE = (C.BOLD, C.CYAN)
+TIME_STYLE = (C.DIM,)
+_COUNTER = re.compile(r"\s*\(\d[\d,]* of \d[\d,]*\)$")     # "checking R11 empty-modifiers (10 of 26)"
+
+
+def split_counter(text: str) -> tuple[str, str]:
+    """``text`` as (the stage, its trailing "(n of m)" counter, or "")."""
+    m = _COUNTER.search(text)
+    return (text[:m.start()], text[m.start():]) if m else (text, "")
+
+
 class Spinner:
     """One status line, redrawn in place: ``<frame> <text>  <seconds> s``. A context manager: the line is erased
-    on every exit, an exception included. Disabled, it writes nothing and starts no thread."""
+    on every exit, an exception included. Disabled, it writes nothing and starts no thread. ``color`` (default:
+    whether the stream takes colour, colors.should_use_color) paints the frame, the stage, its counter and the
+    seconds in their styles above."""
 
-    def __init__(self, enabled: bool, stream=None, theme: str = DEFAULT_SPINNER):
+    def __init__(self, enabled: bool, stream=None, theme: str = DEFAULT_SPINNER, color: bool | None = None):
         self.enabled = enabled
         self.stream = stream if stream is not None else sys.stderr
         self.theme = _theme(self.stream, theme) if enabled else ASCII
+        self.color = bool(enabled and (C.should_use_color(self.stream) if color is None else color))
         self.text = ""
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -167,13 +189,21 @@ class Spinner:
     def _draw(self, frame: str) -> None:
         width = max(20, shutil.get_terminal_size((80, 24)).columns - 1)   # one short of the edge: no wrap
         secs = f"  {time.perf_counter() - self._t0:.0f} s"
-        line = f"{frame} {self.text}"[:width - len(secs)] + secs
+        room = max(0, width - len(secs) - len(frame) - 1)                 # for the stage and its counter
+        stage, count = split_counter(self.text)
+        if len(stage) + len(count) > room:                                # cut the stage first, keep the counter
+            stage, count = ((stage[:room - len(count)], count) if len(count) <= room
+                            else ((stage + count)[:room], ""))
+        plain = f"{frame} {stage}{count}{secs}"                           # what the line measures on screen
+        line = (C.colorize(frame, *FRAME_STYLE) + " " + C.colorize(stage, *TEXT_STYLE)
+                + (C.colorize(count, *COUNT_STYLE) if count else "") + C.colorize(secs, *TIME_STYLE)
+                if self.color else plain)
         with self._lock:
             if self._stop.is_set():
                 return
-            self.stream.write("\r" + line + " " * max(0, self._drawn - len(line)))
+            self.stream.write("\r" + line + " " * max(0, self._drawn - len(plain)))
             self.stream.flush()
-            self._drawn = len(line)
+            self._drawn = len(plain)
 
     def _run(self) -> None:
         while not self._stop.wait(self.theme["interval"] / 1000):

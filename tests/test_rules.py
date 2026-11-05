@@ -507,6 +507,43 @@ def test_real_987_counts():
     assert res["R7"].edited == 2
 
 
+REF_987 = ROOT / "private" / "data" / "originals" / "reference-1.20" / "ref_1_20_987_10_27.ck3"
+
+
+@pytest.mark.skipif(not (REAL_987.exists() and REF_987.exists() and GAME.exists()
+                         and os.environ.get("CK3_REAL_SAVES") == "1"),
+                    reason="set CK3_REAL_SAVES=1 (needs private/data, the reference save and the game; a few minutes)")
+def test_real_987_new_map_transplant():
+    """#6 (djdarcy 2026-11-05: "just a basic test ... the problem counties are fixed on the map with the holy
+    sites"): the founding save with the new map brought in. Every holy site the transplant reattaches is
+    recovered, and only the custom faith's armagh, which 1.20 has no type for, stays lost. The player holds the
+    same 49 titles. The family baron Liber holds the county 1.20 drew around his barony. A new ruler on land the
+    player's realm held joins it: David, 1.20's Caspian-Pontic emperor, 5 of whose 7 counties were carved from the
+    player's land (his capital was not), goes under the holder of d_pecheneg (measured on s13, 2026-11-05)."""
+    from ck3_save_migrator import cli
+    save = sf.read_save(REAL_987)
+    rules = R.select("all,R14,R15,R16", include_off=("R7",))
+    res = {r.id: r for r in R.run_rules(save, rules, R.RuleContext(game_dir=GAME, reference=REF_987))}
+    lost, recovered = cli.report_losses(list(res.values()))
+    holy = [x for x in lost if x["what"].startswith("holy_site")]
+    assert [(x["what"], x.get("template")) for x in holy] == [("holy_site_type", "armagh")]
+    assert len(recovered) == 95
+    g = save.gamestate
+    b = gs.locate(g, "landed_titles/landed_titles")
+    holder = {}
+    for e in gs.iter_entries(g, *b.body):
+        body = g[e.open:e.close]
+        k, h = re.search(rb'(?m)^\tkey="?([\w-]+)', body), re.search(rb"(?m)^\tholder=(\d+)", body)
+        if k:
+            holder[k.group(1).decode()] = int(h.group(1)) if h else None
+    assert sum(1 for h in holder.values() if h == 50822) == 49
+    assert holder["c_kuzeytorg"] == 70790
+    rows = {t: r for r in res["R17"].extra["attached"] for t in r["titles"]}
+    assert (rows["c_anket"]["liege"], rows["c_anket"]["liege_title"], rows["c_anket"]["why"]) == \
+        (33590197, "d_pecheneg", "most counties on the player's land")
+    assert len(rows["c_anket"]["titles"]) == 7
+
+
 # --------------------------------------------------------------------------- selection and prerequisites (S1)
 def test_all_with_opt_ins_selects_the_defaults_plus_those_and_meets_every_prerequisite():
     """S1 (director 2026-10-26 00:45): ``all,R14,R15,R16`` is the defaults plus the transplant, in registry order,

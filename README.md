@@ -60,7 +60,7 @@ Not handled yet:
 - Some things the current game removed with no replacement, such as timed modifiers from events that later versions removed. The game drops them when the save loads. [What doesn't carry over](docs/not-carried-over.md) lists each one.
 - Mod content in general.
 
-For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found. That step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
+For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found, with the rulers the current game gives them. Land your realm held stays yours, and new rulers on it become your vassals. `--transplant off` leaves this step out.
 
 ## Install
 
