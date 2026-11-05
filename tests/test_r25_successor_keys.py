@@ -145,6 +145,35 @@ def test_a_timed_modifier_takes_its_respelled_name(tmp_path):
     assert res.extra["mapped"] == {"fp2_hawk_of_quarysh_martial_modifier -> fp2_hawk_of_quraysh_martial_modifier": 1}
 
 
+def test_djdarcys_answered_rows():
+    """HOLD 18:05 (2026-11-04): each pinned to its successor, field and kind."""
+    rows = {r.old: r for r in SUCCESSORS}
+    assert (rows["chu_ko_nu"].new, rows["chu_ko_nu"].field) == ("shenbigong", "type")
+    assert (rows["innovation_bombard"].new, rows["innovation_bombard"].field) == ("innovation_gunpowder", "type")
+    assert (rows["medium_animal_hide"].new, rows["medium_animal_hide"].folder) == ("large_animal_hide", "artifacts/visuals")
+
+
+def test_an_artifact_bonus_step_1_20_dropped_takes_the_nearest_kept_step(tmp_path):
+    g = tmp_path / "game"
+    define(g, "modifiers", "artifact_build_gold_cost_4_modifier", "artifact_vassal_tax_contribution_mult_2_modifier")
+    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_build_gold_cost_7_modifier "
+            b"artifact_vassal_tax_contribution_mult_1_modifier }\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert b"modifiers={ artifact_build_gold_cost_4_modifier artifact_vassal_tax_contribution_mult_2_modifier }" in out
+    assert res.edited == 2
+
+
+def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):
+    g = tmp_path / "game"
+    define(g, "culture/innovations", "innovation_gunpowder")
+    define(g, "artifacts/visuals", "large_animal_hide")
+    body = (b"culture_manager={\n\tcultures={\n\t\t0={\n\t\t\tculture_innovation={ {\n\t\t\t\t\ttype=\"innovation_bombard\"\n"
+            b"\t\t\t\t}\n }\n\t\t}\n\t}\n}\nartifacts={\n\tartifacts={\n\t\t5={\n\t\t\tvisuals={\n"
+            b"\t\t\t\ttype=\"medium_animal_hide\"\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert b'type="innovation_gunpowder"' in out and b'type="large_animal_hide"' in out and res.edited == 2
+
+
 def test_every_row_cites_how_it_was_matched_and_on_what():
     assert all(r.how and r.source and r.folder for r in SUCCESSORS)
 

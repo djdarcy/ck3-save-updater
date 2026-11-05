@@ -56,6 +56,8 @@ Faces are stored in the save as portrait data (DNA), in the gene layout of the g
 
 What helps: turn on, in the launcher, the portrait mods you will play with before you run `update` (R19 reads them from `dlc_load.json`), or name them with `--portrait-mods`. `status` shows the layouts it will use in its FACES block. Give `--old-game-dir` for the old game's own genes, and `--old-portrait-mods` for the old builds of the portrait mods the save used, when they have updated or gone since (NOTES says "the source layout is probably not the save's" when the faces do not fit it). A save stores faces only for some characters, so not every face can be carried over from it.
 
+Faces carry every gene the portrait mods you load define. A gene none of them define cannot be drawn by the game, so it is dropped, and the report names it. Turning on the mod that defines it brings it back.
+
 ## The Way of Scarcity, or another custom faith, is missing
 
 A custom faith is carried by R10, which needs the religion rules and so a reference save (`--reference`); without one, R8 to R12 do nothing and say so. With a reference, the custom faith is carried in the shape `--wos-shape` chooses: as a faith of its own (`faith`), or as a rite of the faith its template now belongs to (`rite`). The default, `both`, writes two outputs, `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`; load the one you want. In the `rite` shape you find the custom faith as a rite, under the faith its template now belongs to. See [Rules](rules.md).
