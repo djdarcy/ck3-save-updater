@@ -16,7 +16,7 @@ import pytest
 from ck3_save_migrator import detect as D
 from ck3_save_migrator import savefile as sf
 from ck3_save_migrator.rules import REGISTRY, RuleContext
-from ck3_save_migrator.rules.to_1_20 import SUCCESSORS
+from ck3_save_migrator.rules.to_1_20 import SUCCESSORS, stack_tiers
 from tests.fixtures.make_ck3 import build_ck3
 
 R25 = next(r for r in REGISTRY if r.id == "R25")
@@ -176,14 +176,41 @@ def test_djdarcys_answered_rows():
     assert (rows["medium_animal_hide"].new, rows["medium_animal_hide"].folder) == ("large_animal_hide", "artifacts/visuals")
 
 
-def test_an_artifact_bonus_step_1_20_dropped_takes_the_nearest_kept_step(tmp_path):
+def build_cost_tiers(g, *tiers):
+    f = g / "common" / "modifiers" / "01_tiers.txt"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text("".join(f"artifact_build_gold_cost_{t}_modifier = {{ build_gold_cost = -0.0{t} }}\n" for t in tiers),
+                 encoding="utf-8-sig")
+
+
+def test_a_dropped_tier_becomes_the_kept_tiers_that_add_up_to_it(tmp_path):
+    """djdarcy 2026-11-05: stack bonuses so the old value survives. -7% = -4% -3% (the Stone of Scone); the vassal tax
+    step has no exact stack (+1% from +2%/+4%), so its row keeps the nearest step."""
     g = tmp_path / "game"
-    define(g, "modifiers", "artifact_build_gold_cost_4_modifier", "artifact_vassal_tax_contribution_mult_2_modifier")
+    build_cost_tiers(g, 1, 2, 3, 4)
+    define(g, "modifiers", "artifact_vassal_tax_contribution_mult_2_modifier")
     body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_build_gold_cost_7_modifier "
             b"artifact_vassal_tax_contribution_mult_1_modifier }\n\t\t}\n\t}\n}\n")
     out, res = run(g, body)
-    assert b"modifiers={ artifact_build_gold_cost_4_modifier artifact_vassal_tax_contribution_mult_2_modifier }" in out
+    assert (b"modifiers={ artifact_build_gold_cost_4_modifier artifact_build_gold_cost_3_modifier "
+            b"artifact_vassal_tax_contribution_mult_2_modifier }") in out
     assert res.edited == 2
+
+
+def test_a_tier_with_no_exact_stack_is_left_and_reported(tmp_path):
+    g = tmp_path / "game"
+    build_cost_tiers(g, 4)                                  # only -4%: no exact -7%
+    body = b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_build_gold_cost_7_modifier }\n\t\t}\n\t}\n}\n"
+    out, res = run(g, body)
+    assert b"artifact_build_gold_cost_7_modifier" in out and res.edited == 0
+    assert any("no exact stack" in k for k in res.extra["left"])
+
+
+def test_the_solver_takes_the_fewest_tiers_and_none_twice():
+    tiers = {f"t{n}": {"build_gold_cost": -n / 100} for n in (1, 2, 3, 4)}
+    assert stack_tiers({"build_gold_cost": -0.07}, tiers) == ["t4", "t3"]
+    assert stack_tiers({"build_gold_cost": -0.08}, tiers) == ["t4", "t3", "t1"]       # never t4 twice
+    assert stack_tiers({"build_gold_cost": -0.11}, tiers) is None                       # beyond 4+3+2+1 = 10
 
 
 def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):

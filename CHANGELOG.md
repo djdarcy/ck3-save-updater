@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.23] - 2026-11-05
+
+### Changed
+- An artifact bonus at a strength the current game no longer has keeps its full value. The update adds up smaller steps of the same bonus to match it exactly, so a −7% building cost becomes −4% and −3%. Before, it dropped to the nearest step the game keeps. When no exact sum exists, it still takes the nearest step.
+- On the founding campaign this keeps the Stone of Scone at −7% and the Bengali Crown at −5%.
+
 ## [0.4.22] - 2026-11-05
 
 ### Fixed
@@ -585,7 +591,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...HEAD
+[0.4.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...v0.4.23
 [0.4.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...v0.4.22
 [0.4.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...v0.4.21
 [0.4.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...v0.4.20
