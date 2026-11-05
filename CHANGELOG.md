@@ -4,6 +4,19 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.15] - 2026-11-04
+
+### Added
+- More of what the current game renamed now carries over under its new name:
+  - Chu-ko-nu regiments become Shenbigong. The current game's repeating-crossbow innovation now unlocks them for the same cultures.
+  - The completed Bombard innovation becomes Gunpowder, its successor in the same era.
+  - The medium animal-hide artifact look becomes the large hide, which hangs in the same wall slot.
+  - Artifact bonuses at a step the current game no longer has take the nearest step it keeps.
+- On the founding campaign this keeps 25 regiments, the innovation for 229 cultures, 49 artifact looks and 5 artifact bonuses.
+
+### Docs
+- The note on face genes no portrait mod defines moved from the README to the troubleshooting guide.
+
 ## [0.4.14] - 2026-11-04
 
 Developer tooling only. Nothing a player runs changes in this version.
@@ -517,7 +530,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...HEAD
+[0.4.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...v0.4.12

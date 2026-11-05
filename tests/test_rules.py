@@ -477,7 +477,8 @@ def test_real_987_counts():
     save = sf.read_save(REAL_987)
     res = {r.id: r for r in R.run_rules(save, R.select("all", include_off=("R7",)), R.RuleContext(game_dir=GAME))}
     # 142 scholar_perk, 11 teutonic_knights, 247 artifact scheme-power modifiers, 1 Hawk of Quarysh (2026-11-04, U4)
-    assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (401, 401, {})
+    # + HOLD answers (S1): 25 chu_ko_nu, 229 innovation_bombard, 49 medium_animal_hide, 5 artifact bonus steps
+    assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (709, 709, {})
     assert (res["R1"].matched, res["R1"].edited) == (76433, 76433)
     assert (res["R2"].matched, res["R2"].edited, len(res["R2"].extra["left_unchanged"])) == (48357, 48357, 0)
     assert (res["R3"].matched, res["R3"].edited) == (12702, 12702 + 12702 + 3508 + 45 + 43)
