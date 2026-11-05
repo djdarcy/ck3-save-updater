@@ -722,9 +722,14 @@ SUCCESSORS = (
               "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
     # item 6 (goal S2): 1.20 dropped the plain "+N opinion with all vassals" artifact bonus; djdarcy wants it kept
     # universal with base-game definitions. The only pure all-vassal opinion modifiers 1.20 defines are -10, -3, +5, +10.
-    Successor("modifier", "modifiers", r"artifact_vassal_opinion_[34]_modifier", "hold_court_8010_vassal_modifier",
-              "modifiers", "+3/+4 with all vassals -> +5 with all vassals, the nearest pure all-vassal opinion 1.20 defines",
+    Successor("modifier", "modifiers", "artifact_vassal_opinion_4_modifier", "hold_court_8010_vassal_modifier",
+              "modifiers", "+4 with all vassals -> +5 with all vassals, the nearest pure all-vassal opinion 1.20 defines "
+              "(its exact +4, artifact_armor_3, brings +3 prowess too)",
               "01_dlc_roco_modifiers_joe.txt, 1.20.1.2 (vassal_opinion = 5, nothing else)"),
+    Successor("modifier", "modifiers", "artifact_vassal_opinion_3_modifier", "artifact_killer_3_artifact_modifier",
+              "modifiers", "+3 with all vassals -> exactly +3 with all vassals, bundled with +0.03 prestige a month "
+              "(djdarcy's call 2026-11-05: 'Seems fair'; found by the modifier catalogue)",
+              "00_artifact_modifiers.txt, 1.20.1.2 (vassal_opinion = 3, monthly_prestige = 0.03)"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_1_modifier", "unity_harmonious_placation_modifier",
               "modifiers", "+1 with all vassals -> +1 with all vassals (plus +2% personal scheme success and +1% tax "
               "from happy powerful vassals), the only +1 all-vassal opinion 1.20 defines",
@@ -1039,6 +1044,7 @@ _FALLBACK_AGENTS = re.compile(rb"agents_added\s*\}\s*\}\s*\}((?:\s*add_agent_slo
 _FREEZE_DAYS = re.compile(rb"(?m)^\t*scheme_freeze_days=\S+[ \t]*$")
 _NO_SECRECY = re.compile(rb"(?m)^(\t*secrecy=)-1[ \t]*$")
 _NO_CHARACTER = b"4294967295"
+_OWNER_AGENT = re.compile(rb"(?m)^\t*owner_agent=\{\s*character=(\d+)\s*influence=(-?\d+)[^{}]*\}[ \t]*$")
 
 
 def scheme_type_defaults(roots) -> dict[bytes, tuple[bool, list[bytes]]]:
@@ -1092,7 +1098,12 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
     roots = ([ctx.game_dir] if ctx.game_dir else []) + list(getattr(ctx, "mod_dirs", []) or [])
     defaults = scheme_type_defaults(roots)
     p = gs.EditPass()
-    secrecy = slots = 0
+    secrecy = slots = seated = unseated = gone = 0
+    try:
+        lv = gs.find_section(d, "living")
+        living = {m.group(1) for m in re.finditer(rb"(?m)^(\d+)=\{", d[lv.start:lv.end])}
+    except gs.GamestateError:
+        living = set()
     for e in found:
         p.count(rule.name).matched += 1
         fz = _FREEZE_DAYS.search(d, e.open, e.close)
@@ -1105,9 +1116,21 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
             p.add(gs.Edit(ns.start(), ns.end(), ns.group(1) + (SECRECY_BASE if has_base else SECRECY_NONE),
                           rule.name, "secrecy"))
             secrecy += 1
+        old_agents = []                                   # 1.8's agents who had joined: (influence, character)
+        for oa in _OWNER_AGENT.finditer(d, e.open, e.close):
+            a, b = gs.removal_span(d, oa.start(), oa.end())
+            p.add(gs.Edit(a, b, b"", rule.name, "1.8 agent"))
+            if oa.group(1) in living:
+                old_agents.append((int(oa.group(2)), oa.group(1)))
+            else:
+                gone += 1
+        old_agents = [c for _, c in sorted(old_agents, key=lambda x: -x[0])]
         if agents and d.find(b"agent_slots=", e.open, e.close) < 0:
             ind = b"\t" * (len(fz.group(0)) - len(fz.group(0).lstrip(b"\t")))
-            new = b"".join(ind + b"agent_slots={\n" + ind + b"\tid=%d\n" % i + ind + b"\tcharacter=" + _NO_CHARACTER +
+            seat = old_agents[:len(agents)] + [_NO_CHARACTER] * max(0, len(agents) - len(old_agents))
+            seated += min(len(agents), len(old_agents))
+            unseated += max(0, len(old_agents) - len(agents))
+            new = b"".join(ind + b"agent_slots={\n" + ind + b"\tid=%d\n" % i + ind + b"\tcharacter=" + seat[i] +
                            b"\n" + ind + b"\tcontribution=0\n" + ind + b"\ttype=" + ag + b"\n" + ind + b"\tscheme=" +
                            e.key + b"\n" + ind + b"}\n" for i, ag in enumerate(agents))
             at = d.rfind(b"\n", e.open, e.close) + 1 or e.close           # before the entry's closing line
@@ -1119,9 +1142,13 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
                 new += ind + b"next_id=%d\n" % len(agents)
             p.add(gs.Edit(at, at, new, rule.name, "agent slots"))
             slots += 1
+        else:
+            unseated += len(old_agents)
     p.apply_to(save)
     return rule.result(matched=len(found), edited=len(found),
-                       extra={"thawed": len(found), "secrecy_set": secrecy, "agent_slots_added": slots})
+                       extra={"thawed": len(found), "secrecy_set": secrecy, "agent_slots_added": slots,
+                              "old_agents_seated": seated, "old_agents_without_a_slot": unseated,
+                              "old_agents_no_longer_living": gone})
 
 
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)

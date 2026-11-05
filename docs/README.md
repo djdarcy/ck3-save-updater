@@ -20,6 +20,7 @@ ck3-save-updater brings an old Crusader Kings III save up to the game version yo
 - [Checking a save](lint.md): what `lint` checks before you load an updated save.
 - [Reports](reports.md): what the report beside each updated save contains.
 - [Differences from the game](differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
+- [What doesn't carry over](not-carried-over.md): what an old save has that the current game no longer keeps, and where to ask for it back.
 
 ## How it works
 

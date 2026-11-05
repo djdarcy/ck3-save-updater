@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.21] - 2026-11-05
+
+### Added
+- Agents who had joined a plot in the old save keep their place. They take the plot's agent positions, strongest first. On the founding campaign that is 107 of 180 agents. The rest were in plots the current game gives no positions, or beyond the positions a plot has.
+- A new page, [What doesn't carry over](docs/not-carried-over.md), lists what an old save has that the current game no longer keeps, and where to ask for it back.
+- Troubleshooting now explains the crash when saving an updated campaign while the game runs, and the workaround: pause first.
+
+### Changed
+- Artifacts that gave +3 opinion with all vassals now give exactly +3, with a little prestige, instead of +5.
+
 ## [0.4.20] - 2026-11-04
 
 ### Added
@@ -568,7 +578,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...HEAD
+[0.4.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...v0.4.21
 [0.4.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...v0.4.20
 [0.4.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...v0.4.18
