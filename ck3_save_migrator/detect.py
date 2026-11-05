@@ -106,6 +106,20 @@ def _r23(g, env):
     return d
 
 
+def _r27(g, env):
+    from .rules.to_1_20 import r27_found
+    pairs = r27_found(g)
+    return _found(len(pairs), [f"house {a.decode()} and house {b.decode()}" for a, b in pairs],
+                  "house feuds to carry into house relations")
+
+
+def _r28(g, env):
+    from .rules.to_1_20 import r28_found
+    found = r28_found(g)
+    return _found(len(found), [f"character {c.decode()} ({counted(len(s), 'living spouse', 'living spouses')})"
+                               for c, s, _ in found], "characters rejected from the marriage bed")
+
+
 def _r25(g, env):
     """R25 counts the old keys it can map; one whose successor neither the game nor a listed mod defines, or that
     is still defined, is reported apart."""
@@ -218,9 +232,7 @@ DETECTORS = {
     "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _dead_titles,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
-    "R25": _r25,
-    "R27": lambda g, env: _found(len(__import__("ck3_save_migrator.rules.to_1_20", fromlist=["r27_found"]).r27_found(g)),
-                                 [], "house feuds to carry into house relations"),
+    "R25": _r25, "R27": _r27, "R28": _r28,
 }
 
 

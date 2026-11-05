@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.18] - 2026-11-04
+
+### Added
+- A marriage the old save marked childless stays childless. An older game gave the rejected spouse a "Rejected From Marriage Bed" bonus. The current game marks it as a hidden relation between the two spouses instead. The update gives each living character who had the bonus that relation with each living spouse.
+- A county's "Rice Fields" becomes "Agricultural Innovation". The same Iberian event gives it in the current game, with the same effect.
+- On the founding campaign that is 47 characters (36 with a living spouse) and 2 counties.
+
+### Changed
+- `ck3update status` names the two houses of each house feud it will carry.
+
 ## [0.4.17] - 2026-11-04
 
 ### Added
@@ -13,7 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [0.4.16] - 2026-11-04
 
 ### Added
-- Artifacts that gave "+opinion with all vassals" keep a bonus with all vassals. The current game dropped that bonus, so the nearest one it defines takes its place:
+- Artifacts that gave "+opinion with all vassals" keep a bonus with all vassals. The current game dropped that bonus, so the nearest bonus it defines that does nothing else takes its place:
   - +3 and +4 become +5;
   - +1 stays +1, with two small extras.
   - The current game has no bonus at +2. Those artifacts wait on a check of how a replacement shows in game.
@@ -545,7 +555,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...HEAD
+[0.4.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...v0.4.15
