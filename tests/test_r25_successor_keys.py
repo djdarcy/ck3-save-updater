@@ -198,14 +198,16 @@ def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):
 
 
 def test_the_all_vassal_opinion_bonus_stays_universal(tmp_path):
-    """Item 6 (goal S2): +3 and +4 become +5 with all vassals, +1 stays +1 with all vassals."""
+    """Item 6 (goal S2): +4 becomes +5 with all vassals, +3 the exact +3 (with +0.03 prestige a month; djdarcy
+    2026-11-05), +1 stays +1 with all vassals."""
     g = tmp_path / "game"
-    define(g, "modifiers", "hold_court_8010_vassal_modifier", "unity_harmonious_placation_modifier")
+    define(g, "modifiers", "hold_court_8010_vassal_modifier", "unity_harmonious_placation_modifier",
+           "artifact_killer_3_artifact_modifier")
     body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_4_modifier "
             b"artifact_vassal_opinion_1_modifier artifact_vassal_opinion_3_modifier }\n\t\t}\n\t}\n}\n")
     out, res = run(g, body)
     assert (b"modifiers={ hold_court_8010_vassal_modifier unity_harmonious_placation_modifier "
-            b"hold_court_8010_vassal_modifier }") in out
+            b"artifact_killer_3_artifact_modifier }") in out
     assert res.edited == 3
 
 

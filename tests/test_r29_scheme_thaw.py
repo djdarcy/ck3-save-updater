@@ -78,6 +78,21 @@ def test_a_scheme_the_new_game_started_is_left_alone(tmp_path):
     assert res.matched == 0 and b"agent_slots" not in save.gamestate
 
 
+def test_the_old_games_agents_take_the_new_positions_strongest_first(tmp_path):
+    """1.8's owner_agent blocks (agents who had joined) are seated in the new positions by their old influence; one
+    more than fit is counted as without a slot, and the old blocks go."""
+    agents = (b"\t\t\towner_agent={\n\t\t\t\tcharacter=21\n\t\t\t\tinfluence=5\n\t\t\t}\n"
+              b"\t\t\towner_agent={\n\t\t\t\tcharacter=22\n\t\t\t\tinfluence=40\n\t\t\t\texposed=yes\n\t\t\t}\n"
+              b"\t\t\towner_agent={\n\t\t\t\tcharacter=23\n\t\t\t\tinfluence=9\n\t\t\t}\n")
+    s = scheme(1, b"murder").replace(b"\t\t\tdate=", agents + b"\t\t\tdate=")
+    living = b"living={\n" + b"".join(b"%d={\n\tfirst_name=\"A\"\n}\n" % c for c in (21, 22, 23)) + b"}\n"
+    save, res = run(tmp_path, living + body(s))
+    g = save.gamestate
+    assert b"owner_agent" not in g
+    assert b"id=0\n\t\t\t\tcharacter=22\n" in g and b"id=1\n\t\t\t\tcharacter=23\n" in g      # 40, then 9
+    assert (res.extra["old_agents_seated"], res.extra["old_agents_without_a_slot"]) == (2, 1)
+
+
 def test_running_twice_changes_nothing_more(tmp_path):
     save, _ = run(tmp_path, body(scheme(1, b"murder"), scheme(2, b"sway")))
     once = save.gamestate

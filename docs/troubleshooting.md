@@ -70,6 +70,12 @@ R15 dead-titles  matched 0  edited 0  (needs --old-game-dir (the save's own vers
 
 R15 finds what the 1.20 map calls the land of your save's removed or moved titles by reading two maps: the current game's and the one of the version your save was made with. Pass `--old-game-dir` with the `game` folder of that older version (and `--game-dir` if the current game is not found by itself). The rest of the update still runs without it. See [New-map regions](new-map-regions.md).
 
+## The game crashes when you save
+
+Saving an updated campaign while the game is running can crash it. Pause the game first, then save. Saves made while paused have not crashed in any of our tests.
+
+The crash happens while the game writes your character's hint icons (the "important actions" along the top of the screen). We think the save reads that list while the game is rebuilding it in the background. In updated campaigns one of those hints is very slow, so the two overlap far more often than in a new game. The fix is being worked on.
+
 ## The reference save is from a different date
 
 The new-map rules copy the new regions' world from the reference as it is on the reference's date. A reference from another date brings rulers and families from the wrong moment into your campaign. Nothing refuses it, because the tool cannot tell which date you meant. Make a reference at your campaign's own date: [The reference save](reference-save.md) explains how, with `ck3update reference-mod`.
