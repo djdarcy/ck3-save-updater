@@ -102,7 +102,7 @@ def post_console(hwnd: int, command: str) -> None:
 
 
 KEYS = {"space": 0x20, "plus": 0x6B, "minus": 0x6D, "1": 0x31, "2": 0x32, "3": 0x33, "4": 0x34, "5": 0x35,
-        "enter": 0x0D, "escape": 0x1B}
+        "enter": 0x0D, "escape": 0x1B, "f1": 0x70, "f8": 0x77}   # F1 the character window, F8 culture (2026-11-04)
 
 
 def post_key(hwnd: int, name: str) -> None:
@@ -455,6 +455,12 @@ def main(run_name: str, args: list[str]) -> int:
                     shutil.copy2(f, run / f"soak__{f.name}")            # keep the game's version too
                     shutil.copy2(run / "autosave-guard" / f.name, f)    # and restore the user's
                     note(f"autosave guard: {f.name} changed; the game's copy kept as soak__{f.name}, the user's restored")
+            # a guarded file the game renamed away (it rotates autosave -> _1 -> _2) is gone, not changed: put the
+            # user's back too (2026-11-04: a batch of runs lost autosave.ck3 and autosave_2.ck3 this way)
+            for name in guarded:
+                if not (saves_dir / name).exists():
+                    shutil.copy2(run / "autosave-guard" / name, saves_dir / name)
+                    note(f"autosave guard: {name} had vanished; the user's restored")
             for name, h in guarded.items():
                 cur = saves_dir / name
                 ok = cur.exists() and hashlib.sha256(cur.read_bytes()).hexdigest() == h
