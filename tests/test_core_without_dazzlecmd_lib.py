@@ -17,7 +17,7 @@ import sys
 sys.modules["dazzlecmd_lib"] = None              # any import of it now fails
 import ck3_save_migrator
 from ck3_save_migrator.patches import rules_from_pack
-assert len(rules_from_pack()) == 25
+assert len(rules_from_pack()) == 26
 from ck3_save_migrator import cli
 code = cli.main(["migrate", sys.argv[1], "--no-lint", "-o", sys.argv[2], "-q"])
 assert code == 0, code

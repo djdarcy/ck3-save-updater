@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.19] - 2026-11-04
+
+### Added
+- The plots the old save was running carry on. The old game marked every scheme in a way the current game reads as frozen for good, so murders, seductions, lessons and the rest never moved. They now run again.
+- Each carried scheme also gets what the current game's start-up would have given it. A scheme with a secrecy starts at the formula's base value instead of an error. Hostile schemes like murder get their empty agent positions, so agents can join.
+- On the founding campaign that is 1,334 schemes, each given a secrecy, and 275 given agent positions.
+
 ## [0.4.18] - 2026-11-04
 
 ### Added
@@ -555,7 +562,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...HEAD
+[0.4.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...v0.4.16
