@@ -271,6 +271,16 @@ class TestFamilies:
         # known good, known exclusions: good_modifier, innovation_ok, opt_a; level=5 (a number);
         # bad_opinion (opinions are not logged); bare type=prisoner_of_war (documented miss)
 
+    def test_every_dropped_name_is_in_the_report(self, tmp_path):
+        """#7: unknown keys are reported, never silently dropped. The report (update's .lint.json) names all of
+        them, not only the first 25 (the founding campaign has 2,156 such references)."""
+        many = b"".join(b"\t\tmodifier={\n\t\t\tmodifier=\"gone_%d_modifier\"\n\t\t}\n" % i for i in range(40))
+        save = FAMILY_SAVE.replace(b"\t\tmodifier={\n\t\t\tmodifier=\"bad_modifier\"\n\t\t}\n", many, 1)
+        rep = L.lint_gamestate(save, known=L.load_game_data(_fake_game(tmp_path), None, []))
+        f = next(f for f in rep.findings if f.check == "Failed to read key reference")
+        names = {e.split(" x")[0] for e in f.as_dict()["examples"]}
+        assert {f"gone_{i}_modifier" for i in range(40)} <= names
+
     def test_on_actions(self, fam):
         f = fam[0]["Unknown on action"]
         assert f.count == 2 and f.examples == ["VIET_pulse x2"]

@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.25] - 2026-11-05
+
+### Changed
+- The lint report `update` writes beside the save (`<save>.lint.json`) now names every key the game will drop when it loads the save, with its count. Before, it named the first 25. On the founding campaign that is 2,156 references.
+- Each entry of the table of renamed keys now names the game version that dropped the old key, from the game versions 1.8.2 to 1.20.1.2.
+- The update's report lists the old plot fields the current game has no place for under "lost", with how many plots had each. On the founding campaign: the success chance and its owner's share on 1,334 plots, and the "finished" flag on 10.
+
 ## [0.4.24] - 2026-11-05
 
 ### Fixed
@@ -605,7 +612,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...HEAD
+[0.4.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...v0.4.25
 [0.4.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...v0.4.24
 [0.4.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...v0.4.23
 [0.4.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...v0.4.22

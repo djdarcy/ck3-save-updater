@@ -489,6 +489,7 @@ def test_real_987_counts():
     x = res["R29"].extra
     assert (x["converted"], x["invalidated"], x["thawed"], x["secrecy_set"], x["agent_slots_added"]) == \
         (1334, 20, 1334, 1268, 275)
+    assert x["fields_dropped"] == {"owner_influence": 1334, "chance": 1334, "ready": 10}
     assert (x["old_agents_seated"], x["old_agents_without_a_slot"], x["old_agents_no_longer_living"]) == (107, 73, 0)
     assert (res["R30"].matched, res["R30"].edited, res["R30"].extra["left"]) == (470, 470, {})
     assert (res["R1"].matched, res["R1"].edited) == (76433, 76433)

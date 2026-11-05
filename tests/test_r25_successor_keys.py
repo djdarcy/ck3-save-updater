@@ -224,6 +224,17 @@ def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):
     assert b'type="innovation_gunpowder"' in out and b'type="large_animal_hide"' in out and res.edited == 2
 
 
+def test_every_row_cites_the_game_version_that_dropped_its_key():
+    """#7: the table cites the game version that renamed each key. Each row names the major version, and the two
+    held versions that bracket it (tests/one-offs/thinking/successor_versions.py, 2026-11-05)."""
+    import re
+    pat = re.compile(r"1\.(\d+) \(defined through 1\.(\d+)\.\d+, gone in 1\.(\d+)\.\d+(\.\d+)?\)")
+    for s in SUCCESSORS:
+        m = pat.fullmatch(s.changed_in)
+        assert m, (s.old, s.changed_in)
+        assert int(m.group(2)) < int(m.group(1)) == int(m.group(3)), (s.old, s.changed_in)
+
+
 def test_the_all_vassal_opinion_bonus_stays_universal(tmp_path):
     """Item 6 (goal S2): +3 the exact +3 (with +0.03 prestige a month; djdarcy 2026-11-05), +1 stays +1 with all
     vassals, and +4 becomes exactly +4 as the +3 and +1 pair (djdarcy 2026-11-05, over the earlier +5)."""

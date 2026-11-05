@@ -63,6 +63,10 @@ def test_an_old_plot_is_written_the_way_the_game_converts_it(tmp_path):
             b"\t\t\tdate=980.9.12\n\t\t\tlast_update=1.1.1\n\t\t\tramping_success_chance=0\n\t\t\tbreach=0\n"
             b"\t\t\tphases=0\n\t\t\tnext_id=0\n\t\t}\n") in save.gamestate
     assert (res.extra["converted"], res.extra["invalidated"]) == (1, 0)
+    # #7: what has no place in 1.20 is reported as dropped, field by field
+    assert res.extra["fields_dropped"] == {"owner_influence": 1, "chance": 1, "ready": 1}
+    assert [(x["what"], x["plots"]) for x in res.extra["lost"]] == \
+        [("plot field chance", 1), ("plot field owner_influence", 1), ("plot field ready", 1)]
 
 
 def test_a_plot_with_no_owner_target_or_type_is_invalidated(tmp_path):

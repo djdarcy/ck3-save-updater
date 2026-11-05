@@ -740,41 +740,53 @@ class Successor:
     folder: str     # the common/ folder that defines keys of this kind
     how: str        # what the match rests on
     source: str     # the definitions compared
+    changed_in: str = ""  # the game version that dropped the old key: the last version defining it, the first not
 
 
 # Matched on what each thing is, never on the name alone (tests/one-offs/successor_finder.py; the culture goal's U2,
 # 2026-11-04). Old definitions: the 1.8.2 game; new: the installed 1.20.1.2. Unsure matches wait on djdarcy (HOLD).
+# changed_in: tests/one-offs/thinking/successor_versions.py over the versions held (1.8.2, 1.9.2, 1.10.2, 1.11.5,
+# 1.12.5, 1.13.2, 1.14.3, 1.15.0, 1.16.2, 1.17.1, 1.18.4, 1.19.0, 1.20.0, 1.20.1.2), 2026-11-05; the major version is
+# exact, a minor one between two held versions is not known.
 SUCCESSORS = (
     Successor("perk", "perk", "scholar_perk", "erudite_perk", "lifestyle_perks",
               "the same tree (scholarship), the same position {1 5}, the same parent (sanctioned_loopholes_perk)",
-              "00_learning_2_scholarship_tree_perks.txt, 1.8.2 and 1.20.1.2"),
+              "00_learning_2_scholarship_tree_perks.txt, 1.8.2 and 1.20.1.2",
+              "1.20 (defined through 1.19.0, gone in 1.20.0)"),
     Successor("men-at-arms", "type", "teutonic_knights", "order_serjeants", "men_at_arms_types",
               "holy-order heavy infantry with the nearest damage and toughness (36/26 -> 36/24)",
-              "00_holy_order_maa_types.txt, 1.8.2 and 1.20.1.2"),
+              "00_holy_order_maa_types.txt, 1.8.2 and 1.20.1.2",
+              "1.20 (defined through 1.19.0, gone in 1.20.0)"),
     Successor("modifier", "modifiers", r"artifact_([a-z_]+)_scheme_power_add_(\d+)_modifier",
               r"artifact_\1_scheme_phase_duration_add_\2_modifier", "modifiers",
               "the scheme rework replaced scheme power with phase duration; the same scheme and tier",
-              "00_artifact_modifiers.txt, 1.20.1.2"),
+              "00_artifact_modifiers.txt, 1.20.1.2",
+              "1.13 (defined through 1.12.5, gone in 1.13.2)"),
     # djdarcy's answers, 2026-11-04 (HOLD 18:05)
     Successor("men-at-arms", "type", "chu_ko_nu", "shenbigong", "men_at_arms_types",
               "the game's own lineage: 1.20's innovation_repeating_crossbow (same era, icon and Chinese heritage) now "
               "unlocks shenbigong where 1.8's unlocked chu_ko_nu",
-              "culture/innovations/00_cultural_maa_innovations.txt, 1.8.2 and 1.20.1.2"),
+              "culture/innovations/00_cultural_maa_innovations.txt, 1.8.2 and 1.20.1.2",
+              "1.18 (defined through 1.17.1, gone in 1.18.4)"),
     Successor("innovation", "type", "innovation_bombard", "innovation_gunpowder", "culture/innovations",
               "the same group and era; 1.20's innovation_gunpowder uses the icon innovation_bombards.dds",
-              "culture/innovations/00_late_medieval_innovations.txt, 1.20.1.2"),
+              "culture/innovations/00_late_medieval_innovations.txt, 1.20.1.2",
+              "1.18 (defined through 1.17.1, gone in 1.18.4)"),
     Successor("artifact look", "type", "medium_animal_hide", "large_animal_hide", "artifacts/visuals",
               "1.20 keeps the small (wall_small) and large (wall_big) hides; the medium one was wall_big",
-              "artifacts/visuals/00_court_artifacts.txt, 1.8.2 and 1.20.1.2"),
+              "artifacts/visuals/00_court_artifacts.txt, 1.8.2 and 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("stack", "modifiers", r"artifact_build_gold_cost_[5-9]_modifier", STACK,
               "modifiers", "1.20 keeps building-cost tiers -1% to -4% only; the old tier becomes the fewest kept tiers "
               "of the same bonus that add up to it exactly (-7% = -4% -3%), djdarcy 2026-11-05: 'Let's stack those "
               "bonuses ... that is what a player wanting to resume a game would want'",
-              "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
+              "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("modifier", "modifiers", "artifact_vassal_tax_contribution_mult_1_modifier",
               "artifact_vassal_tax_contribution_mult_2_modifier", "modifiers",
               "1.20 keeps vassal tax contribution steps +2% and +4% only: the nearest kept step",
-              "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
+              "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     # item 6 (goal S2): 1.20 dropped the plain "+N opinion with all vassals" artifact bonus; djdarcy wants it kept
     # universal with base-game definitions. The only pure all-vassal opinion modifiers 1.20 defines are -10, -3, +5, +10.
     Successor("modifier", "modifiers", "artifact_vassal_opinion_4_modifier",
@@ -782,35 +794,42 @@ SUCCESSORS = (
               "modifiers", "+4 with all vassals -> +3 and +1 with all vassals, exactly +4: the same two keys as the +3 and "
               "+1 rows, with their small extras (djdarcy's call 2026-11-05, over the earlier nearest +5; 1.20's one "
               "bare +4, artifact_armor_3, brings +3 prowess too)",
-              "00_artifact_modifiers.txt and 00_unity_modifiers.txt, 1.20.1.2"),
+              "00_artifact_modifiers.txt and 00_unity_modifiers.txt, 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_3_modifier", "artifact_killer_3_artifact_modifier",
               "modifiers", "+3 with all vassals -> exactly +3 with all vassals, bundled with +0.03 prestige a month "
               "(djdarcy's call 2026-11-05: 'Seems fair'; found by the modifier catalogue)",
-              "00_artifact_modifiers.txt, 1.20.1.2 (vassal_opinion = 3, monthly_prestige = 0.03)"),
+              "00_artifact_modifiers.txt, 1.20.1.2 (vassal_opinion = 3, monthly_prestige = 0.03)",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_2_modifier",
               "hold_court_8010_vassal_modifier artifact_vassal_opinion_penalty_1_modifier",
               "modifiers", "+2 with all vassals -> +5 and -3 with all vassals: 1.20 has no +2 (bare or bundled); the "
               "pair adds up to +2. djdarcy looked at the tooltip in game (2026-11-05): 'It looks good'",
-              "01_dlc_roco_modifiers_joe.txt and 00_artifact_modifiers.txt, 1.20.1.2"),
+              "01_dlc_roco_modifiers_joe.txt and 00_artifact_modifiers.txt, 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_1_modifier", "unity_harmonious_placation_modifier",
               "modifiers", "+1 with all vassals -> +1 with all vassals (plus +2% personal scheme success and +1% tax "
               "from happy powerful vassals), the only +1 all-vassal opinion 1.20 defines",
-              "00_unity_modifiers.txt, 1.20.1.2"),
+              "00_unity_modifiers.txt, 1.20.1.2",
+              "1.9 (defined through 1.8.2, gone in 1.9.2)"),
     Successor("modifier", "modifier", r"fp2_hawk_of_quarysh_(\w+?)_modifier", r"fp2_hawk_of_quraysh_\1_modifier",
               "modifiers", "a spelling fix: the same definition (effect, file, place) under the corrected name",
-              "03_dlc_fp2_modifiers.txt, 1.8.2 line 566 and 1.20.1.2 line 571"),
+              "03_dlc_fp2_modifiers.txt, 1.8.2 line 566 and 1.20.1.2 line 571",
+              "1.19 (defined through 1.18.4, gone in 1.19.0)"),
     Successor("modifier", "modifier", "rice_fields_modifier", "terraced_hills_modifier",
               "modifiers", "a rename: the same Iberian event (fp2_yearly.3000, 'A Crop of New Ideas', still keyed on "
               "rice_field_potential: a Muslim Iberian ruler copying a neighbour's crops) gives terraced_hills_modifier "
               "('Agricultural Innovation') from 1.18 on, with the identical effect (+0.2 development growth, -10% "
               "build cost, +5 county opinion)",
-              "fp2_yearly_events.txt and 03_dlc_fp2_modifiers.txt, 1.17.1 and 1.18.4"),
+              "fp2_yearly_events.txt and 03_dlc_fp2_modifiers.txt, 1.17.1 and 1.18.4",
+              "1.18 (defined through 1.17.1, gone in 1.18.4)"),
     Successor("modifier", "modifier", "hold_court_7040_tax_cut", "court_tax_relief_county_modifier",
               "modifiers", "the same idea and name, 'Tax Relief' a ruler grants at court: 1.13 removed the hold-court "
               "event that gave the old one, and 1.20's 'Empty Granaries' (hold_court.6000) grants this one, which is "
               "stronger (-50% tax, +15 county opinion against -20% tax, -50% development growth); djdarcy's call, "
               "2026-11-04: let it through",
-              "01_dlc_roco_modifiers_george.txt (1.12.5) and 00_court_event_modifiers_claudia.txt (1.20.1.2)"),
+              "01_dlc_roco_modifiers_george.txt (1.12.5) and 00_court_event_modifiers_claudia.txt (1.20.1.2)",
+              "1.13 (defined through 1.12.5, gone in 1.13.2)"),
 )
 _DEFINED = re.compile(rb"(?m)^([A-Za-z0-9_][\w.\-]*)\s*=\s*\{")
 
@@ -1263,6 +1282,7 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
     defaults = scheme_type_defaults(roots)
     p = gs.EditPass()
     secrecy = slots = seated = unseated = gone = invalid = 0
+    dropped = Counter()                    # the old fields 1.20 has no place for, as the game drops them (#7)
     try:
         lv = gs.find_section(d, "living")
         living = {m.group(1) for m in re.finditer(rb"(?m)^(\d+)=\{", d[lv.start:lv.end])}
@@ -1281,6 +1301,7 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
             elif oa:
                 gone += 1
         old_agents = [c for _, c in sorted(old_agents, key=lambda x: -x[0])]
+        dropped.update(k.decode() for k, _ in old if k in (b"owner_influence", b"chance", b"ready"))
         f = convert_old_scheme(old, ind, frozen=False)                   # the game's conversion, thawed
         invalid += (b"status", b"status=invalidated") in f
         if ty in defaults and (b"secrecy", b"secrecy=-1") in f:
@@ -1302,7 +1323,12 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
         p.add(gs.Edit(e.open + 1, e.close, scheme_text(f, ind), rule.name, "convert"))
     p.apply_to(save)
     return rule.result(matched=len(found), edited=len(found),
-                       extra={"converted": len(found), "invalidated": invalid, "thawed": len(found),
+                       extra={"lost": [{"what": f"plot field {k}", "plots": n,
+                                        "why": "1.20 computes a plot's success from its type and members at each "
+                                               "update, and drops this field on load (docs/not-carried-over.md)"}
+                                       for k, n in sorted(dropped.items())],
+                              "converted": len(found), "invalidated": invalid, "fields_dropped": dict(dropped),
+                              "thawed": len(found),
                               "secrecy_set": secrecy, "agent_slots_added": slots, "old_agents_seated": seated,
                               "old_agents_without_a_slot": unseated, "old_agents_no_longer_living": gone})
 

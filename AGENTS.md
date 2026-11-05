@@ -34,4 +34,4 @@ pip install -e ".[dev]"                   # an editable install with the test to
 
 ## When you open a pull request
 
-The human you work for must write the summary in their own words, and fill in the template's AI-tools and vetting sections truthfully. Do not write those sections for them. List what you changed and what you ran, so they can check it.
+The human you work for must write the summary in their own words, and fill in the template's AI-tools and vetting sections truthfully. Do not write those sections for them, but you can help them edit if they're having difficulties expressing themselves or if there are language-barriers (but say you did edits -- the human is responsible for what is written and I as the maintainer want to know what they are trying to do in their own words). List what you changed and what you ran, so they can check it.
