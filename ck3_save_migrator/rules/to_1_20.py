@@ -836,6 +836,93 @@ def r25_successor_keys(save: CK3Save, ctx, rule) -> object:
                                         for r in SUCCESSORS]})
 
 
+# --------------------------------------------------------------------------- R27
+FEUD_FRACTION = "-0.9"   # within-level score, about -1..+1 (1.20 save, 1,216 relations); deep in the feud level
+_FEUD_STORY = re.compile(rb'story_cycle="?story_cycle_house_feud"?')
+
+
+def _character_house(d: bytes, cid: bytes) -> bytes | None:
+    for sec in ("living", "dead_unprunable"):
+        try:
+            b = gs.find_section(d, sec)
+        except gs.GamestateError:
+            continue
+        m = re.compile(rb"\n" + cid + rb"=\{").search(d, b.start, b.end)
+        if m:
+            h = re.search(rb"(?m)^\tdynasty_house=(\d+)", d[m.end():d.find(b"\n}", m.end())])
+            return h.group(1) if h else None
+    return None
+
+
+def r27_found(d: bytes) -> list[tuple[bytes, bytes]]:
+    """The house pairs of 1.8's house-feud stories: (the owner's house, the rival house in house_feud_house)."""
+    try:
+        st = gs.locate(d, "stories/active")
+    except gs.GamestateError:
+        return []
+    pairs = []
+    for e in gs.iter_entries(d, *st.body):
+        body = d[e.body[0]:e.body[1]]
+        if not _FEUD_STORY.search(body):
+            continue
+        owner = re.search(rb"(?m)^\t*owner=(\d+)", body)
+        rival = re.search(rb'flag="?house_feud_house"?\s*data=\{\s*type=dyn_house\s*identity=(\d+)', body)
+        house = _character_house(d, owner.group(1)) if owner else None
+        if house and rival and house != rival.group(1):
+            pairs.append((house, rival.group(1)))
+    return pairs
+
+
+def r27_house_feuds(save: CK3Save, ctx, rule) -> object:
+    """Carry 1.8's house feuds into 1.20's house relations at the feud level.
+
+    1.8 (bp1) ran each house feud as a story (``story_cycle_house_feud``: an owner and the rival house in its
+    ``house_feud_house`` variable). 1.20 comments that story cycle out and tracks feuds as house relations
+    (``common/house_relation_types/00_house_relations.txt``; feud: -30 opinion, the eradicate casus belli), saved in
+    ``house_relations={ database={ ... } }``. Each feud becomes one relation between the owner's house and the rival
+    house at ``default_house_relation_level_feud``, scored -0.9 within the level so it lasts until the houses
+    reconcile (the PoC of 2026-11-04 at score 0 eased to rivalry in 14 months). The old story is left for the game
+    to drop. A pair that already has a relation is left as it is. Measured: the founding save's 2 feuds kept at the
+    feud level by the game's own re-save.
+    """
+    d = save.gamestate
+    pairs = r27_found(d)
+    if not pairs:
+        return rule.result(matched=0, edited=0)
+    p = gs.EditPass()
+    try:
+        hr = gs.locate(d, "house_relations/database")
+    except gs.GamestateError:
+        hr = None
+    have, next_id = set(), 0
+    if hr is not None:
+        for e in gs.iter_entries(d, *hr.body):
+            next_id = max(next_id, int(e.key) + 1) if e.key.isdigit() else next_id
+            hs = re.search(rb"houses=\{\s*(\d+)\s+(\d+)", d[e.body[0]:e.body[1]])
+            if hs:
+                have.add(frozenset(hs.groups()))
+    entries, added = b"", 0
+    for a, b in pairs:
+        p.count(rule.name).matched += 1
+        if frozenset((a, b)) in have:
+            continue
+        have.add(frozenset((a, b)))
+        entries += (b"\t\t%d={\n\t\t\thouses={ %s %s }\n\t\t\ttype=default_house_relation\n"
+                    b"\t\t\tlevel=default_house_relation_level_feud\n\t\t\tfraction=%s\n\t\t}\n"
+                    % (next_id, a, b, FEUD_FRACTION.encode()))
+        next_id += 1
+        added += 1
+    if entries:
+        if hr is not None:
+            p.add(gs.Edit(hr.body[1], hr.body[1], entries, rule.name, f"{added} feuds"))
+        else:
+            tail = len(d)
+            p.add(gs.Edit(tail, tail, (b"" if d.endswith(b"\n") else b"\n") +
+                          b"house_relations={\n\tdatabase={\n" + entries + b"\t}\n}\n", rule.name, f"{added} feuds"))
+    p.apply_to(save)
+    return rule.result(matched=len(pairs), edited=added, extra={"pairs": [[a.decode(), b.decode()] for a, b in pairs]})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -858,4 +945,6 @@ RULES = [
     Rule("R25", "successor-keys", UNKNOWN_SINCE,
          "map perks, regiment types and artifact modifiers the game no longer defines to their successors",
          r25_successor_keys),
+    Rule("R27", "house-feuds", UNKNOWN_SINCE,
+         "carry 1.8's house feuds into 1.20's house relations at the feud level", r27_house_feuds),
 ]
