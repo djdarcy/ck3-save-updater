@@ -1,5 +1,9 @@
 # ck3-save-updater
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/djdarcy/ck3-save-updater/main/docs/images/ck3-save-updater-banner.jpg" alt="ck3-save-updater banner" width="800">
+</p>
+
 [![PyPI](https://img.shields.io/pypi/v/ck3-save-updater?color=green)](https://pypi.org/project/ck3-save-updater/)
 [![Release Date](https://img.shields.io/github/release-date/djdarcy/ck3-save-updater?color=green)](https://github.com/djdarcy/ck3-save-updater/releases)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/ck3-save-updater?period=total&units=international_system&left_color=black&right_color=green&left_text=downloads)](https://pypistats.org/packages/ck3-save-updater)
@@ -9,9 +13,7 @@
 [![GitHub Discussions](https://img.shields.io/github/discussions/djdarcy/ck3-save-updater)](https://github.com/djdarcy/ck3-save-updater/discussions)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](docs/platform-support.md)
 
-`ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
-
-Since v0.4.0 it carries far more of your campaign across. Faces keep their look under the portrait mods you play with. Cultures, perks, regiments, innovations, buildings and artifacts that the game renamed are matched to their new names. House feuds and running plots come across too, and plots keep their agents. Artifacts keep their pictures and armour models. What has no home in the current game is listed in [What doesn't carry over](docs/not-carried-over.md).
+`ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects and moves data to where the new version expects it. It rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith. Faces keep their look under the portrait mods you play with. Perks, regiments, innovations, county modifiers and artifact bonuses that the game renamed are matched to their new names. House feuds and running plots come across, and plots keep their agents. Artifacts keep their pictures and armour models.
 
 ## Quick start
 
@@ -136,7 +138,7 @@ A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both
 
 ## Documentation
 
-The [documentation guide](docs/README.md) groups these pages by what you are trying to do. It is also the front page of [the project's site](https://djdarcy.github.io/ck3-save-updater/).
+The [documentation guide](docs/README.md) organizes these pages by what you are trying to do. It is also the front page of [the project's site](https://djdarcy.github.io/ck3-save-updater/).
 
 - [Updating a save](docs/updating-a-save.md): the whole process, `status` then `update`, and doing it by hand.
 - [Glossary](docs/glossary.md): every term the tool uses, and every header `status` prints.

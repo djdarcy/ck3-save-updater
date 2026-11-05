@@ -1153,7 +1153,8 @@ def check_families(g: bytes, rep: LintReport, data: GameData, idx: SectionIndex)
         return
     refs = unresolved_references(g, data)
     rep.add("Failed to read key reference", "reject",
-            [f"{k.decode(errors='replace')} x{n:,}" for k, n in refs.most_common()], limit=25,
+            [f"{k.decode(errors='replace')} x{n:,}" for k, n in refs.most_common()], limit=len(refs),  # every name
+            # (#7: "unknown keys are reported, never silently dropped"); the screen shows the first five
             gloss="Names of modifiers, perks, innovations, artifact looks and the like that the current game "
                   "(and the active mods) no longer define; the game cannot read them, so those values are lost")
     if refs:
