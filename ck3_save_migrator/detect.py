@@ -126,6 +126,16 @@ def _r29(g, env):
     return _found(len(found), [f"scheme {e.key.decode()}" for e in found], "schemes frozen by the old game")
 
 
+def _r30(g, env):
+    from collections import Counter
+    from .rules.to_1_20 import r30_found
+    if env.game_dir is None:                  # what is shipped depends on the game's gfx/
+        return Detection("unknown", why="needs the game folder (its gfx)")
+    found, _ = r30_found(g, [env.game_dir, *env.mod_dirs])
+    by = Counter(f"{old} -> {new}" for _, _, old, new in found)
+    return _found(len(found), [f"{k} ({n:,})" for k, n in by.most_common(5)], "file references the game renamed")
+
+
 def _r25(g, env):
     """R25 counts the old keys it can map; one whose successor neither the game nor a listed mod defines, or that
     is still defined, is reported apart."""
@@ -238,7 +248,7 @@ DETECTORS = {
     "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _dead_titles,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
-    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29,
+    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30,
 }
 
 

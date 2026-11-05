@@ -730,6 +730,11 @@ SUCCESSORS = (
               "modifiers", "+3 with all vassals -> exactly +3 with all vassals, bundled with +0.03 prestige a month "
               "(djdarcy's call 2026-11-05: 'Seems fair'; found by the modifier catalogue)",
               "00_artifact_modifiers.txt, 1.20.1.2 (vassal_opinion = 3, monthly_prestige = 0.03)"),
+    Successor("modifier", "modifiers", "artifact_vassal_opinion_2_modifier",
+              "hold_court_8010_vassal_modifier artifact_vassal_opinion_penalty_1_modifier",
+              "modifiers", "+2 with all vassals -> +5 and -3 with all vassals: 1.20 has no +2 (bare or bundled); the "
+              "pair adds up to +2. djdarcy looked at the tooltip in game (2026-11-05): 'It looks good'",
+              "01_dlc_roco_modifiers_joe.txt and 00_artifact_modifiers.txt, 1.20.1.2"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_1_modifier", "unity_harmonious_placation_modifier",
               "modifiers", "+1 with all vassals -> +1 with all vassals (plus +2% personal scheme success and +1% tax "
               "from happy powerful vassals), the only +1 all-vassal opinion 1.20 defines",
@@ -801,7 +806,7 @@ def r25_found(d: bytes, game_dir, mod_dirs=()) -> tuple[list[tuple], Counter]:
             new = re.fullmatch(row.old, old).expand(row.new)
             if old in defined[row.folder]:
                 left[f"{old}: still defined"] += 1
-            elif new not in defined[row.folder]:
+            elif any(n not in defined[row.folder] for n in new.split()):   # a pair (two keys) needs both
                 left[f"{old}: no {new} defined"] += 1
             else:
                 found.append((m.start(), m.end(), old, new))
@@ -1151,6 +1156,104 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
                               "old_agents_no_longer_living": gone})
 
 
+# --------------------------------------------------------------------------- R30
+@dataclass(frozen=True)
+class AssetRename:
+    field: str      # the save field that holds the reference (icon=, asset=, texture=)
+    old: str        # regex over the old name
+    new: str        # template filled from old's groups
+    kind: str       # "file" (an image under gfx/) or "entity" (a 3D model named in a gfx .asset file)
+    how: str
+    source: str
+
+
+ASSET_RENAMES = (
+    AssetRename("icon", r"artefact_icons_(\w+\.dds)", r"artifact_icons_\1", "file",
+                "1.20 renamed the unique-artifact icons from the spelling 'artefact' to 'artifact'; the same visual "
+                "definitions now name the new file (excalibur: artefact_icons_unique_artifact_excalibur.dds -> "
+                "artifact_icons_unique_artifact_excalibur.dds)",
+                "common/artifacts/visuals/00_historical.txt, 1.8.2 and 1.20.1.2"),
+    AssetRename("asset", r"male_(?:clothes|clothing)_secular_(\w+?)_war_nobility_(\d+)_artifact_entity",
+                r"m_clothes_sec_\1_war_nob_\2_artifact_entity", "entity",
+                "1.20 shortened the armour-artifact model names; the same visual definitions now reference the short "
+                "name (male_clothes_secular_mena_war_nobility_01_artifact_entity -> m_clothes_sec_mena_war_nob_01_"
+                "artifact_entity)",
+                "common/artifacts/visuals/00_court_artifacts.txt and 00_personal_misc.txt, 1.8.2 and 1.20.1.2"),
+    AssetRename("asset", r"female_(?:clothes|clothing)_secular_(\w+?)_war_nobility_(\d+)_artifact_entity",
+                r"f_clothes_sec_\1_war_nob_\2_artifact_entity", "entity",
+                "the same shortening for the women's armour models",
+                "common/artifacts/visuals/00_court_artifacts.txt and 00_personal_misc.txt, 1.8.2 and 1.20.1.2"),
+    AssetRename("texture", r"ce_african_cross_(?:NU|nu)\.dds", "ce_african_cross_nu2.dds", "file",
+                "the coat-of-arms emblem list keeps the same entry (weight 50, line 179) under the new file name",
+                "common/coat_of_arms/template_lists/colored_emblem_lists.txt, 1.8.2 and 1.20.1.2"),
+)
+
+
+def gfx_inventory(roots) -> tuple[set[str], set[str]]:
+    """The image files (lower-cased names) and the 3D model entities every root's gfx/ provides."""
+    files: set[str] = set()
+    entities: set[str] = set()
+    for root in roots:
+        g = Path(root) / "gfx"
+        if not g.is_dir():
+            continue
+        for f in g.rglob("*"):
+            s = f.suffix.lower()
+            if s in (".dds", ".png", ".tga"):
+                files.add(f.name.lower())
+            elif s == ".asset":
+                text = f.read_bytes()
+                entities.update(m.group(1).decode().lower() for m in re.finditer(rb'name\s*=\s*"?(\w+_entity)"?', text))
+    return files, entities
+
+
+def r30_found(d: bytes, roots) -> tuple[list[tuple[int, int, str, str]], Counter]:
+    """Every reference the table renames: ``(start, end, old, new)`` where the old file or model is gone and the new
+    one exists in some root; a count of those left, by why."""
+    cand = []
+    for row in ASSET_RENAMES:
+        pat = re.compile(rb'(?<=\b' + row.field.encode() + rb'=")(' + row.old.encode() + rb')(?=")')
+        cand += [(m.start(), m.end(), m.group(1).decode(), row) for m in pat.finditer(d)]
+    if not cand:
+        return [], Counter()
+    files, entities = gfx_inventory(roots)
+    found, left = [], Counter()
+    for s, e, old, row in cand:
+        new = re.fullmatch(row.old, old).expand(row.new)
+        have = files if row.kind == "file" else entities
+        if old.lower() in have:
+            left[f"{old}: still shipped"] += 1
+        elif new.lower() not in have:
+            left[f"{old}: no {new}"] += 1
+        else:
+            found.append((s, e, old, new))
+    return found, left
+
+
+def r30_asset_renames(save: CK3Save, ctx, rule) -> object:
+    """Point the save's file references at the names the current game ships them under.
+
+    A save stores some looks as file names: an artifact's ``icon=`` and ``asset=`` (its picture and its 3D model), a
+    coat of arms' ``texture=``. 1.20 renamed some of those files, so the game finds nothing and draws nothing (found
+    2026-11-05 when Excalibur and the Skull Cap of Charlemagne showed no picture). Each rename in ``ASSET_RENAMES`` was
+    confirmed in the game's own definitions -- the same visual or emblem entry names the old file in 1.8.2 and the new
+    one in 1.20 -- and a reference is renamed only when the old file is gone and the new one is shipped by the game or
+    a listed mod.
+    """
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "gfx").is_dir():
+        return rule.result(extra={"skipped": f"no game data at {ctx.game_dir}"})
+    d = save.gamestate
+    found, left = r30_found(d, [ctx.game_dir, *(getattr(ctx, "mod_dirs", []) or [])])
+    p = gs.EditPass()
+    renamed = Counter()
+    for s, e, old, new in found:
+        p.count(rule.name).matched += 1
+        p.add(gs.Edit(s, e, new.encode(), rule.name, f"{old} -> {new}"))
+        renamed[f"{old} -> {new}"] += 1
+    p.apply_to(save)
+    return rule.result(matched=len(found), edited=len(found), extra={"renamed": dict(renamed), "left": dict(left)})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -1181,4 +1284,7 @@ RULES = [
     Rule("R29", "scheme-thaw", UNKNOWN_SINCE,
          "thaw the old game's frozen schemes, with the secrecy and agent slots 1.20's start-up gives them",
          r29_scheme_thaw),
+    Rule("R30", "asset-renames", UNKNOWN_SINCE,
+         "point artifact pictures, armour models and coat-of-arms emblems at the names the current game ships",
+         r30_asset_renames),
 ]
