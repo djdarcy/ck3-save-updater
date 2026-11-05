@@ -677,6 +677,59 @@ def r23_nickname_text(save: CK3Save, ctx, rule) -> object:
 
 
 # --------------------------------------------------------------------------- R25
+class _Stack(str):
+    """The ``new`` of a row whose successor is solved, not written: a tier stack (see ``stack_tiers``)."""
+
+
+STACK = _Stack("<the kept tiers that add up to it>")
+_TIER = re.compile(r"^(artifact_.+_)(\d+)(_modifier)$")
+_OLD_TIERS = Path(__file__).resolve().parent.parent / "packs" / "to_1_20" / "R25-successor-keys" / "old_tier_values.json"
+
+
+def modifier_effects(roots, keys) -> dict[str, dict[str, float]]:
+    """The numeric effects of the given modifier keys, from ``common/modifiers`` over every root (later roots win)."""
+    out: dict[str, dict[str, float]] = {}
+    want = set(keys)
+    for root in roots:
+        base = Path(root) / "common" / "modifiers"
+        if not base.is_dir():
+            continue
+        for f in sorted(base.rglob("*.txt")):
+            t = re.sub(r"#[^\n]*", "", f.read_bytes().removeprefix(b"\xef\xbb\xbf").decode("utf-8", "replace"))
+            for m in re.finditer(r"(?m)^([A-Za-z0-9_]+)\s*=\s*\{([^{}]*)\}", t):
+                if m.group(1) in want:
+                    out[m.group(1)] = {k: float(v) for k, v in
+                                       re.findall(r"([a-z_]+)\s*=\s*(-?\d+(?:\.\d+)?)", m.group(2))}
+    return out
+
+
+def stack_tiers(target: dict[str, float], tiers: dict[str, dict[str, float]], most: int = 4) -> list[str] | None:
+    """The fewest distinct tiers whose single stat adds up exactly to ``target`` (one stat), larger tiers first;
+    None when no exact sum exists."""
+    from itertools import combinations
+    if len(target) != 1:
+        return None
+    (stat, want), = target.items()
+    pool = sorted(((k, v[stat]) for k, v in tiers.items() if set(v) == {stat}), key=lambda kv: -abs(kv[1]))
+    for n in range(1, most + 1):
+        for combo in combinations(pool, n):
+            if round(sum(v for _, v in combo) * 10000) == round(want * 10000):
+                return [k for k, _ in combo]
+    return None
+
+
+def _old_tier_values(old_game_dir, key: str) -> dict[str, float] | None:
+    if old_game_dir:
+        got = modifier_effects([old_game_dir], [key]).get(key)
+        if got:
+            return got
+    try:
+        import json
+        return json.loads(_OLD_TIERS.read_text(encoding="utf-8"))["values"].get(key)
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 @dataclass(frozen=True)
 class Successor:
     """One row of R25's table: a key the target game no longer defines, and the key that took its place."""
@@ -713,8 +766,10 @@ SUCCESSORS = (
     Successor("artifact look", "type", "medium_animal_hide", "large_animal_hide", "artifacts/visuals",
               "1.20 keeps the small (wall_small) and large (wall_big) hides; the medium one was wall_big",
               "artifacts/visuals/00_court_artifacts.txt, 1.8.2 and 1.20.1.2"),
-    Successor("modifier", "modifiers", r"artifact_build_gold_cost_[5-9]_modifier", "artifact_build_gold_cost_4_modifier",
-              "modifiers", "1.20 keeps build cost steps -1% to -4% only: the nearest kept step",
+    Successor("stack", "modifiers", r"artifact_build_gold_cost_[5-9]_modifier", STACK,
+              "modifiers", "1.20 keeps building-cost tiers -1% to -4% only; the old tier becomes the fewest kept tiers "
+              "of the same bonus that add up to it exactly (-7% = -4% -3%), djdarcy 2026-11-05: 'Let's stack those "
+              "bonuses ... that is what a player wanting to resume a game would want'",
               "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
     Successor("modifier", "modifiers", "artifact_vassal_tax_contribution_mult_1_modifier",
               "artifact_vassal_tax_contribution_mult_2_modifier", "modifiers",
@@ -785,12 +840,24 @@ def _in_field(d: bytes, s: int, field: bytes) -> bool:
     return k == 0 or d[k - 1] in b" \t\r\n{"
 
 
-def r25_found(d: bytes, game_dir, mod_dirs=()) -> tuple[list[tuple], Counter]:
+def _solve_stack(old: str, roots, defined: set[str], old_game_dir) -> str | None:
+    """A stack row's successor: the kept tiers of ``old``'s family that add up to its old value, space-separated."""
+    m = _TIER.match(old)
+    target = _old_tier_values(old_game_dir, old) if m else None
+    if not target:
+        return None
+    family = [k for k in defined if (t := _TIER.match(k)) and (t.group(1), t.group(3)) == (m.group(1), m.group(3))]
+    keys = stack_tiers(target, modifier_effects(roots, family))
+    return " ".join(keys) if keys else None
+
+
+def r25_found(d: bytes, game_dir, mod_dirs=(), old_game_dir=None) -> tuple[list[tuple], Counter]:
     """Every old key of the table in its field: ``(start, end, old, new)`` for those it maps, and a count of those it
     leaves, by why (the old key is still defined; no successor is defined)."""
     roots = [game_dir, *mod_dirs]
     found, left = [], Counter()
     defined: dict[str, set[str]] = {}
+    stacks: dict[str, str | None] = {}
     for row in SUCCESSORS:
         # the pattern starts with the key itself so the regex engine can scan for its literal prefix (a lookbehind
         # first made the scan of a 222 MB save take 10 s); the byte before is checked here instead
@@ -803,7 +870,15 @@ def r25_found(d: bytes, game_dir, mod_dirs=()) -> tuple[list[tuple], Counter]:
             if row.folder not in defined:
                 defined[row.folder] = defined_keys(roots, row.folder)
             old = m.group(1).decode()
-            new = re.fullmatch(row.old, old).expand(row.new)
+            if isinstance(row.new, _Stack):
+                if old not in stacks:
+                    stacks[old] = _solve_stack(old, roots, defined[row.folder], old_game_dir)
+                if stacks[old] is None:
+                    left[f"{old}: no exact stack of kept tiers"] += 1
+                    continue
+                new = stacks[old]
+            else:
+                new = re.fullmatch(row.old, old).expand(row.new)
             if old in defined[row.folder]:
                 left[f"{old}: still defined"] += 1
             elif any(n not in defined[row.folder] for n in new.split()):   # a pair (two keys) needs both
@@ -835,7 +910,7 @@ def r25_successor_keys(save: CK3Save, ctx, rule) -> object:
     if ctx.game_dir is None or not (Path(ctx.game_dir) / "common").is_dir():
         return rule.result(extra={"skipped": f"no game data at {ctx.game_dir}"})
     d = save.gamestate
-    found, left = r25_found(d, ctx.game_dir, getattr(ctx, "mod_dirs", []) or [])
+    found, left = r25_found(d, ctx.game_dir, getattr(ctx, "mod_dirs", []) or [], getattr(ctx, "old_game_dir", None))
     p = gs.EditPass()
     mapped, dropped = Counter(), Counter()
     for s, e, old, new in found:

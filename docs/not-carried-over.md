@@ -48,7 +48,7 @@ These had no exact successor, but the current game has the same idea. The update
 
 The current game keeps fewer steps for some artifact bonuses. The update moves each one to the nearest step the game keeps.
 
-- **Building cost.** Older artifacts went from −1% to −9%. The current game keeps −1% to −4%, so anything stronger becomes −4%.
+- **Building cost.** Older artifacts went from −1% to −8%. The current game keeps −1% to −4%. A stronger bonus becomes several of those added together, so −7% becomes −4% and −3%, and the total is the same.
 - **Opinion with all vassals.** The current game has no plain artifact bonus for this. +1 becomes the game's own +1 all-vassal bonus. +3 becomes its exact +3, which also gives a little prestige. +4 becomes +5. +2 becomes a pair, +5 and −3, which adds up to +2 and shows as two lines in the artifact's tooltip.
 
 ## Scheme agents without a position
