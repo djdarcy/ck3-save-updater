@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.17] - 2026-11-04
+
+### Added
+- House feuds carry over. An older game ran each feud between two houses as a story, which the current game no longer runs. The update turns each one into the current game's own house relation at the feud level, so the two houses stay at odds until they reconcile in play.
+- On the founding campaign that is 2 feuds.
+
 ## [0.4.16] - 2026-11-04
 
 ### Added
@@ -539,7 +545,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...HEAD
+[0.4.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...v0.4.14

@@ -219,6 +219,8 @@ DETECTORS = {
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
     "R25": _r25,
+    "R27": lambda g, env: _found(len(__import__("ck3_save_migrator.rules.to_1_20", fromlist=["r27_found"]).r27_found(g)),
+                                 [], "house feuds to carry into house relations"),
 }
 
 
