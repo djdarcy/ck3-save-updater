@@ -174,6 +174,18 @@ def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):
     assert b'type="innovation_gunpowder"' in out and b'type="large_animal_hide"' in out and res.edited == 2
 
 
+def test_the_all_vassal_opinion_bonus_stays_universal(tmp_path):
+    """Item 6 (goal S2): +3 and +4 become +5 with all vassals, +1 stays +1 with all vassals."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "hold_court_8010_vassal_modifier", "unity_harmonious_placation_modifier")
+    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_4_modifier "
+            b"artifact_vassal_opinion_1_modifier artifact_vassal_opinion_3_modifier }\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert (b"modifiers={ hold_court_8010_vassal_modifier unity_harmonious_placation_modifier "
+            b"hold_court_8010_vassal_modifier }") in out
+    assert res.edited == 3
+
+
 def test_every_row_cites_how_it_was_matched_and_on_what():
     assert all(r.how and r.source and r.folder for r in SUCCESSORS)
 

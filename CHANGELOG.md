@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.16] - 2026-11-04
+
+### Added
+- Artifacts that gave "+opinion with all vassals" keep a bonus with all vassals. The current game dropped that bonus, so the nearest one it defines takes its place:
+  - +3 and +4 become +5;
+  - +1 stays +1, with two small extras.
+  - The current game has no bonus at +2. Those artifacts wait on a check of how a replacement shows in game.
+- On the founding campaign this covers 39 artifacts.
+
 ## [0.4.15] - 2026-11-04
 
 ### Added
@@ -530,7 +539,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...HEAD
+[0.4.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...v0.4.13

@@ -720,6 +720,15 @@ SUCCESSORS = (
               "artifact_vassal_tax_contribution_mult_2_modifier", "modifiers",
               "1.20 keeps vassal tax contribution steps +2% and +4% only: the nearest kept step",
               "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
+    # item 6 (goal S2): 1.20 dropped the plain "+N opinion with all vassals" artifact bonus; djdarcy wants it kept
+    # universal with base-game definitions. The only pure all-vassal opinion modifiers 1.20 defines are -10, -3, +5, +10.
+    Successor("modifier", "modifiers", r"artifact_vassal_opinion_[34]_modifier", "hold_court_8010_vassal_modifier",
+              "modifiers", "+3/+4 with all vassals -> +5 with all vassals, the nearest pure all-vassal opinion 1.20 defines",
+              "01_dlc_roco_modifiers_joe.txt, 1.20.1.2 (vassal_opinion = 5, nothing else)"),
+    Successor("modifier", "modifiers", "artifact_vassal_opinion_1_modifier", "unity_harmonious_placation_modifier",
+              "modifiers", "+1 with all vassals -> +1 with all vassals (plus +2% personal scheme success and +1% tax "
+              "from happy powerful vassals), the only +1 all-vassal opinion 1.20 defines",
+              "00_unity_modifiers.txt, 1.20.1.2"),
     Successor("modifier", "modifier", r"fp2_hawk_of_quarysh_(\w+?)_modifier", r"fp2_hawk_of_quraysh_\1_modifier",
               "modifiers", "a spelling fix: the same definition (effect, file, place) under the corrected name",
               "03_dlc_fp2_modifiers.txt, 1.8.2 line 566 and 1.20.1.2 line 571"),
