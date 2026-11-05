@@ -123,7 +123,7 @@ def _r28(g, env):
 def _r29(g, env):
     from .rules.to_1_20 import r29_found
     found = r29_found(g)
-    return _found(len(found), [f"scheme {e.key.decode()}" for e in found], "schemes frozen by the old game")
+    return _found(len(found), [f"scheme {e.key.decode()}" for e in found], "schemes in the old game's layout (frozen, with its old fields)")
 
 
 def _r30(g, env):

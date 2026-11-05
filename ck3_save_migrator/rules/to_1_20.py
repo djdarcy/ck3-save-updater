@@ -777,10 +777,12 @@ SUCCESSORS = (
               "00_artifact_modifiers.txt, 1.8.2 and 1.20.1.2"),
     # item 6 (goal S2): 1.20 dropped the plain "+N opinion with all vassals" artifact bonus; djdarcy wants it kept
     # universal with base-game definitions. The only pure all-vassal opinion modifiers 1.20 defines are -10, -3, +5, +10.
-    Successor("modifier", "modifiers", "artifact_vassal_opinion_4_modifier", "hold_court_8010_vassal_modifier",
-              "modifiers", "+4 with all vassals -> +5 with all vassals, the nearest pure all-vassal opinion 1.20 defines "
-              "(its exact +4, artifact_armor_3, brings +3 prowess too)",
-              "01_dlc_roco_modifiers_joe.txt, 1.20.1.2 (vassal_opinion = 5, nothing else)"),
+    Successor("modifier", "modifiers", "artifact_vassal_opinion_4_modifier",
+              "artifact_killer_3_artifact_modifier unity_harmonious_placation_modifier",
+              "modifiers", "+4 with all vassals -> +3 and +1 with all vassals, exactly +4: the same two keys as the +3 and "
+              "+1 rows, with their small extras (djdarcy's call 2026-11-05, over the earlier nearest +5; 1.20's one "
+              "bare +4, artifact_armor_3, brings +3 prowess too)",
+              "00_artifact_modifiers.txt and 00_unity_modifiers.txt, 1.20.1.2"),
     Successor("modifier", "modifiers", "artifact_vassal_opinion_3_modifier", "artifact_killer_3_artifact_modifier",
               "modifiers", "+3 with all vassals -> exactly +3 with all vassals, bundled with +0.03 prestige a month "
               "(djdarcy's call 2026-11-05: 'Seems fair'; found by the modifier catalogue)",
@@ -1121,10 +1123,87 @@ SECRECY_BASE = b"20"   # secrecy_base_value's BASE (common/script_values/00_sche
 SECRECY_NONE = b"100"  # what 1.20 holds for a type with no base_secrecy (measured 2026-11-04: its own fresh sway
 #                        403/403, learn_language 151/151, courting 14/14, befriend 7/7 at 100)
 _FALLBACK_AGENTS = re.compile(rb"agents_added\s*\}\s*\}\s*\}((?:\s*add_agent_slot\s*=\s*\w+)+)")
-_FREEZE_DAYS = re.compile(rb"(?m)^\t*scheme_freeze_days=\S+[ \t]*$")
-_NO_SECRECY = re.compile(rb"(?m)^(\t*secrecy=)-1[ \t]*$")
 _NO_CHARACTER = b"4294967295"
 _OWNER_AGENT = re.compile(rb"(?m)^\t*owner_agent=\{\s*character=(\d+)\s*influence=(-?\d+)[^{}]*\}[ \t]*$")
+
+
+# The order 1.20 writes a scheme's fields in (measured 2026-11-05 on its day-one re-save of 1,334 carried plots and on
+# 1,062 plots it started itself). A field not listed keeps its place after the one before it.
+_SCHEME_ORDER = {k: i for i, k in enumerate((
+    b"type", b"status", b"owner", b"target", b"artifact", b"progress", b"opportunities", b"agent_slots", b"variables",
+    b"update_days", b"semiyearly_update_days", b"scheme_exposed", b"scheme_exposed_date", b"secrecy", b"date",
+    b"last_update", b"ramping_success_chance", b"breach", b"phases", b"next_id", b"timed_modifier", b"freeze_data"))}
+_SCHEME_DROPPED = (b"owner_influence", b"chance", b"ready", b"scheme_freeze_days", b"owner_agent")
+_SCHEME_START = ((b"status", None), (b"opportunities", b"0"), (b"semiyearly_update_days", b"0"),
+                 (b"last_update", b"1.1.1"), (b"ramping_success_chance", b"0"), (b"breach", b"0"), (b"phases", b"0"),
+                 (b"next_id", b"0"))
+
+
+def scheme_fields(body: bytes) -> tuple[bytes, list[tuple[bytes, bytes]]]:
+    """A scheme entry's inner text as (indent, [(key, field text without indent or newline)]), top level only."""
+    first = re.search(rb"\n(\t*)\w", body)
+    if not first:
+        return b"", []
+    ind = first.group(1)
+    pat = re.compile(rb"(?m)^" + re.escape(ind) + rb"(\w+)=")
+    out, pos = [], 0
+    while m := pat.search(body, pos):
+        j = m.end()
+        if body[j:j + 1] == b"{":
+            end = gs.match_brace(body, j) + 1
+        else:
+            end = body.find(b"\n", j)
+            end = len(body) if end < 0 else end
+        out.append((m.group(1), body[m.start() + len(ind):end]))
+        pos = end
+    return ind, out
+
+
+def is_old_scheme(fields: list[tuple[bytes, bytes]]) -> bool:
+    """A scheme in the layout older games wrote: it has 1.8's fields, or a bare ``target=N``."""
+    return any(k in (b"owner_influence", b"scheme_freeze_days") or (k == b"target" and not v.startswith(b"target={"))
+               for k, v in fields)
+
+
+def convert_old_scheme(fields: list[tuple[bytes, bytes]], ind: bytes, frozen: bool = True) -> list[tuple[bytes, bytes]]:
+    """What 1.20 makes of an older game's scheme on load, field for field (measured 2026-11-05 over 1,334 plots against
+    the game's own re-save; design 2026-11-05__09-48-21). It drops ``owner_influence``, ``chance`` and ``ready`` (1.20
+    computes success from the type's formulas, and the ramping bonus starts at 0), unquotes the type, wraps ``target``
+    in its block, and gives the plot 1.20's starting values. ``status`` is ``invalidated`` for a plot with no owner,
+    target or type (20/20 on the founding save) and ``continue`` otherwise. The game keeps the plot frozen
+    (``freeze_data``); ``frozen=False`` leaves that block out, as 1.20 writes a plot that runs."""
+    val = {k: v.split(b"=", 1)[1] for k, v in fields if not v.endswith(b"}")}
+    gone = (None, _NO_CHARACTER)
+    invalid = val.get(b"owner") in gone and val.get(b"target") in gone and b"type" not in val
+    out = []
+    for k, v in fields:
+        if k in _SCHEME_DROPPED:
+            continue
+        if k == b"type":
+            v = b"type=" + val[k].strip(b'"')
+        elif k == b"target" and k in val:
+            v = (b"target={\n" + ind + b"\ttype=character\n" + ind + b"\ttarget=" + val[k] + b"\n" + ind + b"}")
+        out.append((k, v))
+    for k, x in _SCHEME_START:
+        out.append((k, k + b"=" + (x if x is not None else b"invalidated" if invalid else b"continue")))
+    if frozen:
+        out.append((b"freeze_data", b"freeze_data={\n" + ind + b"\tfrozen=yes\n" + ind + b"\tscheme_freeze_days=" +
+                    val.get(b"scheme_freeze_days", b"0") + b"\n" + ind + b'\treason=""\n' + ind + b"}"))
+    return scheme_in_order(out)
+
+
+def scheme_in_order(fields: list[tuple[bytes, bytes]]) -> list[tuple[bytes, bytes]]:
+    """Sort fields into 1.20's order; an unknown field keeps its place after the known field before it."""
+    keyed, last = [], -1.0
+    for n, (k, v) in enumerate(fields):
+        last = _SCHEME_ORDER.get(k, last + 0.001)
+        keyed.append((last, n, k, v))
+    return [(k, v) for _, _, k, v in sorted(keyed)]
+
+
+def scheme_text(fields: list[tuple[bytes, bytes]], ind: bytes) -> bytes:
+    """Fields back into an entry's inner text."""
+    return b"\n" + b"".join(ind + v + b"\n" for _, v in fields) + ind[:-1]
 
 
 def scheme_type_defaults(roots) -> dict[bytes, tuple[bool, list[bytes]]]:
@@ -1150,16 +1229,21 @@ def scheme_type_defaults(roots) -> dict[bytes, tuple[bool, list[bytes]]]:
 
 
 def r29_found(d: bytes) -> list[gs.Block]:
-    """The schemes an older game wrote, still frozen by its ``scheme_freeze_days`` field."""
+    """The schemes an older game wrote, in its layout (``owner_influence``, ``scheme_freeze_days``, a bare target)."""
     try:
         act = gs.locate(d, "schemes/active")
     except gs.GamestateError:
         return []
-    return [e for e in gs.iter_entries(d, *act.body) if e.key and _FREEZE_DAYS.search(d, e.open, e.close)]
+    return [e for e in gs.iter_entries(d, *act.body)
+            if e.key and is_old_scheme(scheme_fields(d[e.open + 1:e.close])[1])]
 
 
 def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
-    """Thaw the schemes an older game wrote, and give them what 1.20's start-up gives a scheme started from script.
+    """Convert the schemes an older game wrote into 1.20's layout, thaw them, and give them what 1.20's start-up gives
+    a scheme started from script.
+
+    The conversion is the game's own (``convert_old_scheme``): what 1.20 writes for each carried plot after a load and
+    a save, matched on 1,334/1,334 plots of the founding save. Three things differ from the game's result, on purpose.
 
     1.8 wrote ``scheme_freeze_days=0`` into every scheme, and 1.20 reads it as frozen for good: no carried plot ever
     moves (the PoC of 2026-11-04 deleted the field and 712 schemes ran again). A carried scheme also skips 1.20's
@@ -1178,7 +1262,7 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
     roots = ([ctx.game_dir] if ctx.game_dir else []) + list(getattr(ctx, "mod_dirs", []) or [])
     defaults = scheme_type_defaults(roots)
     p = gs.EditPass()
-    secrecy = slots = seated = unseated = gone = 0
+    secrecy = slots = seated = unseated = gone = invalid = 0
     try:
         lv = gs.find_section(d, "living")
         living = {m.group(1) for m in re.finditer(rb"(?m)^(\d+)=\{", d[lv.start:lv.end])}
@@ -1186,49 +1270,41 @@ def r29_scheme_thaw(save: CK3Save, ctx, rule) -> object:
         living = set()
     for e in found:
         p.count(rule.name).matched += 1
-        fz = _FREEZE_DAYS.search(d, e.open, e.close)
-        a, b = gs.removal_span(d, fz.start(), fz.end())
-        p.add(gs.Edit(a, b, b"", rule.name, "thaw"))
-        ty = re.search(rb'(?m)^\t*type="?(\w+)', d[e.open:e.close])
-        has_base, agents = defaults.get(ty.group(1) if ty else b"", (False, []))
-        ns = _NO_SECRECY.search(d, e.open, e.close)
-        if ns and ty and ty.group(1) in defaults:
-            p.add(gs.Edit(ns.start(), ns.end(), ns.group(1) + (SECRECY_BASE if has_base else SECRECY_NONE),
-                          rule.name, "secrecy"))
-            secrecy += 1
+        ind, old = scheme_fields(d[e.open + 1:e.close])
+        ty = next((v.split(b"=", 1)[1].strip(b'"') for k, v in old if k == b"type"), None)
+        has_base, agents = defaults.get(ty or b"", (False, []))
         old_agents = []                                   # 1.8's agents who had joined: (influence, character)
-        for oa in _OWNER_AGENT.finditer(d, e.open, e.close):
-            a, b = gs.removal_span(d, oa.start(), oa.end())
-            p.add(gs.Edit(a, b, b"", rule.name, "1.8 agent"))
-            if oa.group(1) in living:
+        for k, v in old:
+            oa = _OWNER_AGENT.match(v) if k == b"owner_agent" else None
+            if oa and oa.group(1) in living:
                 old_agents.append((int(oa.group(2)), oa.group(1)))
-            else:
+            elif oa:
                 gone += 1
         old_agents = [c for _, c in sorted(old_agents, key=lambda x: -x[0])]
-        if agents and d.find(b"agent_slots=", e.open, e.close) < 0:
-            ind = b"\t" * (len(fz.group(0)) - len(fz.group(0).lstrip(b"\t")))
+        f = convert_old_scheme(old, ind, frozen=False)                   # the game's conversion, thawed
+        invalid += (b"status", b"status=invalidated") in f
+        if ty in defaults and (b"secrecy", b"secrecy=-1") in f:
+            f = [(k, b"secrecy=" + (SECRECY_BASE if has_base else SECRECY_NONE) if k == b"secrecy" else v)
+                 for k, v in f]
+            secrecy += 1
+        if agents and not any(k == b"agent_slots" for k, _ in f):
             seat = old_agents[:len(agents)] + [_NO_CHARACTER] * max(0, len(agents) - len(old_agents))
             seated += min(len(agents), len(old_agents))
             unseated += max(0, len(old_agents) - len(agents))
-            new = b"".join(ind + b"agent_slots={\n" + ind + b"\tid=%d\n" % i + ind + b"\tcharacter=" + seat[i] +
-                           b"\n" + ind + b"\tcontribution=0\n" + ind + b"\ttype=" + ag + b"\n" + ind + b"\tscheme=" +
-                           e.key + b"\n" + ind + b"}\n" for i, ag in enumerate(agents))
-            at = d.rfind(b"\n", e.open, e.close) + 1 or e.close           # before the entry's closing line
-            nid = re.search(rb"(?m)^(\t*next_id=)\d+[ \t]*$", d[e.open:e.close])
-            if nid:
-                s = e.open + nid.start()
-                p.add(gs.Edit(s, e.open + nid.end(), nid.group(1) + b"%d" % len(agents), rule.name, "next_id"))
-            else:
-                new += ind + b"next_id=%d\n" % len(agents)
-            p.add(gs.Edit(at, at, new, rule.name, "agent slots"))
+            f = [(k, b"next_id=%d" % len(agents) if k == b"next_id" else v) for k, v in f]
+            f += [(b"agent_slots", b"agent_slots={\n" + ind + b"\tid=%d\n" % i + ind + b"\tcharacter=" + seat[i] +
+                   b"\n" + ind + b"\tcontribution=0\n" + ind + b"\ttype=" + ag + b"\n" + ind + b"\tscheme=" +
+                   e.key + b"\n" + ind + b"}") for i, ag in enumerate(agents)]
+            f = scheme_in_order(f)
             slots += 1
         else:
             unseated += len(old_agents)
+        p.add(gs.Edit(e.open + 1, e.close, scheme_text(f, ind), rule.name, "convert"))
     p.apply_to(save)
     return rule.result(matched=len(found), edited=len(found),
-                       extra={"thawed": len(found), "secrecy_set": secrecy, "agent_slots_added": slots,
-                              "old_agents_seated": seated, "old_agents_without_a_slot": unseated,
-                              "old_agents_no_longer_living": gone})
+                       extra={"converted": len(found), "invalidated": invalid, "thawed": len(found),
+                              "secrecy_set": secrecy, "agent_slots_added": slots, "old_agents_seated": seated,
+                              "old_agents_without_a_slot": unseated, "old_agents_no_longer_living": gone})
 
 
 # --------------------------------------------------------------------------- R30
