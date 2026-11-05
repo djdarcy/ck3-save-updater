@@ -732,6 +732,12 @@ SUCCESSORS = (
     Successor("modifier", "modifier", r"fp2_hawk_of_quarysh_(\w+?)_modifier", r"fp2_hawk_of_quraysh_\1_modifier",
               "modifiers", "a spelling fix: the same definition (effect, file, place) under the corrected name",
               "03_dlc_fp2_modifiers.txt, 1.8.2 line 566 and 1.20.1.2 line 571"),
+    Successor("modifier", "modifier", "rice_fields_modifier", "terraced_hills_modifier",
+              "modifiers", "a rename: the same Iberian event (fp2_yearly.3000, 'A Crop of New Ideas', still keyed on "
+              "rice_field_potential: a Muslim Iberian ruler copying a neighbour's crops) gives terraced_hills_modifier "
+              "('Agricultural Innovation') from 1.18 on, with the identical effect (+0.2 development growth, -10% "
+              "build cost, +5 county opinion)",
+              "fp2_yearly_events.txt and 03_dlc_fp2_modifiers.txt, 1.17.1 and 1.18.4"),
 )
 _DEFINED = re.compile(rb"(?m)^([A-Za-z0-9_][\w.\-]*)\s*=\s*\{")
 
@@ -923,6 +929,102 @@ def r27_house_feuds(save: CK3Save, ctx, rule) -> object:
     return rule.result(matched=len(pairs), edited=added, extra={"pairs": [[a.decode(), b.decode()] for a, b in pairs]})
 
 
+# --------------------------------------------------------------------------- R28
+MARRIAGE_BED = b"rejected_from_marriage_bed_modifier"
+NO_FERTILITY_RELATION = b"wedding_very_bad_fertility"
+_MARRIAGE_BED_BLOCK = re.compile(rb'modifier=\{\s*modifier="?' + MARRIAGE_BED + rb'"?\s*expiration_date=\S+\s*\}')
+
+
+def _character_spans(d: bytes, sec: str) -> dict[bytes, tuple[int, int]]:
+    """Each character's body span in ``living`` or ``dead_unprunable`` (entries ``id={`` at column 0)."""
+    try:
+        b = gs.find_section(d, sec)
+    except gs.GamestateError:
+        return {}
+    return {e.key: e.body for e in gs.iter_entries(d, *b.body) if e.key and e.key.isdigit()}
+
+
+def r28_found(d: bytes) -> list[tuple[bytes, list[bytes], list[tuple[int, int]]]]:
+    """The living holders of 1.8's marriage-bed modifier: (character, its living spouses, the modifier blocks)."""
+    if MARRIAGE_BED not in d:
+        return []
+    living = _character_spans(d, "living")
+    out = []
+    for cid, (lo, hi) in living.items():
+        if d.find(MARRIAGE_BED, lo, hi) < 0:
+            continue
+        blocks = [m.span() for m in _MARRIAGE_BED_BLOCK.finditer(d, lo, hi)]
+        if not blocks:
+            continue
+        fam = re.search(rb"family_data=\{(.*?)\n\t\}", d[lo:hi], re.S)
+        spouses = []
+        for s in re.findall(rb"(?m)^\t\tspouse=(\d+)", fam.group(1)) if fam else []:
+            if s in living and s != cid and s not in spouses:
+                spouses.append(s)
+        out.append((cid, spouses, blocks))
+    return out
+
+
+def r28_marriage_bed(save: CK3Save, ctx, rule) -> object:
+    """Carry 1.8's "Rejected From Marriage Bed" into 1.20's no-fertility relation with the spouse.
+
+    The modifier (``rejected_from_marriage_bed_modifier``: fertility -100, never expiring, "this character's marriage
+    will produce no offspring") was last defined in 1.19; 1.20 checks a hidden pair relation instead,
+    ``wedding_very_bad_fertility`` (``common/scripted_relations``: fertility -1.4, corresponding, removed on divorce),
+    in the same health events that checked the modifier. So each living holder gets that relation with each living
+    spouse, stored both ways as the game stores a corresponding relation (``opinions/active_opinions``,
+    ``scripted_relations={ name={ flags="AA==" } }``), and the modifier the game no longer defines is removed. A
+    holder with no living spouse loses only the modifier: the relation has no one to attach to.
+    """
+    d = save.gamestate
+    found = r28_found(d)
+    if not found:
+        return rule.result(matched=0, edited=0)
+    p = gs.EditPass()
+    wanted: set[tuple[bytes, bytes]] = set()
+    for cid, spouses, blocks in found:
+        p.count(rule.name).matched += 1
+        for s, e in blocks:
+            a, b = gs.removal_span(d, s, e)
+            p.add(gs.Edit(a, b, b"", rule.name, "marriage-bed modifier"))
+        for sp in spouses:
+            wanted.update({(cid, sp), (sp, cid)})
+    pairs = 0
+    if wanted:
+        try:
+            ao = gs.locate(d, "opinions/active_opinions")
+        except gs.GamestateError:
+            ao = None
+        if ao is not None:
+            for e in gs.iter_entries(d, *ao.body):
+                body = d[e.body[0]:e.body[1]]
+                m = re.search(rb"owner=(\d+)\s+target=(\d+)", body)
+                if not m or (m.group(1), m.group(2)) not in wanted:
+                    continue
+                wanted.discard((m.group(1), m.group(2)))
+                if NO_FERTILITY_RELATION + b"={" in body:
+                    continue
+                sr = re.search(rb"scripted_relations=\{", body)
+                rel = b"\t\t\t\t" + NO_FERTILITY_RELATION + b'={\n\t\t\t\t\tflags="AA=="\n\t\t\t\t}\n'
+                if sr:
+                    at = e.body[0] + sr.end()
+                    p.add(gs.Edit(at, at, b"\n" + rel, rule.name, "relation"))
+                else:                             # before the entry's closing line
+                    at = d.rfind(b"\n", e.body[0], e.close) + 1 or e.close
+                    p.add(gs.Edit(at, at, b"\t\t\tscripted_relations={\n" + rel + b"\t\t\t}\n", rule.name, "relation"))
+                pairs += 1
+        new = b"".join(b' {\n\t\t\towner=%s\n\t\t\ttarget=%s\n\t\t\tscripted_relations={\n\t\t\t\t%s={\n'
+                       b'\t\t\t\t\tflags="AA=="\n\t\t\t\t}\n\t\t\t}\n\t\t}\n' % (a, b, NO_FERTILITY_RELATION)
+                       for a, b in sorted(wanted))
+        if new and ao is not None:
+            p.add(gs.Edit(ao.close, ao.close, new, rule.name, "relations"))
+            pairs += len(wanted)
+    p.apply_to(save)
+    return rule.result(matched=len(found), edited=pairs,
+                       extra={"holders": len(found), "with_spouse": sum(1 for f in found if f[1]),
+                              "relations": pairs})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -947,4 +1049,7 @@ RULES = [
          r25_successor_keys),
     Rule("R27", "house-feuds", UNKNOWN_SINCE,
          "carry 1.8's house feuds into 1.20's house relations at the feud level", r27_house_feuds),
+    Rule("R28", "marriage-bed", UNKNOWN_SINCE,
+         "carry 1.8's 'Rejected From Marriage Bed' into 1.20's no-fertility relation with the spouse",
+         r28_marriage_bed),
 ]

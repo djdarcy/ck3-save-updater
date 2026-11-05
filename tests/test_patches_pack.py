@@ -38,7 +38,7 @@ def test_the_registry_is_the_shipped_pack():
 
 
 # rules added after v0.3.11 (where each goes: after the rule named)
-ADDED = {"R23": "R12", "R19": "R17", "R25": "R19", "R26": "R25", "R27": "R26"}
+ADDED = {"R23": "R12", "R19": "R17", "R25": "R19", "R26": "R25", "R27": "R26", "R28": "R27"}
 ADDED_DECLARATIVE = {"R26"}
 
 
@@ -152,9 +152,9 @@ def test_the_built_wheel_carries_the_pack_and_loads_it_from_an_empty_directory(t
     empty = tmp_path / "empty"
     empty.mkdir()
     code = ("import ck3_save_migrator.patches as P; rs = P.rules_from_pack(); "
-            "assert len(rs) == 24, len(rs); import ck3_save_migrator, sys; "
+            "assert len(rs) == 25, len(rs); import ck3_save_migrator, sys; "
             "print(len(rs), ck3_save_migrator.__file__)")
     r = subprocess.run([str(py), "-I", "-c", code], cwd=empty, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     count, where = r.stdout.split()
-    assert count == "24" and str(env) in where and str(ROOT) not in where
+    assert count == "25" and str(env) in where and str(ROOT) not in where

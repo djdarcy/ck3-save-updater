@@ -145,6 +145,18 @@ def test_a_timed_modifier_takes_its_respelled_name(tmp_path):
     assert res.extra["mapped"] == {"fp2_hawk_of_quarysh_martial_modifier -> fp2_hawk_of_quraysh_martial_modifier": 1}
 
 
+def test_a_county_modifier_follows_its_event_to_the_new_name(tmp_path):
+    """fp2_yearly.3000 gave rice_fields_modifier until 1.17 and terraced_hills_modifier from 1.18, with the same
+    effect; a county's timed modifier takes the new name."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "terraced_hills_modifier")
+    body = (b"titles={\n\tlanded_titles={\n\t\t5={\n\t\t\tmodifier={\n\t\t\t\tmodifier=\"rice_fields_modifier\"\n"
+            b"\t\t\t\texpiration_date=1001.9.7\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert b'modifier="terraced_hills_modifier"' in out and b"rice_fields" not in out
+    assert res.extra["mapped"] == {"rice_fields_modifier -> terraced_hills_modifier": 1}
+
+
 def test_djdarcys_answered_rows():
     """HOLD 18:05 (2026-11-04): each pinned to its successor, field and kind."""
     rows = {r.old: r for r in SUCCESSORS}
