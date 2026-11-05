@@ -48,6 +48,45 @@ def body(*schemes):
     return b"schemes={\n\tactive={\n" + b"".join(schemes) + b"\t}\n}\n"
 
 
+OLD_PLOT = (b"\t\t7={\n\t\t\ttype=\"sway\"\n\t\t\towner=10\n\t\t\ttarget=20\n\t\t\tartifact=4294967295\n"
+            b"\t\t\tprogress=6\n\t\t\tupdate_days=20\n\t\t\tscheme_exposed=no\n\t\t\towner_influence=11\n"
+            b"\t\t\tsecrecy=-1\n\t\t\tchance=-1\n\t\t\tscheme_freeze_days=0\n\t\t\tready=yes\n\t\t\tdate=980.9.12\n\t\t}\n")
+
+
+def test_an_old_plot_is_written_the_way_the_game_converts_it(tmp_path):
+    """The game's conversion (measured on 1,334 plots, design 2026-11-05__09-48-21): the old fields dropped, the target
+    wrapped, 1.20's starting values in its field order; then R29's thaw (no freeze_data) and secrecy."""
+    save, res = run(tmp_path, body(OLD_PLOT))
+    assert (b"\t\t7={\n\t\t\ttype=sway\n\t\t\tstatus=continue\n\t\t\towner=10\n\t\t\ttarget={\n\t\t\t\ttype=character\n"
+            b"\t\t\t\ttarget=20\n\t\t\t}\n\t\t\tartifact=4294967295\n\t\t\tprogress=6\n\t\t\topportunities=0\n"
+            b"\t\t\tupdate_days=20\n\t\t\tsemiyearly_update_days=0\n\t\t\tscheme_exposed=no\n\t\t\tsecrecy=100\n"
+            b"\t\t\tdate=980.9.12\n\t\t\tlast_update=1.1.1\n\t\t\tramping_success_chance=0\n\t\t\tbreach=0\n"
+            b"\t\t\tphases=0\n\t\t\tnext_id=0\n\t\t}\n") in save.gamestate
+    assert (res.extra["converted"], res.extra["invalidated"]) == (1, 0)
+
+
+def test_a_plot_with_no_owner_target_or_type_is_invalidated(tmp_path):
+    """20/20 on the founding save: the game marks exactly these plots invalidated."""
+    plot = (b"\t\t8={\n\t\t\towner=4294967295\n\t\t\ttarget=4294967295\n\t\t\tprogress=10\n"
+            b"\t\t\towner_influence=52.5\n\t\t\tsecrecy=83\n\t\t\tchance=78\n\t\t\tscheme_freeze_days=0\n"
+            b"\t\t\tready=yes\n\t\t\tdate=984.2.3\n\t\t}\n")
+    save, res = run(tmp_path, body(plot, OLD_PLOT))
+    g = save.gamestate
+    assert b"\t\t8={\n\t\t\tstatus=invalidated\n\t\t\towner=4294967295\n" in g and b"7={\n\t\t\ttype=sway\n\t\t\tstatus=continue" in g
+    assert (res.extra["converted"], res.extra["invalidated"]) == (2, 1)
+
+
+def test_the_conversion_alone_keeps_the_plot_frozen_as_the_game_does():
+    """What the identity probe compares against the game's re-save: the game's freeze_data block, kept frozen."""
+    from ck3_save_migrator.rules.to_1_20 import convert_old_scheme, scheme_fields, scheme_text
+    ind, f = scheme_fields(OLD_PLOT[OLD_PLOT.index(b"{") + 1:OLD_PLOT.rindex(b"}")])
+    out = scheme_text(convert_old_scheme(f, ind), ind)
+    assert out.endswith(b"\t\t\tnext_id=0\n\t\t\tfreeze_data={\n\t\t\t\tfrozen=yes\n\t\t\t\tscheme_freeze_days=0\n"
+                        b"\t\t\t\treason=\"\"\n\t\t\t}\n\t\t")
+    assert b"secrecy=-1" in out and b"owner_influence" not in out
+    assert b"\tchance=" not in out and b"\tready=" not in out          # (ramping_success_chance is 1.20's own)
+
+
 def test_a_frozen_murder_runs_again_with_its_secrecy_and_agent_slots(tmp_path):
     save, res = run(tmp_path, body(scheme(1, b"murder")))
     g = save.gamestate
@@ -56,6 +95,9 @@ def test_a_frozen_murder_runs_again_with_its_secrecy_and_agent_slots(tmp_path):
     assert b"\t\t\t\tid=0\n\t\t\t\tcharacter=4294967295\n\t\t\t\tcontribution=0\n\t\t\t\ttype=agent_assassin\n" \
            b"\t\t\t\tscheme=1\n" in g and b"type=agent_thug" in g and b"\t\t\tnext_id=2\n\t\t}\n" in g
     assert (res.matched, res.extra["secrecy_set"], res.extra["agent_slots_added"]) == (1, 1, 1)
+    # where 1.20 itself puts them: after opportunities, before update_days (109 native plots, s10)
+    assert g.index(b"opportunities=0") < g.index(b"agent_slots={") < g.index(b"update_days") \
+        if b"update_days" in g else g.index(b"opportunities=0") < g.index(b"agent_slots={") < g.index(b"secrecy=")
 
 
 def test_a_type_without_base_secrecy_gets_100_and_no_slots(tmp_path):

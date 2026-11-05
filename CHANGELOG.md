@@ -4,6 +4,20 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.24] - 2026-11-05
+
+### Fixed
+- Plots carried from an old save are written in the current game's layout. The update now does what the game did when it loaded one. It drops the old success fields, writes the target in its new form, and gives each plot the game's starting values. On the founding campaign it matches the game's own output on all 1,334 plots, apart from the order in which the game lists a plot's script variables. The game no longer logs "Unexpected token: owner_influence" once per plot when the save loads.
+- A carried plot still starts near the beginning of its first phase, as the game starts it. Older versions counted progress to 10, and the current game counts each phase to between 70 and 730. Carrying progress across in proportion is planned.
+- A correction to 0.4.19's note: 1,268 of the 1,334 carried plots were given a secrecy, not all of them. The others already had one, or are of a kind the game does not define.
+
+### Changed
+- Artifacts that gave +4 opinion with all vassals now give exactly +4, as +3 and +1. Before, they gave +5. These are the same two bonuses used for old +3 and +1 artifacts, with their small extras.
+- The README says what the update carries across.
+
+### Added
+- Contributing guidance: what every change must keep, how to report a bug, and what a pull request must say in the author's own words, including which AI tools were used and how the change was checked. A pull request template asks the same questions, and `AGENTS.md` gives AI coding agents the project's rules.
+
 ## [0.4.23] - 2026-11-05
 
 ### Changed
@@ -591,7 +605,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...HEAD
+[0.4.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...v0.4.24
 [0.4.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.22...v0.4.23
 [0.4.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.21...v0.4.22
 [0.4.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...v0.4.21

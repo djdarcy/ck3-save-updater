@@ -49,8 +49,14 @@ These had no exact successor, but the current game has the same idea. The update
 The current game keeps fewer steps for some artifact bonuses. The update moves each one to the nearest step the game keeps.
 
 - **Building cost.** Older artifacts went from −1% to −8%. The current game keeps −1% to −4%. A stronger bonus becomes several of those added together, so −7% becomes −4% and −3%, and the total is the same.
-- **Opinion with all vassals.** The current game has no plain artifact bonus for this. +1 becomes the game's own +1 all-vassal bonus. +3 becomes its exact +3, which also gives a little prestige. +4 becomes +5. +2 becomes a pair, +5 and −3, which adds up to +2 and shows as two lines in the artifact's tooltip.
+- **Opinion with all vassals.** The current game has no plain artifact bonus for this. +1 becomes the game's own +1 all-vassal bonus. +3 becomes its exact +3, which also gives a little prestige. +4 becomes a pair of those two, +3 and +1, which adds up to exactly +4. +2 becomes a pair, +5 and −3, which adds up to +2 and shows as two lines in the artifact's tooltip.
 
 ## Scheme agents without a position
 
 Plots in older saves could have any number of agents. The current game gives each kind of plot a fixed set of agent positions, and some plots none at all. The update seats each plot's agents in its positions, strongest first. Agents beyond those positions leave the plot. So do agents in plots the current game gives no positions, such as converting someone to witchcraft.
+
+## A plot's stored success chance
+
+Older saves stored each plot's success chance, the owner's share of it, and a flag for a plot that had finished and was waiting for its outcome. The current game stores none of these. It works out a plot's chance from the plot's kind and the people in it, at every update. The update drops the three fields, as the game does when it loads an old save. Nothing is lost that the game does not work out again. A plot that had finished concludes at its next update: on the founding campaign, 9 of 10 such plots had concluded three years later.
+
+A plot's progress carries over as the same number, as the game carries it. Older versions counted a plot's progress to 10. The current game counts each phase to between 70 and 730. So a carried plot starts again near the beginning of its first phase. Carrying the progress across in proportion is planned.

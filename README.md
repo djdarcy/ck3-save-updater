@@ -11,6 +11,8 @@
 
 `ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects, moves data to where the new version expects it, and rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith.
 
+Since v0.4.0 it carries far more of your campaign across. Faces keep their look under the portrait mods you play with. Cultures, perks, regiments, innovations, buildings and artifacts that the game renamed are matched to their new names. House feuds and running plots come across too, and plots keep their agents. Artifacts keep their pictures and armour models. What has no home in the current game is listed in [What doesn't carry over](docs/not-carried-over.md).
+
 ## Quick start
 
 Wherever you see `My Save`, put your save's name (with or without `.ck3`). Your save itself is never changed, the update is written to a new file beside it.
@@ -47,14 +49,13 @@ ck3update update "My Save"
 
 Faces are converted to the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you play with (rule R19, [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)). Set the launcher's playset before you update, or name the mods with `--portrait-mods`. If a portrait mod your save was made with has since been updated or removed, point `--old-portrait-mods` at the build the save used. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
-## What ck3update has been measured against
+## What ck3update has been tested against
 
 I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been fully tested. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
 Not handled yet:
 
-- Some things the current game removed with no replacement, such as about 30 timed modifiers on characters and counties ([#7](https://github.com/djdarcy/ck3-save-updater/issues/7)). The game drops them when the save loads.
-- Plots (schemes) carried from an older save. The current game keeps them but freezes them for good. A fix is in progress.
+- Some things the current game removed with no replacement, such as timed modifiers from events that later versions removed. The game drops them when the save loads. [What doesn't carry over](docs/not-carried-over.md) lists each one.
 - Mod content in general.
 
 For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found. That step is still being finished ([#6](https://github.com/djdarcy/ck3-save-updater/issues/6)), and `--transplant off` leaves it out.
@@ -143,18 +144,12 @@ The [documentation guide](docs/README.md) groups these pages by what you are try
 - [Troubleshooting](docs/troubleshooting.md): what the common messages mean and what to do.
 - [Configuration](docs/config.md): the settings file and the environment variables.
 - [Options](docs/options.md): the most used options.
-- [Rules](docs/rules.md): every built-in rule, what it changes and why.
-- [New-map regions](docs/new-map-regions.md): how the regions 1.20 added are brought in.
 - [Checking a save](docs/lint.md): what `lint` checks.
-- [Output and verbosity](docs/output-and-verbosity.md): `-v`, `-q`, `--show`.
 - [Reports](docs/reports.md): what the report beside each output contains.
 - [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
 - [Writing a patch](docs/writing-a-patch.md): your own fixes, as `patch.toml` files in your packs folder.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
-- [soak](docs/soak.md): load a save in the game and watch it (this one starts the game).
-- [Tools](docs/tools.md): `ck3update tools` lists and runs the project's standalone scripts.
 - [Thinning a save's population](docs/thin-population.md): a diagnostic copy of a save with fewer characters.
-- [Platform support](docs/platform-support.md): what the tool is tested on.
 
 ## Contributing
 

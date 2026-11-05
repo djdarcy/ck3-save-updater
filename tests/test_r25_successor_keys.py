@@ -225,17 +225,30 @@ def test_an_innovation_and_an_artifact_look_in_their_type_fields(tmp_path):
 
 
 def test_the_all_vassal_opinion_bonus_stays_universal(tmp_path):
-    """Item 6 (goal S2): +4 becomes +5 with all vassals, +3 the exact +3 (with +0.03 prestige a month; djdarcy
-    2026-11-05), +1 stays +1 with all vassals."""
+    """Item 6 (goal S2): +3 the exact +3 (with +0.03 prestige a month; djdarcy 2026-11-05), +1 stays +1 with all
+    vassals, and +4 becomes exactly +4 as the +3 and +1 pair (djdarcy 2026-11-05, over the earlier +5)."""
     g = tmp_path / "game"
-    define(g, "modifiers", "hold_court_8010_vassal_modifier", "unity_harmonious_placation_modifier",
-           "artifact_killer_3_artifact_modifier")
-    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_4_modifier "
-            b"artifact_vassal_opinion_1_modifier artifact_vassal_opinion_3_modifier }\n\t\t}\n\t}\n}\n")
+    define(g, "modifiers", "unity_harmonious_placation_modifier", "artifact_killer_3_artifact_modifier")
+    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_4_modifier }\n\t\t}\n"
+            b"\t\t6={\n\t\t\tmodifiers={ artifact_vassal_opinion_1_modifier artifact_vassal_opinion_3_modifier }\n"
+            b"\t\t}\n\t}\n}\n")
     out, res = run(g, body)
-    assert (b"modifiers={ hold_court_8010_vassal_modifier unity_harmonious_placation_modifier "
-            b"artifact_killer_3_artifact_modifier }") in out
-    assert res.edited == 3
+    assert b"modifiers={ artifact_killer_3_artifact_modifier unity_harmonious_placation_modifier }" in out
+    assert b"modifiers={ unity_harmonious_placation_modifier artifact_killer_3_artifact_modifier }" in out
+    assert b"vassal_opinion_4" not in out and res.edited == 3
+
+
+def test_a_plus_four_with_a_plus_one_keeps_both_ones(tmp_path):
+    """Old +4 and +1 on one artifact: the +1 key is listed twice, so the total stays +5. A repeated key is how the
+    game itself stacks two rolls (the founding 1.8 save lists artifact_vassal_opinion_4_modifier twice on several
+    artifacts)."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "unity_harmonious_placation_modifier", "artifact_killer_3_artifact_modifier")
+    body = (b"artifacts={\n\tartifacts={\n\t\t5={\n\t\t\tmodifiers={ artifact_vassal_opinion_4_modifier "
+            b"artifact_vassal_opinion_1_modifier }\n\t\t}\n\t}\n}\n")
+    out, _ = run(g, body)
+    assert (b"modifiers={ artifact_killer_3_artifact_modifier unity_harmonious_placation_modifier "
+            b"unity_harmonious_placation_modifier }") in out
 
 
 def test_a_plus_two_becomes_the_plus_five_minus_three_pair(tmp_path):

@@ -478,8 +478,19 @@ def test_real_987_counts():
     res = {r.id: r for r in R.run_rules(save, R.select("all", include_off=("R7",)), R.RuleContext(game_dir=GAME))}
     # 142 scholar_perk, 11 teutonic_knights, 247 artifact scheme-power modifiers, 1 Hawk of Quarysh (2026-11-04, U4)
     # + HOLD answers (S1): 25 chu_ko_nu, 229 innovation_bombard, 49 medium_animal_hide, 5 artifact bonus steps
-    # + item 6 (S2): 12 at +1, 1 at +3, 26 at +4 (the six at +2 wait on djdarcy's look)
+    # + item 6 (S2): 12 at +1, 1 at +3, 26 at +4 (now +3 and +1, 0.4.24), 6 at +2 (the +5 and -3 pair)
     assert (res["R25"].matched, res["R25"].edited, res["R25"].extra["left"]) == (763, 763, {})
+    # R26: 201 spread markers moved to where 1.20 reads them, 206 old exposure fields deleted
+    assert [(e["found"], e["edits"]) for e in res["R26"].extra["edits"]] == [(201, 201), (206, 206)]
+    assert res["R27"].extra["pairs"] == [["4316", "1633"], ["3981", "3974"]]
+    assert (res["R28"].matched, res["R28"].extra["with_spouse"], res["R28"].extra["relations"]) == (47, 36, 72)
+    # R29: every carried plot converted as the game converts it (identity probe 2026-11-05), 20 with no owner,
+    # target or type invalidated; the thaw, secrecy and agent counts are what 0.4.23 gave (measured on its code)
+    x = res["R29"].extra
+    assert (x["converted"], x["invalidated"], x["thawed"], x["secrecy_set"], x["agent_slots_added"]) == \
+        (1334, 20, 1334, 1268, 275)
+    assert (x["old_agents_seated"], x["old_agents_without_a_slot"], x["old_agents_no_longer_living"]) == (107, 73, 0)
+    assert (res["R30"].matched, res["R30"].edited, res["R30"].extra["left"]) == (470, 470, {})
     assert (res["R1"].matched, res["R1"].edited) == (76433, 76433)
     assert (res["R2"].matched, res["R2"].edited, len(res["R2"].extra["left_unchanged"])) == (48357, 48357, 0)
     assert (res["R3"].matched, res["R3"].edited) == (12702, 12702 + 12702 + 3508 + 45 + 43)
