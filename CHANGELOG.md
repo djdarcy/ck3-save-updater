@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.20] - 2026-11-04
+
+### Added
+- A county's "Tax Relief" from an old hold court becomes the current game's own "Tax Relief". The event that gave the old one is gone. The current one is stronger: half the tax and more opinion, where the old one also slowed development.
+- On the founding campaign that is 7 counties.
+
 ## [0.4.19] - 2026-11-04
 
 ### Added
@@ -562,7 +568,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.20...HEAD
+[0.4.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.19...v0.4.20
 [0.4.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.16...v0.4.17

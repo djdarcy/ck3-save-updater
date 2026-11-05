@@ -157,6 +157,17 @@ def test_a_county_modifier_follows_its_event_to_the_new_name(tmp_path):
     assert res.extra["mapped"] == {"rice_fields_modifier -> terraced_hills_modifier": 1}
 
 
+def test_a_hold_court_tax_relief_takes_the_new_games_tax_relief(tmp_path):
+    """djdarcy's call (2026-11-04): the old hold-court 'Tax Relief' becomes 1.20's own 'Tax Relief'."""
+    g = tmp_path / "game"
+    define(g, "modifiers", "court_tax_relief_county_modifier")
+    body = (b"titles={\n\tlanded_titles={\n\t\t5={\n\t\t\tmodifier={\n\t\t\t\tmodifier=\"hold_court_7040_tax_cut\"\n"
+            b"\t\t\t\texpiration_date=990.8.4\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    out, res = run(g, body)
+    assert b'modifier="court_tax_relief_county_modifier"' in out and b"7040" not in out
+    assert res.extra["mapped"] == {"hold_court_7040_tax_cut -> court_tax_relief_county_modifier": 1}
+
+
 def test_djdarcys_answered_rows():
     """HOLD 18:05 (2026-11-04): each pinned to its successor, field and kind."""
     rows = {r.old: r for r in SUCCESSORS}
