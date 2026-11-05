@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.14] - 2026-11-04
+
+Developer tooling only. Nothing a player runs changes in this version.
+
+### Fixed
+- The test harness's autosave guard now also puts back an autosave the game renamed away during a test run. Before, a batch of runs could leave the user's own autosaves missing.
+
+### Added
+- Tools for diagnosing a game crash from its crash dump, and for repeating a crash test across several saves.
+
 ## [0.4.13] - 2026-11-04
 
 ### Added
@@ -507,7 +517,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.14...HEAD
+[0.4.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.10...v0.4.11

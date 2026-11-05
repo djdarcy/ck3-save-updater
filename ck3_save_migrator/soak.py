@@ -89,7 +89,7 @@ def send_to_back(hwnd: int) -> None:
 
 
 KEYS = {"space": 0x20, "plus": 0x6B, "minus": 0x6D, "1": 0x31, "2": 0x32, "3": 0x33, "4": 0x34, "5": 0x35,
-        "enter": 0x0D, "escape": 0x1B}
+        "enter": 0x0D, "escape": 0x1B, "f1": 0x70, "f8": 0x77}   # F1 the character window, F8 culture (2026-11-04)
 
 
 def post_key(hwnd: int, name: str) -> None:
