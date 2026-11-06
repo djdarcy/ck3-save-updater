@@ -16,6 +16,8 @@ policy must know every copied object before any reference is kept). Selecting R1
 from __future__ import annotations
 
 import re
+from collections import Counter, defaultdict
+from pathlib import Path
 
 from .. import translate as T
 from ..transplant import TITLES, Transplant
@@ -39,6 +41,7 @@ def transplant_of(save: CK3Save, ctx) -> Transplant:
     """The context's shared transplant plan (built on first use, against the save as the earlier rules left it)."""
     if "transplant" not in ctx.state:
         ctx.state["transplant"] = Transplant(save.gamestate, reference_gamestate(ctx))
+        ctx.state["transplant"].game_dir = ctx.game_dir   # attach_plan reads common/governments from it
     return ctx.state["transplant"]
 
 
@@ -256,7 +259,152 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     rep["holy_sites"] = _reattach_holy_sites(save, ctx)
     # R8 reported these as lost before the transplant existed; the report moves them to "recovered" (#6)
     rep["recovered"] = [{"what": "holy_site_barony", "index": i} for i in rep["holy_sites"].pop("reattached_indices")]
+    rep["lock_step"] = _lock_step(save, ctx)
     return rule.result(matched=sum(t.report.inserted.values()), edited=len(ep.edits), extra=rep)
+
+
+def _contract_groups(game_dir) -> dict[bytes, bytes]:
+    """government -> the vassal contract group its vassals get (common/governments, vassal_contract_group)."""
+    from .. import gamestate as gs
+    out: dict[bytes, bytes] = {}
+    base = Path(game_dir) / "common" / "governments" if game_dir else None
+    for f in sorted(base.glob("*.txt")) if base is not None and base.is_dir() else []:
+        t = re.sub(rb"#[^\n]*", b"", f.read_bytes().removeprefix(b"\xef\xbb\xbf"))
+        for m in re.finditer(rb"(?m)^(\w+_government)\s*=\s*\{", t):
+            try:
+                body = t[m.end() - 1:gs.match_brace(t, m.end() - 1)]
+            except gs.GamestateError:
+                continue
+            g = re.search(rb"vassal_contract_group\s*=\s*(\w+)", body)
+            if g:
+                out[m.group(1)] = g.group(1)
+    return out
+
+
+def _lock_step(save: CK3Save, ctx) -> dict:
+    """Every character the transplant copied in has a title liege and a vassal contract that agree (djdarcy
+    2026-11-05: "We do want to get to 100%"; a disagreement is the play5 crash class). For each copied ruler, his
+    primary title's de facto liege is the title side, his contract the other:
+    - both, naming different people: the contract follows the title (a baron answers to his county's holder);
+    - a contract only: the title follows the contract's liege where that liege rules, else the contract goes;
+    - a title liege only: a contract is written, in a free slot, with his government's contract group.
+    A tributary contract (``tributary_*``) is a contract without a title liege by design, and is left alone, as are
+    the campaign's own characters (R31 is theirs)."""
+    from .. import gamestate as gs
+    from .. import translate as T
+    from ..transplant import _edit_landed_list
+    copied = {int(c) for c in ctx.state.get("transplanted_characters", ())}
+    g = save.gamestate
+    titles = {}
+    for i, e in T.entries(g, TITLES):
+        b = g[e.open:min(e.close, e.open + 4096)]
+        titles[i] = tuple(int(m.group(1)) if (m := re.search(rb"\n\t" + f + rb"=(\d+)", b)) else None
+                          for f in (b"holder", b"de_facto_liege")) + (
+            (m.group(1) if (m := re.search(rb'\n\tkey="?([\w-]+)', b)) else b""),)
+    chars = dict(T.entries(g, "living"))
+    path = None
+    for p in ("vassal_contracts/active", "vassal_contracts/database"):
+        try:
+            gs.locate(g, p)
+            path = p
+            break
+        except gs.GamestateError:
+            continue
+    if path is None:
+        return {}
+    contracts, used = {}, set()
+    for i, e in T.entries(g, path):
+        b = g[e.open:e.close]
+        used.add(i)
+        v, lg = re.search(rb"\n\t+vassal=(\d+)", b), re.search(rb"\n\t+liege=(\d+)", b)
+        grp = re.search(rb"\n\t+contract_group=(\w+)", b)
+        if v and lg:
+            contracts[int(v.group(1))] = (i, int(lg.group(1)), grp.group(1) if grp else b"", e)
+
+    def domain(c):
+        e = chars.get(c)
+        d = re.search(rb"\n\t\tdomain=\{([^}]*)\}", g[e.start:e.end]) if e is not None else None
+        return [int(x) for x in d.group(1).split()] if d else []
+
+    def gov(c):
+        e = chars.get(c)
+        m = re.search(rb'\n\t+government="?(\w+)', g[e.start:e.end]) if e is not None else None
+        return m.group(1) if m else b""
+
+    def listed(c):
+        e = chars.get(c)
+        m = re.search(rb"\n\t\tvassal_contracts=\{([^}]*)\}", g[e.start:e.end]) if e is not None else None
+        return {int(x) for x in m.group(1).split()} if m else set()
+
+    groups = _contract_groups(ctx.game_dir)
+    dm = re.search(rb"(?m)^date=([\d.]+)", g)
+    date = dm.group(1).decode() if dm else "1.1.1"
+    nxt = max((T.index(i) for i in used), default=0) + 1          # a free slot (see transplant: shared slots crash)
+    ep, rows = gs.EditPass(), Counter()
+    ops: dict[int, dict] = defaultdict(lambda: {"add": [], "drop": set()})
+    stitles = dict(T.entries(g, TITLES))
+    created = []
+    for c in sorted(copied):
+        dom = domain(c)
+        if not dom:
+            continue
+        p = dom[0]
+        holder, tl, key = titles.get(p, (None, None, b""))
+        th = titles.get(tl, (None, None, b""))[0] if tl is not None else None
+        th = None if th == c else th
+        ct = contracts.get(c)
+        if ct is not None and ct[2].startswith(b"tributary"):
+            continue
+        if th is not None and ct is not None:
+            if th == ct[1]:
+                if ct[0] not in listed(th):
+                    ops[th]["add"].append(ct[0])
+                    rows["contract added to its liege's list"] += 1
+                continue
+            m = re.search(rb"(\n\t+liege=)(\d+)", g[ct[3].open:ct[3].close])
+            ep.add(gs.Edit(ct[3].open + m.start(2), ct[3].open + m.end(2), str(th).encode(), "R17", "lock-step"))
+            ops[ct[1]]["drop"].add(ct[0])
+            ops[th]["add"].append(ct[0])
+            rows["contract follows the title's liege"] += 1
+        elif ct is not None:
+            ldom = domain(ct[1])
+            e = stitles.get(p)
+            if ldom and not key.startswith(b"b_") and e is not None:
+                m = re.search(rb"(\n\tde_facto_liege=)(\d+)", g[e.open:e.close])
+                if m:
+                    ep.add(gs.Edit(e.open + m.start(2), e.open + m.end(2), str(ldom[0]).encode(), "R17", "lock-step"))
+                else:
+                    at = g.rfind(b"\n", 0, e.close) + 1
+                    ep.add(gs.Edit(at, at, f"\tde_facto_liege={ldom[0]}\n".encode(), "R17", "lock-step"))
+                if ct[0] not in listed(ct[1]):
+                    ops[ct[1]]["add"].append(ct[0])
+                rows["title follows the contract's liege"] += 1
+            else:
+                a, b = gs.removal_span(g, ct[3].start, ct[3].end)
+                ep.add(gs.Edit(a, b, b"", "R17", "lock-step"))
+                ops[ct[1]]["drop"].add(ct[0])
+                rows["contract removed: its liege rules nothing"] += 1
+        elif th is not None:
+            grp = groups.get(gov(c))
+            created.append(f"{nxt}={{\n\t\t\tvassal={c}\n\t\t\tliege={th}\n\t\t\tdate={date}\n\t\t\tlevels={{ 1 }}\n"
+                           + (f"\t\t\tcontract_group={grp.decode()}\n" if grp else "") + "\t\t}\n")
+            ops[th]["add"].append(nxt)
+            nxt += 1
+            rows["contract written for a title liege"] += 1
+    if created:
+        sec = gs.locate(g, path)
+        at = g.rfind(b"\n", 0, sec.close) + 1
+        ep.add(gs.Edit(at, at, "".join(created).encode(), "R17", "lock-step contracts"))
+    for c, op in ops.items():
+        e = chars.get(c)
+        if e is None:
+            continue
+        text = g[e.start:e.end]
+        new = _edit_landed_list(text, b"vassal_contracts", add=op["add"], drop=op["drop"])
+        if new != text:
+            ep.add(gs.Edit(e.start, e.end, new, "R17", "lock-step lists"))
+    ep.apply_to(save)
+    return dict(rows)
 
 
 _LT_SCOPE = re.compile(rb"(type=lt\s+identity=)(\d+)")

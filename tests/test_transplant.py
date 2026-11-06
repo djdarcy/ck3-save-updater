@@ -575,6 +575,122 @@ def test_a_new_ruler_on_land_the_players_realm_held_joins_it(tmp_path):
     assert ex["contracts_created"] >= 1
 
 
+def _with(body: bytes, section: bytes, add: str) -> bytes:
+    return body.replace(section, section + add.encode(), 1)
+
+
+def test_a_herder_stays_with_his_1_20_liege_where_1_20_never_pairs_him_with_the_campaign_one(tmp_path):
+    """djdarcy 2026-11-05 (Kara Khoja's herders): 1.20 never puts a herder under a tribal ruler. The herder 8's
+    1.20 liege 7 still rules d_keep in the output, so 8 stays 7's vassal (title and contract), not the tribal
+    campaign duke 50's."""
+    save_body, ref_body = _attach_bodies()
+    save_body = save_body.replace(b"50={\n\tfirst_name=\"P50\"\n", b"50={\n\tfirst_name=\"P50\"\n\tgovernment=\"tribal_government\"\n", 1)
+    ref_body = ref_body.replace(b"8={\n\tfirst_name=\"P8\"\n", b"8={\n\tfirst_name=\"P8\"\n\tgovernment=herder_government\n", 1)
+    ref_body = _with(ref_body, b"living={\n", char(7, "\tgovernment=feudal_government\n\tlanded_data={\n\t\tdomain={ 6 14 }\n"
+                                                         "\t\tvassal_contracts={ 0 }\n\t}\n"))
+    ref_body = ref_body.replace(b"6={\n\tkey=d_ai\n}\n", b"6={\n\tkey=d_ai\n\tholder=7\n}\n", 1)
+    ref_body = ref_body.replace(b"13={\n\tkey=c_newx\n", title(14, "d_keep", "\tholder=7\n").encode() + b"13={\n\tkey=c_newx\n", 1)
+    ref_body += b"vassal_contracts={\n\tdatabase={\n\t\t0={\n\t\t\tvassal=8\n\t\t\tliege=7\n\t\t}\n\t}\n}\n"
+    save, res = migrate(tmp_path, save_body, ref_body)
+    g = save.gamestate
+    rows = {r["titles"][0]: r for r in res["R17"].extra["attached"]}
+    assert rows["c_newai"]["why"].startswith("stays with his 1.20 liege") and rows["c_newai"]["liege_title"] == "d_keep"
+    t = titles_by_key(g)
+    assert f"de_facto_liege={t['d_keep'][0]}".encode() in t["c_newai"][1]
+    holder8 = int(re.search(rb"holder=(\d+)", t["c_newai"][1]).group(1))
+    assert _contract_to(g, holder8)[1] == int(re.search(rb"holder=(\d+)", t["d_keep"][1]).group(1))
+
+
+def test_a_seat_whose_1_20_liege_is_its_own_office_goes_to_the_ruler_of_its_land(tmp_path):
+    """Constantinople (djdarcy: "that would be me"): 1.20's Patriarch holds both k_office and the seat; the campaign
+    gave k_office to someone else (60). The office is his own, so the seat's land decides: c_old, the player's."""
+    save_body, ref_body = _attach_bodies()
+    save_body = _with(save_body, b"living={\n", char(60, "\tlanded_data={\n\t\tdomain={ 16 }\n\t}\n"))
+    save_body = save_body.replace(b"6={\n\tkey=d_ai\n", title(16, "k_office", "\tholder=60\n").encode() + b"6={\n\tkey=d_ai\n", 1)
+    ref_body = _with(ref_body, b"living={\n", char(5, "\tlanded_data={\n\t\tdomain={ 16 14 }\n\t}\n"))
+    ref_body = ref_body.replace(b"13={\n\tkey=c_newx\n", title(16, "k_office", "\tholder=5\n").encode()
+                                + title(14, "d_et_seat", "\tholder=5\n\tde_facto_liege=16\n\tcapital=1\n").encode()
+                                + b"13={\n\tkey=c_newx\n", 1)
+    save, res = migrate(tmp_path, save_body, ref_body)
+    rows = {r["titles"][0]: r for r in res["R17"].extra["attached"]}
+    assert rows["d_et_seat"]["liege"] == 39 and rows["d_et_seat"]["why"] == "landless: the ruler over its seat's land"
+
+
+def test_a_noble_family_is_attached_only_under_an_administrative_liege(tmp_path):
+    """A Byzantine noble family (administrative, landless) under the feudal player: its title would stick to its dead
+    head (play10). It stays unattached; the game vacates it as it does with no administrative realm (s11)."""
+    save_body, ref_body = _attach_bodies()
+    ref_body = _with(ref_body, b"living={\n", char(5, "\tgovernment=administrative_government\n"
+                                                      "\tlanded_data={\n\t\tdomain={ 14 }\n\t}\n"))
+    ref_body = ref_body.replace(b"13={\n\tkey=c_newx\n", title(14, "d_nf_family", "\tholder=5\n\tde_facto_liege=0\n"
+                                                                "\tcapital=1\n").encode() + b"13={\n\tkey=c_newx\n", 1)
+    save, res = migrate(tmp_path, save_body, ref_body)
+    ex = res["R17"].extra
+    assert "d_nf_family" not in {r["titles"][0] for r in ex["attached"]}
+    assert any(r["titles"] == ["d_nf_family"] and "noble families" in r["why"] for r in ex["attach_skipped"])
+
+
+def test_noble_family_governments_are_read_from_the_game_files(tmp_path):
+    """``noble_families = yes`` in common/governments; the 1.20.1.2 list when no game folder is given."""
+    g = tmp_path / "common" / "governments"
+    g.mkdir(parents=True)
+    g.joinpath("x.txt").write_text("feudal_government = {\n\tnoble_families = no\n}\n"
+                                   "admin_government = {\n\trules = { noble_families = yes }\n}\n"
+                                   "# commented_government = {\n#\tnoble_families = yes\n# }\n")
+    assert Transplant.noble_family_governments(tmp_path) == {b"admin_government"}
+    assert b"administrative_government" in Transplant.noble_family_governments(None)
+
+
+def test_a_holy_order_or_mercenary_government_is_never_attached(tmp_path):
+    """The game's hard rule (common/governments, cannot_be_vassal_or_liege)."""
+    g_dir = tmp_path / "game"
+    (g_dir / "common" / "governments").mkdir(parents=True)
+    (g_dir / "common" / "governments" / "x.txt").write_text(
+        "mercenary_government = {\n\tflags = { cannot_be_vassal_or_liege }\n}\n", encoding="utf-8")
+    save_body, ref_body = _attach_bodies()
+    ref_body = ref_body.replace(b"9={\n\tfirst_name=\"P9\"\n", b"9={\n\tfirst_name=\"P9\"\n\tgovernment=mercenary_government\n", 1)
+    save, res = migrate(tmp_path, save_body, ref_body, game_dir=g_dir)
+    ex = res["R17"].extra
+    assert "c_newp" not in {r["titles"][0] for r in ex["attached"]}
+    assert any(r["titles"] == ["c_newp"] and "never a vassal" in r["why"] for r in ex["attach_skipped"])
+
+
+def test_the_lock_step_pass_brings_every_copied_ruler_into_line_and_leaves_tributaries_alone():
+    """djdarcy 2026-11-05 ("We do want to get to 100%"): for copied characters, the title liege and the contract
+    agree after R17. 2: contract names 3, title names 1 -> the contract follows the title. 4: a contract to 1 and no
+    title liege -> the title follows (1 rules k_a). 5: a title liege and no contract -> one is written. 6: a
+    tributary contract with no title liege -> left alone. 7 is a campaign character -> left alone."""
+    from ck3_save_migrator.rules.transplant_1_20 import _lock_step
+    ld = "\tlanded_data={{\n\t\tdomain={{ {} }}\n\t\tvassal_contracts={{ {} }}\n\t}}\n"
+    body = gamestate(
+        living=char(1, ld.format("0", "")) + char(3, ld.format("9", "0")) + char(2, ld.format("1", ""))
+        + char(4, ld.format("2", "")) + char(5, ld.format("3", "")) + char(6, ld.format("4", ""))
+        + char(7, ld.format("5", "")),
+        titles=title(0, "k_a", "\tholder=1\n") + title(9, "k_b", "\tholder=3\n")
+        + title(1, "c_x", "\tholder=2\n\tde_facto_liege=0\n") + title(2, "c_y", "\tholder=4\n")
+        + title(3, "c_z", "\tholder=5\n\tde_facto_liege=0\n") + title(4, "c_w", "\tholder=6\n")
+        + title(5, "c_v", "\tholder=7\n"),
+        extra="vassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=2\n\t\t\tliege=3\n\t\t}\n\t\t1={\n\t\t\tvassal=4\n"
+              "\t\t\tliege=1\n\t\t}\n\t\t2={\n\t\t\tvassal=6\n\t\t\tliege=1\n\t\t\tcontract_group=tributary_celestial\n"
+              "\t\t}\n\t\t3={\n\t\t\tvassal=7\n\t\t\tliege=1\n\t\t}\n\t}\n}\ndate=987.10.27\n",
+    )
+    save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=body))
+    ctx = R.RuleContext()
+    ctx.state["transplanted_characters"] = {"2", "4", "5", "6"}
+    rows = _lock_step(save, ctx)
+    assert rows == {"contract follows the title's liege": 1, "title follows the contract's liege": 1,
+                    "contract written for a title liege": 1}
+    g = save.gamestate
+    t = titles_by_key(g)
+    assert _contract_to(g, 2)[1] == 1 and b"de_facto_liege=0" in t["c_y"][1]
+    assert _contract_to(g, 5)[1] == 1 and b"de_facto_liege" not in t["c_w"][1]
+    assert b"de_facto_liege" not in t["c_v"][1]                       # the campaign's own: untouched
+    living = bodies(g, "living")
+    listed = set(re.search(rb"vassal_contracts=\{([^}]*)\}", living[1]).group(1).split())
+    assert {b"0", _contract_to(g, 5)[0]} <= listed
+    assert b"0" not in re.search(rb"vassal_contracts=\{([^}]*)\}", living[3]).group(1).split()
+
+
 def test_a_written_contract_takes_a_slot_no_other_contract_uses(tmp_path):
     """A contract id is a slot index plus a generation in the top byte. "Largest id + 1" gave a new contract the
     slot of a campaign contract of another generation, and the game crashed (ck3+0x2ab8862, s15 and s17,
