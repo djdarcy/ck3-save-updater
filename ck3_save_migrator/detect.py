@@ -136,6 +136,21 @@ def _r30(g, env):
     return _found(len(found), [f"{k} ({n:,})" for k, n in by.most_common(5)], "file references the game renamed")
 
 
+def _r31(g, env):
+    """R31 repairs by default, so the plan names each ruler and how to keep them as they are (djdarcy, 2026-11-05:
+    a player may have edited a save on purpose to free a vassal from his dues)."""
+    from .rules.to_1_20 import r31_detect
+    n, examples = r31_detect(g)
+    d = _found(n, examples, "rulers whose title answers to a liege but who have no vassal contract (no taxes, "
+                            "no levies)")
+    d.what_one = "ruler whose title answers to a liege but who has no vassal contract (no taxes, no levies)"
+    if d.state == "needed":
+        d.notes += [f"writes the missing vassal contract of {'; '.join(examples)}{' and more' if n > 5 else ''}; to "
+                    "keep them as they are (a save edit made on purpose), give --rules all,-R31, or run "
+                    "`ck3update disable R31` once"]
+    return d
+
+
 def _r25(g, env):
     """R25 counts the old keys it can map; one whose successor neither the game nor a listed mod defines, or that
     is still defined, is reported apart."""
@@ -248,7 +263,7 @@ DETECTORS = {
     "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _dead_titles,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
-    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30,
+    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30, "R31": _r31,
 }
 
 

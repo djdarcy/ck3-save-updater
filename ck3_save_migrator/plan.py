@@ -865,10 +865,15 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             if p.id in built:
                 rules[p.id] = built[p.id]
         extra.append((up.pack, own))
+    named_packs = set()               # packs given with --pack: a missing need of theirs refuses (below)
     for folder in packs or []:
         pk = read_pack(folder)
         ok, why, covers, skip_why = _span_why(pk.applies, sv["version"], gv, seed)
         pack_rows.append(PackChoice(pk.id, "--pack", str(folder), ok, why))
+        named_packs.add(pk.id)
+        if not ok:
+            # named, but not for this save: the run goes on without it, said where the plan's notes are read
+            notes.append(f"--pack {pk.id} does not apply to this save ({why}); its patches do not run")
         built = {r.id: r for r in rules_from_pack(folder, allow_run=allow_run)} if ok else {}   # refuses code
         covered = covered or (ok and covers)
         own = []
@@ -969,6 +974,13 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             else:
                 s.will_run = False
                 s.reason = f"needs --var {name}" + (f" ({help_text})" if help_text else "")
+            if s.pack in named_packs:
+                # a pack named on the command line was asked for: writing a save without what it adds would look
+                # like success (djdarcy 2026-11-06, the play11 build without --vars: no faces step, one quiet line)
+                x = (f"--pack {s.pack}: patch {s.id} cannot run, it {s.reason}")
+                refusals.append(x)
+                fixes[x] = {"fix": f"give --var {name}=... (or --vars <file> with {name} in it), or leave out "
+                                   f"--pack {s.pack}"}
             break
 
     # ---- the gap: judged on major.minor (a hotfix of the same line is assumed compatible). Known before the full

@@ -121,6 +121,48 @@ def test_an_up_to_date_save_beside_two_candidates_is_not_refused(tmp_path, saves
 
 
 # --------------------------------------------------------------------------- 4. needs, known before anything runs
+def named_pack(folder: Path, pack_id: str, patches: dict[str, str], applies: str = "") -> Path:
+    """A pack of run patches in ``folder``, for --pack (outside the packs folder)."""
+    write(folder / "pack.toml", f'format = 1\nid = "{pack_id}"\ntitle = "t"\norder = {json.dumps(list(patches))}\n'
+                                + applies)
+    for pid, body in patches.items():
+        write(folder / f"{pid}-run" / "patch.toml",
+              f'format = 1\nid = "{pid}"\nname = "{pid.lower()}-run"\ntitle = "a program"\nsince = "1"\n' + body)
+    return folder
+
+
+NEEDS_TOOLS = ('\n[run]\ncommand = ["@@python@@", "@@tools_dir@@/fix.py", "@@input@@", "@@output@@"]\n'
+               'needs = { tools_dir = "the folder holding fix.py" }\n')
+
+
+def test_a_pack_named_with_pack_that_cannot_run_refuses_before_anything_is_written(tmp_path, saves, capsys,
+                                                                                   never_runs):
+    """djdarcy 2026-11-06: a play11 build without --vars skipped the named play6 pack's faces step and wrote a
+    save anyway, with one quiet line in the patch table. A pack named with --pack was asked for: a step of it that
+    cannot run refuses, naming what is missing and how to give it ("if not then yes a refusal makes sense")."""
+    folder = named_pack(tmp_path / "mine", "mine", {"T1": NEEDS_TOOLS})
+    s = old_save(saves)
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(game(tmp_path)), "--pack", str(folder),
+                         "--allow-run")
+    assert code == 1
+    assert "--pack mine: patch T1 cannot run, it needs --var tools_dir (the folder holding fix.py)" in out + err
+    assert "--var tools_dir=..." in out + err
+    assert not [p for p in saves.iterdir() if "__updated__" in p.name]           # nothing written
+    code, out, err = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path)), "--pack", str(folder),
+                         "--allow-run", "--var", f"tools_dir={tmp_path}")
+    assert "cannot run" not in out + err                                         # given the var: no refusal
+
+
+def test_a_pack_named_with_pack_for_other_saves_is_a_note_and_the_run_goes_on(tmp_path, saves, capsys, never_runs):
+    """The other half: a named pack whose [applies] span does not cover this save does not apply; the run goes on
+    and the plan says so in its notes (djdarcy: "If we can reasonably continue the run we should (with a warning
+    about the issue)")."""
+    folder = named_pack(tmp_path / "later", "later", {"T1": NEEDS_TOOLS},
+                        applies='\n[applies]\nsave = ">=1.30, <1.31"\ngame = ">=1.30, <1.31"\n')
+    code, out, err = run(capsys, "status", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--pack",
+                         str(folder), "--allow-run")
+    assert "--pack later does not apply to this save" in out + err
+    assert "cannot run" not in out + err
 def test_an_unmet_need_is_a_skipped_step_and_nothing_runs(tmp_path, saves, capsys, never_runs):
     run_pack("tools", {"T1": '\n[run]\ncommand = ["@@python@@", "@@tools_dir@@/fix.py", "@@input@@", "@@output@@"]\n'
                              'needs = { tools_dir = "the folder holding fix.py" }\n'})

@@ -1,0 +1,9 @@
+format = 1
+id = "R31"
+name = "contract-repair"
+title = "write the missing vassal contract of a ruler whose title answers to a liege (a save edit's leftover)"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r31_contract_repair"
