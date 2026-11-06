@@ -4,6 +4,17 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.27] - 2026-11-06
+
+### Changed
+- The new rulers the update places follow the game's own rules more closely:
+  - A landless seat that is its holder's own office goes to the ruler of the land it stands on. On the founding campaign, the seat of Constantinople goes under the player, who rules Constantinople.
+  - The Byzantine noble families are no longer placed under the player. A noble family belongs inside a realm whose government keeps noble families, and the game itself removes a family title outside one. Left unplaced, their titles go vacant as most of them already are at a new game's start. They hold no land, so nothing on the map changes.
+  - Holy orders, mercenaries and adventurers are never placed under anyone, as the game's rules say.
+  - Where the campaign would give a new ruler a kind of liege the current game never pairs him with, he stays with his current-game liege if that liege still rules.
+- Each character the update copies in now has a liege and a vassal contract that agree. Tributaries keep their contract alone, as the game writes them.
+- `update` shows what it is doing while it works. A spinner names reading the save, each patch as it runs ("running R11 empty-modifiers (10 of 29)"), the lint and the write. Before, it printed nothing for minutes between the plan and the result. `--plain`, `-q`, `-v`, `NO_COLOR` and a pipe turn it off.
+
 ## [0.4.26] - 2026-11-05
 
 ### Changed
@@ -621,7 +632,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...HEAD
+[0.4.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...v0.4.27
 [0.4.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...v0.4.26
 [0.4.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...v0.4.25
 [0.4.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.23...v0.4.24

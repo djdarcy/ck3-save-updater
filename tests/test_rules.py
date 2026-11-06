@@ -542,6 +542,18 @@ def test_real_987_new_map_transplant():
     assert (rows["c_anket"]["liege"], rows["c_anket"]["liege_title"], rows["c_anket"]["why"]) == \
         (33590197, "d_pecheneg", "most counties on the player's land")
     assert len(rows["c_anket"]["titles"]) == 7
+    # the guards (0.4.27, measured 2026-11-06): Constantinople's seat, whose 1.20 liege title is its own holder's,
+    # falls to the land rule and so to the player; the Byzantine noble families stay unattached (no realm with
+    # noble families); Kubasar the herder goes under Dzungaria's feudal king, a pairing 1.20 writes (herder_vassal)
+    assert (rows["d_et_constantinople"]["liege"], rows["d_et_constantinople"]["why"]) == \
+        (50822, "landless: the ruler over its seat's land")
+    assert not [t for t in rows if t.startswith("d_nf_")]
+    assert sorted(t for r in res["R17"].extra["attach_skipped"] for t in r["titles"] if t.startswith("d_nf_")) == \
+        ["d_nf_doukas", "d_nf_melissenos", "d_nf_phokas", "d_nf_skleros"]
+    assert rows["c_burqin"]["liege_title"] == "k_dzungaria"
+    # R17 runs the lock-step pass (the unit test calls it directly; this is what notices R17 not calling it)
+    assert res["R17"].extra["lock_step"] == {"contract written for a title liege": 7,
+                                             "contract follows the title's liege": 8}
 
 
 # --------------------------------------------------------------------------- selection and prerequisites (S1)

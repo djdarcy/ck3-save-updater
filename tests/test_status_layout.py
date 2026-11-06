@@ -317,6 +317,37 @@ def test_an_error_inside_the_detectors_stops_the_spinner_and_leaves_the_line_cle
     assert not any(t.name == "ck3update-spinner" and t.is_alive() for t in threading.enumerate())
 
 
+def test_update_names_each_stage_of_the_run_and_each_patch_as_it_runs(tmp_path, saves, capsys, monkeypatch):
+    """djdarcy, 2026-11-06: after the plan, update ran its patches for two minutes with nothing on screen ("users
+    will think the update has broken"). Now a spinner names reading the save, each patch with its count, the lint
+    and the write, and erases itself before the output's own lines print."""
+    monkeypatch.setattr(SP, "spinner_wanted", lambda *a, **k: True)
+    tty = FakeTTY()
+    monkeypatch.setattr(SP.sys, "stderr", tty)
+    code, out, _ = run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--wos-shape",
+                       "faith", "-o", str(tmp_path / "out.ck3"))
+    assert code == 0
+    text = re.sub(r"\x1b\[[0-9;]*m", "", tty.getvalue())                      # the line without its colours
+    ran = re.findall(r"running (R\d+) [\w-]+ \((\d+) of (\d+)\)", text)
+    assert ran, text[:2000]
+    n = int(ran[0][2])
+    assert [int(i) for _, i, _ in ran] == list(range(1, n + 1)) and n > 3
+    for stage in ("reading the save", "checking the output (lint)", "writing out.ck3"):
+        assert stage in text
+    assert text.index("reading the save") < text.index("running R") < text.index("writing out.ck3")
+    assert text.endswith("\r") and text.rsplit("\r", 2)[-2].strip() == ""      # erased, nothing left on the line
+    assert "\r" not in out                                                     # stdout's lines untouched
+    assert not any(t.name == "ck3update-spinner" and t.is_alive() for t in threading.enumerate())
+
+
+def test_no_spinner_under_verbose_whose_timing_lines_show_each_patch(tmp_path, saves, capsys, monkeypatch):
+    monkeypatch.setattr(SP, "spinner_wanted", lambda *a, **k: True)
+    tty = FakeTTY()
+    monkeypatch.setattr(SP.sys, "stderr", tty)
+    assert cli.spin(cli.build_parser().parse_args(["update", str(old_save(saves))])).enabled is True
+    assert cli.spin(cli.build_parser().parse_args(["-v", "update", str(old_save(saves))])).enabled is False
+
+
 # --------------------------------------------------------------------------- progress and timing
 def test_the_progress_names_each_stage_in_order_and_the_timings_cover_each_judged_step(tmp_path, saves):
     said = []

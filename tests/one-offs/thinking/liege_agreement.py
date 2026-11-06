@@ -21,7 +21,11 @@ sys.path.insert(0, r"C:\code\ck3-save-migrator")
 from ck3_save_migrator import savefile as sf, gamestate as gs  # noqa: E402
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-g = sf.read_save(sys.argv[1]).gamestate
+try:
+    g = sf.read_save(sys.argv[1]).gamestate
+except sf.UnsupportedKindError:                       # the game's autosaves are plain text: skip the header line
+    raw = open(sys.argv[1], "rb").read()
+    g = raw[raw.index(b"\n") + 1:]
 show = int(sys.argv[3]) if len(sys.argv) > 3 else 5
 b = gs.locate(g, "landed_titles/landed_titles")
 holder, liege, key = {}, {}, {}

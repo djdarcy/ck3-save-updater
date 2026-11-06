@@ -102,10 +102,26 @@ def read_save_logged(path):
     return save
 
 
-def run_rules_timed(save, rules, ctx):
-    """run_rules, one rule at a time, with each rule's wall time on the timing channel (+1)."""
+def spin(args):
+    """A spinner for one silent stage of a run (spinner.py: stderr, a terminal only; off under --plain, -q and
+    NO_COLOR, and under -v, whose timing lines already show each step). Each stage takes its own and stops it
+    before anything else prints, so the line never lands in the middle of the output (djdarcy 2026-11-06: two
+    minutes with nothing on screen between the plan and "wrote:" reads as a broken update)."""
+    from .spinner import Spinner, spinner_wanted
+    quiet = getattr(args, "top_quiet", 0) + getattr(args, "quiet", 0)
+    verbose = getattr(args, "top_verbose", 0) + getattr(args, "verbose", 0)
+    return Spinner(spinner_wanted(sys.stderr, plain=RUN["plain"], quiet=quiet) and not verbose)
+
+
+def run_rules_timed(save, rules, ctx, progress=None, first: int = 1, total: int | None = None, note: str = ""):
+    """run_rules, one rule at a time, with each rule's wall time on the timing channel (+1). ``progress`` (a
+    spinner's update) is told each rule as it starts: "running R11 empty-modifiers (10 of 29)", numbered from
+    ``first`` of ``total`` (the whole run's count, when the run is in parts) with ``note`` after the name."""
     out = []
-    for r in rules:
+    total = total if total is not None else first - 1 + len(rules)
+    for i, r in enumerate(rules, first):
+        if progress is not None:
+            progress(f"running {r.id} {r.name}{note} ({i} of {total})")
         t = time.perf_counter()
         out += run_rules(save, [r], ctx)
         say(EXTRA, f"  {r.id:3} {r.name:22} {time.perf_counter() - t:6.1f}s", "timing", err=True)
@@ -204,7 +220,9 @@ def branch_path(path: Path, shape: str) -> Path:
 
 def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: str, lint_rep=None) -> None:
     t = time.perf_counter()
-    result = write_save(save, out, force=args.force, recompress=args.recompress, dry_run=args.dry_run)
+    with spin(args) as sp:
+        sp.update(f"{'building' if args.dry_run else 'writing'} {out.name}")
+        result = write_save(save, out, force=args.force, recompress=args.recompress, dry_run=args.dry_run)
     if not result.dry_run and hasattr(args, "written"):
         args.written.append((out, result.sha256))
     say(DIAGNOSTICS, f"{'built' if result.dry_run else 'wrote'} {out}: {result.size:,} bytes, verified, in "
@@ -602,7 +620,9 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
 
     # path guards before the save is even read: every output this run could write
     _check_paths(args, outputs(False) + (outputs(True) if may_branch else []), existence=False)
-    save = read_save_logged(args.save)
+    with spin(args) as sp:
+        sp.update("reading the save")
+        save = read_save_logged(args.save)
     for w in save.warnings:
         say(WARNING, f"WARNING: {w}", "io", err=True)
     # one output per custom-faith shape only when there is a custom faith to shape; otherwise one plain output
@@ -637,17 +657,21 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
         nonlocal known, lint_errors
         if args.no_lint:
             return None
-        if known is None:
-            ref_g = ref_gamestate[0] = read_save(reference).gamestate if reference else None
-            mods, missing = listed_workshop_mods(save.meta, ctx.game_dir) if args.lint_mods == "save" else ([], [])
-            known = load_game_data(ctx.game_dir, ref_g, mods, mods_missing=missing,
-                                   reference_name=str(reference) if reference else None,
-                                   dna_length=target_dna_length(ctx.game_dir, args, ctx.state.get("dna_setup")))
         # the fresh-game title comparison only when the transplant ran: without R14 the save lacks every title the
         # target version added, by the user's choice, and that is not an error in the output
         transplanted = any(r.id == "R14" for r in rules)
-        rep = lint_gamestate(s.gamestate, known=known, reference=ref_gamestate[0] if transplanted else None,
-                             game_dir=ctx.game_dir)
+        with spin(args) as sp:
+            if known is None:
+                sp.update("reading what the game and the mods define (lint)")
+                ref_g = ref_gamestate[0] = read_save(reference).gamestate if reference else None
+                mods, missing = (listed_workshop_mods(save.meta, ctx.game_dir) if args.lint_mods == "save"
+                                 else ([], []))
+                known = load_game_data(ctx.game_dir, ref_g, mods, mods_missing=missing,
+                                       reference_name=str(reference) if reference else None,
+                                       dna_length=target_dna_length(ctx.game_dir, args, ctx.state.get("dna_setup")))
+            sp.update("checking the output (lint)")
+            rep = lint_gamestate(s.gamestate, known=known, reference=ref_gamestate[0] if transplanted else None,
+                                 game_dir=ctx.game_dir)
         lint_errors += rep.errors
         return rep
 
@@ -677,7 +701,8 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
         return True
 
     if not branch:
-        results = run_rules_timed(save, rules, ctx)
+        with spin(args) as sp:
+            results = run_rules_timed(save, rules, ctx, sp.update)
         args.results = results
         if failed(results):
             return 5
@@ -686,16 +711,21 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
         _emit(args, save, results, out, args.report, ctx, in_sha, lint_of(save))
     else:
         # both shapes: run the shared rules once, branch at R10
-        shared = run_rules_timed(save, rules[:split], ctx)
+        total = split + len(shapes) * (len(rules) - split)
+        with spin(args) as sp:
+            shared = run_rules_timed(save, rules[:split], ctx, sp.update, total=total)
         if failed(shared):
             return 5
         runs = []
-        for shape in shapes:        # every shape runs before any is written, so a failure leaves no output at all
+        for k, shape in enumerate(shapes):  # every shape runs before any is written: a failure leaves no output
             s2 = copy.deepcopy(save)
             c2 = copy.copy(ctx)
             c2.state = copy.deepcopy(ctx.state)
             c2.wos_shape = shape
-            runs.append((shape, s2, c2, shared + run_rules_timed(s2, rules[split:], c2)))
+            with spin(args) as sp:
+                runs.append((shape, s2, c2, shared + run_rules_timed(
+                    s2, rules[split:], c2, sp.update, first=split + 1 + k * (len(rules) - split), total=total,
+                    note=f", {shape} shape")))
         args.results = runs[0][3]
         if failed([r for *_, results in runs for r in results[len(shared):]]):
             return 5

@@ -29,6 +29,7 @@ from __future__ import annotations
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from . import gamestate as gs
 from . import idschema as S
@@ -1050,14 +1051,27 @@ class Transplant:
                 m = re.search(rb'\n\t+government="?(\w+)', self.ref[ch[1].start:ch[1].end]) if ch else None
                 govt[x] = m.group(1) if m else b""
             return govt[x]
+        ref_pairs: set[tuple[bytes, bytes]] = set()               # (vassal government, liege government) 1.20 writes
         for i, e in vents.items():
             b = self.ref[e.start:e.end]
             v, lg = re.search(rb"\n\t+vassal=(\d+)", b), re.search(rb"\n\t+liege=(\d+)", b)
             if v and lg:
                 rvc[int(v.group(1))] = (i, int(lg.group(1)))
+                ref_pairs.add((government(int(v.group(1))), government(int(lg.group(1)))))
                 g = re.search(rb"\n\t+contract_group=(\w+)", b)
                 if g:
                     groups[government(int(v.group(1)))][g.group(1)] += 1
+        iso = self.isolated_governments(getattr(self, "game_dir", None))
+        nfg = self.noble_family_governments(getattr(self, "game_dir", None))
+
+        def save_gov(c):
+            e = chars.get(c)
+            m = re.search(rb'\n\t+government="?(\w+)', self.save[e.start:e.end]) if e is not None else None
+            return m.group(1) if m else b""
+
+        def still_rules(c):                                  # a copied ruler's titles kept in the output
+            return holds.get(c, [])
+
         for x, rs in sorted(holds.items()):
             top = max(rank(keys[r]) for r in rs)
             if top <= TIER_RANK["b"]:
@@ -1081,7 +1095,9 @@ class Transplant:
                 df = next((ref[r][2] for r in tops if ref[r][2] is not None), None)
                 if df is None:
                     continue                              # 1.20 makes it independent (a holy order): it stays so
-                lt = tm.join.get(df)
+                # his own office (1.20's Patriarch holds k_orthodox and d_et_constantinople): no outside liege, so
+                # the land his seat stands on decides (djdarcy 2026-11-05: Constantinople "would be me")
+                lt = None if ref.get(df, (None,) * 3)[1] == x else tm.join.get(df)
                 why = "landless: 1.20's liege, at its campaign holder"
                 if lt is None or ruler_over(lt, top) != lt:         # nobody holds it, or its holder is not above
                     seat = next((rcap[r] for r in tops if r in rcap), None)
@@ -1107,6 +1123,38 @@ class Transplant:
                 why = "1.20 liege is a campaign title"
             liege = sv.get(lt, (None,) * 3)[1] if lt is not None else None
             lp = primary(liege) if liege is not None else None
+            lgov = save_gov(liege) if liege is not None else b""
+            if not counties and government(x) in nfg and lgov not in nfg:
+                # a noble family's title (d_nf_) is a house's standing inside an administrative empire, with no land:
+                # 1.20 keeps its 4 held ones under the Byzantine emperor. The game itself destroys a family title
+                # whose holder's top liege keeps no noble families (admin_change_government_effect), and makes new
+                # ones on demand when a realm that does appoints (create_noble_family_effect). Under a feudal liege
+                # ours stuck to their dead heads (play10, Bardas Phokas 990.3.23). djdarcy 2026-11-05: leave them
+                # unattached; no land or tax is lost
+                row.update(liege=None, why="a noble family needs a realm with noble families above it; none here")
+                self.report.attach_skipped.append(row)
+                continue
+            if government(x) in iso or lgov in iso:                # the game's hard rule (common/governments)
+                row.update(liege=None, why="a holy order, mercenary or adventurer is never a vassal or a liege")
+                self.report.attach_skipped.append(row)
+                continue
+            # a pairing 1.20 never writes (herders under a tribal king): where his 1.20 liege still rules in the
+            # output, he stays that liege's vassal, as 1.20 has him (djdarcy 2026-11-05 on Kara Khoja's herders)
+            vc0 = rvc.get(x)
+            if not why.endswith("player's land") and vc0 is not None and (government(x), lgov) not in ref_pairs:
+                kept = [r for r in still_rules(vc0[1])]
+                if kept and vc0[0] in self.carry["vassal_contract"]:
+                    best = max(kept, key=lambda r: rank(keys[r]))
+                    if rank(keys[best]) > top:
+                        row.update(liege=self.tr.spaces["character"].translate(vc0[1]), liege_title=keys[best],
+                                   why=f"stays with his 1.20 liege: 1.20 never puts {government(x).decode()} under "
+                                       f"{lgov.decode()}")
+                        out["rulers"][x] = row
+                        for r in rs:
+                            if rank(keys[r]) == top:
+                                out["titles"][r] = tm.translate(best)
+                        self.report.attached.append(row)
+                        continue
             if liege is None or lp is None or held_rank(liege) <= top:
                 row.update(liege=None, why=f"{why}, but no campaign ruler above him there (stays as 1.20 has him)")
                 self.report.attach_skipped.append(row)
@@ -1126,6 +1174,44 @@ class Transplant:
                 out["create"][x] = (liege, g.most_common(1)[0][0] if g else None)
             self.report.attached.append(row)
         return out
+
+    @staticmethod
+    def governments_with(game_dir, pattern: bytes) -> set[bytes] | None:
+        """Governments whose definition in the game's common/governments matches ``pattern``; None when the
+        folder is not there to read."""
+        base = Path(game_dir) / "common" / "governments" if game_dir else None
+        if base is None or not base.is_dir():
+            return None
+        out: set[bytes] = set()
+        for f in sorted(base.glob("*.txt")):
+            t = re.sub(rb"#[^\n]*", b"", f.read_bytes().removeprefix(b"\xef\xbb\xbf"))
+            for m in re.finditer(rb"(?m)^(\w+_government)\s*=\s*\{", t):
+                try:
+                    body = t[m.end() - 1:gs.match_brace(t, m.end() - 1)]
+                except gs.GamestateError:
+                    continue
+                if re.search(pattern, body):
+                    out.add(m.group(1))
+        return out
+
+    @staticmethod
+    def isolated_governments(game_dir) -> set[bytes]:
+        """Governments that can never be a vassal or a liege (``cannot_be_vassal_or_liege`` in the game's
+        common/governments: holy orders, mercenaries, landless adventurers in 1.20.1.2)."""
+        return Transplant.governments_with(game_dir, rb"cannot_be_vassal_or_liege") or set()
+
+    # 1.20.1.2's governments with ``noble_families = yes``, for when the game folder is not given
+    NOBLE_FAMILY_GOVERNMENTS = frozenset({b"administrative_government", b"celestial_government",
+                                          b"steppe_admin_government", b"meritocratic_government",
+                                          b"japan_administrative_government", b"japan_feudal_government"})
+
+    @staticmethod
+    def noble_family_governments(game_dir) -> frozenset[bytes]:
+        """Governments that keep noble families (``noble_families = yes``). The game destroys a family title
+        whose holder's top liege has none of these, "to make sure it doesn't linger"
+        (``admin_change_government_effect``, common/scripted_effects/07_dlc_ep3_scripted_effects.txt)."""
+        found = Transplant.governments_with(game_dir, rb"\bnoble_families\s*=\s*yes")
+        return frozenset(found) if found is not None else Transplant.NOBLE_FAMILY_GOVERNMENTS
 
     def kept_scope_remap(self) -> dict[int, tuple[int, str]]:
         """Old save id of each held title R15 removed -> (output id of its successor, old key): the successor its
