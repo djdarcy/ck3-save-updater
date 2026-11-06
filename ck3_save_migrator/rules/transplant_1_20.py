@@ -281,7 +281,8 @@ def _contract_groups(game_dir) -> dict[bytes, bytes]:
     return out
 
 
-def _lock_step(save: CK3Save, ctx) -> dict:
+def _lock_step(save: CK3Save, ctx, characters: set[int] | None = None, only: set[str] | None = None,
+               tag: str = "R17") -> dict:
     """Every character the transplant copied in has a title liege and a vassal contract that agree (djdarcy
     2026-11-05: "We do want to get to 100%"; a disagreement is the play5 crash class). For each copied ruler, his
     primary title's de facto liege is the title side, his contract the other:
@@ -289,11 +290,16 @@ def _lock_step(save: CK3Save, ctx) -> dict:
     - a contract only: the title follows the contract's liege where that liege rules, else the contract goes;
     - a title liege only: a contract is written, in a free slot, with his government's contract group.
     A tributary contract (``tributary_*``) is a contract without a title liege by design, and is left alone, as are
-    the campaign's own characters (R31 is theirs)."""
+    the campaign's own characters (R31 is theirs).
+
+    ``characters`` (default: the copied ones) and ``only`` (default: every case; the cases are "disagree",
+    "contract only", "title only") let R31 run the title-only case for the campaign's rulers; ``tag`` names the
+    rule on the edits. A character filed among the living with ``dead_data`` (the game moves him to the dead on
+    load), or whose first domain entry another character holds (a stale list), is never touched."""
     from .. import gamestate as gs
     from .. import translate as T
     from ..transplant import _edit_landed_list
-    copied = {int(c) for c in ctx.state.get("transplanted_characters", ())}
+    copied = characters if characters is not None else {int(c) for c in ctx.state.get("transplanted_characters", ())}
     g = save.gamestate
     titles = {}
     for i, e in T.entries(g, TITLES):
@@ -344,16 +350,27 @@ def _lock_step(save: CK3Save, ctx) -> dict:
     ops: dict[int, dict] = defaultdict(lambda: {"add": [], "drop": set()})
     stitles = dict(T.entries(g, TITLES))
     created = []
+    def dead(c):
+        e = chars.get(c)
+        return e is not None and b"dead_data={" in g[e.start:e.end]
+
     for c in sorted(copied):
         dom = domain(c)
-        if not dom:
+        if not dom or dead(c):
             continue
         p = dom[0]
         holder, tl, key = titles.get(p, (None, None, b""))
+        if holder != c:
+            continue                                  # a stale domain list: the title is someone else's
         th = titles.get(tl, (None, None, b""))[0] if tl is not None else None
         th = None if th == c else th
         ct = contracts.get(c)
         if ct is not None and ct[2].startswith(b"tributary"):
+            continue
+        case = ("disagree" if th is not None and ct is not None and th != ct[1] else
+                "contract only" if th is None and ct is not None else
+                "title only" if th is not None and ct is None else None)
+        if only is not None and case not in only:
             continue
         if th is not None and ct is not None:
             if th == ct[1]:
@@ -362,7 +379,7 @@ def _lock_step(save: CK3Save, ctx) -> dict:
                     rows["contract added to its liege's list"] += 1
                 continue
             m = re.search(rb"(\n\t+liege=)(\d+)", g[ct[3].open:ct[3].close])
-            ep.add(gs.Edit(ct[3].open + m.start(2), ct[3].open + m.end(2), str(th).encode(), "R17", "lock-step"))
+            ep.add(gs.Edit(ct[3].open + m.start(2), ct[3].open + m.end(2), str(th).encode(), tag, "lock-step"))
             ops[ct[1]]["drop"].add(ct[0])
             ops[th]["add"].append(ct[0])
             rows["contract follows the title's liege"] += 1
@@ -372,16 +389,16 @@ def _lock_step(save: CK3Save, ctx) -> dict:
             if ldom and not key.startswith(b"b_") and e is not None:
                 m = re.search(rb"(\n\tde_facto_liege=)(\d+)", g[e.open:e.close])
                 if m:
-                    ep.add(gs.Edit(e.open + m.start(2), e.open + m.end(2), str(ldom[0]).encode(), "R17", "lock-step"))
+                    ep.add(gs.Edit(e.open + m.start(2), e.open + m.end(2), str(ldom[0]).encode(), tag, "lock-step"))
                 else:
                     at = g.rfind(b"\n", 0, e.close) + 1
-                    ep.add(gs.Edit(at, at, f"\tde_facto_liege={ldom[0]}\n".encode(), "R17", "lock-step"))
+                    ep.add(gs.Edit(at, at, f"\tde_facto_liege={ldom[0]}\n".encode(), tag, "lock-step"))
                 if ct[0] not in listed(ct[1]):
                     ops[ct[1]]["add"].append(ct[0])
                 rows["title follows the contract's liege"] += 1
             else:
                 a, b = gs.removal_span(g, ct[3].start, ct[3].end)
-                ep.add(gs.Edit(a, b, b"", "R17", "lock-step"))
+                ep.add(gs.Edit(a, b, b"", tag, "lock-step"))
                 ops[ct[1]]["drop"].add(ct[0])
                 rows["contract removed: its liege rules nothing"] += 1
         elif th is not None:
@@ -394,7 +411,7 @@ def _lock_step(save: CK3Save, ctx) -> dict:
     if created:
         sec = gs.locate(g, path)
         at = g.rfind(b"\n", 0, sec.close) + 1
-        ep.add(gs.Edit(at, at, "".join(created).encode(), "R17", "lock-step contracts"))
+        ep.add(gs.Edit(at, at, "".join(created).encode(), tag, "lock-step contracts"))
     for c, op in ops.items():
         e = chars.get(c)
         if e is None:
@@ -402,7 +419,7 @@ def _lock_step(save: CK3Save, ctx) -> dict:
         text = g[e.start:e.end]
         new = _edit_landed_list(text, b"vassal_contracts", add=op["add"], drop=op["drop"])
         if new != text:
-            ep.add(gs.Edit(e.start, e.end, new, "R17", "lock-step lists"))
+            ep.add(gs.Edit(e.start, e.end, new, tag, "lock-step lists"))
     ep.apply_to(save)
     return dict(rows)
 

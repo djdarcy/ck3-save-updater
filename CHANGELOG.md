@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.28] - 2026-11-06
+
+### Added
+- A new default rule, R31, repairs a vassal with no vassal contract. Such a ruler's title answers to a liege, but he pays no taxes and raises no levies, and the current game never makes one; a save edit can leave one behind. R31 writes the missing contract with his liege, in the form his government uses. `status` names each ruler it will repair. To keep them as they are (an edit you made on purpose), give `--rules all,-R31`, or run `ck3update disable R31` once. On the founding campaign it repairs two barons.
+
+### Changed
+- `update` and `status` refuse a pack you named with `--pack` when one of its patches cannot run for a missing variable. The refusal names the variable and how to give it, and nothing is written. Before, the patch was skipped with one line in the plan and the save was written without it. A pack in your packs folder is still skipped as before.
+- A pack named with `--pack` that does not apply to the save (its version span) no longer passes silently: the plan's notes say so, and the run goes on without it.
+
 ## [0.4.27] - 2026-11-06
 
 ### Changed
@@ -632,7 +641,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...HEAD
+[0.4.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...v0.4.28
 [0.4.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...v0.4.27
 [0.4.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...v0.4.26
 [0.4.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.24...v0.4.25

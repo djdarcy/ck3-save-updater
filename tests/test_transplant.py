@@ -691,6 +691,57 @@ def test_the_lock_step_pass_brings_every_copied_ruler_into_line_and_leaves_tribu
     assert b"0" not in re.search(rb"vassal_contracts=\{([^}]*)\}", living[3]).group(1).split()
 
 
+def _r31_save():
+    """2 holds c_x under 1's k_a with no contract: R31's case. 3 holds c_y under k_a with a contract: fine. 4 is
+    filed among the living with dead_data (the game moves him to the dead): left. 5's first domain entry is c_y,
+    which 3 holds (a stale list): left. 6 holds c_w with a tributary contract to 1 and no title liege: left."""
+    ld = "\tlanded_data={{\n\t\tdomain={{ {} }}\n\t\tvassal_contracts={{ {} }}\n\t}}\n"
+    body = gamestate(
+        living=char(1, ld.format("0", "0")) + char(2, ld.format("1", "")) + char(3, ld.format("2", ""))
+        + char(4, ld.format("3", "") + "\tdead_data={\n\t\tdate=980.1.1\n\t}\n") + char(5, ld.format("2", ""))
+        + char(6, ld.format("4", "")),
+        titles=title(0, "k_a", "\tholder=1\n") + title(1, "c_x", "\tholder=2\n\tde_facto_liege=0\n")
+        + title(2, "c_y", "\tholder=3\n\tde_facto_liege=0\n") + title(3, "c_z", "\tholder=4\n\tde_facto_liege=0\n")
+        + title(4, "c_w", "\tholder=6\n"),
+        extra="vassal_contracts={\n\tactive={\n\t\t0={\n\t\t\tvassal=3\n\t\t\tliege=1\n\t\t}\n\t\t1={\n\t\t\tvassal=6\n"
+              "\t\t\tliege=1\n\t\t\tcontract_group=tributary_celestial\n\t\t}\n\t}\n}\ndate=987.10.27\n",
+    )
+    return sf.parse_save(build_ck3(meta=DEFAULT_META, body=body))
+
+
+def test_r31_writes_the_missing_contract_of_a_vassal_by_title_and_leaves_the_rest():
+    """R31 (djdarcy 2026-11-05: "the default is repair but we need an override"): a ruler whose title answers to a
+    liege but who has no contract gets one, in a free slot, listed by his liege. The founding save's barons of
+    Matera and Ainsa are this case; its Uilleam of Frisia (dead_data, a stale domain) is not."""
+    from ck3_save_migrator.rules.to_1_20 import r31_contract_repair, r31_found
+    save = _r31_save()
+    assert r31_found(save.gamestate) == [(2, "c_x", "k_a", 1)]
+    res = r31_contract_repair(save, R.RuleContext(), R.select("R31")[0])
+    assert (res.matched, res.edited) == (1, 1)
+    g = save.gamestate
+    cid, liege = _contract_to(g, 2)
+    cid = int(cid)
+    assert liege == 1 and cid not in (0, 1)                                 # a free slot, not 0 or 1
+    assert cid in {int(x) for x in re.search(rb"vassal_contracts=\{([^}]*)\}", bodies(g, "living")[1]).group(1).split()}
+    for c in (4, 5, 6):
+        assert _contract_to(g, c) is None or c == 6
+    assert _contract_to(g, 6)[1] == 1 and b"de_facto_liege" not in titles_by_key(g)["c_w"][1]   # the tributary
+    assert r31_found(g) == []                                               # nothing left to repair
+
+
+def test_r31s_plan_line_names_each_ruler_and_how_to_keep_them():
+    """status names who R31 would repair and the override, since it repairs by default (djdarcy 2026-11-05)."""
+    from ck3_save_migrator import detect as D
+    d = D.DETECTORS["R31"](_r31_save().gamestate, None)
+    assert d.line().startswith("needed: 1 ruler whose title answers to a liege but who has no vassal contract")
+    assert "2 (c_x) under k_a of 1" in d.notes[0] and "--rules all,-R31" in d.notes[0]
+
+
+def test_r31_is_a_default_rule_and_can_be_left_out():
+    assert "R31" in [r.id for r in R.select("all")]
+    assert "R31" not in [r.id for r in R.select("all,-R31")]
+
+
 def test_a_written_contract_takes_a_slot_no_other_contract_uses(tmp_path):
     """A contract id is a slot index plus a generation in the top byte. "Largest id + 1" gave a new contract the
     slot of a campaign contract of another generation, and the game crashed (ck3+0x2ab8862, s15 and s17,

@@ -375,9 +375,9 @@ def test_a_pack_after_r17_runs_between_r17_and_r7(tmp_path, saves, capsys):
     assert code == 0, err
     ran = cli.LAST_PLAN["ran"]
     # R19 finishes what R17 wrote: the pack follows; R25 and R26 (key renames, no writer) and the bump come after
-    assert ran[-10:] == ["R17", "R19", "A1", "R25", "R26", "R27", "R28", "R29", "R30", "R7"]
+    assert ran[-11:] == ["R17", "R19", "A1", "R25", "R26", "R27", "R28", "R29", "R30", "R31", "R7"]
     assert run(capsys, "update", str(old_save(saves, "C2.ck3")), "--game-dir", str(g), "--no-lint")[0] == 0
-    assert cli.LAST_PLAN["ran"][-8:] == ["A1", "R25", "R26", "R27", "R28", "R29", "R30", "R7"]         # R17 skipped: still before R7
+    assert cli.LAST_PLAN["ran"][-9:] == ["A1", "R25", "R26", "R27", "R28", "R29", "R30", "R31", "R7"]         # R17 skipped: still before R7
 
 
 def test_without_after_a_pack_runs_after_the_built_in_rules(tmp_path, saves, capsys):

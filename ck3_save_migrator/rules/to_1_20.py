@@ -1431,6 +1431,90 @@ def r30_asset_renames(save: CK3Save, ctx, rule) -> object:
     return rule.result(matched=len(found), edited=len(found), extra={"renamed": dict(renamed), "left": dict(left)})
 
 
+# --------------------------------------------------------------------------- R31
+_R31_DOMAIN = re.compile(rb"\n\t\tdomain=\{([^}]*)\}")
+
+
+def r31_found(d: bytes) -> list[tuple[int, str, str, int]]:
+    """Read only: each living ruler whose primary title answers to a liege title held by someone else, and who has
+    no vassal contract at all: (ruler, his primary title's key, the liege title's key, that title's holder).
+
+    Left out: a character filed among the living with ``dead_data`` (the game moves him to the dead on load) and
+    one whose first domain entry another character holds (a stale list; the founding save's Uilleam of Frisia,
+    45243, is both)."""
+    titles = {}
+    try:
+        lt = gs.locate(d, "landed_titles/landed_titles")
+    except gs.GamestateError:
+        return []
+    for e in gs.iter_entries(d, *lt.body):
+        if not (e.key and e.key.isdigit()):
+            continue
+        b = d[e.open:min(e.close, e.open + 4096)]
+        k = re.search(rb'\n\tkey="?([\w-]+)', b)
+        h, l = re.search(rb"\n\tholder=(\d+)", b), re.search(rb"\n\tde_facto_liege=(\d+)", b)
+        titles[int(e.key)] = (k.group(1).decode() if k else "?", int(h.group(1)) if h else None,
+                              int(l.group(1)) if l else None)
+    vassals = set()
+    for path in ("vassal_contracts/active", "vassal_contracts/database"):
+        try:
+            cb = gs.locate(d, path)
+        except gs.GamestateError:
+            continue
+        for e in gs.iter_entries(d, *cb.body):
+            v = re.search(rb"\n\t+vassal=(\d+)", d[e.open:e.close])
+            if v:
+                vassals.add(int(v.group(1)))
+    out = []
+    try:
+        liv = gs.locate(d, "living")
+    except gs.GamestateError:
+        return []
+    for e in gs.iter_entries(d, *liv.body):
+        if not (e.key and e.key.isdigit()) or int(e.key) in vassals:
+            continue
+        body = d[e.open:e.close]
+        dm = _R31_DOMAIN.search(body)
+        if not dm or b"dead_data={" in body:
+            continue
+        ids = dm.group(1).split()
+        if not ids:
+            continue
+        c, p = int(e.key), int(ids[0])
+        key, holder, tl = titles.get(p, ("?", None, None))
+        if holder != c or tl is None or tl not in titles:
+            continue
+        th = titles[tl][1]
+        if th is not None and th != c:
+            out.append((c, key, titles[tl][0], th))
+    return out
+
+
+def r31_detect(d: bytes) -> tuple[int, list[str]]:
+    found = r31_found(d)
+    return len(found), [f"{c} ({k}) under {lk} of {th}" for c, k, lk, th in found[:5]]
+
+
+def r31_contract_repair(save: CK3Save, ctx, rule) -> object:
+    """Write the missing vassal contract of every ruler whose title answers to a liege but who has no contract.
+
+    Such a vassal pays no taxes and raises no levies, and 1.20 never writes one (0 of 4,179 rulers in a fresh 1.20
+    game; the game's own re-save does not repair them). The founding save has two, its barons of Matera and Ainsa,
+    most likely from manual save editing. djdarcy, 2026-11-05: "the default is repair but we need an override" --
+    a player may have edited a save on purpose to free a vassal from his dues, so ``status`` names each one and
+    ``--rules all,-R31`` (or ``ck3update disable R31``) keeps them as they are. The contract is written the way R17's
+    lock-step pass writes one: in a free slot, with the contract group the ruler's government uses, and listed by
+    the liege. Tributaries are not touched: a tributary has a contract and no title liege, the other way round."""
+    from .transplant_1_20 import _lock_step
+    found = r31_found(save.gamestate)
+    if not found:
+        return rule.result()
+    rows = _lock_step(save, ctx, characters={c for c, *_ in found}, only={"title only"}, tag="R31")
+    n = rows.get("contract written for a title liege", 0)
+    return rule.result(matched=len(found), edited=n, extra={
+        "repaired": [{"ruler": c, "title": k, "liege_title": lk, "liege": th} for c, k, lk, th in found]})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -1464,4 +1548,7 @@ RULES = [
     Rule("R30", "asset-renames", UNKNOWN_SINCE,
          "point artifact pictures, armour models and coat-of-arms emblems at the names the current game ships",
          r30_asset_renames),
+    Rule("R31", "contract-repair", "1.8.1<v<=1.20.1.2",
+         "write the missing vassal contract of a ruler whose title answers to a liege (a save edit's leftover)",
+         r31_contract_repair),
 ]
