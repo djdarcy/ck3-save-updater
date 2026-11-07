@@ -83,6 +83,14 @@ class SectionIndex:
 
     def __init__(self, g: bytes):
         self.g, self.top, self._cache = g, {}, {}
+        # the gamestate's top-level index, walked once and kept through edit passes (gs._top_index): the first block
+        # of each key, as this class's own walk takes it. Measured 2026-11-07: this class walked the save again 5
+        # times in a plan, 30 s on the founding save. A section that does not close makes gs._top_index None; the
+        # walk below then indexes what comes before it, as it always did.
+        idx = gs._top_index(g)
+        if idx is not None:
+            self.top = {k.decode(): bs[0] for k, bs in idx.items()}
+            return
         pos = 0
         while (m := gs._TOP_KEY.search(g, pos)) is not None:
             op = m.end() - 1

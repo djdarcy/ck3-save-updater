@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.31] - 2026-11-07
+
+### Changed
+- `update` is faster on large saves, with the same output byte for byte. The update edits a save many times, and after each edit it used to find every top-level section again, about 6 seconds each on a large save. It now moves the positions it already knows by the size of each edit, and the lint uses them too. Measured on three saves of one campaign: 17-31% faster, 767 s -> 530 s on the largest.
+- `CK3UPDATE_CHECK_INDEX=1` checks every such shortcut against the slow way and stops with an error on any difference. It is for testing, and slower.
+
 ## [0.4.30] - 2026-11-06
 
 ### Added
@@ -659,7 +665,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.30...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.31...HEAD
+[0.4.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.30...v0.4.31
 [0.4.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...v0.4.30
 [0.4.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...v0.4.29
 [0.4.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...v0.4.28

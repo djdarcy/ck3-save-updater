@@ -73,7 +73,14 @@ def _function(patch: Patch):
 
 def _declarative(patch: Patch):
     def apply(save, ctx, rule):
-        pl = engine.apply_patch(save, patch, context_values(ctx))
+        values = context_values(ctx)
+        # a check that planned this patch just before, on these very bytes (the same object, never the same
+        # content) and with the same values, leaves its plan in ctx.state["findings"]; anything else plans again
+        hit = ((getattr(ctx, "state", None) or {}).get("findings") or {}).get(rule.id)
+        if hit is not None and hit[0] is save.gamestate and hit[1] == values:
+            pl = engine.apply_plan(save, hit[2])
+        else:
+            pl = engine.apply_patch(save, patch, values)
         extra = {"edits": pl.stats}
         if pl.failure:
             extra["failed"] = pl.failure

@@ -162,6 +162,70 @@ def _top_index(data: bytes) -> dict[bytes, list[Block]] | None:
     return idx
 
 
+def _well_nested(text: bytes) -> bool:
+    """Braces outside quoted strings close only what the text itself opened, and all are closed: removing or
+    inserting such a text inside a block cannot move where that block (or any block around it) closes."""
+    depth = 0
+    for m in _BRACE_OR_STRING.finditer(text):
+        tok = m.group()
+        if tok == b"{":
+            depth += 1
+        elif tok == b"}":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
+
+
+def _shifted_top_index(idx: dict[bytes, list[Block]], edits: list["Edit"], old: bytes
+                       ) -> dict[bytes, list[Block]] | None:
+    """``idx`` (the top-level index of ``old``) carried through ``edits`` (in file order), or None when it cannot
+    be: an edit outside a section's interior, or removed or inserted text that is not well nested. Each section's
+    offsets move by the length changes of the edits that end at or before them (an insert just before a section's
+    closing brace moves that brace). Measured 2026-11-07 (poc_top_index_shift.py): 23 of the v12 recipe's 26 edit
+    passes, equal to a rebuild on all 23; under 0.2 s each against ~6 s for a rebuild."""
+    import bisect
+    blocks = sorted((b for bs in idx.values() for b in bs), key=lambda b: b.start)
+    opens = [b.open for b in blocks]
+    for e in edits:
+        i = bisect.bisect_left(opens, e.start) - 1           # the last section that opens before the edit
+        if i < 0 or not (blocks[i].open < e.start and e.end <= blocks[i].close):
+            return None
+        if not (_well_nested(old[e.start:e.end]) and _well_nested(e.replacement)):
+            return None
+    ends = [e.end for e in edits]
+    delta = [0]
+    for e in edits:
+        delta.append(delta[-1] + len(e.replacement) - (e.end - e.start))
+
+    def moved(p: int) -> int:
+        return p + delta[bisect.bisect_right(ends, p)]      # every edit that ends at or before p
+    return {k: [Block(b.key, moved(b.start), moved(b.open), moved(b.close)) for b in bs] for k, bs in idx.items()}
+
+
+def _carry_top_index(old: bytes, new: bytes, edits: list["Edit"]) -> None:
+    """After an edit pass: when ``old``'s top-level index is cached, cache ``new``'s by shifting it, instead of
+    walking the new gamestate again (each walk ~6 s on a 220 MB save, ~30 per update; U16, 2026-10-25, and the
+    count of 2026-11-07). Nothing is built here: an index not yet cached stays lazy. CK3UPDATE_CHECK_INDEX=1
+    re-walks after every shift and raises on any difference."""
+    if new is old:                                           # an empty pass can return the same object
+        return
+    idx = next((i for d, i in _TOP_INDEX if d is old), None)
+    if idx is None:
+        return
+    shifted = _shifted_top_index(idx, edits, old)
+    if shifted is None:
+        return
+    import os
+    if os.environ.get("CK3UPDATE_CHECK_INDEX") == "1":
+        walked = _top_index(new)                             # new is not cached yet: this is a real walk
+        if walked != shifted:
+            raise GamestateError("the shifted top-level index differs from a fresh walk")
+        return
+    _TOP_INDEX.insert(0, (new, shifted))
+    del _TOP_INDEX[4:]
+
+
 def find_sections(data: bytes, key: str | bytes) -> Iterator[Block]:
     """Every top-level ``key={`` block, in file order (top-level keys may repeat)."""
     k = key.encode() if isinstance(key, str) else key
@@ -483,5 +547,7 @@ class EditPass:
         """
         from .savefile import Edit as SaveEdit
         ordered = self.ordered()
-        save.set_gamestate(self.apply(save.gamestate))
+        old = save.gamestate
+        save.set_gamestate(self.apply(old))
+        _carry_top_index(old, save.gamestate, ordered)
         save.edits.extend(SaveEdit(e.start, e.end, len(e.replacement)) for e in ordered)
