@@ -81,6 +81,12 @@ def index_cache_on(path: Path | None = None) -> bool:
     return bool(read_config(path).get("cache", {}).get("index", True))
 
 
+def plan_cache_on(path: Path | None = None) -> bool:
+    """``[cache] plans``: keep each plan's check verdicts (a few KB) so an `update` after a `status` on the same
+    unchanged save reuses the "needed" ones (0.4.30). On by default; ``[cache] plans = false`` turns it off."""
+    return bool(read_config(path).get("cache", {}).get("plans", True))
+
+
 # how status and update lay out their blocks ([display], docs/config.md): the spaces after a header, whether a blank
 # line separates the blocks ("blank") or not ("compact"), and how the blocks' value columns line up (plan.value_columns)
 DISPLAY = {"gap": 2, "spacing": "compact", "align": "flow"}       # djdarcy's pick, 2026-11-01

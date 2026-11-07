@@ -444,6 +444,37 @@ def cmd_status(args) -> int:
     return 1 if plan.refusals else 0
 
 
+def _tty(stream) -> bool:
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, ValueError):
+        return False
+
+
+def interactive() -> bool:
+    """``update`` asks by default only here: a person at a terminal reading the plan (stdin and stdout both a
+    terminal). A script, a pipe or output sent to a file runs without asking (djdarcy 2026-11-06: --ask by default,
+    --no-ask for power users, git-style)."""
+    return _tty(sys.stdin) and _tty(sys.stdout)
+
+
+def confirm_run() -> bool:
+    """``update --ask``: the plan is on screen; run it only on a yes (djdarcy 2026-11-06: both steps in one command,
+    with "the chance to read"). The question goes to stderr, so it shows even when the plan goes to a file. Without
+    a terminal to answer from, nothing is run."""
+    if not _tty(sys.stdin):
+        say(WARNING, "--ask needs a terminal to answer from; not run", "rules", err=True)
+        return False
+    sys.stdout.flush()
+    sys.stderr.write("Run the update now? [y/N] ")
+    sys.stderr.flush()
+    try:
+        answer = sys.stdin.readline()
+    except (EOFError, OSError):
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
 def cmd_update(args) -> int:
     """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
     patch's counts (nothing is written); otherwise write the output and, unless --report names another,
@@ -460,6 +491,10 @@ def cmd_update(args) -> int:
         return 0
     if not plan.has_changes():
         say(MINIMAL, "no patch will run: nothing written", "rules")
+        return 0
+    ask = getattr(args, "ask", None)
+    if (interactive() if ask is None else ask) and not args.dry_run and not confirm_run():
+        say(MINIMAL, "not run: nothing written", "rules")
         return 0
     save_path = Path(args.save)
     bak = save_path.with_name(save_path.stem + ".bak.ck3")
@@ -1161,7 +1196,10 @@ def cmd_cache(args) -> int:
     folder = cache_dir()
     if args.action == "clear":
         files, size = clear_cache()
-        say(MINIMAL, f"removed {files} cached index(es), {size / 1e6:,.1f} MB, from {folder}", "io")
+        from . import plancache
+        pfiles, psize = plancache.clear()
+        say(MINIMAL, f"removed {files} cached index(es), {size / 1e6:,.1f} MB, and {pfiles} saved plan verdict file(s), "
+                     f"{psize / 1e3:,.1f} KB, from {folder}", "io")
         return 0
     entries = sorted(folder.glob("*.idx")) if folder.is_dir() else []
     say(MINIMAL, f"{folder}: {len(entries)} cached index(es), {sum(p.stat().st_size for p in entries) / 1e6:,.1f} MB; "
@@ -1431,6 +1469,10 @@ def build_parser() -> argparse.ArgumentParser:
             return
         p.add_argument("--in-place", action="store_true",
                        help="the updated save takes the save's own name; the original is kept as <name>.bak.ck3")
+        p.add_argument("--ask", action=argparse.BooleanOptionalAction, default=None,
+                       help="print the plan, then ask before running it ('Run the update now? [y/N]'). The default "
+                            "in a terminal; a script, a pipe or output sent to a file runs without asking. --no-ask "
+                            "never asks")
         p.add_argument("--dry-run", action="store_true",
                        help="run every selected patch in memory and print the plan with their counts; write nothing")
         p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
@@ -1553,7 +1595,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("cache", help="the block-index cache ([cache] index = true in the config): where it is, or "
                                      "clear it")
     p.add_argument("action", choices=("where", "clear"),
-                   help="where: the folder and what it holds; clear: remove every cached index")
+                   help="where: the folder and what it holds; clear: remove every cached index and saved plan "
+                        "verdict")
     p.set_defaults(func=cmd_cache)
 
     p = sub.add_parser("trust", help="let one of your packs that runs code run on every update, as its files are "

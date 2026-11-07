@@ -1089,14 +1089,42 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             rid for rid in recheck_ids if rid not in applied and rid not in REPORT_ONLY + SAME_LINE_ONLY
             and not (rid in TRANSPLANT + ("R17",) and not transplant_named)]
         names = {s.id: s.name for s in steps}
+        # the verdicts a `status` (or earlier `update`) left for exactly this save, code, game and inputs: a "needed"
+        # one is reused, anything else is checked again (plancache.py; design 2026-11-06 21:10)
+        from . import plancache as PC
+        from .config import plan_cache_on
+        pkey = PC.plan_key(g, {
+            "game_dir": str(game.path) if game else None, "game_version": game.version if game else None,
+            "reference": ref.path, "old_game_dir": old_game_dir, "rules_spec": rules_spec, "packs": packs,
+            "user_packs": [str(up.folder) for up in found], "allow_run": allow_run, "variables": variables,
+            "transplant": transplant, "no_dna": no_dna, "portrait_mods": portrait_mods,
+            "old_portrait_mods": old_portrait_mods, "face_changes": face_changes, "force": force,
+            "use_record": use_record}) if plan_cache_on() else None
+        cached = ((PC.load(pkey) or {}).get("verdicts") or {}) if pkey else {}
+        made: dict = {}
+        reused: list = []
 
         def run_detector_timed(rid: str):
+            prior = cached.get(rid)
+            if prior and prior.get("state") == "needed":
+                d = Detection(**prior)
+                reused.append(rid)
+                made[rid] = d
+                timings[rid] = 0.0
+                if d.left:
+                    many = sum(int(m.group(1).replace(",", "")) for x in d.left
+                               if (m := re.match(r"([\d,]+) ", x))) != 1
+                    notes.append(f"{rid}: {'; '.join(d.left)}; " + ("they stay as they are" if many else
+                                                                    "it stays as it is"))
+                notes.extend(f"{rid}: {n}" for n in d.notes)
+                return d
             stage(f"checking {rid} {names.get(rid, '')} ({judge_ids.index(rid) + 1} of {len(judge_ids)})")
             t = time.perf_counter()
             try:
                 d = run_detector(rid, g, env)
             finally:
                 timings[rid] = time.perf_counter() - t
+            made[rid] = d
             if d.left:                                 # what its rule cannot fix: said once, in the notes
                 many = sum(int(m.group(1).replace(",", "")) for x in d.left
                            if (m := re.match(r"([\d,]+) ", x))) != 1
@@ -1140,6 +1168,12 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 if x.will_run and need:
                     x.will_run, x.reason, changed = False, skipped_needs(need), True
         detected = "re-checked the save on the game's version line" if recheck_ids else "judged each built-in step"
+        if reused:
+            when = time.strftime("%H:%M", time.localtime((PC.load(pkey) or {}).get("made", time.time())))
+            detected += (f"; reused {len(reused)} verdict(s) of the run at {when} on this same save (only those "
+                         f"that said needed; {len(made) - len(reused)} checked again)")
+        if pkey and made:
+            PC.save(pkey, made, "plan")
     elif not detect and (run_builtin or recheck):
         detected = "not run (the plan read only the first megabyte)"
 
