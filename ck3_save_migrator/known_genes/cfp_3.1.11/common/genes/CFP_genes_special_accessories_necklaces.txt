@@ -1,0 +1,17 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		special_accessories_necklace = {
+			no_necklace = { index = 0 }
+			western_war_late = { index = 1 }
+			western_royalty_ermine = { index = 2 }
+			byzantine_high_nobility = { index = 3 }
+			african_low_nobility = { index = 4 }
+			central_african_low_nobility = { index = 5 }
+			religious_catholic_cross = { index = 6 }
+			religious_catholic_pilgrim = { index = 7 }
+			western_high_nobility = { index = 8 }
+		}
+	}
+}

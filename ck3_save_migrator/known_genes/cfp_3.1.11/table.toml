@@ -1,0 +1,5 @@
+name = "Community Flavor Pack"
+version = "3.1.11"
+workshop = "2220098919"
+source = "CFP 3.1.11 (3.1.5 reads the same faces, measured 2026-11-03)"
+stands_in = ["mod/cfp_3.1.5.mod", "mod/cfp_3.1.11.mod", "mod/ugc_2220098919.mod"]

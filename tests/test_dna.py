@@ -40,6 +40,13 @@ NEW_MORPH = ("morph_genes = {\n\tgene_b = { u1 = { index = 0 } }\n\tgene_a = {\n
              "\tgene_new2 = { m = { index = 0 } }\n}\n")
 
 
+@pytest.fixture
+def no_tables(monkeypatch):
+    """The built-in gene tables hidden (0.4.29): for tests whose synthetic 1.8 saves model a game without them, so
+    the tables would otherwise stand in for the fixture's vanilla genes and listed mods."""
+    monkeypatch.setitem(dna._CACHE, "_tables", [])
+
+
 def genes(root: Path, files: dict[str, str]) -> Path:
     g = root / "common" / "genes"
     g.mkdir(parents=True, exist_ok=True)
@@ -322,7 +329,7 @@ def test_lint_expects_the_target_layouts_length(tmp_path):
     assert rows(556) and rows(556)[0].count == 5                        # vanilla's 556: every face off it
 
 
-def test_a_layout_with_no_genes_never_empties_the_faces(tmp_path):
+def test_a_layout_with_no_genes_never_empties_the_faces(tmp_path, no_tables):
     """A game folder without common/genes (a broken install): R19 leaves every face, saying why."""
     nogenes = tmp_path / "nogenes"
     nogenes.mkdir()

@@ -1,0 +1,25 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+accessory_genes = {
+	eye_accessory = {
+		normal_eyes = { index = 0 }
+		normal_eyes_no_shadow = { index = 1 }
+		normal_eyes_dark_iris = { index = 2 }
+		normal_eyes_asian = { index = 3 }
+		bloodshot_eyes = { index = 4 }
+		blind_eyes = { index = 5 }
+		no_eyes = { index = 6 }
+		one_eyed_eyes = { index = 7 }
+		one_eyed_missing_eyes = { index = 8 }
+	}
+	teeth_accessory = {
+		normal_teeth = { index = 0 }
+		no_teeth = { index = 1 }
+		afar_teeth = { index = 2 }
+	}
+	eyelashes_accessory = {
+		no_eyelashes = { index = 0 }
+		normal_eyelashes = { index = 1 }
+		asian_eyelashes = { index = 2 }
+	}
+}

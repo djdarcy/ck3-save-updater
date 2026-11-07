@@ -1,0 +1,37 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	morph_genes = {
+		cosmetics_eyeliner = {
+			eyeliner_none = { index = 0 }
+			iranian_1 = { index = 1 }
+			european_1 = { index = 2 }
+			byzantine_1 = { index = 3 }
+			indian_1 = { index = 4 }
+		}
+		cosmetics_eyeshadow = {
+			eyeshadow_none = { index = 0 }
+			iranian_1 = { index = 1 }
+			european_1 = { index = 2 }
+			byzantine_1 = { index = 3 }
+		}
+		cosmetics_foundation = {
+			foundation_none = { index = 0 }
+			iranian_1 = { index = 1 }
+			european_1 = { index = 2 }
+			byzantine_1 = { index = 3 }
+		}
+		cosmetics_blush = {
+			blush_none = { index = 0 }
+			iranian_1 = { index = 1 }
+			european_1 = { index = 2 }
+			byzantine_1 = { index = 3 }
+		}
+		cosmetics_lipcolor = {
+			lipcolor_none = { index = 0 }
+			iranian_1 = { index = 1 }
+			european_1 = { index = 2 }
+			byzantine_1 = { index = 3 }
+		}
+	}
+}

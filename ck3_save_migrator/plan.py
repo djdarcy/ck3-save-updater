@@ -1057,7 +1057,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         ref_meta = read_light(Path(ref.path)).meta if ref.path else None
         dna_setup = D.setup(save_meta=light.meta, game_dir=game.path, old_game_dir=old_game_dir,
                             reference_meta=ref_meta, portrait_mods_given=portrait_mods, target_version=gv,
-                            old_portrait_mods=old_portrait_mods)
+                            old_portrait_mods=old_portrait_mods,
+                            face_changes=D.DEFAULT_FACE_CHANGES if face_changes is None else face_changes,
+                            gamestate=gamestate)      # read only when a built-in table competes with a build
         dna_setup.face_changes = tuple(D.DEFAULT_FACE_CHANGES if face_changes is None else face_changes)  # before
         # any plan is built (Setup caches them); not given: every change (0.4.8), "none": 0.4.0's faces
         faces = _faces_rows(dna_setup, transplanting=bool(chosen & set(TRANSPLANT)))

@@ -1,0 +1,58 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		hairstyles = {
+			all_hairstyles = { index = 0 }
+			legacy_dna_hairstyles = { index = 100 }
+			no_hairstyles = { index = 1 }
+			western_hairstyles_straight = { index = 2 }
+			western_hairstyles_wavy = { index = 3 }
+			western_hairstyles_curly = { index = 4 }
+			western_hairstyles_afro = { index = 5 }
+			mena_hairstyles_straight = { index = 6 }
+			mena_hairstyles_wavy = { index = 7 }
+			mena_hairstyles_curly = { index = 8 }
+			mena_hairstyles_afro = { index = 9 }
+			byzantine_hairstyles_straight = { index = 10 }
+			byzantine_hairstyles_wavy = { index = 11 }
+			byzantine_hairstyles_curly = { index = 12 }
+			byzantine_hairstyles_afro = { index = 13 }
+			sub_saharan_hairstyles_straight = { index = 14 }
+			sub_saharan_hairstyles_wavy = { index = 15 }
+			sub_saharan_hairstyles_curly = { index = 16 }
+			sub_saharan_hairstyles_afro = { index = 17 }
+			indian_hairstyles_straight = { index = 18 }
+			indian_hairstyles_wavy = { index = 19 }
+			indian_hairstyles_curly = { index = 20 }
+			indian_hairstyles_afro = { index = 21 }
+			northern_hairstyles_straight = { index = 22 }
+			northern_hairstyles_wavy = { index = 23 }
+			northern_hairstyles_curly = { index = 24 }
+			northern_hairstyles_afro = { index = 25 }
+			steppe_hairstyles_straight = { index = 26 }
+			steppe_hairstyles_wavy = { index = 27 }
+			steppe_hairstyles_curly = { index = 28 }
+			steppe_hairstyles_afro = { index = 29 }
+			catholic_devoted_hairstyles = { index = 30 }
+			western_baby_hairstyles = { index = 31 }
+			sub_saharan_baby_hairstyles = { index = 32 }
+			rtt_hairstyles = { index = 33 }
+			fp1_hairstyles_straight = { index = 34 }
+			fp1_hairstyles_wavy = { index = 35 }
+			fp2_hairstyles_iberian_muslim_straight = { index = 50 }
+			fp2_hairstyles_iberian_muslim_wavy = { index = 51 }
+			fp2_hairstyles_iberian_muslim_curly = { index = 52 }
+			fp2_hairstyles_iberian_christian_straight = { index = 53 }
+			fp2_hairstyles_iberian_christian_wavy = { index = 54 }
+			fp2_hairstyles_iberian_christian_curly = { index = 55 }
+			fp2_hairstyles_iberian_muslim_straight_common = { index = 56 }
+			fp2_hairstyles_iberian_muslim_wavy_common = { index = 57 }
+			fp2_hairstyles_iberian_muslim_curly_common = { index = 58 }
+			scripted_character_hairstyles_01 = { index = 40 }
+			scripted_character_hairstyles_02 = { index = 41 }
+			special_hairstyles = { index = 42 }
+			scripted_character_hairstyles_03 = { index = 43 }
+		}
+	}
+}

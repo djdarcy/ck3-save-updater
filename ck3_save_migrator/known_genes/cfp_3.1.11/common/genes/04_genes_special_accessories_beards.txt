@@ -1,0 +1,32 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		beards = {
+			no_beard = { index = 0 }
+			all_beards = { index = 1 }
+			legacy_dna_beards = { index = 100 }
+			western_beards_straight = { index = 2 }
+			western_beards_curly = { index = 3 }
+			mena_beards_straight = { index = 4 }
+			mena_beards_curly = { index = 5 }
+			northern_beards_straight = { index = 6 }
+			northern_beards_curly = { index = 7 }
+			steppe_beards_straight = { index = 8 }
+			steppe_beards_curly = { index = 9 }
+			sub_saharan_beards_afro = { index = 10 }
+			indian_beards_straight = { index = 11 }
+			indian_beards_curly = { index = 12 }
+			rtt_beards = { index = 13 }
+			fp1_beards_straight = { index = 14 }
+			fp1_beards_curly = { index = 15 }
+			fp2_beards_straight = { index = 16 }
+			fp2_beards_curly = { index = 17 }
+			sp2_beards_straight = { index = 18 }
+			scripted_character_beards_01 = { index = 19 }
+			thin_beards_straight = { index = 20 }
+			orthodox_beards = { index = 21 }
+			scripted_character_beards_02 = { index = 22 }
+		}
+	}
+}

@@ -1,0 +1,89 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		clothes = {
+			most_clothes = { index = 0 }
+			no_clothes = { index = 1 }
+			western_commoner_clothes = { index = 2 }
+			western_low_nobility_clothes = { index = 3 }
+			western_high_nobility_clothes = { index = 4 }
+			western_royalty_clothes = { index = 5 }
+			western_imperial_clothes = { index = 6 }
+			western_war_nobility_clothes = { index = 7 }
+			western_sickness = { index = 8 }
+			western_prison = { index = 9 }
+			western_stealth = { index = 10 }
+			western_bedchamber = { index = 11 }
+			western_crusades = { index = 12 }
+			indian_commoner_clothes = { index = 13 }
+			indian_low_nobility_clothes = { index = 14 }
+			indian_high_nobility_clothes = { index = 15 }
+			indian_war_nobility_clothes = { index = 16 }
+			byzantine_commoner_clothes = { index = 17 }
+			byzantine_low_nobility_clothes = { index = 18 }
+			byzantine_high_nobility_clothes = { index = 19 }
+			byzantine_war_nobility_clothes = { index = 20 }
+			steppe_commoner_clothes = { index = 21 }
+			steppe_low_nobility_clothes = { index = 22 }
+			steppe_high_nobility_clothes = { index = 23 }
+			steppe_war_nobility_clothes = { index = 24 }
+			mena_commoner_clothes = { index = 25 }
+			mena_low_nobility_clothes = { index = 26 }
+			mena_high_nobility_clothes = { index = 27 }
+			mena_war_nobility_clothes = { index = 28 }
+			mena_sickness = { index = 29 }
+			mena_prison = { index = 30 }
+			mena_stealth = { index = 31 }
+			mena_bedchamber = { index = 32 }
+			mena_crusades = { index = 33 }
+			northern_commoner_clothes = { index = 34 }
+			northern_low_nobility_clothes = { index = 35 }
+			northern_high_nobility_clothes = { index = 36 }
+			northern_war_nobility_clothes = { index = 37 }
+			sub_saharan_commoner_clothes = { index = 38 }
+			sub_saharan_low_nobility_clothes = { index = 39 }
+			sub_saharan_high_nobility_clothes = { index = 40 }
+			sub_saharan_war_nobility_clothes = { index = 41 }
+			dde_hre_commoner_clothes = { index = 42 }
+			dde_hre_low_nobility_clothes = { index = 43 }
+			dde_hre_high_nobility_clothes = { index = 44 }
+			dde_hre_war_nobility_clothes = { index = 45 }
+			dde_abbasid_commoner_clothes = { index = 46 }
+			dde_abbasid_low_nobility_clothes = { index = 47 }
+			dde_abbasid_high_nobility_clothes = { index = 48 }
+			dde_abbasid_war_nobility_clothes = { index = 49 }
+			religious_orthodox_high_clothes = { index = 50 }
+			religious_orthodox_head_clothes = { index = 51 }
+			religious_muslim_high_clothes = { index = 52 }
+			religious_muslim_head_clothes = { index = 53 }
+			religious_catholic_devoted_clothes = { index = 54 }
+			religious_catholic_high_clothes = { index = 55 }
+			religious_catholic_head_clothes = { index = 56 }
+			religious_african_high_clothes = { index = 58 }
+			religious_northern_high_clothes = { index = 59 }
+			religious_hindu_devoted_clothes = { index = 60 }
+			religious_jain_high_clothes = { index = 61 }
+			religious_buddhist_high_clothes = { index = 62 }
+			religious_zoroastrian_high_clothes = { index = 63 }
+			religious_jewish_head_clothes = { index = 64 }
+			religious_jewish_high_clothes = { index = 65 }
+			religious_steppe_high_clothes = { index = 66 }
+			western_children_commoner_clothes = { index = 67 }
+			fp1_commoner_clothes = { index = 68 }
+			fp1_low_nobility_clothes = { index = 69 }
+			fp1_high_nobility_clothes = { index = 70 }
+			fp1_war_nobility_clothes = { index = 71 }
+			ep1_jester_clothes = { index = 72 }
+			fp2_muslim_commoner_clothes = { index = 73 }
+			fp2_christian_commoner_clothes = { index = 74 }
+			fp2_muslim_low_nobility_clothes = { index = 75 }
+			fp2_muslim_high_nobility_clothes = { index = 76 }
+			fp2_christian_low_nobility_clothes = { index = 77 }
+			fp2_christian_high_nobility_clothes = { index = 78 }
+			fp2_muslim_war_nobility_clothes = { index = 79 }
+			fp2_christian_war_nobility_clothes = { index = 80 }
+			sp2_western_royalty_clothes = { index = 81 }
+		}
+	}
+}
