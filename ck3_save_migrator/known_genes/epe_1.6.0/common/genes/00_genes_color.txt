@@ -1,0 +1,7 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+color_genes = {
+	hair_color = { }
+	skin_color = { }
+	eye_color = { }
+}

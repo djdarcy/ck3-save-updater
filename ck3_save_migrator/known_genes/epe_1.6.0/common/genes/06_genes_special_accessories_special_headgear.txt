@@ -1,0 +1,35 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		special_headgear = {
+			no_headgear = { index = 0 }
+			all_headgear = { index = 1 }
+			matilda_headgear = { index = 2 }
+			iberian_castilian_royalty = { index = 3 }
+			iberian_aragonese_royalty = { index = 4 }
+			Roman_imperial = { index = 5 }
+			crusades_western_commoner = { index = 6 }
+			crusades_western = { index = 7 }
+			crusades_western_black = { index = 8 }
+			swordsman_headgear = { index = 9 }
+			visigoth_asturias_title = { index = 10 }
+			ep1_western_royalty = { index = 11 }
+			ep1_steppe_royalty = { index = 12 }
+			ep1_indian_royalty = { index = 13 }
+			ep1_jester = { index = 14 }
+			ep1_crown_of_justinian = { index = 15 }
+			ep1_crown_of_lombardy = { index = 16 }
+			ep1_sassanid_crown = { index = 17 }
+			ep1_diamond_crown = { index = 18 }
+			ep1_sub_saharan_royalty = { index = 19 }
+			ep1_mena_royalty = { index = 20 }
+			ep1_indian_imperial = { index = 21 }
+			ep1_byzantine_imperial = { index = 22 }
+			ep1_italian_royalty = { index = 23 }
+			ep1_persian_imperial = { index = 24 }
+			ep1_royal_court_crowns = { index = 25 }
+			croatia_royalty = { index = 26 }
+		}
+	}
+}

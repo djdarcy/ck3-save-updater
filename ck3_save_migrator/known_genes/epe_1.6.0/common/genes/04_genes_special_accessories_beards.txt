@@ -1,0 +1,63 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		beards = {
+			no_beard = { index = 0 }
+			all_beards = { index = 1 }
+			legacy_dna_beards = { index = 100 }
+			western_beards_straight = { index = 2 }
+			western_beards_curly = { index = 3 }
+			mena_beards_straight = { index = 4 }
+			mena_beards_curly = { index = 5 }
+			northern_beards_straight = { index = 6 }
+			northern_beards_curly = { index = 7 }
+			steppe_beards_straight = { index = 8 }
+			steppe_beards_curly = { index = 9 }
+			sub_saharan_beards_afro = { index = 10 }
+			indian_beards_straight = { index = 11 }
+			indian_beards_curly = { index = 12 }
+			rtt_beards = { index = 13 }
+			fp1_beards_straight = { index = 14 }
+			fp1_beards_curly = { index = 15 }
+			scripted_character_beards_01 = { index = 16 }
+			thin_beards_straight = { index = 17 }
+			northern_indian_beards_straight = { index = 18 }
+			northern_indian_beards_curly = { index = 19 }
+			french_beards_straight = { index = 20 }
+			french_beards_curly = { index = 21 }
+			han_beards_straight = { index = 22 }
+			han_beards_curly = { index = 23 }
+			iranian_beards_straight = { index = 24 }
+			iranian_beards_curly = { index = 25 }
+			turkish_thin_beards_straight = { index = 26 }
+			turkish_beards_straight = { index = 27 }
+			turkish_beards_curly = { index = 28 }
+			custom_beards = { index = 29 }
+			briton_beards_straight = { index = 30 }
+			briton_beards_curly = { index = 31 }
+			northern_slav_beards_straight = { index = 32 }
+			northern_slav_beards_curly = { index = 33 }
+			byzantine_beards_straight = { index = 34 }
+			byzantine_beards_curly = { index = 35 }
+			gaelic_beards_straight = { index = 36 }
+			gaelic_beards_curly = { index = 37 }
+			cuman_thin_beards_straight = { index = 38 }
+			cuman_beards_straight = { index = 39 }
+			cuman_beards_curly = { index = 40 }
+			seljuk_thin_beards_straight = { index = 41 }
+			seljuk_beards_straight = { index = 42 }
+			seljuk_beards_curly = { index = 43 }
+			western_turkic_thin_beards_straight = { index = 44 }
+			western_turkic_beards_straight = { index = 45 }
+			western_turkic_beards_curly = { index = 46 }
+			magyar_thin_beards_straight = { index = 47 }
+			magyar_beards_straight = { index = 48 }
+			magyar_beards_curly = { index = 49 }
+			orthodox_beards = { index = 50 }
+			scripted_character_beards_02 = { index = 51 }
+			fp2_beards_straight = { index = 52 }
+			fp2_beards_curly = { index = 53 }
+		}
+	}
+}

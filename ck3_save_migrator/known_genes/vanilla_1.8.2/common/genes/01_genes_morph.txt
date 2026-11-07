@@ -1,0 +1,464 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+morph_genes = {
+	gene_chin_forward = {
+		chin_forward_neg = { index = 0 }
+		chin_forward_pos = { index = 1 }
+	}
+	gene_chin_height = {
+		chin_height_neg = { index = 0 }
+		chin_height_pos = { index = 1 }
+	}
+	gene_chin_width = {
+		chin_width_neg = { index = 0 }
+		chin_width_pos = { index = 1 }
+	}
+	gene_eye_angle = {
+		eye_angle_neg = { index = 0 }
+		eye_angle_pos = { index = 1 }
+	}
+	gene_eye_depth = {
+		eye_depth_neg = { index = 0 }
+		eye_depth_pos = { index = 1 }
+	}
+	gene_eye_height = {
+		eye_height_neg = { index = 0 }
+		eye_height_pos = { index = 1 }
+	}
+	gene_eye_distance = {
+		eye_distance_neg = { index = 0 }
+		eye_distance_pos = { index = 1 }
+	}
+	gene_eye_shut = {
+		eye_shut_neg = { index = 0 }
+		eye_shut_pos = { index = 1 }
+	}
+	gene_forehead_angle = {
+		forehead_angle_neg = { index = 0 }
+		forehead_angle_pos = { index = 1 }
+	}
+	gene_forehead_brow_height = {
+		forehead_brow_height_neg = { index = 0 }
+		forehead_brow_height_pos = { index = 1 }
+	}
+	gene_forehead_roundness = {
+		forehead_roundness_neg = { index = 0 }
+		forehead_roundness_pos = { index = 1 }
+	}
+	gene_forehead_width = {
+		forehead_width_neg = { index = 0 }
+		forehead_width_pos = { index = 1 }
+	}
+	gene_forehead_height = {
+		forehead_height_neg = { index = 0 }
+		forehead_height_pos = { index = 1 }
+	}
+	gene_head_height = {
+		head_height_neg = { index = 0 }
+		head_height_pos = { index = 1 }
+	}
+	gene_head_width = {
+		head_width_neg = { index = 0 }
+		head_width_pos = { index = 1 }
+	}
+	gene_head_profile = {
+		head_profile_neg = { index = 0 }
+		head_profile_pos = { index = 1 }
+	}
+	gene_head_top_height = {
+		head_top_height_neg = { index = 0 }
+		head_top_height_pos = { index = 1 }
+	}
+	gene_head_top_width = {
+		head_top_width_neg = { index = 0 }
+		head_top_width_pos = { index = 1 }
+	}
+	gene_jaw_angle = {
+		jaw_angle_neg = { index = 0 }
+		jaw_angle_pos = { index = 1 }
+	}
+	gene_jaw_forward = {
+		jaw_forward_neg = { index = 0 }
+		jaw_forward_pos = { index = 1 }
+	}
+	gene_jaw_height = {
+		jaw_height_neg = { index = 0 }
+		jaw_height_pos = { index = 1 }
+	}
+	gene_jaw_width = {
+		jaw_width_neg = { index = 0 }
+		jaw_width_pos = { index = 1 }
+	}
+	gene_mouth_corner_depth = {
+		mouth_corner_depth_neg = { index = 0 }
+		mouth_corner_depth_pos = { index = 1 }
+	}
+	gene_mouth_corner_height = {
+		mouth_corner_height_neg = { index = 0 }
+		mouth_corner_height_pos = { index = 1 }
+	}
+	gene_mouth_forward = {
+		mouth_forward_neg = { index = 0 }
+		mouth_forward_pos = { index = 1 }
+	}
+	gene_mouth_height = {
+		mouth_height_neg = { index = 0 }
+		mouth_height_pos = { index = 1 }
+	}
+	gene_mouth_width = {
+		mouth_width_neg = { index = 0 }
+		mouth_width_pos = { index = 1 }
+	}
+	gene_mouth_upper_lip_size = {
+		mouth_upper_lip_size_neg = { index = 0 }
+		mouth_upper_lip_size_pos = { index = 1 }
+	}
+	gene_mouth_lower_lip_size = {
+		mouth_lower_lip_size_neg = { index = 0 }
+		mouth_lower_lip_size_pos = { index = 1 }
+	}
+	gene_mouth_open = {
+		mouth_open_neg = { index = 0 }
+		mouth_open_pos = { index = 1 }
+	}
+	gene_neck_length = {
+		neck_length_neg = { index = 0 }
+		neck_length_pos = { index = 1 }
+	}
+	gene_neck_width = {
+		neck_width_neg = { index = 0 }
+		neck_width_pos = { index = 1 }
+	}
+	gene_bs_cheek_forward = {
+		cheek_forward_neg = { index = 0 }
+		cheek_forward_pos = { index = 1 }
+	}
+	gene_bs_cheek_height = {
+		cheek_height_neg = { index = 0 }
+		cheek_height_pos = { index = 1 }
+	}
+	gene_bs_cheek_width = {
+		cheek_width_neg = { index = 0 }
+		cheek_width_pos = { index = 1 }
+	}
+	gene_bs_ear_angle = {
+		ear_angle_neg = { index = 0 }
+		ear_angle_pos = { index = 1 }
+	}
+	gene_bs_ear_inner_shape = {
+		ear_inner_shape_pos = { index = 0 }
+	}
+	gene_bs_ear_bend = {
+		ear_lower_bend_pos = { index = 0 }
+		ear_upper_bend_pos = { index = 1 }
+		ear_both_bend_pos = { index = 2 }
+	}
+	gene_bs_ear_outward = {
+		ear_outward_neg = { index = 0 }
+		ear_outward_pos = { index = 1 }
+	}
+	gene_bs_ear_size = {
+		ear_size_neg = { index = 0 }
+		ear_size_pos = { index = 1 }
+	}
+	gene_bs_eye_corner_depth = {
+		eye_corner_depth_neg = { index = 0 }
+		eye_corner_depth_pos = { index = 1 }
+	}
+	gene_bs_eye_fold_shape = {
+		eye_fold_shape_neg = { index = 0 }
+		eye_fold_shape_pos = { index = 1 }
+	}
+	gene_bs_eye_size = {
+		eye_size_neg = { index = 0 }
+		eye_size_pos = { index = 1 }
+	}
+	gene_bs_eye_upper_lid_size = {
+		eye_upper_lid_size_neg = { index = 0 }
+		eye_upper_lid_size_pos = { index = 1 }
+	}
+	gene_bs_forehead_brow_curve = {
+		forehead_brow_curve_neg = { index = 0 }
+		forehead_brow_curve_pos = { index = 1 }
+	}
+	gene_bs_forehead_brow_forward = {
+		forehead_brow_forward_neg = { index = 0 }
+		forehead_brow_forward_pos = { index = 1 }
+	}
+	gene_bs_forehead_brow_inner_height = {
+		forehead_brow_inner_height_neg = { index = 0 }
+		forehead_brow_inner_height_pos = { index = 1 }
+	}
+	gene_bs_forehead_brow_outer_height = {
+		forehead_brow_outer_height_neg = { index = 0 }
+		forehead_brow_outer_height_pos = { index = 1 }
+	}
+	gene_bs_forehead_brow_width = {
+		forehead_brow_width_neg = { index = 0 }
+		forehead_brow_width_pos = { index = 1 }
+	}
+	gene_bs_jaw_def = {
+		jaw_def_neg = { index = 0 }
+		jaw_def_pos = { index = 1 }
+	}
+	gene_bs_mouth_lower_lip_def = {
+		mouth_lower_lip_def_pos = { index = 0 }
+	}
+	gene_bs_mouth_lower_lip_full = {
+		mouth_lower_lip_full_neg = { index = 0 }
+		mouth_lower_lip_full_pos = { index = 1 }
+	}
+	gene_bs_mouth_lower_lip_pad = {
+		mouth_lower_lip_pad_neg = { index = 0 }
+		mouth_lower_lip_pad_pos = { index = 1 }
+	}
+	gene_bs_mouth_lower_lip_width = {
+		mouth_lower_lip_width_neg = { index = 0 }
+		mouth_lower_lip_width_pos = { index = 1 }
+	}
+	gene_bs_mouth_philtrum_def = {
+		mouth_philtrum_def_pos = { index = 0 }
+	}
+	gene_bs_mouth_philtrum_shape = {
+		mouth_philtrum_shape_neg = { index = 0 }
+		mouth_philtrum_shape_pos = { index = 1 }
+	}
+	gene_bs_mouth_philtrum_width = {
+		mouth_philtrum_width_neg = { index = 0 }
+		mouth_philtrum_width_pos = { index = 1 }
+	}
+	gene_bs_mouth_upper_lip_def = {
+		mouth_upper_lip_def_pos = { index = 0 }
+	}
+	gene_bs_mouth_upper_lip_full = {
+		mouth_upper_lip_full_neg = { index = 0 }
+		mouth_upper_lip_full_pos = { index = 1 }
+	}
+	gene_bs_mouth_upper_lip_profile = {
+		mouth_upper_lip_profile_neg = { index = 0 }
+		mouth_upper_lip_profile_pos = { index = 1 }
+	}
+	gene_bs_mouth_upper_lip_width = {
+		mouth_upper_lip_width_neg = { index = 0 }
+		mouth_upper_lip_width_pos = { index = 1 }
+	}
+	gene_bs_nose_forward = {
+		nose_forward_neg = { index = 0 }
+		nose_forward_pos = { index = 1 }
+	}
+	gene_bs_nose_height = {
+		nose_height_neg = { index = 0 }
+		nose_height_pos = { index = 1 }
+	}
+	gene_bs_nose_length = {
+		nose_length_neg = { index = 0 }
+		nose_length_pos = { index = 1 }
+	}
+	gene_bs_nose_nostril_height = {
+		nose_nostril_height_neg = { index = 0 }
+		nose_nostril_height_pos = { index = 1 }
+	}
+	gene_bs_nose_nostril_width = {
+		nose_nostril_width_neg = { index = 0 }
+		nose_nostril_width_pos = { index = 1 }
+	}
+	gene_bs_nose_profile = {
+		nose_profile_neg = { index = 0 }
+		nose_profile_pos = { index = 1 }
+		nose_profile_hawk = { index = 2 }
+		nose_profile_hawk_pos = { index = 3 }
+	}
+	gene_bs_nose_ridge_angle = {
+		nose_ridge_angle_neg = { index = 0 }
+		nose_ridge_angle_pos = { index = 1 }
+	}
+	gene_bs_nose_ridge_width = {
+		nose_ridge_width_neg = { index = 0 }
+		nose_ridge_width_pos = { index = 1 }
+	}
+	gene_bs_nose_size = {
+		nose_size_neg = { index = 0 }
+		nose_size_pos = { index = 1 }
+	}
+	gene_bs_nose_tip_angle = {
+		nose_tip_angle_neg = { index = 0 }
+		nose_tip_angle_pos = { index = 1 }
+	}
+	gene_bs_nose_tip_forward = {
+		nose_tip_forward_neg = { index = 0 }
+		nose_tip_forward_pos = { index = 1 }
+	}
+	gene_bs_nose_tip_width = {
+		nose_tip_width_neg = { index = 0 }
+		nose_tip_width_pos = { index = 1 }
+	}
+	face_detail_cheek_def = {
+		cheek_def_01 = { index = 0 }
+		cheek_def_02 = { index = 1 }
+	}
+	face_detail_cheek_fat = {
+		cheek_fat_01_pos = { index = 0 }
+		cheek_fat_02_pos = { index = 1 }
+		cheek_fat_03_pos = { index = 2 }
+		cheek_fat_04_pos = { index = 3 }
+		cheek_fat_01_neg = { index = 4 }
+	}
+	face_detail_chin_cleft = {
+		chin_cleft = { index = 0 }
+		chin_dimple = { index = 1 }
+	}
+	face_detail_chin_def = {
+		chin_def_neg = { index = 0 }
+		chin_def = { index = 1 }
+	}
+	face_detail_eye_lower_lid_def = {
+		eye_lower_lid_def = { index = 0 }
+	}
+	face_detail_eye_socket = {
+		eye_socket_01 = { index = 0 }
+		eye_socket_02 = { index = 1 }
+		eye_socket_03 = { index = 2 }
+		eye_socket_color_01 = { index = 3 }
+		eye_socket_color_02 = { index = 4 }
+		eye_socket_color_03 = { index = 5 }
+	}
+	face_detail_nasolabial = {
+		nasolabial_01 = { index = 0 }
+		nasolabial_02 = { index = 1 }
+		nasolabial_03 = { index = 2 }
+		nasolabial_04 = { index = 3 }
+	}
+	face_detail_nose_ridge_def = {
+		nose_ridge_def_pos = { index = 0 }
+		nose_ridge_def_neg = { index = 1 }
+	}
+	face_detail_nose_tip_def = {
+		nose_tip_def = { index = 0 }
+	}
+	face_detail_temple_def = {
+		temple_def = { index = 0 }
+	}
+	expression_brow_wrinkles = {
+		brow_wrinkles_01 = { index = 0 }
+		brow_wrinkles_02 = { index = 1 }
+		brow_wrinkles_03 = { index = 2 }
+		brow_wrinkles_04 = { index = 3 }
+	}
+	expression_eye_wrinkles = {
+		eye_wrinkles_01 = { index = 0 }
+		eye_wrinkles_02 = { index = 1 }
+		eye_wrinkles_03 = { index = 2 }
+	}
+	expression_forehead_wrinkles = {
+		forehead_wrinkles_01 = { index = 0 }
+		forehead_wrinkles_02 = { index = 1 }
+		forehead_wrinkles_03 = { index = 2 }
+	}
+	expression_other = {
+		cheek_wrinkles_left_01 = { index = 0 }
+		cheek_wrinkles_right_01 = { index = 1 }
+		cheek_wrinkles_both_01 = { index = 2 }
+		nose_wrinkles_01 = { index = 3 }
+	}
+	complexion = {
+		complexion_1 = { index = 0 }
+		complexion_2 = { index = 1 }
+		complexion_3 = { index = 2 }
+		complexion_4 = { index = 3 }
+		complexion_5 = { index = 4 }
+		complexion_6 = { index = 5 }
+		complexion_7 = { index = 6 }
+		complexion_beauty_1 = { index = 7 }
+		complexion_ugly_1 = { index = 8 }
+		complexion_no_face = { index = 9 }
+	}
+	gene_height = {
+		full_height = { index = 0 }
+		normal_height = { index = 1 }
+		dwarf_height = { index = 2 }
+		giant_height = { index = 3 }
+	}
+	gene_bs_body_type = {
+		body_average = { index = 0 }
+		body_fat_head_fat_low = { index = 1 }
+		body_fat_head_fat_medium = { index = 2 }
+		body_fat_head_fat_full = { index = 3 }
+		no_portrait = { index = 4 }
+	}
+	gene_bs_body_shape = {
+		body_shape_average_clothed = { index = 0 }
+		body_shape_average = { index = 1 }
+		body_shape_apple_half = { index = 2 }
+		body_shape_apple_full = { index = 3 }
+		body_shape_hourglass_half = { index = 4 }
+		body_shape_hourglass_full = { index = 5 }
+		body_shape_pear_half = { index = 6 }
+		body_shape_pear_full = { index = 7 }
+		body_shape_rectangle_half = { index = 8 }
+		body_shape_rectangle_full = { index = 9 }
+		body_shape_triangle_half = { index = 10 }
+		body_shape_triangle_full = { index = 11 }
+	}
+	gene_bs_bust = {
+		bust_clothes = { index = 0 }
+		bust_clothes_light = { index = 1 }
+		bust_default = { index = 2 }
+		bust_shape_1_half = { index = 3 }
+		bust_shape_1_full = { index = 4 }
+		bust_shape_2_half = { index = 5 }
+		bust_shape_2_full = { index = 6 }
+		bust_shape_3_half = { index = 7 }
+		bust_shape_3_full = { index = 8 }
+		bust_shape_4_half = { index = 9 }
+		bust_shape_4_full = { index = 10 }
+	}
+	gene_age = {
+		old_1 = { index = 0 }
+		old_2 = { index = 1 }
+		old_3 = { index = 2 }
+		old_4 = { index = 3 }
+		old_beauty_1 = { index = 4 }
+		no_aging = { index = 5 }
+	}
+	gene_eyebrows_shape = {
+		no_eyebrows = { index = 0 }
+		avg_spacing_avg_thickness = { index = 1 }
+		avg_spacing_high_thickness = { index = 2 }
+		avg_spacing_low_thickness = { index = 3 }
+		avg_spacing_lower_thickness = { index = 4 }
+		far_spacing_avg_thickness = { index = 5 }
+		far_spacing_high_thickness = { index = 6 }
+		far_spacing_low_thickness = { index = 7 }
+		far_spacing_lower_thickness = { index = 8 }
+		close_spacing_avg_thickness = { index = 9 }
+		close_spacing_high_thickness = { index = 10 }
+		close_spacing_low_thickness = { index = 11 }
+		close_spacing_lower_thickness = { index = 12 }
+	}
+	gene_eyebrows_fullness = {
+		no_eyebrows = { index = 0 }
+		layer_2_avg_thickness = { index = 1 }
+		layer_2_high_thickness = { index = 2 }
+		layer_2_low_thickness = { index = 3 }
+		layer_2_lower_thickness = { index = 4 }
+	}
+	gene_body_hair = {
+		body_hair_sparse = { index = 0 }
+		body_hair_avg = { index = 1 }
+		body_hair_dense = { index = 2 }
+		body_hair_sparse_low_stubble = { index = 3 }
+		body_hair_avg_low_stubble = { index = 4 }
+		body_hair_dense_low_stubble = { index = 5 }
+	}
+	gene_hair_type = {
+		hair_straight = { index = 0 }
+		hair_wavy = { index = 1 }
+		hair_curly = { index = 2 }
+		hair_afro = { index = 3 }
+		hair_straight_thin_beard = { index = 4 }
+	}
+	gene_baldness = {
+		no_baldness = { index = 0 }
+		male_pattern_baldness = { index = 1 }
+	}
+}

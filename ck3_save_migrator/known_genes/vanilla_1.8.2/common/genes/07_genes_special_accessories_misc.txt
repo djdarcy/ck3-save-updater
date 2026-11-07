@@ -1,0 +1,96 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		props = {
+			no_props = { index = 0 }
+			grid = { index = 1 }
+			prison_shackles = { index = 2 }
+			prison_shackles_02 = { index = 3 }
+			spymaster_daggers = { index = 4 }
+			spymaster_daggers_mena = { index = 5 }
+			spymaster_daggers_indian = { index = 6 }
+			marshal_swords = { index = 7 }
+			steward_pouches = { index = 8 }
+			chancellor_scrolls = { index = 9 }
+			swaddled_baby = { index = 10 }
+			prophet_shield = { index = 11 }
+			shackles_dungeon_01 = { index = 12 }
+			shackles_arrest_01 = { index = 13 }
+			fp1_marshal_sword = { index = 14 }
+			fp1_spymasters_dagger = { index = 15 }
+			fp1_rune_tablet_01 = { index = 16 }
+			messenger_scroll = { index = 17 }
+			ep1_artisan_spear_left_hand = { index = 18 }
+			ep1_artisan_spear_right_hand = { index = 19 }
+			ep1_mena_artisan_spear_left_hand = { index = 20 }
+			ep1_mena_artisan_spear_right_hand = { index = 21 }
+			ep1_african_artisan_spear_left_hand = { index = 22 }
+			ep1_african_artisan_spear_right_hand = { index = 23 }
+			ep1_indian_artisan_spear_left_hand = { index = 24 }
+			ep1_indian_artisan_spear_right_hand = { index = 25 }
+			ep1_artisan_sword_mena = { index = 26 }
+			ep1_artisan_sword_indian = { index = 27 }
+			ep1_artisan_sword_byzantine = { index = 28 }
+			ep1_artisan_sword_steppe = { index = 29 }
+			ep1_artisan_sword_african = { index = 30 }
+			ep1_artisan_sword_northern = { index = 31 }
+			ep1_artisan_axe_mena = { index = 32 }
+			ep1_artisan_axe = { index = 33 }
+			ep1_artisan_axe_northern_pagan = { index = 34 }
+			ep1_artisan_axe_indian = { index = 35 }
+			ep1_artisan_axe_african = { index = 36 }
+			ep1_artisan_axe_steppe = { index = 37 }
+			ep1_artisan_axe_mediterranean = { index = 38 }
+			ep1_artisan_mace_african = { index = 39 }
+			ep1_artisan_mace_western = { index = 40 }
+			ep1_artisan_mace_steppe = { index = 41 }
+			ep1_artisan_mace_byzantine = { index = 42 }
+			ep1_artifact_axe_equipped = { index = 43 }
+			ep1_artifact_mace_equipped = { index = 44 }
+			ep1_artifact_sword_equipped = { index = 45 }
+			ep1_artifact_dagger_equipped = { index = 46 }
+			ep1_artifact_spear_equipped = { index = 47 }
+			ep1_mena_book_big = { index = 48 }
+			ep1_western_book_big = { index = 49 }
+			ep1_tool_quill = { index = 50 }
+			ep1_artifact_hammer_equipped = { index = 51 }
+			fp2_iberian_muslim_dagger = { index = 52 }
+			fp2_iberian_muslim_sword = { index = 53 }
+			fp2_iberian_christian_sword = { index = 54 }
+			fp2_iberian_muslim_scroll = { index = 55 }
+			fp2_steward_pouch = { index = 56 }
+			fp2_chess_piece_left_hand = { index = 57 }
+			fp2_chess_piece_right_hand = { index = 58 }
+			bp1_lantern = { index = 59 }
+			bp1_tankard = { index = 60 }
+			bp1_goblet = { index = 61 }
+		}
+		legwear = {
+			all_legwear = { index = 0 }
+			no_legwear = { index = 1 }
+			western_common_legwear = { index = 2 }
+			western_war_legwear = { index = 3 }
+			mena_war_legwear = { index = 4 }
+			mena_common_legwear = { index = 5 }
+			mena_nobility_legwear = { index = 6 }
+			fp1_common_legwear = { index = 7 }
+			ep1_jester_legwear = { index = 8 }
+		}
+		special_legwear = {
+			special_wooden_leg = { index = 0 }
+		}
+		cloaks = {
+			no_cloak = { index = 0 }
+			western_royalty = { index = 1 }
+			fp1_cloak = { index = 2 }
+			fp1_cloak_berserker = { index = 3 }
+			ep1_cloak_adventurer = { index = 4 }
+			sp2_cloak_imperial = { index = 5 }
+			all_cloaks = { index = 6 }
+		}
+		props_2 = {
+			ep1_mena_book_big = { index = 0 }
+		}
+	}
+}

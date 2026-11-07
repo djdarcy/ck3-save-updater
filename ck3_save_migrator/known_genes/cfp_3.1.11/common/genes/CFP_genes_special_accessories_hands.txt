@@ -1,0 +1,14 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		special_accessories_hands = {
+			no_hands = { index = 0 }
+			fp1_rings = { index = 1 }
+			dde_hre_rings = { index = 2 }
+			dde_abbasid_rings = { index = 3 }
+			rings = { index = 4 }
+			western_high_nobility_gloves = { index = 5 }
+		}
+	}
+}

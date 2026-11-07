@@ -4,6 +4,17 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.29] - 2026-11-06
+
+### Added
+- Old faces are read without the old game or the old portrait-mod builds. The update ships small built-in tables of the face genes of the old game (the 1.7 and 1.8 versions) and of the 2022-2023 builds of Community Flavor Pack and Ethnicities and Portraits Expanded. Each table holds names only (gene names, template names, index numbers), none of the mods' own work. `--old-game-dir` and `--old-portrait-mods` still work and win when given. On the founding campaign the update with neither gives the same 11,230 faces as with both.
+- When a portrait mod the save used is installed today in a newer build, the update reads the save's faces both ways and keeps the one that fits them. A newer build reads old faces wrongly, so being installed is not enough; on the founding campaign today's builds would misread about 13,600 face values in the first 3,000 faces, and the tables misread 7. The plan's notes say which was kept, and on what counts.
+- `scripts/gene_table.py` writes such a table from any build, so more can be added.
+
+### Changed
+- The plan's note on face genes the update drops counts them after the renames and merges, and names the build each came from ("4 genes the faces use were dropped: ... (from epe_1.6.0)"). It used to say 6, counting the 2 the update carries. It suggests changing the playset only when a portrait mod you have installed, but not turned on, defines one of them; otherwise no playset can bring them back, and the note says so.
+- The FACES block says what stands in for a portrait mod the save lists but you do not have, and what is installed now: "cfp_3.1.5: not installed; read from the built-in table (Community Flavor Pack 3.1.11, names only); installed now: Community Flavor Pack 3.3.7 (Workshop 2220098919)".
+
 ## [0.4.28] - 2026-11-06
 
 ### Added
@@ -641,7 +652,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...HEAD
+[0.4.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...v0.4.29
 [0.4.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...v0.4.28
 [0.4.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...v0.4.27
 [0.4.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.25...v0.4.26

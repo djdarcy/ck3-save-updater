@@ -1,0 +1,31 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	accessory_genes = {
+		clothes_2 = {
+			most_clothes = { index = 0 }
+			no_clothes = { index = 1 }
+			western_turk_commoner_clothes = { index = 2 }
+			western_turk_low_nobility_clothes = { index = 3 }
+			western_turk_high_nobility_clothes = { index = 4 }
+			western_turk_war_nobility_clothes = { index = 5 }
+			magyar_commoner_clothes = { index = 6 }
+			magyar_low_nobility_clothes = { index = 7 }
+			magyar_high_nobility_clothes = { index = 8 }
+			magyar_war_nobility_clothes = { index = 9 }
+			nubia_low_nobility_clothes = { index = 10 }
+			nubia_high_nobility_clothes = { index = 11 }
+			northern_christian_commoner_clothes = { index = 12 }
+			northern_christian_low_nobility_clothes = { index = 13 }
+			northern_christian_royalty_clothes = { index = 14 }
+			byzantine_war_imperial_clothes = { index = 15 }
+			christian_iranian_commoner_clothes = { index = 16 }
+			christian_iranian_low_nobility_clothes = { index = 17 }
+			christian_iranian_high_nobility_clothes = { index = 18 }
+			early_polish_commoner_clothes = { index = 19 }
+			early_polish_low_nobility_clothes = { index = 20 }
+			early_polish_high_nobility_clothes = { index = 21 }
+			early_polish_war_nobility_clothes = { index = 22 }
+		}
+	}
+}

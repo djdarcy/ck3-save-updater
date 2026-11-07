@@ -80,6 +80,14 @@ def has_genes(d: Path) -> bool:
     return g.is_dir() and any(g.glob("*.txt"))
 
 
+def template_indexes(gval: list) -> dict[str, int]:
+    """A gene block's templates: name -> index, in the block's order (what R19 reads of a template; also what
+    scripts/gene_table.py writes into a built-in table)."""
+    tidx_by_name = {k: int(vv) for k, v in gval if isinstance(v, list) and k is not None
+                    for kk, vv in v if kk == "index" and isinstance(vv, str) and vv.isdigit()}
+    return tidx_by_name
+
+
 def load_genes(spec: list[tuple[str, Path]]) -> dict[str, dict]:
     """Every gene the folders define, in load order (vanilla first): a later file of the same name replaces the
     earlier file whole, a later gene of the same name replaces the earlier gene."""
@@ -106,8 +114,7 @@ def load_genes(spec: list[tuple[str, Path]]) -> dict[str, dict]:
                 for gname, gval in blk:
                     if not isinstance(gval, list) or gname is None:
                         continue
-                    tidx_by_name = {k: int(vv) for k, v in gval if isinstance(v, list) and k is not None
-                                    for kk, vv in v if kk == "index" and isinstance(vv, str) and vv.isdigit()}
+                    tidx_by_name = template_indexes(gval)
                     genes.pop(gname, None)                       # a redefinition takes the later place
                     genes[gname] = {"name": gname, "cat": ("special " if special else "") + cat,
                                     "tidx_by_name": tidx_by_name, "src": label, "file": fname, "order": len(genes)}
@@ -250,6 +257,63 @@ DEFAULT_FACE_CHANGES = ("renames", "merges", "fallback", "known-genes")
 # 3 genes after EPE 1.6.0's 130; a 1.8.1 save of January 2023 holds 712-character faces against a 696 layout).
 KNOWN_GENES = Path(__file__).resolve().parent / "known_genes"
 KNOWN_TAILS = [("epe_2022-12_tail", "gene_eyebrow_inner_width")]
+
+
+def gene_tables() -> list[dict]:
+    """The built-in gene tables (``known_genes/<folder>/table.toml``, written by ``scripts/gene_table.py``): each
+    with its folder, name, version, Workshop id, the game lines it stands in for (the game's own genes) and the
+    launcher entries it stands in for (a portrait mod). Read once."""
+    if "_tables" not in _CACHE:
+        _CACHE["_tables"] = load_tables(KNOWN_GENES)
+    return _CACHE["_tables"]
+
+
+def load_tables(root: Path) -> list[dict]:
+    """Every ``<root>/<folder>/table.toml``, with its folder, game lines and stand-in entries."""
+    from .patches.model import tomllib
+    out = []
+    for f in sorted(Path(root).glob("*/table.toml")):
+        try:
+            t = tomllib.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        t["folder"] = f.parent
+        t["game_lines"] = [x.strip() for x in str(t.get("game_line", "")).split(",") if x.strip()]
+        t["stands_in"] = [str(x) for x in t.get("stands_in", [])]
+        out.append(t)
+    return out
+
+
+_CACHE: dict = {}
+
+
+def table_label(t: dict) -> str:
+    return f"built-in table ({t.get('name', '?')} {t.get('version', '?')}, names only)"
+
+
+def table_for_entry(entry: str) -> dict | None:
+    return next((t for t in gene_tables() if entry in t["stands_in"]), None)
+
+
+def table_for_line(version: str | None) -> dict | None:
+    line = _line(version)
+    return next((t for t in gene_tables() if line and line in t["game_lines"]), None)
+
+
+def installed_now(t: dict, game_dir: Path | None) -> str | None:
+    """What of a table's mod is installed today: its Workshop folder's descriptor name and version."""
+    if not t.get("workshop") or game_dir is None:
+        return None
+    from .discover import workshop_content_dir
+    d = workshop_content_dir(game_dir) / str(t["workshop"])
+    if not d.is_dir():
+        return None
+    desc = d / "descriptor.mod"
+    text = desc.read_text(encoding="utf-8-sig", errors="replace") if desc.is_file() else ""
+    name = re.search(r'(?m)^\s*name\s*=\s*"([^"]*)"', text)
+    ver = re.search(r'(?m)^\s*version\s*=\s*"([^"]*)"', text)
+    return (f"{name.group(1) if name else t.get('name', '?')}"
+            + (f" {ver.group(1)}" if ver else "") + f" (Workshop {t['workshop']})")
 
 
 def tail_layouts(source: Layout) -> list[Layout]:
@@ -475,6 +539,45 @@ class Setup:
     target_from: str = ""
     source_mods: list = field(default_factory=list)   # (mod, where it came from) per source mod
     face_changes: tuple = ()                    # --face-changes: the named changes beyond 0.4.0's R19 ("renames")
+    alternative: Layout | None = None           # the source with a built-in table where an installed build also is
+    source_choice: str = ""                     # what choose_source decided, and on what counts
+
+    def choose_source(self, g: bytes, limit: int = 3000) -> str:
+        """Between the installed builds and the built-in tables, keep the source layout that fits the save's own
+        faces better: fewer template values its genes do not define, over the first ``limit`` faces (the fit check
+        R19 reports, run on both). Once per setup; the losing layout is dropped. djdarcy 2026-11-06: an installed
+        portrait mod that has updated since the save was made reads its faces wrongly (51,153 undefined values on
+        the founding save), so being installed is not enough."""
+        if self.alternative is None or self.source_choice:
+            return self.source_choice
+        import dataclasses
+
+        def bad(src: Layout) -> tuple[int, int]:
+            trial = dataclasses.replace(self, source=src, alternative=None)
+            own, _ = trial.plans()
+            tails = trial.tail_plans()
+            miss, n = Counter(), 0
+            for _, a, b in _people(g):
+                s = g[a:b]
+                translate(s, tails.get(len(s), own), miss)
+                n += 1
+                if n >= limit:
+                    break
+            return sum(miss.values()), n
+        mine, n = bad(self.source)
+        theirs, _ = bad(self.alternative)
+        if theirs < mine:
+            self.source_choice = (f"the built-in tables fit the save's faces better than the installed builds "
+                                  f"({theirs:,} against {mine:,} undefined template values over {n:,} faces): the "
+                                  f"faces are read with {self.alternative.name}")
+            self.source = self.alternative
+            self.__dict__.pop("_plans", None)
+            self.__dict__.pop("_tails", None)
+        else:
+            self.source_choice = (f"the installed builds fit the save's faces at least as well as the built-in tables "
+                                  f"({mine:,} against {theirs:,} undefined template values over {n:,} faces): kept")
+        self.alternative = None
+        return self.source_choice
 
     def plans(self) -> tuple[Plan, Plan | None]:
         if "_plans" not in self.__dict__:
@@ -540,7 +643,7 @@ def _line(v: str | None) -> str | None:
 def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None = None,
           reference_meta: bytes | None = None, portrait_mods_given: list[str] | None = None,
           target_version: str | None = None, user: Path | None = None,
-          old_portrait_mods: list[str] | None = None) -> Setup:
+          old_portrait_mods: list[str] | None = None, face_changes=None, gamestate=None) -> Setup:
     """The source, reference and target layouts and the target's portraits_version, each said where it came from.
 
     Source: the save's own vanilla genes (``old_game_dir``, else the installed game's, assumed) plus the portrait
@@ -553,12 +656,21 @@ def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None 
     from .discover import save_versions
     user = user if user is not None else user_dir()
     notes = []
-    vanilla = Path(old_game_dir) if old_game_dir else (Path(game_dir) if game_dir else None)
     sv = save_versions(save_meta)["version"]
-    if not old_game_dir and vanilla is not None:
-        notes.append(f"the save's own vanilla genes are taken from the installed game (no --old-game-dir): its "
-                     f"{sv or '?'} genes are assumed to be the same")
     source_rows: list[tuple[str, str]] = []           # (mod, where it came from), one per source mod, for FACES
+    vanilla_table = None if old_game_dir else table_for_line(sv)
+    if old_game_dir:
+        vanilla = Path(old_game_dir)
+    elif vanilla_table is not None:                   # djdarcy 2026-11-06: a built-in table, so no --old-game-dir
+        vanilla = vanilla_table["folder"]
+        source_rows.append(("vanilla", f"the {table_label(vanilla_table)} for the save's {sv} genes"))
+    else:
+        vanilla = Path(game_dir) if game_dir else None
+        if vanilla is not None:
+            notes.append(f"the save's own vanilla genes are taken from the installed game (no --old-game-dir, and "
+                         f"no built-in table for {sv or '?'}): its {sv or '?'} genes are assumed to be the same")
+    alt_mods: list = []                               # the same mods with a built-in table wherever one stands in
+    has_alt = False
     if old_portrait_mods is not None:
         src_mods = []
         for x in old_portrait_mods:
@@ -574,12 +686,29 @@ def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None 
         src_mods, src_missing = [], []
         for e in mods_listed(save_meta):
             d = resolve_mod(e, user, game_dir)
-            if d is None or not d.is_dir():
+            t = table_for_entry(e)
+            stem = Path(e).stem
+            if d is not None and d.is_dir() and has_genes(d):
+                src_mods.append((stem, d))
+                if t is not None:                     # both: the faces decide (Setup.choose_source)
+                    alt_mods.append((t["folder"].name, t["folder"]))
+                    has_alt = True
+                    source_rows.append((stem, f"the installed build of {e}: {d}; the {table_label(t)} also stands "
+                                              "in for it, and the one that fits the faces better is used"))
+                else:
+                    alt_mods.append((stem, d))
+                    source_rows.append((stem, f"the installed build of {e}: {d}"))
+            elif d is not None and d.is_dir():
+                continue                              # installed, ships no genes
+            elif t is not None:                       # not installed: the built-in table
+                src_mods.append((t["folder"].name, t["folder"]))
+                alt_mods.append((t["folder"].name, t["folder"]))
+                now = installed_now(t, game_dir)
+                source_rows.append((stem, f"not installed; read from the {table_label(t)}"
+                                          + (f"; installed now: {now}" if now else "")))
+            else:
                 src_missing.append(e)
-                source_rows.append((Path(e).stem, "not installed"))
-            elif has_genes(d):
-                src_mods.append((Path(e).stem, d))
-                source_rows.append((Path(e).stem, f"the installed build of {e}: {d}"))
+                source_rows.append((stem, "not installed"))
         if src_missing:
             more = len(src_missing) - 1
             notes.append(f"the save lists {src_missing[0]}" + (f" (and {more} other{'s' if more != 1 else ''})"
@@ -608,12 +737,70 @@ def setup(*, save_meta: bytes, game_dir: Path | None, old_game_dir: Path | None 
             pv, why = table[line], f"the built-in table for the {line} line"
         else:
             why = f"unknown for the {line or '?'} line (no reference save, and no entry in the built-in table)"
-    dropped = [g["name"] for g in source.genes if g["name"] not in {t["name"] for t in target.genes}]
-    if dropped and source.places and target.places:
-        shown = ", ".join(dropped[:5]) + (", ..." if len(dropped) > 5 else "")
-        notes.append(f"the target layout drops {len(dropped)} gene{'s' if len(dropped) != 1 else ''} the faces use "
-                     f"({shown}); set the launcher's playset to the mods you will play with, or give --portrait-mods")
-    return Setup(source, target, ref_layout, pv, why, notes, target_from, source_rows)
+    fc = tuple(DEFAULT_FACE_CHANGES if face_changes is None else face_changes)
+    st = Setup(source, target, ref_layout, pv, why, notes, target_from, source_rows)
+    st.face_changes = fc
+    if has_alt:
+        st.alternative = build_layout(f"the save's ({sv or '?'} + {', '.join(n for n, _ in alt_mods)}, built-in "
+                                      "tables)", base + alt_mods)
+        if gamestate is not None:                    # a callable giving the save's gamestate: decide now
+            st.choose_source(gamestate())
+            st.notes.append(st.source_choice)
+    if st.source.places and target.places:          # after the choice: the note speaks of the layout used
+        st.notes += dropped_note(st.source, target, fc, game_dir, user)
+    return st
+
+
+def dropped_note(source: Layout, target: Layout, face_changes, game_dir: Path | None,
+                 user: Path | None) -> list[str]:
+    """The note on genes the faces use that the target has no place for, counted after the face changes (a gene a
+    rename or a merge carries is not dropped), each named with the build it came from. The playset advice follows
+    only when a gene-shipping mod that is installed but not in the target defines one of them: otherwise no playset
+    can bring them back (djdarcy 2026-11-06: "We don't want to mislead people")."""
+    names = {t["name"] for t in target.genes}
+    carried = set()
+    if "renames" in face_changes:
+        carried |= {old for old, new in RENAMES.items() if new in names}
+    if "merges" in face_changes:
+        carried |= {old for old, (into, _) in MERGES.items() if into in names}
+    dropped = [g for g in source.genes if g["name"] not in names and g["name"] not in carried]
+    if not dropped:
+        return []
+    by_src: dict[str, list[str]] = {}
+    for g in dropped:
+        by_src.setdefault(g.get("src") or "?", []).append(g["name"])
+    shown = "; ".join(f"{', '.join(v[:5])}{', ...' if len(v) > 5 else ''} (from {k})" for k, v in by_src.items())
+    n = len(dropped)
+    note = (f"{n} gene{'s' if n != 1 else ''} the faces use {'were' if n != 1 else 'was'} dropped: {shown}; ")
+    elsewhere = _installed_defining({g["name"] for g in dropped}, target, game_dir, user)
+    if elsewhere:
+        note += (f"{', '.join(sorted(elsewhere))} (installed, not in the playset) define{'s' if len(elsewhere) == 1 else ''} "
+                 "some of them: set the launcher's playset to the mods you will play with, or give --portrait-mods")
+    else:
+        note += "no portrait mod you have installed defines them; the report lists them per kind of face"
+    return [note]
+
+
+def _installed_defining(genes: set[str], target: Layout, game_dir: Path | None, user: Path | None) -> set[str]:
+    """The installed gene-shipping mods (Workshop folder and the user's mod folder) outside the target layout that
+    define any of ``genes``."""
+    from .discover import workshop_content_dir
+    loaded = {Path(d).resolve() for _, d in target.spec}
+    roots = []
+    if game_dir is not None:
+        roots.append(workshop_content_dir(game_dir))
+    if user is not None:
+        roots.append(user / "mod")
+    out = set()
+    for r in roots:
+        if not r.is_dir():
+            continue
+        for d in r.iterdir():
+            if not d.is_dir() or d.resolve() in loaded or not has_genes(d):
+                continue
+            if genes & set(load_genes([(d.name, d)])):
+                out.add(d.name)
+    return out
 
 
 # --------------------------------------------------------------------------- the whole save

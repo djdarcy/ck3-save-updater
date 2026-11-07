@@ -1,0 +1,125 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+morph_genes = {
+	gene_eye_size = {
+		vanilla_eye_size = { index = 0 }
+		eye_size = { index = 1 }
+	}
+	gene_eye_shut_top = {
+		vanilla_eye_shut_top = { index = 0 }
+		eye_shut_top = { index = 1 }
+	}
+	gene_eye_shut_bottom = {
+		vanilla_eye_shut_bottom = { index = 0 }
+		eye_shut_bottom = { index = 1 }
+	}
+	gene_bs_eye_height_inside = {
+		vanilla_eye_height_inside = { index = 0 }
+		eye_height_inside_neg = { index = 1 }
+		eye_height_inside_pos = { index = 2 }
+	}
+	gene_bs_eye_height_outisde = {
+		vanilla_eye_height_outisde = { index = 0 }
+		eye_height_outisde_neg = { index = 1 }
+		eye_height_outisde_pos = { index = 2 }
+	}
+	gene_bs_ear_lobe = {
+		vanilla_ear_lobe = { index = 0 }
+		ear_lobe_fused = { index = 1 }
+		ear_lobe_detached = { index = 2 }
+	}
+	gene_bs_nose_central_width = {
+		vanilla_nose_central_width = { index = 0 }
+		nose_central_width_neg = { index = 1 }
+		nose_central_width_pos = { index = 2 }
+	}
+	gene_bs_nose_septum_width = {
+		vanilla_nose_septum_width = { index = 0 }
+		nose_septum_width_neg = { index = 1 }
+		nose_septum_width_pos = { index = 2 }
+	}
+	gene_forehead_inner_brow_width = {
+		vanilla_inner_brow_width = { index = 0 }
+		inner_brow_width = { index = 1 }
+	}
+	gene_bs_mouth_lower_lip_profile = {
+		vanilla_lower_lip_profile = { index = 0 }
+		lower_lip_profile = { index = 1 }
+	}
+	gene_bs_eye_outer_width = {
+		vanilla_eye_outer_width = { index = 0 }
+		eye_outer_width = { index = 1 }
+	}
+	gene_bs_head_asymmetry_1 = {
+		vanilla_head_asymmetry_1 = { index = 0 }
+		head_asymmetry_1 = { index = 1 }
+		head_asymmetry_2 = { index = 2 }
+		head_asymmetry_3 = { index = 3 }
+		head_asymmetry_4 = { index = 4 }
+		head_asymmetry_5 = { index = 5 }
+		head_asymmetry_6 = { index = 6 }
+		head_asymmetry_7 = { index = 7 }
+		head_asymmetry_8 = { index = 8 }
+		head_asymmetry_9 = { index = 9 }
+		head_asymmetry_10 = { index = 10 }
+	}
+	gene_bs_eye_fold_2 = {
+		vanilla_eye_fold_2 = { index = 0 }
+		eye_fold_2 = { index = 1 }
+	}
+	gene_bs_mouth_center_curve = {
+		vanilla_mouth_center_curve = { index = 0 }
+		mouth_center_curve_max = { index = 1 }
+		mouth_center_curve_min = { index = 2 }
+	}
+	gene_bs_eyebrow_straight = {
+		vanilla_eyebrow_straight = { index = 0 }
+		eyebrow_straight = { index = 1 }
+	}
+	gene_bs_head_round_shape = {
+		vanilla_head_round_shape = { index = 0 }
+		head_round_shape = { index = 1 }
+	}
+	gene_bs_nose_septum_height = {
+		vanilla_nose_septum_height = { index = 0 }
+		nose_septum_height = { index = 1 }
+	}
+	gene_bs_head_lower_height = {
+		vanilla_head_lower_height = { index = 0 }
+		head_lower_height_max = { index = 1 }
+		head_lower_height_min = { index = 2 }
+	}
+	gene_bs_nose_flared_nostril = {
+		vanilla_nose_flared_nostril = { index = 0 }
+		nose_flared_nostril = { index = 1 }
+	}
+	gene_bs_mouth_upper_lip_forward = {
+		vanilla_upper_lip_forward = { index = 0 }
+		mouth_upper_lip_forward = { index = 1 }
+	}
+	gene_bs_mouth_lower_lip_forward = {
+		vanilla_lower_lip_forward = { index = 0 }
+		mouth_lower_lip_forward = { index = 1 }
+	}
+	gene_bs_nose_swollen = {
+		vanilla_nose_swollen = { index = 0 }
+		nose_swollen = { index = 1 }
+	}
+	gene_bs_ears_fantasy = {
+		vanilla_ears_fantasy = { index = 0 }
+		ears_fantasy = { index = 1 }
+	}
+	gene_bs_mouth_glamour_lips = {
+		vanilla_mouth_glamour_lips = { index = 0 }
+		mouth_glamour_lips = { index = 1 }
+	}
+	face_detail_eye_upper_lid_def = {
+		vanilla_upper_lid_def = { index = 0 }
+		upper_lid_def = { index = 1 }
+	}
+	gene_eyebrow_inner_width = {
+		vanilla_eyebrow_inner_width = { index = 0 }
+		eyebrow_inner_width_max = { index = 1 }
+		eyebrow_inner_width_min = { index = 2 }
+	}
+}

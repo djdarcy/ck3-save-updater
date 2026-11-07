@@ -1,0 +1,4 @@
+name = "Crusader Kings III"
+version = "1.8.2"
+game_line = "1.7,1.8"
+source = "the game's 1.8.2 common/genes (1.7.2's face-gene files are byte-identical)"

@@ -924,7 +924,8 @@ def cmd_check(args) -> int:
     env = Env(game_dir=gd, patches=shipped, mod_dirs=workshop_mod_dirs(save.meta, gd),
               dna=DNA.setup(save_meta=save.meta, game_dir=gd, portrait_mods_given=portrait_mods_arg(args),
                             old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
-                            target_version=game_version(gd)) if gd else None)
+                            target_version=game_version(gd), face_changes=face_changes_arg(args),
+                            gamestate=lambda: save.gamestate) if gd else None)
     rows = []
     for r in rules:
         p = shipped.get(r.id)

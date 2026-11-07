@@ -17,7 +17,7 @@ from ck3_save_migrator import record
 from ck3_save_migrator import savefile as sf
 from tests import test_update as TU
 from tests.fixtures.make_ck3 import build_ck3, make_game_dir
-from tests.test_dna import NEW_FACE, OLD_FACE, b64, genes, new_layout, old_layout, whole_body
+from tests.test_dna import NEW_FACE, OLD_FACE, b64, genes, new_layout, no_tables, old_layout, whole_body  # noqa: F401
 from tests.test_update import run
 
 saves = TU.saves
@@ -188,7 +188,7 @@ def test_the_report_counts_them_by_gene(tmp_path):
 
 
 # --------------------------------------------------------------------------- the missing-mod note
-def test_the_missing_mod_note_is_one_line_and_not_shown_with_the_flag(tmp_path):
+def test_the_missing_mod_note_is_one_line_and_not_shown_with_the_flag(tmp_path, no_tables):
     g = steam(tmp_path)
     m = meta(["mod/cfp_3.1.5.mod", "mod/ugc_1.mod", "mod/ugc_2.mod", "mod/ugc_3.mod", "mod/ugc_4.mod", "mod/ugc_5.mod"])
     st = dna.setup(save_meta=m, game_dir=g, user=tmp_path)
@@ -203,10 +203,40 @@ def test_the_missing_mod_note_is_one_line_and_not_shown_with_the_flag(tmp_path):
 
 
 # --------------------------------------------------------------------------- the target that drops genes
-def test_the_target_dropping_genes_the_faces_use_is_said(tmp_path):
+def test_the_target_dropping_genes_the_faces_use_is_said(tmp_path, no_tables):
     g = steam(tmp_path)
     st = dna.setup(save_meta=meta([]), game_dir=g, old_game_dir=old_layout(tmp_path / "src"), user=tmp_path)
-    assert ("the target layout drops 1 gene the faces use (gene_gone); set the launcher's playset to the mods you "
-            "will play with, or give --portrait-mods") in st.notes
+    assert ("1 gene the faces use was dropped: gene_gone (from vanilla); no portrait mod you have installed defines "
+            "them; the report lists them per kind of face") in st.notes
     same = dna.setup(save_meta=meta([]), game_dir=g, user=tmp_path)    # source = target: nothing dropped
-    assert not any("drops" in n for n in same.notes)
+    assert not any("dropped" in n for n in same.notes)
+
+
+def _layout(name: str, genes: list[tuple[str, str]]) -> dna.Layout:
+    return dna.Layout(name, [], [{"name": n, "src": s, "cat": "morph_genes", "tidx_by_name": {}, "file": "x",
+                                   "order": i} for i, (n, s) in enumerate(genes)])
+
+
+def test_a_gene_a_rename_or_a_merge_carries_is_not_counted_dropped():
+    """djdarcy 2026-11-06: the plan's note said "drops 6 genes" while the face changes carry 2 of them (the EPE
+    head-roundness rename, the eye-fold merge). Counted after the face changes, with the build each came from."""
+    src = _layout("old", [("gene_a", "vanilla"), ("gene_bs_head_round_shape", "epe_1.6.0"),
+                          ("gene_bs_eye_fold_2", "epe_1.6.0"), ("gene_eye_size", "epe_1.6.0"),
+                          ("gene_eye_shut_top", "epe_1.6.0")])
+    tgt = _layout("new", [("gene_a", "vanilla"), ("gene_bs_head_shape", "epe"), ("gene_bs_eye_fold_shape", "epe")])
+    on = dna.dropped_note(src, tgt, dna.DEFAULT_FACE_CHANGES, None, None)
+    assert on == ["2 genes the faces use were dropped: gene_eye_size, gene_eye_shut_top (from epe_1.6.0); no portrait "
+                  "mod you have installed defines them; the report lists them per kind of face"]
+    off = dna.dropped_note(src, tgt, (), None, None)
+    assert off[0].startswith("4 genes the faces use were dropped: gene_bs_head_round_shape, gene_bs_eye_fold_2, "
+                             "gene_eye_size, gene_eye_shut_top (from epe_1.6.0)")
+
+
+def test_the_playset_advice_comes_only_when_an_installed_mod_defines_a_dropped_gene(tmp_path):
+    g = steam(tmp_path)
+    src = _layout("old", [("gene_gone", "epe_1.6.0")])
+    tgt = dna.build_layout("new", [("vanilla", g)])
+    assert "no portrait mod you have installed defines them" in dna.dropped_note(src, tgt, (), g, tmp_path)[0]
+    workshop(tmp_path, "777", {"x.txt": "morph_genes = { gene_gone = { t = { index = 0 } } }\n"})
+    note = dna.dropped_note(src, tgt, (), g, tmp_path)[0]
+    assert "777 (installed, not in the playset) defines some of them: set the launcher's playset" in note

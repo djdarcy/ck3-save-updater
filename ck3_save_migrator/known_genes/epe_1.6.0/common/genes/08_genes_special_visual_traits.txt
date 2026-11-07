@@ -1,0 +1,91 @@
+# Names only, written by scripts/gene_table.py: the gene categories, gene names in their order, and each template's
+# name and index, as R19 reads them. No settings, blendshapes, colours or art.
+special_genes = {
+	morph_genes = {
+		gene_bs_pregnant = {
+			pregnant = { index = 0 }
+		}
+		gene_bubonic_plague = {
+			bubonic_plague = { index = 0 }
+		}
+		gene_drunkard = {
+			drunkard = { index = 0 }
+		}
+		gene_great_pox = {
+			great_pox_mild = { index = 0 }
+			great_pox_severe = { index = 1 }
+		}
+		gene_illness = {
+			illness = { index = 0 }
+		}
+		gene_leprosy = {
+			leprosy = { index = 5 }
+		}
+		gene_lovers_pox = {
+			lovers_pox = { index = 0 }
+		}
+		gene_scaly = {
+			scaly = { index = 7 }
+		}
+		gene_scars_battle = {
+			scars_battle = { index = 0 }
+		}
+		gene_scars_disease = {
+			scars_disease = { index = 0 }
+		}
+		gene_smallpox = {
+			smallpox = { index = 0 }
+		}
+		gene_tuberculosis = {
+			tuberculosis = { index = 0 }
+		}
+		gene_typhus = {
+			typhus = { index = 0 }
+		}
+		gene_wounded = {
+			wounded_1 = { index = 0 }
+			wounded_2 = { index = 1 }
+			wounded_3 = { index = 2 }
+		}
+		gene_maimed_left_arm = {
+			maimed_left_arm = { index = 0 }
+		}
+		gene_no_decal = {
+			no_decal = { index = 0 }
+		}
+		gene_spindly = {
+			spindly = { index = 0 }
+		}
+		gene_one_legged = {
+			no_left_leg = { index = 0 }
+		}
+		gene_hunchbacked = {
+			hunchbacked = { index = 0 }
+		}
+		gene_clubfooted = {
+			clubfooted = { index = 0 }
+		}
+		gene_bs_cloak = {
+			no_cloak = { index = 0 }
+			cloak = { index = 1 }
+		}
+		pose = { }
+	}
+	accessory_genes = {
+		special_headgear_head_bandage = {
+			head_bandage = { index = 0 }
+		}
+		special_headgear_eye_patch = {
+			eye_patch = { index = 0 }
+		}
+		special_headgear_face_mask = {
+			face_mask = { index = 0 }
+		}
+		special_headgear_blindfold = {
+			blindfold = { index = 0 }
+		}
+		special_headgear_spectacles = {
+			spectacles = { index = 0 }
+		}
+	}
+}

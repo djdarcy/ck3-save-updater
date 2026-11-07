@@ -1,0 +1,5 @@
+name = "Ethnicities and Portraits Expanded"
+version = "1.6.0"
+workshop = "2507209632"
+source = "the Workshop build of 2022 that fits 1.8.1 faces with 0 impossible places (2026-11-03)"
+stands_in = ["mod/ugc_2507209632.mod"]
