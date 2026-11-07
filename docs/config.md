@@ -34,6 +34,7 @@ A setting that is not valid (a word that is not one of its choices, a number out
 | `[trusted]` | the packs that run code which you have trusted, each with the fingerprint of its files when trusted | pack id = fingerprint | none | `ck3update trust <pack id>`, `ck3update untrust <pack id>` (never by hand) |
 | `[display]` | how `status` and `update` lay out their plan | below | below | editing the file |
 | `[cache] index` | keep each save's block index (what the `**` patches search with) in a temp folder, so a second command on the same unchanged save skips building it again (about 10 s on a large save); only the newest 2 saves' entries are kept and none for more than a day, `ck3update cache clear` removes them all (`ck3update cache where` shows the folder), and the plan's DETECTORS block says when it wrote or read one; about 140 MB per large save, so set it to `false` where temp disk is short | `true` or `false` | `true` | editing the file |
+| `[cache] plans` | keep each plan's check verdicts (a few KB) beside the index, so an `update` after a `status` on the same unchanged save, with the same options and the same version of the tool, reuses the checks that found a step needed and checks the rest again; kept for a day, the newest 4 plans, `ck3update cache clear` removes them | `true` or `false` | `true` | editing the file |
 
 The commands that change the file (`disable`, `enable`, `trust`, `untrust`) keep every setting above as you wrote it, `[display]` included.
 

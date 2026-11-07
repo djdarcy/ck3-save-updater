@@ -47,6 +47,10 @@ ck3update update My_Old_Campaign
 
 `update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed: it writes `<name>__updated__<game version>.ck3` beside the save, and `<output>.report.json` beside that (the plan and the counts), and checks the result with [lint](glossary.md#lint) before it finishes. An output that exists is refused without `--force`. `update` takes `migrate`'s options for the rules (`--rules`, `--wos-shape`, `--portraits-version`, `--old-game-dir`) and exits with the same codes (below).
 
+At a terminal, `update` prints the plan and then asks "Run the update now? [y/N]". Nothing is written unless you answer `y`. A script, a pipe, or output sent to a file runs without asking. `--no-ask` never asks, and `--ask` asks even then (it needs a terminal to answer from).
+
+`status` first is optional, since `update` prints the same plan. If you do run `status` first, `update` reuses its checks: the DETECTORS block says "reused N verdict(s) of the run at HH:MM on this same save", and the plan takes seconds instead of minutes on a large save. Only checks that found a step needed are reused; the rest are checked again. A different save, a changed option, or a new version of the tool means every check runs again. `[cache] plans` in the [config file](config.md) turns this off.
+
 Then copy the updated save into the save games folder (if it is not there already), open the launcher with the mods the save names (the report and `inspect` list them), and load it. Mods made for an older game version can break windows (character, court, tooltips) without touching the save itself: if a window looks wrong, disable the mods that replace that window first. The mods known to misbehave in 1.20 are listed below.
 
 `ck3update soak My_Old_Campaign__updated__1.20.1.2.ck3` starts the game, loads the save, lets it run, exits through Exit to Desktop and says whether that went cleanly ([soak](soak.md)).

@@ -24,6 +24,10 @@ def hermetic_config(monkeypatch, tmp_path_factory):
     monkeypatch.setenv("CK3SM_CONFIG", str(tmp_path_factory.mktemp("ck3sm") / "ck3sm-config" / "config.toml"))
     # the block-index cache is on by default (0.3.23): never in the real temp folder from a test
     monkeypatch.setenv("CK3UPDATE_CACHE_DIR", str(tmp_path_factory.mktemp("ck3idx")))
+    # the plan's verdict cache (0.4.30) is off in tests, so a second plan of one save judges afresh as the tests
+    # expect; its own tests turn it on (tests/test_plan_cache.py)
+    from ck3_save_migrator import config
+    monkeypatch.setattr(config, "plan_cache_on", lambda path=None: False)
 
 
 @pytest.fixture

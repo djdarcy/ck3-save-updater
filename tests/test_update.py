@@ -119,6 +119,59 @@ def test_a_text_save_is_read_from_its_text(tmp_path):
     assert light.meta == OLD_META and light.random_seed == "111"
 
 
+# --------------------------------------------------------------------------- update --ask
+class _Tty:
+    """A terminal's stdin with one typed answer."""
+    def __init__(self, answer: str):
+        self.answer, self.read = answer, 0
+
+    def isatty(self):
+        return True
+
+    def readline(self):
+        self.read += 1
+        return self.answer + "\n"
+
+
+def _update(tmp_path, saves, capsys, monkeypatch, *flags, answer=None, at_terminal=False):
+    """update on an old save: a terminal stdin typing ``answer`` (None: no terminal), ``interactive()`` as given."""
+    s, g = old_save(saves), game(tmp_path)
+    ref_save(saves, "Ref.ck3", bookmark=True)
+    tty = _Tty(answer) if answer is not None else None
+    if tty is not None:
+        monkeypatch.setattr(cli.sys, "stdin", tty)
+    monkeypatch.setattr(cli, "interactive", lambda: at_terminal)
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--wos-shape", "faith", *flags)
+    asked = "Run the update now? [y/N]" in err
+    return code, out, err, asked, (saves / "Campaign__updated__1.20.1.2.ck3").is_file()
+
+
+def test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes(tmp_path, saves, capsys, monkeypatch):
+    """djdarcy 2026-11-06: the plan, then "Run the update now? [y/N]" by default, git-style --[no-]ask."""
+    code, out, err, asked, written = _update(tmp_path, saves, capsys, monkeypatch, answer="y", at_terminal=True)
+    assert code == 0 and asked and written
+    assert out.index("PATCHES") < out.index("wrote:")                      # the plan, then the run
+
+
+def test_update_writes_nothing_without_a_yes(tmp_path, saves, capsys, monkeypatch):
+    code, out, _, asked, written = _update(tmp_path, saves, capsys, monkeypatch, answer="", at_terminal=True)
+    assert code == 0 and asked and not written and "not run: nothing written" in out
+
+
+def test_no_ask_never_asks_and_a_script_is_never_asked(tmp_path, saves, capsys, monkeypatch):
+    code, _, _, asked, written = _update(tmp_path, saves, capsys, monkeypatch, "--no-ask", answer="n",
+                                         at_terminal=True)
+    assert code == 0 and not asked and written
+    (saves / "Campaign__updated__1.20.1.2.ck3").unlink()
+    code, _, _, asked, written = _update(tmp_path, saves, capsys, monkeypatch, "--force")   # not interactive
+    assert code == 0 and not asked and written
+
+
+def test_ask_without_a_terminal_runs_nothing(tmp_path, saves, capsys, monkeypatch):
+    code, out, err, asked, written = _update(tmp_path, saves, capsys, monkeypatch, "--ask")
+    assert not asked and not written and "--ask needs a terminal" in err
+
+
 # --------------------------------------------------------------------------- status and update share one plan
 def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     s, g = old_save(saves), game(tmp_path)

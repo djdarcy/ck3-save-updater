@@ -11,6 +11,7 @@ The most used options of `migrate`. `ck3update migrate --help` lists every optio
 | `-o`, `--output` | where to write the updated save (default: `<name>.migrated.ck3` beside the input) |
 | `--report` | write a JSON account of every change (see [Reports](reports.md)) |
 | `--dry-run` | build and verify everything, write nothing |
+| `--ask`, `--no-ask` | `update` only: print the plan, then ask "Run the update now? [y/N]" before anything is written. The default at a terminal; a script, a pipe or output sent to a file runs without asking. `--no-ask` never asks; `--ask` asks even then, and refuses without a terminal to answer from |
 | `--force` | overwrite an existing output (never the input) |
 | `--wos-shape` | how a custom faith is carried: `faith`, `rite` or `both` (the default, two outputs) |
 | `--no-lint` | skip the checks run on each output (see [Checking a save](lint.md)) |

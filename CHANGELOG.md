@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.30] - 2026-11-06
+
+### Added
+- At a terminal, `update` prints the plan and then asks "Run the update now? [y/N]". Nothing is written unless you answer yes. A script, a pipe, or output sent to a file runs without asking, as before. `--no-ask` never asks. `--ask` asks even then, and refuses when there is no terminal to answer from.
+- `update` reuses the checks of a `status` run made just before it on the same save. On the founding campaign the plan took 20 seconds instead of two minutes, and the updated save came out the same. Only checks that found a step needed are reused; the rest are checked again. A different save, even one in the same file, a changed option, or a new version of the tool means every check runs again. The checks are kept for a day, beside the speed-up cache.
+- `[cache] plans` in the config file turns the reuse off. `ck3update cache clear` now removes the kept checks too.
+
 ## [0.4.29] - 2026-11-06
 
 ### Added
@@ -652,7 +659,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.30...HEAD
+[0.4.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...v0.4.30
 [0.4.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...v0.4.29
 [0.4.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.27...v0.4.28
 [0.4.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.26...v0.4.27
