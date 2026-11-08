@@ -4,6 +4,21 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-11-07
+
+### Added
+- A 1.8 save no longer needs the old game for R15. The tool now carries the titles of the 1.8.2 map, names only: each title, where it sits in the map, and each barony's province. Without `--old-game-dir`, R15 reads that map and settles the titles the new map removed or moved, so their holders keep them. The plan's NOTES name the map it used. On the founding campaign the result is the same, byte for byte, as with the 1.8.2 game folder. A save from another version still needs `--old-game-dir` for R15, and the plan says so. `--old-game-dir` always wins when given.
+
+### Changed
+- `update` is faster again when it runs without asking (with `--no-ask`, in a script, or with output sent to a file). On a save from an older version, the checks only word the plan's lines, so it skips them. The DETECTORS block says so, and each patch's line after the run gives its counts and what it does. Measured on the founding campaign: 427 s, against 530 s with the checks and 767 s in 0.4.30, with the same output byte for byte. `--ask` and `--dry-run` still show the full plan first, and a save already on the game's version line is still checked, because there the checks decide what runs.
+- A patch that fails now stops the update at once. The message names it and how many later patches did not run. Before, every other patch ran first, which could take minutes, and still nothing was written.
+- R15 has a check of its own. It counts every title it will settle, including baronies the new map moved, not only titles the game removed. Before, a save whose map moved baronies but removed no title would have been judged done and R15 skipped. No 1.8 save was affected.
+- `--wos-shape` is now `--custom-faith-as` (`faith`, `rite` or `both`, as before). The old name is gone. A record from an earlier run still fills the option in.
+- The README leads with `ck3update update`, which shows the plan and asks. `status` is optional. An advanced example explains each option.
+
+### Fixed
+- R25's and R19's checks see the same inputs as their rules (the old game's folder; the transplanted characters).
+
 ## [0.4.31] - 2026-11-07
 
 ### Changed
@@ -665,7 +680,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.31...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.31...v0.5.0
 [0.4.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.30...v0.4.31
 [0.4.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...v0.4.30
 [0.4.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.28...v0.4.29

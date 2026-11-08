@@ -141,7 +141,7 @@ def _update(tmp_path, saves, capsys, monkeypatch, *flags, answer=None, at_termin
     if tty is not None:
         monkeypatch.setattr(cli.sys, "stdin", tty)
     monkeypatch.setattr(cli, "interactive", lambda: at_terminal)
-    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--wos-shape", "faith", *flags)
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--custom-faith-as", "faith", *flags)
     asked = "Run the update now? [y/N]" in err
     return code, out, err, asked, (saves / "Campaign__updated__1.20.1.2.ck3").is_file()
 
@@ -172,6 +172,27 @@ def test_ask_without_a_terminal_runs_nothing(tmp_path, saves, capsys, monkeypatc
     assert not asked and not written and "--ask needs a terminal" in err
 
 
+def test_an_update_that_does_not_ask_skips_the_checks_and_explains_each_count(tmp_path, saves, capsys, monkeypatch):
+    """0.5.0 (djdarcy, 2026-11-07: "Yes, skip when not asking"; "make sure users can understand what they're
+    seeing"): the checks that only word the plan's lines are skipped, DETECTORS says why, and each patch's line
+    after the run says what it does."""
+    calls = []
+    from ck3_save_migrator import detect
+    real = detect.detect
+    monkeypatch.setattr(detect, "detect", lambda rid, g, env: calls.append(rid) or real(rid, g, env))
+    code, out, _, asked, written = _update(tmp_path, saves, capsys, monkeypatch, "--no-ask", at_terminal=True)
+    flat_out = re.sub(r"\n {5,}", " ", out)
+    assert code == 0 and written and not asked and not calls             # no check ran
+    assert "not run: update is not asking first" in flat_out
+    assert re.search(r"(?m)^ +R7 +version-bump +matched .* -- set meta_data version", out)
+
+
+def test_a_dry_run_still_judges_and_does_not_add_descriptions(tmp_path, saves, capsys, monkeypatch):
+    code, out, _, _, written = _update(tmp_path, saves, capsys, monkeypatch, "--dry-run")
+    assert code == 0 and not written
+    assert "judged each built-in step" in re.sub(r"\n {5,}", " ", out) and " -- set meta_data" not in out
+
+
 # --------------------------------------------------------------------------- status and update share one plan
 def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     s, g = old_save(saves), game(tmp_path)
@@ -179,14 +200,19 @@ def test_status_and_update_print_and_run_the_same_plan(tmp_path, saves, capsys):
     before = sorted(p.name for p in saves.iterdir())
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(g))
     assert code == 0 and re.search(r"(?m)^PATCHES +\(in the order they run\)$", out)
-    code, dry, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape", "faith")
+    code, dry, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--custom-faith-as", "faith")
     assert code == 0 and "dry run: the plan with each patch's counts" in dry
     assert sorted(p.name for p in saves.iterdir()) == before                       # status and --dry-run wrote nothing
     assert [(x.id, x.will_run) for x in cli.LAST_PLAN["update"].steps] == \
         [(x.id, x.will_run) for x in cli.LAST_PLAN["status"].steps]
-    assert run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--wos-shape", "faith")[0] == 0
-    assert cli.LAST_PLAN["update"].as_dict() == cli.LAST_PLAN["status"].as_dict()   # the plan status printed ...
+    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--custom-faith-as", "faith")
+    assert code == 0
+    # an update that does not ask skips the checks that only word the lines (0.5.0): the same steps run, and it
+    # says so in DETECTORS; each patch's counts follow the run
+    assert [(x.id, x.will_run) for x in cli.LAST_PLAN["update"].steps] == \
+        [(x.id, x.will_run) for x in cli.LAST_PLAN["status"].steps]               # the plan status printed ...
     assert cli.LAST_PLAN["ran"] == cli.LAST_PLAN["status"].running()               # ... is the plan update ran
+    assert "not run: update is not asking first" in re.sub(r"\n {5,}", " ", out)
     out_path = saves / "Campaign__updated__1.20.1.2.ck3"
     assert out_path.is_file() and (saves / "Campaign__updated__1.20.1.2.report.json").is_file()
     rep = json.loads((saves / "Campaign__updated__1.20.1.2.report.json").read_text(encoding="utf-8"))
@@ -424,7 +450,7 @@ def test_a_pack_after_r17_runs_between_r17_and_r7(tmp_path, saves, capsys):
     after_pack("R17")
     g, r = game(tmp_path), ref_save(tmp_path, "Ref.ck3")
     code, _, err = run(capsys, "update", str(old_save(saves)), "--game-dir", str(g), "--reference", str(r),
-                       "--rules", "all,R14,R16", "--no-lint", "--wos-shape", "faith")
+                       "--rules", "all,R14,R16", "--no-lint", "--custom-faith-as", "faith")
     assert code == 0, err
     ran = cli.LAST_PLAN["ran"]
     # R19 finishes what R17 wrote: the pack follows; R25 and R26 (key renames, no writer) and the bump come after

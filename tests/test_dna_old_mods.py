@@ -110,7 +110,7 @@ def test_the_record_keeps_it_and_the_next_update_pre_fills_it(tmp_path, saves, c
     first = saves / "Faces.ck3"
     first.write_bytes(build_ck3(meta=TU.OLD_META, body=body))
     code, _, err = run(capsys, "update", str(first), "--game-dir", str(g), "--reference", "none", "--no-lint",
-                       "--old-portrait-mods", str(own), "--wos-shape", "faith")
+                       "--old-portrait-mods", str(own), "--custom-faith-as", "faith")
     assert code == 0, err
     assert record.read_record("111")["update"][-1]["inputs"]["old_portrait_mods"] == [str(own)]
     later = saves / "Faces_later.ck3"

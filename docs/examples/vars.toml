@@ -1,0 +1,15 @@
+# An example vars.toml: the values a pack's patches ask for (`needs = [...]` in their patch.toml).
+# Put it beside the pack's pack.toml to have it read by itself, or name it with --vars.
+# Shaped like the one used for the project's own campaign; the paths are placeholders.
+
+# a plain value: the folder holding the pack's helper scripts
+tools_dir = "C:/path/to/my_pack/tools"
+
+# a plain value: a save the pack reads from (here, an older save of the same campaign)
+witness = "C:/path/to/save games/My_Old_Campaign_earlier.ck3"
+
+# a list: becomes one argument per item where a patch uses "@@pairs@@" as a whole element
+pairs = [
+  "mod/ugc_2220098919.mod=C:/path/to/steamapps/workshop/content/1158310/2220098919",
+  "mod/ugc_2507209632.mod=C:/path/to/steamapps/workshop/content/1158310/2507209632",
+]

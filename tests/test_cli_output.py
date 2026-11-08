@@ -34,7 +34,7 @@ def commands(tmp: Path, old: Path, ref: Path) -> dict[str, list[str]]:
         "inspect": ["inspect", str(old)],
         "rules": ["rules"],
         "lint": ["lint", str(old), "--no-keys", "--reference", "none"],
-        "migrate": ["migrate", str(old), "--rules", "all", "--reference", str(ref), "--wos-shape", "faith",
+        "migrate": ["migrate", str(old), "--rules", "all", "--reference", str(ref), "--custom-faith-as", "faith",
                     "-o", str(tmp / "out.ck3"), "--report", str(tmp / "r.json"), "--no-lint"],
     }
 

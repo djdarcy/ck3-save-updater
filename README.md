@@ -38,18 +38,17 @@ That writes a small mod into the game's mod folder. Then, in the game:
 3. **Save at once**, before unpausing (any name will do, e.g. `Reference`), and quit to the desktop.
 4. Back in the launcher, turn the reference mod off again.
 
-**3. Set the launcher's playset, then check and update.** In the game's launcher, set the playset to the mods you will play with, portrait mods included, then close the launcher. The faces are converted to match that playset's [gene layout](docs/glossary.md#gene-layout). Then:
+**3. Update.** Set the launcher's playset to the mods you will play with, close the launcher, then run:
 
 ```
-ck3update status "My Save"
 ck3update update "My Save"
 ```
 
-`status` writes nothing. Its first line is the answer: READY, with what will run, or REFUSED, with a `fix:` line saying what to do. It finds the reference save by itself. `update` writes `My Save__updated__<game version>.ck3` next to your save. If your save is from before the 1.13 map rework, the update also brings in the regions the new map added, copied from the reference save.
+It prints the plan and asks "Run the update now? [y/N]". The first line is the answer: READY, or REFUSED with a `fix:` line saying what to do. Answer `y`, and it writes `My Save__updated__<game version>.ck3` next to your save.
 
 **4. Play.** Start the game with that same playset, and load `My Save__updated__...`.
 
-Faces are converted to the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you play with (rule R19, [#8](https://github.com/djdarcy/ck3-save-updater/issues/8)). Set the launcher's playset before you update, or name the mods with `--portrait-mods`. You do not need the old builds of Community Flavor Pack or Ethnicities and Portraits Expanded: the update knows their 2022-2023 face genes. For another portrait mod that has since been updated or removed, point `--old-portrait-mods` at the build the save used. Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
+Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
 ## What ck3update has been tested against
 
@@ -58,7 +57,7 @@ I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads 
 Not handled yet:
 
 - Some things the current game removed with no replacement, such as timed modifiers from events that later versions removed. The game drops them when the save loads. [What doesn't carry over](docs/not-carried-over.md) lists each one.
-- Mod content in general.
+- Mod content in general. You can write your own rules for a mod, though. [Writing a patch](docs/writing-a-patch.md) shows how.
 
 For a save from before the [map rework](docs/glossary.md#map-rework), the regions it added are brought in by default whenever a reference save is found, with the rulers the current game gives them. Land your realm held stays yours, and new rulers on it become your vassals. `--transplant off` leaves this step out.
 
@@ -106,11 +105,37 @@ Below the verdict come blocks, one per header: SAVE, GAME, RECORD, [GAP](docs/gl
 ck3update update "My_Old_Campaign"
 ```
 
-This runs the plan `status` printed and writes `My_Old_Campaign__updated__<game version>.ck3` beside your save, with a report beside it. It checks the result ([lint](docs/glossary.md#lint)) before it finishes. Copy the new file into the game's `save games` folder if it is not there already, start the game with the mods the save lists, and load it.
+This prints the plan `status` would print, asks "Run the update now? [y/N]", and on a `y` writes `My_Old_Campaign__updated__<game version>.ck3` beside your save, with a report beside it. It checks the result ([lint](docs/glossary.md#lint)) before it finishes. Copy the new file into the game's `save games` folder if it is not there already, start the game with the mods the save lists, and load it.
 
+- `--no-ask` runs without asking. It is also what happens in a script, or when the output goes to a file.
+- Without asking, the update skips the checks that only describe the plan. That makes it faster: about 7 minutes instead of 9 on a large save. Each patch's line at the end then says what it changed, and what it does.
 - `--dry-run` runs everything in memory and writes nothing.
 - `--in-place` gives the updated save your save's own name, after keeping the original as `<name>.bak.ck3`; a clean result only.
 - The tool remembers each campaign it updated ([the record](docs/glossary.md#record)), so the next save of the same campaign is updated with the same inputs without your giving them again.
+
+## An advanced example
+
+The command we use for our own long campaign, with its portrait mods and a pack of our own fixes:
+
+```
+ck3update update "My_Old_Campaign.ck3" --reference "ref_1_20_987_10_27.ck3" --old-game-dir "C:\...\Crusader Kings III 1.8\game" --portrait-mods "2220098919,2507209632,2996881191" --pack "my_pack" --vars "my_pack\vars.toml" --allow-run --custom-faith-as faith --no-ask -o "My_Old_Campaign__updated.ck3"
+```
+
+- `--reference` names the [reference save](docs/glossary.md#reference-save) instead of letting the tool find it.
+- `--old-game-dir` points at a copy of the game version the save was made with. It lets the update settle titles and baronies the new map removed or moved. A 1.8 save does not need it. The tool carries the titles of the 1.8.2 map, names only, and uses them instead. A save from another version needs it for that step. Without it the step is skipped (`status` says so), and those titles are left as they are.
+- `--portrait-mods` names the portrait mods to convert the faces into, by Workshop id, in load order. Without it, the update reads them from the launcher's playset.
+- `--pack` adds a folder of your own fixes, run after the built-in ones. [Writing a patch](docs/writing-a-patch.md) shows how to make one; the packs folder beside the config file is read without naming it.
+- `--vars` gives a pack the values its patches ask for, from a TOML file (`name = "value"`, or a list; [an example](docs/examples/vars.toml)). A pack's own `vars.toml`, beside its `pack.toml`, is read by itself; `--vars` overrides it or adds to it. A pack you name that needs a value it was not given is refused, with the name of the value.
+- `--allow-run` lets a pack run its own program or Python code. Only give it for a pack you trust.
+- `--custom-faith-as faith` decides how a custom faith comes through, such as one you created in game. The tool finds these faiths in the save itself, so you name nothing. The option takes one of three words. `faith` keeps each custom faith as a faith of its own. `rite` makes it a rite of the faith it was based on. Without the option you get both, as two outputs. A save with no custom faith always gets one output.
+- `--no-ask` runs without asking, and is faster: it skips the checks that only describe the plan.
+- `-o` names the output file.
+
+With a reference save, the new-map regions are brought in by default, so no `--rules` is needed.
+
+**Faces.** Faces are converted to the [gene layout](docs/glossary.md#gene-layout) of the game and portrait mods you play with (rule R19). You do not need the old builds of Community Flavor Pack or Ethnicities and Portraits Expanded: the update knows their 2022-2023 face genes. For another portrait mod that has since been updated or removed, point `--old-portrait-mods` at the build the save used.
+
+**Checking first.** `ck3update status "My Save"` prints the plan without asking and writes nothing. An `update` right after it reuses its checks.
 
 ## When it refuses
 

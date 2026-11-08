@@ -31,6 +31,27 @@ _TOK = re.compile(r'"[^"]*"|[{}=]|[^\s{}="]+')
 _TITLE = re.compile(r"^[hekdcb]_")
 
 
+KNOWN_TITLES = Path(__file__).resolve().parent / "known_titles"
+
+
+def old_map(old_game_dir, save_version: str | None) -> tuple[Path | None, str]:
+    """The old map R15 reads, and what to call it: the given old game's ``common/landed_titles`` (it always wins),
+    else the built-in names-only table for the save's version line (``known_titles/<folder>``, written by
+    ``scripts/title_table.py``; djdarcy 2026-11-07: "giving people titles from a moment in time"), else None with
+    the reason. Measured: the 1.8.2 table gives R15 the same 116 mappings as the game's folder on the founding save."""
+    if old_game_dir:
+        folder = Path(old_game_dir) / "common" / "landed_titles"
+        return (folder, f"--old-game-dir ({old_game_dir})") if folder.is_dir() else \
+            (None, f"--old-game-dir \"{old_game_dir}\" has no common/landed_titles")
+    from .dna import _line, load_tables, table_label
+    line = _line(save_version)
+    t = next((t for t in load_tables(KNOWN_TITLES) if line and line in t["game_lines"]), None)
+    if t is None:
+        return None, (f"no built-in old map covers {f'a {line} save' if line else 'this save'}; give --old-game-dir "
+                      "(the save's own version's game folder)")
+    return t["folder"] / "common" / "landed_titles", table_label(t)
+
+
 def title_tree(landed_titles_dir: Path) -> tuple[dict[str, str | None], dict[str, int]]:
     """From a version's ``common/landed_titles`` folder: key -> de jure parent key, and barony -> province."""
     parent: dict[str, str | None] = {}

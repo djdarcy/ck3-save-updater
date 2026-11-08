@@ -59,6 +59,12 @@ class Env:
     mod_dirs: list = field(default_factory=list)     # the installed folders of the save's listed mods (R23's texts)
     dna: object = None                 # R19's layouts and target portraits_version (dna.Setup), when built
     patches: dict = field(default_factory=dict)      # the built-in pack's patches, by id (the declarative ones)
+    # the inputs a check shares with its rule (0.5.0's step interface, design 2026-11-07 01:37): the old game's
+    # folder (R25's stacked keys), and, in a one-pass update, the rule's own context (its template values; R19's
+    # transplanted characters). None at plan time, where each check judges the untouched save as before.
+    old_game_dir: Path | None = None
+    rule_ctx: object = None
+    save_version: str | None = None    # picks the built-in old map when no old game is given (R15, 2026-11-07)
     # detector -> (the gamestate object it read, its Detection): rules that share a detector (R14/R16/R17,
     # R8/R9/R10/R12, R6/R15) read the save once per plan. Kept with the object itself and reused only for that same
     # object, never by path or by content: a dry run and a real run on one file never share a verdict.
@@ -157,7 +163,7 @@ def _r25(g, env):
     from .rules.to_1_20 import r25_detect
     if env.game_dir is None:                  # what is defined depends on the game's common/
         return Detection("unknown", why="needs the game folder (its definitions)")
-    n, examples, left = r25_detect(g, env.game_dir, env.mod_dirs)
+    n, examples, left = r25_detect(g, env.game_dir, env.mod_dirs, env.old_game_dir)
     d = _found(n, examples, "keys the game no longer defines, with a successor")
     d.what_one = "key the game no longer defines, with a successor"
     d.left = [f"{counted(c, 'key', 'keys')} left as {'it is' if c == 1 else 'they are'} ({why})"
@@ -200,6 +206,26 @@ def _dead_titles(g, env):
     return _found(len(dead), dead, "titles the game no longer defines (\"is not a valid title template\")")
 
 
+def _r15(g, env):
+    """R15's own check: the rule's own matcher (``deadtitles.classify``), which finds the titles the game no
+    longer defines AND the baronies it moved. R15 shared R6's report check until 2026-11-07, which counts only the
+    first kind: a save whose map moved baronies but removed no title would have been judged done and R15 skipped
+    (measured safe on every 1.8 save, which all carry 96 removed titles; draft 2026.11.07_01)."""
+    if env.game_dir is None or not (Path(env.game_dir) / "common" / "landed_titles").is_dir():
+        return Detection("unknown", why="needs the game's data (its common/landed_titles)")
+    from collections import Counter
+    from . import deadtitles as D
+    from .lint import defined_title_keys
+    old_lt, why = D.old_map(env.old_game_dir, env.save_version)       # the old game's, else the built-in table
+    if old_lt is None:
+        return Detection("unknown", why=why)
+    _, conv = defined_title_keys(Path(env.game_dir))
+    maps = D.classify(g, old_lt, Path(env.game_dir) / "common" / "landed_titles", set(conv))
+    kinds = Counter(m.kind for m in maps)
+    return _found(len(maps), [f"{counted(n, k + ' title', k + ' titles')}" for k, n in kinds.most_common()],
+                  "titles to settle by place (removed by the game, or baronies it moved)")
+
+
 def _religion_layout(g, env):
     from .lint import SectionIndex, _db
     idx = SectionIndex(g)
@@ -225,7 +251,8 @@ def _r19(g, env):
     empty = [x.name for x in (env.dna.source, env.dna.target) if not x.places]
     if empty:
         return Detection("unknown", why=f"no genes found for {' and '.join(empty)} layout (no common/genes)")
-    res = plan_save(g, env.dna)
+    state = getattr(env.rule_ctx, "state", None) or {}
+    res = plan_save(g, env.dna, state.get("transplanted_characters"))     # as R19's rule does (rules/faces.py)
     n = res.changed
     pv = f"portraits_version {res.portraits_version[0]} -> {res.portraits_version[1]}" \
         if res.portraits_version else ""
@@ -260,7 +287,7 @@ def _r19(g, env):
 
 
 DETECTORS = {
-    "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _dead_titles,
+    "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _r15,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
     "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30, "R31": _r31,
@@ -286,7 +313,7 @@ def detect(rule_id: str, g: bytes, env: Env) -> Detection:
     p = env.patches.get(rule_id)
     if p is not None and p.kind == "declarative":
         from .patches.pack import verdict
-        v, detail = verdict(g, p, RuleContext(game_dir=env.game_dir))
+        v, detail = verdict(g, p, env.rule_ctx or RuleContext(game_dir=env.game_dir))
         if v == "needed":
             return Detection("needed", None, detail)
         if v == "done":

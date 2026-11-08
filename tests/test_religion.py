@@ -225,7 +225,7 @@ class TestR10Rite:
                 "why": "1.20 rites keep no change history (the faith shape carries it)"} in res["R10"].extra["lost"]
 
     def test_bad_shape_refused(self, paths):
-        with pytest.raises(ValueError, match="shape"):
+        with pytest.raises(ValueError, match="--custom-faith-as must be one of"):
             run(paths, "R8,R10", "nonsense")
 
 

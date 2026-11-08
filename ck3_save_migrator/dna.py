@@ -908,12 +908,3 @@ def plan_save(g: bytes, st: Setup, transplanted: set[str] | None = None) -> Resu
     return res
 
 
-def apply_edits(g: bytes, edits: list) -> bytes:
-    parts, pos = [], 0
-    for s0, s1, rep in edits:
-        if s0 < pos:
-            raise ValueError(f"overlapping DNA edits at byte {s0}")
-        parts += [g[pos:s0], rep]
-        pos = s1
-    parts.append(g[pos:])
-    return b"".join(parts)

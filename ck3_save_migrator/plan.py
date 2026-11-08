@@ -45,7 +45,8 @@ _SEED = re.compile(rb"(?m)^random_seed=(\d+)")
 _DATE = re.compile(rb"(?m)^\s*meta_date=\"?(-?\d+\.\d+\.\d+)\"?")
 _MOD = re.compile(rb'"(mod/[^"]+\.mod)"')
 
-# The built-in rules that do nothing without a reference save, and the one that needs the old game folder. Each
+# The built-in rules that do nothing without a reference save, and the one that needs the old game's map (the old
+# game folder, or the built-in table for the save's version line: deadtitles.old_map). Each
 # says so itself when it runs (its "skipped" note); the plan says so beforehand. A test checks the two agree.
 NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17")
 NEEDS_OLD_GAME = ("R15",)
@@ -374,7 +375,7 @@ class UpdatePlan:
 IND, IND2 = "  ", "    "     # a section's continuation lines, and the items under them
 
 # skip reasons the player can act on (shown as a warning, not a note)
-ACTION_NEEDED = ("needs a reference save", "needs the old game folder", "its pack is not trusted",
+ACTION_NEEDED = ("needs a reference save", "needs the old game", "its pack is not trusted",   # folder, or 's map
                  "its pack is changed since trusted", "needs --var")
 
 
@@ -656,7 +657,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 transplant: str | None = None, use_record: bool = True, in_place: bool = False,
                 detect: bool = False, progress=None, no_dna: bool = False,
                 portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None,
-                face_changes: list[str] | None = None) -> UpdatePlan:
+                face_changes: list[str] | None = None, display_checks: bool = True) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -769,7 +770,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 transplant = last["transplant"]
             if last.get("portraits_version") is not None:
                 notes.append("the record's portraits_version is no longer used; R19 sets it from the target")
-    # --wos-shape shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
+    # --custom-faith-as shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
     inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
               "old_portrait_mods": old_portrait_mods, "face_changes": face_changes}
 
@@ -807,6 +808,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     plus = [t.strip().lower() for t in spec.split(",") if t.strip() and not t.strip().startswith("-")]
     candidates = (({r.id for r in REGISTRY} - _excluded_ids(spec)) if (not plus or "all" in plus) else set(chosen)) \
         if recheck else set()
+    map_notes: dict[str, str] = {}
     for r in REGISTRY:
         reason, run = "runs", True
         if not ok and (r.id not in candidates or (r.id == "R19" and no_dna)):
@@ -823,8 +825,14 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             reason, run = ("opt-in: not in --rules" if not r.default else "not selected by --rules"), False
         elif r.id in off and r.id not in named:
             reason, run = "turned off in your config (`ck3update enable` turns it back on)", False
-        elif r.id in NEEDS_OLD_GAME and not old_game_dir:
-            reason, run = "needs the old game folder (--old-game-dir), and none was given", False
+        elif r.id in NEEDS_OLD_GAME:
+            # the old game's map, else the built-in table for the save's line (2026-11-07 19:52 DWP)
+            from .deadtitles import old_map
+            folder, source = old_map(old_game_dir, sv["version"])
+            if folder is None:
+                reason, run = f"needs the old game's map: {source}", False
+            else:
+                map_notes[r.id] = f"{r.id}'s old map: {source}"          # said only if it still runs (below)
         steps.append(Step(r.id, r.name, shipped.id, run, reason))
         rules[r.id] = r
         info[r.id] = {"needs_ref": r.id in NEEDS_REFERENCE, "patch": None, "requires": tuple(r.requires)}
@@ -1038,6 +1046,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             need = [r for r in info[s.id]["requires"] if r in skipped]
             if s.will_run and need:
                 s.will_run, s.reason, changed = False, skipped_needs(need), True
+    notes.extend(n for s in steps if s.will_run and (n := map_notes.get(s.id)))   # the old map R15 will read
 
     # ---- the built-in rules' detectors (read only): needed or done, before anything runs
     detected, builtin = None, {r.id for r in REGISTRY}
@@ -1078,7 +1087,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             refbytes = sf.read_save(ref.path).gamestate
         from .lint import workshop_mod_dirs
         env = Env(game_dir=game.path if game else None, reference=refbytes, patches=shipped.patches,
-                  mod_dirs=workshop_mod_dirs(light.meta, game.path if game else None), dna=dna_setup)
+                  mod_dirs=workshop_mod_dirs(light.meta, game.path if game else None), dna=dna_setup,
+                  old_game_dir=Path(old_game_dir) if old_game_dir else None, save_version=sv["version"])
         g = gamestate()
         # an up-to-date save (djdarcy, 2026-11-01): skip what the record shows applied and what its detector finds
         # done, run what its detector finds needed, and never run blindly what cannot be judged
@@ -1131,7 +1141,11 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 notes.append(f"{rid}: {'; '.join(d.left)}; " + ("they stay as they are" if many else "it stays as it is"))
             notes.extend(f"{rid}: {n}" for n in d.notes)
             return d
-        for s in judge:
+        # on the main path a check only words its step's line ("needed: N edits"); it never changes what runs. An
+        # update that does not ask first skips them (djdarcy, 2026-11-07: "Yes, skip when not asking"; measured on
+        # the founding save: the same bytes, 404 s instead of 530 s); its patches' own counts follow the run. The
+        # re-check below decides what runs, so it is always judged.
+        for s in judge if display_checks else []:
             s.reason = run_detector_timed(s.id).line()
         for rid in recheck_ids:
             st = next(x for x in steps if x.id == rid)
@@ -1167,7 +1181,10 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 need = [r for r in info[x.id]["requires"] if r in skipped]
                 if x.will_run and need:
                     x.will_run, x.reason, changed = False, skipped_needs(need), True
-        detected = "re-checked the save on the game's version line" if recheck_ids else "judged each built-in step"
+        detected = ("re-checked the save on the game's version line" if recheck_ids else
+                    "judged each built-in step" if display_checks else
+                    "not run: update is not asking first, so it does not judge the steps beforehand; each patch's "
+                    "counts follow the run")
         if reused:
             when = time.strftime("%H:%M", time.localtime((PC.load(pkey) or {}).get("made", time.time())))
             detected += (f"; reused {len(reused)} verdict(s) of the run at {when} on this same save (only those "

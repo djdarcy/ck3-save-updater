@@ -146,11 +146,14 @@ def r15_dead_titles(save: CK3Save, ctx, rule):
     have = save_version(save)
     if have is not None and have >= _version_tuple(ctx.target_version):
         return _skip(rule, f"the save is already at {'.'.join(map(str, have))} (the target map); nothing to settle")
-    if ctx.old_game_dir is None or ctx.game_dir is None:
-        return _skip(rule, "needs --old-game-dir (the save's own version's game folder) and --game-dir")
+    if ctx.game_dir is None:
+        return _skip(rule, "needs --game-dir")
+    # the old map: --old-game-dir's, else the built-in table for the save's version line (2026-11-07)
+    old_lt, old_label = D.old_map(ctx.old_game_dir, '.'.join(map(str, have)) if have else None)
+    if old_lt is None:
+        return _skip(rule, old_label)
     _, conversion = defined_title_keys(ctx.game_dir)
-    maps = D.classify(save.gamestate, ctx.old_game_dir / "common" / "landed_titles",
-                      ctx.game_dir / "common" / "landed_titles", set(conversion))
+    maps = D.classify(save.gamestate, old_lt, ctx.game_dir / "common" / "landed_titles", set(conversion))
     # djdarcy 2026-10-27 (~06:30): "any titles that were in play that are still existent in the game that were
     # present in our original game should be upgraded if possible so the correct holder still has their title."
     # A held title R15 removes because 1.20 split or redrew its land: its successors go to the campaign holder
@@ -177,7 +180,7 @@ def r15_dead_titles(save: CK3Save, ctx, rule):
     return rule.result(matched=len(maps), edited=len(ep.edits),
                        extra={"by_class": by, "renamed": applied.renamed, "removed": applied.removed,
                               "references_removed": dict(applied.references_removed),
-                              "table": [m.row() for m in maps]})
+                              "old_map": old_label, "table": [m.row() for m in maps]})
 
 
 def r16_people(save: CK3Save, ctx, rule):

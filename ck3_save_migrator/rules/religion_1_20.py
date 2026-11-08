@@ -392,7 +392,7 @@ def r10_custom_faith(save: CK3Save, ctx, rule):
         return _skip(rule, "needs R8 (religion transplant) in the same run")
     shape = ctx.wos_shape
     if shape not in WOS_SHAPES:
-        raise ValueError(f"wos shape must be one of {WOS_SHAPES}, not {shape!r}")
+        raise ValueError(f"--custom-faith-as must be one of {WOS_SHAPES}, not {shape!r}")
     g = save.gamestate
     rites, faiths, rite_by_type, faith_by_type = _db(g)
     known = _known_doctrines(g, ctx)

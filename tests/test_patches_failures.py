@@ -40,6 +40,50 @@ def expect_pack(root: Path) -> Path:
     return pack
 
 
+def two_patch_pack(root: Path) -> Path:
+    """E1 fails (its expect does not hold); E2 would edit if it ran."""
+    pack = root / "pack2"
+    (pack / "E1-x").mkdir(parents=True)
+    (pack / "E2-y").mkdir(parents=True)
+    (pack / "pack.toml").write_text('format = 1\nid = "p2"\ntitle = "p"\norder = ["E1", "E2"]\n', encoding="utf-8")
+    (pack / "E1-x" / "patch.toml").write_text(
+        'format = 1\nid = "E1"\nname = "must-find"\ntitle = "t"\nsince = "1.20"\n\n[[edit]]\npath = "stuff"\n'
+        'op = "delete_key"\nkey = "not_there"\nexpect = 1\n', encoding="utf-8")
+    (pack / "E2-y" / "patch.toml").write_text(
+        'format = 1\nid = "E2"\nname = "later"\ntitle = "t"\nsince = "1.20"\n\n[[edit]]\npath = "stuff"\n'
+        'op = "delete_key"\nkey = "anything"\n', encoding="utf-8")
+    return pack
+
+
+def test_the_update_stops_at_the_first_failed_patch(tmp_path, no_game, capsys, monkeypatch):
+    """djdarcy, 2026-11-07: "stop the output and cleanup ASAP when we hit an error/refusal". The patch after the
+    failed one never runs, and the message says how many did not."""
+    ran = []
+    real = cli.run_rules
+    monkeypatch.setattr(cli, "run_rules", lambda save, rules, ctx: ran.extend(r.id for r in rules) or
+                        real(save, rules, ctx))
+    code = migrate(tmp_path, "--pack", str(two_patch_pack(tmp_path)))
+    err = capsys.readouterr().err
+    assert code == 5 and not (tmp_path / "o.ck3").exists()
+    assert ran == ["R7", "E1"]                                       # E2 never ran
+    assert "patch E1 (must-find) failed" in err and "1 later patch(es) not run" in err and "nothing written" in err
+
+
+def test_a_failure_in_the_first_faith_shape_skips_the_second(tmp_path, no_game, capsys, monkeypatch):
+    from ck3_save_migrator import cli as c
+    monkeypatch.setattr(c, "custom_faith_names", lambda g: ["My Faith"])
+    monkeypatch.setattr(c, "find_reference", lambda a: tmp_path / "ref.ck3")
+    monkeypatch.setattr(c, "missing_prerequisites", lambda rules: [])
+    ran = []
+    real = c.run_rules
+    monkeypatch.setattr(c, "run_rules", lambda save, rules, ctx: ran.extend(r.id for r in rules) or
+                        real(save, rules, ctx))
+    code = cli.main(["migrate", str(a_save(tmp_path)), "--rules", "R7,R10", "--pack", str(expect_pack(tmp_path)),
+                     "--no-lint", "-o", str(tmp_path / "o.ck3")])
+    assert code == 5 and not list(tmp_path.glob("o*.ck3"))
+    assert ran.count("E1") == 1                                      # the second shape never ran
+
+
 def migrate(tmp_path: Path, *extra: str) -> int:
     return cli.main(["migrate", str(a_save(tmp_path)), "--rules", "R7", "--no-lint", "-o", str(tmp_path / "o.ck3"),
                      *extra])

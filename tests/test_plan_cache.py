@@ -39,7 +39,7 @@ def _status_then_update(tmp_path, saves, capsys, calls, *update_flags):
     assert run(capsys, "status", str(s), "--game-dir", str(g))[0] == 0
     first = list(calls)
     calls.clear()
-    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape",
+    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--custom-faith-as",
                        "faith", *update_flags)
     assert code == 0
     return first, list(calls), out
@@ -66,7 +66,7 @@ def test_a_cached_done_verdict_is_judged_again(tmp_path, saves, capsys, cache_on
     body["verdicts"][rid]["state"] = "done"                            # pretend status had found it done
     f.write_text(json.dumps(body), encoding="utf-8")
     calls.clear()
-    run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape", "faith")
+    run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--custom-faith-as", "faith")
     assert rid in calls
 
 
@@ -83,7 +83,7 @@ def _status_then_changed_update(tmp_path, saves, capsys, calls, change):
     first = list(calls)
     calls.clear()
     change()
-    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--wos-shape",
+    code, out, _ = run(capsys, "update", str(s), "--game-dir", str(g), "--dry-run", "--no-lint", "--custom-faith-as",
                        "faith")
     assert code == 0
     return first, list(calls), out

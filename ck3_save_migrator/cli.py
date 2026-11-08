@@ -123,8 +123,15 @@ def run_rules_timed(save, rules, ctx, progress=None, first: int = 1, total: int 
         if progress is not None:
             progress(f"running {r.id} {r.name}{note} ({i} of {total})")
         t = time.perf_counter()
-        out += run_rules(save, [r], ctx)
+        res = run_rules(save, [r], ctx)
+        out += res
         say(EXTRA, f"  {r.id:3} {r.name:22} {time.perf_counter() - t:6.1f}s", "timing", err=True)
+        if any(x.extra.get("failed") for x in res):
+            # a failed patch means nothing will be written: stop now instead of running the rest (djdarcy,
+            # 2026-11-07: "stop the output and cleanup ASAP when we hit an error/refusal"); the count of the whole
+            # run's patches that never ran goes with it, for the error message
+            res[-1].extra["not_run"] = total - i
+            break
     return out
 
 
@@ -230,11 +237,15 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
     tag = "[dry-run] would write" if result.dry_run else "wrote"
     how = "input bytes reused verbatim" if result.verbatim else "re-deflated"
     say(MINIMAL, f"{tag}: {out}", "io")
-    say(DEFAULT, f"  rules applied : {len(results)}" + (f"  (wos shape: {ctx.wos_shape})"
+    say(DEFAULT, f"  rules applied : {len(results)}" + (f"  (custom faith as: {ctx.wos_shape})"
                                                         if any(r.id == 'R10' for r in results) else ""), "rules")
+    # when the plan skipped the checks (an update that does not ask), these lines are the only account of each
+    # patch, so each says what it does (djdarcy, 2026-11-07: "make sure users can understand what they're seeing")
+    explain = getattr(args, "checks_skipped", False)
     for r in results:
         note = f"  ({r.extra['skipped']})" if "skipped" in r.extra else ""
-        say(DEFAULT, f"    {r.id:3} {r.name:22} matched {r.matched:>8,}  edited {r.edited:>8,}{note}", "rules")
+        what = f"  -- {r.description}" if explain and r.description else ""
+        say(DEFAULT, f"    {r.id:3} {r.name:22} matched {r.matched:>8,}  edited {r.edited:>8,}{note}{what}", "rules")
     for r in results:
         if r.id in ("R14", "R15", "R16", "R17") and "skipped" not in r.extra:
             say(EXTRA, f"  {r.id} {r.name}: {_transplant_summary(r)}", "transplant")
@@ -374,8 +385,10 @@ def cmd_migrate(args) -> int:
 LAST_PLAN = {}          # the last plan status or update made, and the rules update ran (for the tests)
 
 
-def make_plan(args, *, writes: bool = False):
-    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder. While it is
+def make_plan(args, *, writes: bool = False, display_checks: bool = True):
+    """The plan for ``args``; ``writes`` (update without --dry-run) lets it create the packs folder;
+    ``display_checks`` False (an update that does not ask first) skips the checks that only word the plan's lines,
+    never those that decide what runs (plan_update). While it is
     made, a spinner on stderr names the stage running (spinner.py: a terminal only; off under --plain, -q and
     NO_COLOR)."""
     from .plan import plan_update
@@ -392,7 +405,7 @@ def make_plan(args, *, writes: bool = False):
                            old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
                            face_changes=face_changes_arg(args),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
-                           detect=not args.no_detect, progress=sp.update)
+                           detect=not args.no_detect, progress=sp.update, display_checks=display_checks)
 
 
 # this run's settings the output helpers read: --plain, and when main() started (the verdict's wall time)
@@ -481,7 +494,13 @@ def cmd_update(args) -> int:
     ``<output>.report.json`` beside it. Exit codes are migrate's."""
     if args.in_place and args.output:
         raise ValueError("--in-place writes the update under the save's own name; it does not take -o")
-    plan = make_plan(args, writes=not args.dry_run)
+    ask = getattr(args, "ask", None)
+    asking = (interactive() if ask is None else ask) and not args.dry_run
+    # the plan a person reads before answering (--ask) or as a preview (--dry-run) has every step judged; a run that
+    # neither asks nor previews skips the checks that only word the plan's lines (djdarcy, 2026-11-07), and the
+    # patches' own counts follow the run
+    args.checks_skipped = not (asking or args.dry_run)
+    plan = make_plan(args, writes=not args.dry_run, display_checks=not args.checks_skipped)
     LAST_PLAN.update(update=plan)
     say_plan(plan)
     if plan.refusals:
@@ -492,8 +511,7 @@ def cmd_update(args) -> int:
     if not plan.has_changes():
         say(MINIMAL, "no patch will run: nothing written", "rules")
         return 0
-    ask = getattr(args, "ask", None)
-    if (interactive() if ask is None else ask) and not args.dry_run and not confirm_run():
+    if asking and not confirm_run():
         say(MINIMAL, "not run: nothing written", "rules")
         return 0
     save_path = Path(args.save)
@@ -522,7 +540,7 @@ def cmd_update(args) -> int:
         rec = None if args.no_record else read_record(read_light(save_path).random_seed)
         args.wos_shape = latest_inputs(rec).get("wos_shape") or "both"
         if rec and latest_inputs(rec).get("wos_shape"):
-            say(MINIMAL, f"pre-filled: --wos-shape {args.wos_shape} (from the record of {rec.get('label', '?')})",
+            say(MINIMAL, f"pre-filled: --custom-faith-as {args.wos_shape} (from the record of {rec.get('label', '?')})",
                 "rules")
     args.old_game_dir = inputs.get("old_game_dir")
     args.dna_setup = plan.dna_setup                       # R19 uses the layouts the plan printed
@@ -534,8 +552,8 @@ def cmd_update(args) -> int:
         report = Path(args.report) if args.report else None
         if len(written) != 1:
             _remove_outputs(written, report)
-            raise ValueError("--in-place needs one output, and the custom faith gave two: give --wos-shape faith "
-                             "or --wos-shape rite (nothing was changed)")
+            raise ValueError("--in-place needs one output, and the custom faith gave two: give --custom-faith-as faith "
+                             "or --custom-faith-as rite (nothing was changed)")
         if code != 0:                    # lint found errors: never put such an output in the save's place
             gv = plan.gap[1]
             where = not_in_place(out, save_path.with_name(f"{save_path.stem}__updated__{gv}.ck3"), report,
@@ -719,7 +737,9 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
             for line in r.extra.get("stderr") or []:
                 say(ERROR, f"    {line}", "rules", err=True)
         if bad:
-            say(ERROR, f"ERROR: {len(bad)} patch(es) failed; nothing written", "rules", err=True)
+            later = max(r.extra.get("not_run", 0) for r in bad)
+            stopped = (f"; the update stopped there, {later} later patch(es) not run" if later else "")
+            say(ERROR, f"ERROR: {len(bad)} patch(es) failed{stopped}; nothing written", "rules", err=True)
         return bool(bad)
 
     def nothing_to_write(results) -> bool:
@@ -761,6 +781,8 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
                 runs.append((shape, s2, c2, shared + run_rules_timed(
                     s2, rules[split:], c2, sp.update, first=split + 1 + k * (len(rules) - split), total=total,
                     note=f", {shape} shape")))
+            if any(r.extra.get("failed") for r in runs[-1][3][len(shared):]):
+                break                                   # the other shape would be written by neither: stop now
         args.results = runs[0][3]
         if failed([r for *_, results in runs for r in results[len(shared):]]):
             return 5
@@ -1402,7 +1424,7 @@ def build_parser() -> argparse.ArgumentParser:
                         "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
     p.add_argument("--reference", help="a save written by the target game version, for R8-R12 "
                    "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference)")
-    p.add_argument("--wos-shape", choices=("faith", "rite", "both"), default="both",
+    p.add_argument("--custom-faith-as", dest="wos_shape", choices=("faith", "rite", "both"), default="both",
                    help="R10: custom faiths as their own faith, as a rite of their template's faith, "
                         "or both (default: two outputs, <stem>__wos-faith / __wos-rite, when a reference is "
                         "given; a save without custom faiths yields one output)")
@@ -1477,7 +1499,7 @@ def build_parser() -> argparse.ArgumentParser:
                        help="run every selected patch in memory and print the plan with their counts; write nothing")
         p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
         p.add_argument("--report", help="the JSON report (default: <output>.report.json beside the output)")
-        p.add_argument("--wos-shape", choices=("faith", "rite", "both"),
+        p.add_argument("--custom-faith-as", dest="wos_shape", choices=("faith", "rite", "both"),
                        help="as for migrate: how custom faiths are carried (default: the record's, else both, two "
                             "outputs)")
         p.add_argument("--no-lint", action="store_true", help="skip the checks run on the output")

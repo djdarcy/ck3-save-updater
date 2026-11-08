@@ -45,9 +45,11 @@ ck3update update My_Old_Campaign --dry-run
 ck3update update My_Old_Campaign
 ```
 
-`update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed: it writes `<name>__updated__<game version>.ck3` beside the save, and `<output>.report.json` beside that (the plan and the counts), and checks the result with [lint](glossary.md#lint) before it finishes. An output that exists is refused without `--force`. `update` takes `migrate`'s options for the rules (`--rules`, `--wos-shape`, `--portraits-version`, `--old-game-dir`) and exits with the same codes (below).
+`update --dry-run` runs every patch in memory and prints the same plan with each patch's counts; it writes nothing. `update` runs the plan `status` printed: it writes `<name>__updated__<game version>.ck3` beside the save, and `<output>.report.json` beside that (the plan and the counts), and checks the result with [lint](glossary.md#lint) before it finishes. An output that exists is refused without `--force`. `update` takes `migrate`'s options for the rules (`--rules`, `--custom-faith-as`, `--portraits-version`, `--old-game-dir`) and exits with the same codes (below).
 
 At a terminal, `update` prints the plan and then asks "Run the update now? [y/N]". Nothing is written unless you answer `y`. A script, a pipe, or output sent to a file runs without asking. `--no-ask` never asks, and `--ask` asks even then (it needs a terminal to answer from).
+
+When `update` does not ask, it skips the checks that only describe the plan. On an old save they never change what runs; they word the PATCHES lines ("needed: 12,702 titles ..."). Skipping them saves a minute or two on a large save. The DETECTORS block says they were not run, and each patch's line after the run gives its counts and what it does. A save already on the game's version line is still checked, because there the checks decide what runs.
 
 `status` first is optional, since `update` prints the same plan. If you do run `status` first, `update` reuses its checks: the DETECTORS block says "reused N verdict(s) of the run at HH:MM on this same save", and the plan takes seconds instead of minutes on a large save. Only checks that found a step needed are reused; the rest are checked again. A different save, a changed option, or a new version of the tool means every check runs again. `[cache] plans` in the [config file](config.md) turns this off.
 
@@ -89,7 +91,7 @@ The record's `label` is the file name of the first save updated (later updates k
 - the input and output files with their sha256;
 - the tool version and the game version;
 - the patches that ran (id and pack);
-- the inputs it used: `--var` values (qualified names as given), `--old-game-dir`, `--transplant` and `--wos-shape` (an older record's `portraits_version` is read and not used: R19 sets it from the target).
+- the inputs it used: `--var` values (qualified names as given), `--old-game-dir`, `--transplant` and `--custom-faith-as` (an older record's `portraits_version` is read and not used: R19 sets it from the target).
 
 A reference save is never recorded, since it belongs to one date, and no part of any save is. A save whose `random_seed` cannot be read gets no record, and the plan says so.
 
@@ -115,7 +117,7 @@ Any input you do not give this time takes the record's latest value ([pre-filled
 2. The original is renamed to `<name>.bak.ck3`.
 3. The output is renamed to `<name>.ck3`.
 
-If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--wos-shape` gives two outputs, so in place needs `--wos-shape faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
+If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--custom-faith-as` gives two outputs, so in place needs `--custom-faith-as faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
 
 ## Performance after updating a large save
 

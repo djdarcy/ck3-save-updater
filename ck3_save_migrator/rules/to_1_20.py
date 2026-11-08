@@ -909,8 +909,8 @@ def r25_found(d: bytes, game_dir, mod_dirs=(), old_game_dir=None) -> tuple[list[
     return found, left
 
 
-def r25_detect(d: bytes, game_dir, mod_dirs=()) -> tuple[int, list[str], Counter]:
-    found, left = r25_found(d, game_dir, mod_dirs)
+def r25_detect(d: bytes, game_dir, mod_dirs=(), old_game_dir=None) -> tuple[int, list[str], Counter]:
+    found, left = r25_found(d, game_dir, mod_dirs, old_game_dir)
     by = Counter(f"{old} -> {new}" for _, _, old, new in found)
     return len(found), [f"{k} ({n:,})" for k, n in by.most_common(5)], left
 

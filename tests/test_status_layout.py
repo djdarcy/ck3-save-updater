@@ -324,7 +324,7 @@ def test_update_names_each_stage_of_the_run_and_each_patch_as_it_runs(tmp_path, 
     monkeypatch.setattr(SP, "spinner_wanted", lambda *a, **k: True)
     tty = FakeTTY()
     monkeypatch.setattr(SP.sys, "stderr", tty)
-    code, out, _ = run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--wos-shape",
+    code, out, _ = run(capsys, "update", str(old_save(saves)), "--game-dir", str(game(tmp_path)), "--custom-faith-as",
                        "faith", "-o", str(tmp_path / "out.ck3"))
     assert code == 0
     text = re.sub(r"\x1b\[[0-9;]*m", "", tty.getvalue())                      # the line without its colours

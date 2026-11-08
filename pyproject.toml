@@ -64,7 +64,10 @@ include = ["ck3_save_migrator", "ck3_save_migrator.*"]
 "ck3_save_migrator.packs" = ["*/pack.toml", "*/*/patch.toml", "*/*/*.toml", "*/*/*.py", "*/*/*.json"]
 # built-in gene tables, names only (gene, template, index): the old game's and old portrait-mod builds' genes, so
 # R19 reads old faces without those builds (known-genes, and the tables' provenance in table.toml)
-"ck3_save_migrator" = ["known_genes/*/common/genes/*.txt", "known_genes/*/table.toml"]
+# and the built-in old map, names only (title keys, their nesting, each barony's province), so R15 settles removed
+# and moved titles without the old game (known_titles; scripts/title_table.py writes it)
+"ck3_save_migrator" = ["known_genes/*/common/genes/*.txt", "known_genes/*/table.toml",
+                       "known_titles/*/common/landed_titles/*.txt", "known_titles/*/table.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

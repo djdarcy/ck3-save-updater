@@ -60,15 +60,15 @@ Faces carry every gene the portrait mods you load define. A gene none of them de
 
 ## The Way of Scarcity, or another custom faith, is missing
 
-A custom faith is carried by R10, which needs the religion rules and so a reference save (`--reference`); without one, R8 to R12 do nothing and say so. With a reference, the custom faith is carried in the shape `--wos-shape` chooses: as a faith of its own (`faith`), or as a rite of the faith its template now belongs to (`rite`). The default, `both`, writes two outputs, `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`; load the one you want. In the `rite` shape you find the custom faith as a rite, under the faith its template now belongs to. See [Rules](rules.md).
+A custom faith is carried by R10, which needs the religion rules and so a reference save (`--reference`); without one, R8 to R12 do nothing and say so. With a reference, the custom faith is carried in the shape `--custom-faith-as` chooses: as a faith of its own (`faith`), or as a rite of the faith its template now belongs to (`rite`). The default, `both`, writes two outputs, `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`; load the one you want. In the `rite` shape you find the custom faith as a rite, under the faith its template now belongs to. See [Rules](rules.md).
 
-## R15 "needs --old-game-dir"
+## R15 "needs the old game's map"
 
 ```
-R15 dead-titles  matched 0  edited 0  (needs --old-game-dir (the save's own version's game folder) and --game-dir)
+R15 dead-titles  needs the old game's map: no built-in old map covers a 1.9 save; give --old-game-dir (the save's own version's game folder)
 ```
 
-R15 finds what the 1.20 map calls the land of your save's removed or moved titles by reading two maps: the current game's and the one of the version your save was made with. Pass `--old-game-dir` with the `game` folder of that older version (and `--game-dir` if the current game is not found by itself). The rest of the update still runs without it. See [New-map regions](new-map-regions.md).
+R15 finds what the 1.20 map calls the land of your save's removed or moved titles by reading two maps: the current game's and the one of the version your save was made with. For a 1.8 save the tool carries the old map itself (the titles of 1.8.2, names only), and the plan's NOTES say "R15's old map: built-in table". For a save from another version, pass `--old-game-dir` with the `game` folder of that older version (and `--game-dir` if the current game is not found by itself). The rest of the update still runs without it. See [New-map regions](new-map-regions.md).
 
 ## The game crashes when you save
 

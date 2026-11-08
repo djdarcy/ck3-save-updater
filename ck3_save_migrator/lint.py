@@ -391,7 +391,9 @@ def check_living_roles(g: bytes, rep: LintReport, idx: SectionIndex | None = Non
             em = _EMPLOYER.search(g, m.end(), end if end > 0 else lb.close)
             if em and em.group(1) in dead:
                 courtiers.append(f"{m.group(1).decode()}: employer {em.group(1).decode()} is dead")
-    rep.add("a courtier's employer is alive", "warn", courtiers)
+    # the name is the rule (a stable id); the gloss says the problem (djdarcy, 2026-11-07: the rule read like a fact)
+    rep.add("a courtier's employer is alive", "warn", courtiers,
+            gloss="Courtiers whose employer is dead")
 
 
 def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> None:
@@ -442,7 +444,9 @@ def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
                   "that liege the game's realm code works on a contract that is not there (play5 crashed at 989.1.1)")
     rep.add("a baron has a contract with his county's holder", "warn", barons,
             gloss="A barony's liege is its county; a baron bound to someone else is out of step with his realm")
-    rep.add("a ruler's domain lists only titles he holds", "warn", foreign)
+    rep.add("a ruler's domain lists only titles he holds", "warn", foreign,
+            gloss="Rulers whose domain lists titles they do not hold (often a dead ruler still filed among the "
+                  "living, with an old domain)")
 
 
 _SCOPE = re.compile(rb"type=(\w+)\s+identity=(\d+)")

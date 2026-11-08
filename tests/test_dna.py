@@ -169,6 +169,21 @@ def whole_body(faces: dict[int, bytes]) -> bytes:
             b'portraits={\n\tsomething={\n\t\tdna="' + OLD_FACE + b'"\n\t}\n}\n')
 
 
+def test_r19s_edits_go_through_the_shared_edit_pass(tmp_path):
+    """2026-11-07 (the refactor advisor's row 9): R19's splice is the shared EditPass, so its edits are logged on the
+    save and the top-level index is carried through them instead of walked again."""
+    from ck3_save_migrator import gamestate as gs
+    old, new = old_layout(tmp_path / "old"), new_layout(tmp_path / "new")
+    save = sf.parse_save(build_ck3(meta=META, body=whole_body({1: OLD_FACE, 2: OLD_FACE, 3: OLD_FACE, 4: OLD_FACE})))
+    st = dna.setup(save_meta=save.meta, game_dir=new, old_game_dir=old, target_version="1.20.1.2", user=tmp_path)
+    ctx = RuleContext(game_dir=new, old_game_dir=old)
+    ctx.state["dna_setup"] = st
+    gs._top_index(save.gamestate)                                     # cached, as a run's earlier lookups leave it
+    res = R19.run(save, ctx)
+    assert res.edited and len(save.edits) == res.edited
+    assert any(d is save.gamestate for d, _ in gs._TOP_INDEX)          # carried, not walked
+
+
 def test_the_whole_save_every_face_at_the_target_length_and_the_version_stamped(tmp_path):
     old, new = old_layout(tmp_path / "old"), new_layout(tmp_path / "new")
     shorter = b64((0, 1, 0, 1))

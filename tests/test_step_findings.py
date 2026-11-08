@@ -45,6 +45,56 @@ def test_the_rule_applies_the_plan_its_check_left_without_planning_again(monkeyp
     assert save.gamestate == expected.gamestate
 
 
+# --------------------------------------------------------------------------- U2: a check sees its rule's inputs
+from pathlib import Path  # noqa: E402
+
+from ck3_save_migrator import detect  # noqa: E402
+
+
+def test_r25s_check_passes_the_old_game_folder_as_its_rule_does(monkeypatch, tmp_path):
+    from ck3_save_migrator.rules import to_1_20
+    seen = {}
+
+    def spy(d, game_dir, mod_dirs=(), old_game_dir=None):
+        seen["old"] = old_game_dir
+        from collections import Counter
+        return [], Counter()
+    monkeypatch.setattr(to_1_20, "r25_found", spy)
+    detect._r25(b"x", detect.Env(game_dir=tmp_path, old_game_dir=Path("C:/old/game")))
+    assert seen["old"] == Path("C:/old/game")
+
+
+def test_a_declarative_check_plans_with_the_rules_context_when_given(monkeypatch):
+    save = r11_save()
+    rule_ctx = RuleContext(target_version="9.9")
+    seen = []
+    from ck3_save_migrator.patches import pack
+    real = pack.verdict
+    monkeypatch.setattr(pack, "verdict", lambda g, p, ctx=None: seen.append(ctx) or real(g, p, ctx))
+    env = detect.Env(patches={"R11": RULE["R11"].apply.patch}, rule_ctx=rule_ctx)
+    detect.detect("R11", save.gamestate, env)
+    assert seen and seen[0] is rule_ctx                             # not a bare RuleContext(game_dir=...)
+
+
+def test_r19s_check_passes_the_transplanted_characters_as_its_rule_does(monkeypatch):
+    from types import SimpleNamespace
+    from ck3_save_migrator import dna
+    layout = SimpleNamespace(places=[1], name="x")
+
+    class Seen(Exception):
+        pass
+
+    def spy(g, st, transplanted=None):
+        raise Seen(transplanted)
+    monkeypatch.setattr(dna, "plan_save", spy)
+    ctx = RuleContext()
+    ctx.state["transplanted_characters"] = {"42"}
+    env = detect.Env(dna=SimpleNamespace(source=layout, target=layout), rule_ctx=ctx)
+    with pytest.raises(Seen) as got:
+        detect._r19(b"x", env)
+    assert got.value.args[0] == {"42"}
+
+
 @pytest.mark.parametrize("change", ["other bytes", "other values"])
 def test_a_plan_for_other_bytes_or_values_is_planned_again(monkeypatch, change):
     save, ctx = r11_save(), RuleContext()

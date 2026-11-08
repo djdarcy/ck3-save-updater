@@ -11,7 +11,7 @@ ck3update migrate "My_Old_Campaign.ck3" --rules all,R15,R14,R16 \
 ```
 
 - `--reference` is a save written by 1.20. Start a 1.20 game at your campaign's date and save it: the new regions' rulers, courts and families are copied from it as they are on that date, so a reference at another date brings in the wrong generation.
-- `--old-game-dir` is the `game` folder of the version your save was made with. R15 reads its map to find what the 1.20 map calls the land of titles it no longer has. Without it R15 does nothing and says so.
+- `--old-game-dir` is the `game` folder of the version your save was made with. R15 reads its map to find what the 1.20 map calls the land of titles it no longer has. For a 1.8 save it is optional: R15 reads a built-in copy of the 1.8.2 map's titles (names, nesting and provinces only). For a save from another version, R15 does nothing without it and says so.
 - The current game's folder is found automatically, or given with `--game-dir`.
 - The religion rules (R8 and the others in `all`) must run too: a copied person's faith has to point at something. A selection without them is refused. See [Rules](rules.md#prerequisites).
 

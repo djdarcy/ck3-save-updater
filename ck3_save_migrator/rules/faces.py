@@ -9,6 +9,7 @@ rule builds it from the context the same way. A character the transplant added (
 from __future__ import annotations
 
 from .. import dna as D
+from .. import gamestate as gs
 from ..savefile import CK3Save
 
 
@@ -44,7 +45,12 @@ def r19_dna_layout(save: CK3Save, ctx, rule):
                                   "layouts": st.describe()})
     res = D.plan_save(save.gamestate, st, ctx.state.get("transplanted_characters"))
     if res.edits:
-        save.set_gamestate(D.apply_edits(save.gamestate, res.edits))
+        # through the shared edit pass (2026-11-07, the refactor advisor's row 9): the same splice, now logged on the
+        # save and carried by the top-level index shift like every other rule's edits
+        p = gs.EditPass()
+        for s0, s1, rep in res.edits:
+            p.add(gs.Edit(s0, s1, rep, rule.name))
+        p.apply_to(save)
     own, ref = st.plans()
     faces = sum(len(v) for v in res.outcomes.values())
     return rule.result(matched=faces + sum(res.other.values()), edited=len(res.edits), extra={

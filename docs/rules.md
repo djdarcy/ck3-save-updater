@@ -83,7 +83,7 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 
 Catholicism and Orthodoxy stay independent faiths, each with its religious head carried over. When two old faiths would give the same new faith different heads, the first is kept and the other is reported.
 
-A custom faith can be carried in two shapes, chosen with `--wos-shape`: as a faith of its own (`faith`), or as a rite of the faith its template now belongs to (`rite`). The default, `both`, writes two outputs, `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`; a save without a custom faith gets a single output under the plain name.
+A custom faith can be carried in two shapes, chosen with `--custom-faith-as`: as a faith of its own (`faith`), or as a rite of the faith its template now belongs to (`rite`). The default, `both`, writes two outputs, `<name>__wos-faith.migrated.ck3` and `<name>__wos-rite.migrated.ck3`; a save without a custom faith gets a single output under the plain name.
 
 ### New-map rules (opt-in)
 
@@ -91,7 +91,7 @@ A custom faith can be carried in two shapes, chosen with `--wos-shape`: as a fai
 
 | Rule | Name | Since | What it changes |
 |---|---|---|---|
-| R15 | dead-titles | 1.13 to 1.20 (titles the map rework removed or moved) | renames the save's titles that 1.20 removed or moved to their 1.20 successors where the match is clean, and removes the rest (split, wasteland, dropped); every case is reported. Needs `--old-game-dir` and the current game folder |
+| R15 | dead-titles | 1.13 to 1.20 (titles the map rework removed or moved) | renames the save's titles that 1.20 removed or moved to their 1.20 successors where the match is clean, and removes the rest (split, wasteland, dropped); every case is reported. Needs the current game folder, and the old map: `--old-game-dir`, or for a 1.8 save the built-in 1.8.2 map (names only) |
 | R14 | new-titles | 1.13 to 1.20 (map rework: East Asia, Tibet, ...) | plans the titles and provinces the save does not have, from the reference save |
 | R16 | people | 1.13 to 1.20 (the new regions' rulers, courts and families) | plans the holders of the planned titles, their courts and close family, from the reference save |
 | R17 | transplant-write | 1.20 | writes everything R14 to R16 planned, with numbers translated, links to things not brought along dropped, and new titles joined to the campaign's existing ones. A new ruler whose capital, or most of whose counties, the new map carved from land your realm held joins your realm, as the vassal of whoever ruled that land. Elsewhere a new ruler keeps the place the current game gives him, under the campaign's ruler where the current game puts him under a title the campaign holds. You never gain a vassal on land your realm did not hold. A landless seat that is its holder's own office goes to the ruler of the land it stands on. Holy orders, mercenaries and adventurers are never placed under anyone, as the game's own rules say. A noble family is placed only under a ruler whose government keeps noble families; elsewhere the game would vacate its title, as it does by itself. Where the campaign would give a ruler a kind of liege the current game never pairs him with, he stays with his current-game liege if that liege still rules. Each copied ruler's title liege and vassal contract are kept in step; tributaries, contract-only by design, are left as they are. The report lists each ruler placed this way, with the reason |

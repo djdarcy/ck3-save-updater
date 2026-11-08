@@ -361,7 +361,7 @@ def no_lint_allowed(monkeypatch):
 class TestCLI:
     def migrate(self, paths, out, *extra):
         old, ref = paths
-        return cli.main(["migrate", str(old), "--rules", "all", "--reference", str(ref), "--wos-shape", "faith",
+        return cli.main(["migrate", str(old), "--rules", "all", "--reference", str(ref), "--custom-faith-as", "faith",
                          "-o", str(out), "--report", str(out.with_suffix(".json")), *extra])
 
     def test_migrate_lints_by_default(self, paths, tmp_path, capsys):

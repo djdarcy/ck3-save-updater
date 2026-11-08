@@ -293,6 +293,8 @@ def test_help_for_a_rule_a_pack_and_an_unknown_id(capsys):
 
 # --------------------------------------------------------------------------- 8. the transplant, by need, behind a switch
 def transplant_plan(tmp_path, saves, **kw):
+    if kw.get("old_game_dir"):                       # a real old game folder: R15's map is checked, not just named
+        (Path(kw["old_game_dir"]) / "common" / "landed_titles").mkdir(parents=True, exist_ok=True)
     return PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)), **kw)
 
 
@@ -317,6 +319,40 @@ def test_with_the_switch_on_and_a_reference_the_transplant_is_selected(tmp_path,
     p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref2.ck3")), transplant="auto",
                         rules_spec="all,-R15")
     assert {"R14", "R16", "R17"} <= set(p.running()) and "R15" not in p.running()
+
+
+def test_without_the_old_game_r15_runs_from_the_built_in_map(tmp_path, saves):
+    """0.5.0 (DWP 2026-11-07 19:52): a 1.8 save needs no --old-game-dir; R15 reads the built-in table, and the plan
+    says so. A given folder is named instead."""
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref.ck3")))
+    assert "R15" in p.running()
+    assert any(n.startswith("R15's old map: built-in table (Crusader Kings III 1.8.2") for n in p.notes)
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref2.ck3")), old_game_dir=str(tmp_path / "old"))
+    assert "R15" in p.running() and any(n.startswith("R15's old map: --old-game-dir") for n in p.notes)
+
+
+def test_the_plans_checks_know_the_saves_version(tmp_path, saves, monkeypatch):
+    """R15's check picks the built-in map by the save's version line, so the plan hands it the version."""
+    from ck3_save_migrator import detect
+    seen = []
+    real = detect.Env
+
+    def spy(*a, **kw):
+        env = real(*a, **kw)
+        seen.append(env.save_version)
+        return env
+    monkeypatch.setattr(detect, "Env", spy)
+    PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)), reference="none", detect=True)
+    assert seen and seen[0] and seen[0].startswith("1.8")
+
+
+def test_a_save_no_table_covers_skips_r15_and_says_why(tmp_path, saves, monkeypatch):
+    from ck3_save_migrator import deadtitles as D
+    monkeypatch.setattr(D, "KNOWN_TITLES", tmp_path / "no-tables")
+    p = transplant_plan(tmp_path, saves, reference=str(ref_save(tmp_path, "Ref.ck3")))
+    r15 = next(s for s in p.steps if s.id == "R15")
+    assert "R15" not in p.running() and "no built-in old map covers a 1.8 save" in r15.reason and "--old-game-dir" in r15.reason
+    assert r15.reason.startswith(PL.ACTION_NEEDED)                   # shown as a warning: the player can act on it
 
 
 def test_a_named_reference_on_another_date_refuses_the_new_map_steps(tmp_path, saves):
@@ -349,6 +385,7 @@ def test_with_the_switch_on_and_no_reference_the_steps_are_given(tmp_path, saves
     assert any("needs a reference save to load in 1.20" in n for n in p.notes)
     r15 = next(s for s in p.steps if s.id == "R15")
     assert r15.reason == "needs R14, R16, which are skipped"        # never refused later as a missing prerequisite
+    assert not any("R15's old map" in n for n in p.notes)            # a map it will not read is not named
     assert "ck3update reference-mod" in "\n".join(p.lines())
 
 
@@ -368,7 +405,9 @@ def test_status_and_update_still_share_one_plan(tmp_path, saves, capsys):
     r = str(ref_save(tmp_path, "Ref.ck3"))
     assert run(capsys, "status", str(s), "--game-dir", g, "--reference", r)[0] == 0
     assert run(capsys, "update", str(s), "--game-dir", g, "--reference", r, "--no-lint",
-               "--wos-shape", "faith")[0] == 0
-    assert cli.LAST_PLAN["update"].as_dict() == cli.LAST_PLAN["status"].as_dict()
+               "--custom-faith-as", "faith")[0] == 0
+    # the same steps run; an update that does not ask words its lines without the checks (0.5.0)
+    assert [(x.id, x.will_run) for x in cli.LAST_PLAN["update"].steps] == \
+        [(x.id, x.will_run) for x in cli.LAST_PLAN["status"].steps]
     assert cli.LAST_PLAN["ran"] == cli.LAST_PLAN["status"].running() and "B1" in cli.LAST_PLAN["ran"]
     assert b"B1_flag=yes" in sf.read_save(saves / "Campaign__updated__1.20.1.2.ck3").meta
