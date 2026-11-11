@@ -862,7 +862,9 @@ def cmd_edit(args) -> int:
         say(MINIMAL, f"edits: {names}; ck3update edit <save> <edit> [values]", "rules")
         return 0
     save_path = Path(args.save)
-    p = E.plan_edit(save_path, args.edit, values, out=Path(args.output) if args.output else None)
+    out = Path(args.output) if args.output else None
+    p = E.plan_revert(save_path, values, out=out) if args.edit == "revert" else \
+        E.plan_edit(save_path, args.edit, values, out=out)
     say(MINIMAL, f"EDIT   {p.edit.name}: {p.edit.title}", "rules")
     say(MINIMAL, f"  save   : {save_path}", "io")
     say(MINIMAL, f"  target : {p.what}", "rules")

@@ -55,6 +55,8 @@ class Planned:
     save: CK3Save = field(repr=False, default=None)
     out: Path | None = None
     src: Path | None = None             # the save the edit read (its ledger, if any, is carried into the output's)
+    steps: list | None = None           # revert: change lists applied one after another (each undoes one entry)
+    entries: list | None = None         # revert: the output's whole ledger, prepared by plan_revert
 
 
 LEDGER_FORMAT = 1
@@ -180,10 +182,77 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
             "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
 
 
+REVERT = EditDef("revert", "undo edits recorded in the save's ledger (itself an edit, so it can be undone)",
+                 (("to", "text", "the last edit (default), an entry number to go back to, or 'all'"),),
+                 help="Reads the ledger beside the save and writes the bytes each undone edit replaced back in "
+                      "place, last edit first. The result is a new file beside the save, with its own ledger "
+                      "entry, so a revert can itself be reverted. Refused when the save has changed since its "
+                      "last edit (the game, or another tool, saved it): then the backup or the original is the "
+                      "way back.")
+
+
+def plan_revert(save_path: Path, tokens: list[str], *, out: Path | None = None) -> Planned:
+    """Plan ``revert [n|all]``: undo the ledger's entries after entry n (the last one by default, all of them for
+    'all'), last first, each against the bytes the one after it left. Writes nothing."""
+    led = read_ledger(save_path)
+    entries = led["entries"] if led else []
+    if not entries:
+        raise EditError(f"{save_path.name} has no ledger beside it ({ledger_path(save_path).name}): only a save "
+                        "this tool edited can be reverted")
+    cur = hashlib.sha256(save_path.read_bytes()).hexdigest()
+    if entries[-1].get("sha256") != cur:
+        raise EditError(f"{save_path.name} has changed since its last edit (the game or another tool saved it); "
+                        "revert works only on the file its ledger describes")
+    if len(tokens) > 1:
+        raise EditError("revert takes one value: nothing (the last edit), an entry number, or 'all'")
+    arg = tokens[0] if tokens else None
+    if arg is None:
+        keep = len(entries) - 1
+    elif arg == "all":
+        keep = 0
+    elif arg.isdigit() and int(arg) < len(entries):
+        keep = int(arg)
+    else:
+        raise EditError(f"revert {arg}: give an entry number from 0 (the original) to {len(entries) - 1}, or 'all'")
+    save = read_editable(save_path)
+    g = save.gamestate
+    steps, new, names = [], [], []
+    for idx in range(len(entries), keep, -1):              # entry numbers are 1-based; undo the last first
+        e = entries[idx - 1]
+        undo = [Change(c["offset_out"], base64.b64decode(c["after"]), base64.b64decode(c["before"]))
+                for c in e["changes"]]
+        g = apply_changes(g, undo)
+        steps.append(undo)
+        names.append(f"{idx} {e['edit']}")
+        new.append({"edit": "revert", "pack": "builtin", "params": {"undoes": idx}, "what": f"undo entry {idx} "
+                    f"({e['edit']}: {e.get('what', '')})", "tool": get_version(), "input_sha256": None,
+                    "sha256": None, "gamestate_sha256": hashlib.sha256(g).hexdigest(),
+                    "changes": [{"offset": c["offset_out"], "offset_out": c["offset"], "before": c["after"],
+                                 "after": c["before"]} for c in e["changes"]]})
+    flat = [c for st in steps for c in st]
+    p = Planned(REVERT, {"to": arg or "last"}, flat, "undo " + ", ".join(names), save,
+                out or output_path(save_path, "revert"), save_path)
+    p.steps, p.entries = steps, list(entries) + new
+    return p
+
+
 def write_planned(p: Planned, *, force: bool = False):
     """Apply the planned changes, write the output beside the original (never over it), and write its ledger: the
-    input's ledger entries, if it had one, followed by this edit's."""
+    input's ledger entries, if it had one, followed by this edit's (a revert's ledger comes ready from plan_revert)."""
     in_sha = hashlib.sha256(p.src.read_bytes()).hexdigest() if p.src else ""
+    if p.steps is not None:                                # revert: undo the entries one after another
+        g = p.save.gamestate
+        for st in p.steps:
+            g = apply_changes(g, st)
+        p.save.set_gamestate(g)
+        res = write_save(p.save, p.out, force=force)
+        entries = p.entries
+        first_new = len(entries) - len(p.steps)
+        entries[first_new]["input_sha256"] = in_sha
+        entries[-1]["sha256"] = res.sha256
+        ledger = {"format": LEDGER_FORMAT, "save": p.out.name, "entries": entries}
+        atomic_write(ledger_path(p.out), json.dumps(ledger, indent=1) + "\n")
+        return res
     prior = read_ledger(p.src) if p.src else None
     p.save.set_gamestate(apply_changes(p.save.gamestate, p.changes))
     res = write_save(p.save, p.out, force=force)

@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.4] - 2026-11-11
+
+### Added
+- `ck3update edit <save> revert` undoes the last edit recorded in the save's ledger. `revert <n>` goes back to the state after edit n, and `revert all` goes back to the original. A revert is itself an edit: it writes a new file beside the save and records itself in the ledger, so it can be reverted too. Nothing is renamed or deleted. It is refused when the save has changed since its last edit, for example after the game saved over it.
+
 ## [0.5.3] - 2026-11-11
 
 ### Added
@@ -695,7 +700,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.0...v0.5.1

@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
-         "tests/test_edit_ledger.py"]
+         "tests/test_edit_ledger.py", "tests/test_edit_revert.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -71,15 +71,15 @@ MUTANTS = [
      "    except UnsupportedKindError as exc:\n        raise EditError",
      "    except KeyError as exc:\n        raise EditError"),
     ("D8 --force ignored", "edit.py",
-     "    res = write_save(p.save, p.out, force=force)",
-     "    res = write_save(p.save, p.out, force=False)"),
+     "    res = write_save(p.save, p.out, force=force)\n    entries = list(prior",
+     "    res = write_save(p.save, p.out, force=False)\n    entries = list(prior"),
     ("D9 missing values not refused", "edit.py",
      "    if missing:\n        usage",
      "    if False:\n        usage"),
     # U3, 2026-11-11: the ledger
     ("L1 no ledger written", "edit.py",
-     '    atomic_write(ledger_path(p.out), json.dumps(ledger, indent=1) + "\\n")',
-     "    pass"),
+     '\n    atomic_write(ledger_path(p.out), json.dumps(ledger, indent=1) + "\\n")',
+     "\n    pass"),
     ("L2 output offsets not shifted", "edit.py",
      "        shift += len(c.after) - len(c.before)",
      "        shift += 0"),
@@ -92,6 +92,25 @@ MUTANTS = [
     ("L5 the output hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": in_sha, "sha256": in_sha,'),
+    # U4, 2026-11-11: revert
+    ("R1 a changed save reverted anyway", "edit.py",
+     '    if entries[-1].get("sha256") != cur:',
+     "    if False:"),
+    ("R2 undo at the input offsets", "edit.py",
+     '        undo = [Change(c["offset_out"], base64.b64decode(c["after"])',
+     '        undo = [Change(c["offset"], base64.b64decode(c["after"])'),
+    ("R3 revert all undoes only the last", "edit.py",
+     '    elif arg == "all":\n        keep = 0',
+     '    elif arg == "all":\n        keep = len(entries) - 1'),
+    ("R4 the revert not recorded", "edit.py",
+     "    p.steps, p.entries = steps, list(entries) + new",
+     "    p.steps, p.entries = steps, list(entries) + new[:0]"),
+    ("R5 no ledger not explained", "edit.py",
+     "    if not entries:\n        raise EditError(f\"{save_path.name} has no ledger",
+     "    if False:\n        raise EditError(f\"{save_path.name} has no ledger"),
+    ("R6 any entry number taken", "edit.py",
+     "    elif arg.isdigit() and int(arg) < len(entries):",
+     "    elif arg.isdigit():"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
