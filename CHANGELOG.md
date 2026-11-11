@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-11-09
+
+### Added
+- The patch format has a version 2, the first step toward editing a save on purpose. A patch can say `kind = "edit"`: `update` never runs it. It can also declare typed parameters, `[params.<name>] type = "character"`, `"number"` or `"text"`, which the coming `edit` command will ask for. A patch in format 1 is read as before. A patch in a newer format than the tool knows is refused, with a line saying to update the tool.
+
 ## [0.5.0] - 2026-11-07
 
 ### Added
@@ -680,7 +685,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.31...v0.5.0
 [0.4.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.30...v0.4.31
 [0.4.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.29...v0.4.30

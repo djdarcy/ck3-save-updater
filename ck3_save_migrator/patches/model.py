@@ -1,4 +1,8 @@
-"""The patch format, version 1: loading and validating ``pack.toml`` and ``patch.toml``.
+"""The patch format, versions 1 and 2: loading and validating ``pack.toml`` and ``patch.toml``.
+
+Format 2 (0.5.x) adds two fields to a patch: ``kind = "edit"`` marks it as an edit, which ``ck3update edit`` runs and
+``update`` never does, and ``[params.<name>] type = "character" | "number" | "text"`` declares the typed values an
+edit takes. A format 1 file is read as before; a format 3 file is refused with "update the tool".
 
 A pack is a folder of patch folders with a ``pack.toml`` (``format``, ``id``, ``title``, ``order``). A patch is a
 folder with a ``patch.toml``: metadata, then either ``[[edit]]`` tables (a declarative patch), ``script =`` (a code
@@ -22,8 +26,10 @@ if sys.version_info >= (3, 11):
 else:                                   # pragma: no cover - exercised on 3.10 only
     import tomli as tomllib
 
-FORMAT = 1
-OPS = ("delete_key", "delete_value", "delete_entry", "rename_key", "set", "insert")
+FORMAT = 2                          # the newest format this version reads; FORMATS lists every one it reads
+FORMATS = (1, 2)                    # 2 (0.5.x, the save editor): kind = "edit" and [params] on a patch
+PARAM_TYPES = ("character", "number", "text")   # an edit's typed parameters, resolved by the engine
+OPS =("delete_key", "delete_value", "delete_entry", "rename_key", "set", "insert")
 TEMPLATE = re.compile(r"@@([A-Za-z_][A-Za-z0-9_]*)@@")
 _SCRIPT_MODULE = re.compile(r"^[A-Za-z_][\w.]*:[A-Za-z_]\w*$")
 _SCRIPT_FILE = re.compile(r"^[\w./\-]+\.py:[A-Za-z_]\w*$")
@@ -70,6 +76,8 @@ class Patch:
     run: dict | None = None
     matched: str = "found"          # the report's matched: targets "found", "blocks" addressed, or "blocks-hit"
                                     # (blocks addressed that held a target)
+    role: str = "fix"               # "fix": update's door; "edit": the save editor's (kind = "edit", format 2)
+    params: tuple = ()              # an edit's typed parameters: ((name, type, help), ...)
 
     @property
     def kind(self) -> str:
@@ -88,7 +96,13 @@ class Pack:
     after: str | None = None        # run right after this patch of another pack, not after the built-in rules
 
     def ordered(self) -> list[Patch]:
-        return [self.patches[i] for i in self.order]
+        """The pack's fixes in order: what update, status and check run. Edits are never among them (the ruling
+        of 2026-11-08: one engine, two doors); ``edits()`` gives those."""
+        return [p for p in (self.patches[i] for i in self.order) if p.role != "edit"]
+
+    def edits(self) -> list[Patch]:
+        """The pack's edits in order: what ``ck3update edit`` offers."""
+        return [p for p in (self.patches[i] for i in self.order) if p.role == "edit"]
 
 
 # --------------------------------------------------------------------------- reading
@@ -111,10 +125,31 @@ def _need(data: dict, key: str, kind, where: str, *, default=dataclasses.MISSING
     return v
 
 
-def _format(data: dict, where: str) -> None:
+def _format(data: dict, where: str) -> int:
     f = _need(data, "format", int, where)
-    if f != FORMAT:
-        raise PatchError(f"{where}: field 'format' is {f}; this version reads format {FORMAT}")
+    if f not in FORMATS:
+        raise PatchError(f"{where}: field 'format' is {f}; this version reads format "
+                         f"{' or '.join(map(str, FORMATS))}" + ("; update the tool" if f > max(FORMATS) else ""))
+    return f
+
+
+def _params(d: dict, where: str) -> tuple:
+    """``[params.<name>] type = "character" | "number" | "text", help = "..."``: an edit's typed parameters."""
+    raw = _need(d, "params", dict, where)
+    out = []
+    for name, spec in raw.items():
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+            raise PatchError(f"{where}: [params.{name}]: a parameter name is letters, digits and _")
+        if not isinstance(spec, dict) or set(spec) - {"type", "help"}:
+            raise PatchError(f"{where}: [params.{name}] holds type = \"...\" and an optional help = \"...\"")
+        t = spec.get("type")
+        if t not in PARAM_TYPES:
+            raise PatchError(f"{where}: [params.{name}] type must be one of {', '.join(PARAM_TYPES)}, not {t!r}")
+        h = spec.get("help", "")
+        if not isinstance(h, str):
+            raise PatchError(f"{where}: [params.{name}] help must be a string")
+        out.append((name, t, h))
+    return tuple(out)
 
 
 def _strings(v, field_name: str, where: str) -> tuple[str, ...]:
@@ -248,12 +283,23 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     if not entry.is_file():
         raise PatchError(f"{where}: missing (every patch folder holds a patch.toml)")
     d = _read(entry, where)
-    _format(d, where)
+    fmt = _format(d, where)
     known = {"format", "id", "name", "title", "since", "default", "requires", "tested", "issue", "edit", "done",
-             "script", "run", "matched"}
+             "script", "run", "matched", "kind", "params"}
     extra = set(d) - known
     if extra:
         raise PatchError(f"{where}: unknown field '{sorted(extra)[0]}'")
+    for f in ("kind", "params"):
+        if f in d and fmt < 2:
+            raise PatchError(f"{where}: field '{f}' needs format = 2")
+    role = _need(d, "kind", str, where, default="fix")
+    if role not in ("fix", "edit"):
+        raise PatchError(f"{where}: field 'kind' is \"fix\" (update runs it) or \"edit\" (ck3update edit runs it), "
+                         f"not {role!r}")
+    params = _params(d, where) if "params" in d else ()
+    if params and role != "edit":
+        raise PatchError(f"{where}: [params] are for edits (kind = \"edit\")")
+    context_fields = set(context_fields) | {name for name, _, _ in params}
     pid = _need(d, "id", str, where)
     kinds = [k for k in ("edit", "script", "run") if k in d]
     if len(kinds) != 1:
@@ -264,7 +310,7 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
         since=_need(d, "since", str, where), default=_need(d, "default", bool, where, default=True),
         requires=tuple(_need(d, "requires", list, where, default=[])),
         tested=_need(d, "tested", dict, where, default={}), issue=_need(d, "issue", str, where, default=""),
-        source=where, folder=folder, from_disk=from_disk)
+        source=where, folder=folder, from_disk=from_disk, role=role, params=params)
     if not all(isinstance(r, str) for r in common["requires"]):
         raise PatchError(f"{where}: field 'requires' must be a list of patch ids")
     if "script" in d:

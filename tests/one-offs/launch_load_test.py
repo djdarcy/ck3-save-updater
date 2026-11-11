@@ -317,6 +317,12 @@ def main(run_name: str, args: list[str]) -> int:
                 if exit_console:
                     # 2026-11-03 (djdarcy: close properly, no autosave, no kill): a console command the game runs
                     # itself, typed by posted keys as --h-console does; the ladder below still follows if it fails
+                    if "--h-pause-before-exit" in args:
+                        # 2026-11-09 (S0(b)): a console save while the game runs crashed twice (#42's race); in
+                        # observe mode nothing pauses the game by itself, so one space pauses it before the save
+                        post_key(hwnd, "space")
+                        note("exit: space posted to pause before the exit console")
+                        time.sleep(3)
                     post_console(hwnd, exit_console)
                     note(f"exit: console '{exit_console}' typed {exit_after}s after in game")
                 else:

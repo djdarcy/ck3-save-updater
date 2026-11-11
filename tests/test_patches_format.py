@@ -58,8 +58,9 @@ def test_an_unknown_op_is_refused_naming_it(tmp_path):
 
 
 def test_a_bad_format_is_refused(tmp_path):
-    msg = refused(tmp_path, GOOD.replace("format = 1", "format = 2"))
-    assert "X1-toy/patch.toml" in msg and "field 'format' is 2" in msg
+    # format 2 is valid since 0.5.x (the save editor's kind and params); a newer one asks for a newer tool
+    msg = refused(tmp_path, GOOD.replace("format = 1", "format = 3"))
+    assert "X1-toy/patch.toml" in msg and "field 'format' is 3" in msg and "update the tool" in msg
 
 
 def test_an_insert_without_done_is_refused(tmp_path):
