@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-11-11
+
+### Added
+- Every edit writes a ledger beside its output, `<output name>.edits.json`. The ledger lists each edit made in that file's line, in order. Each entry holds the edit, its values, the bytes it replaced and where, and the save's hash before and after. Editing an edited save carries the earlier entries forward, so the ledger reaches back to the original. The coming `revert` reads it. A ledger in a newer format than the tool knows is refused.
+
 ## [0.5.2] - 2026-11-09
 
 ### Added
@@ -690,7 +695,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.31...v0.5.0

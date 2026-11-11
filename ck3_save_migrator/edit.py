@@ -13,10 +13,15 @@ Design: 2026-11-06__21-37-30__dev-workflow-process__save-edits-front-door.md (ad
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from ._version import get_version
+from .config import atomic_write
 from .savefile import CK3Save, UnsupportedKindError, read_save, write_save
 
 
@@ -49,6 +54,10 @@ class Planned:
     what: str
     save: CK3Save = field(repr=False, default=None)
     out: Path | None = None
+    src: Path | None = None             # the save the edit read (its ledger, if any, is carried into the output's)
+
+
+LEDGER_FORMAT = 1
 
 
 BUILTIN: dict[str, EditDef] = {}
@@ -138,10 +147,48 @@ def plan_edit(save_path: Path, edit_name: str, tokens: list[str], *, out: Path |
     changes, what = edit.plan(save.gamestate, params)
     if not changes:
         raise EditError(f"{edit.name}: nothing to change ({what})")
-    return Planned(edit, params, list(changes), what, save, out or output_path(save_path, edit.name))
+    return Planned(edit, params, list(changes), what, save, out or output_path(save_path, edit.name), save_path)
+
+
+def ledger_path(save_path: Path) -> Path:
+    """The ledger beside a save: ``<save stem>.edits.json``."""
+    return save_path.with_name(f"{save_path.stem}.edits.json")
+
+
+def read_ledger(save_path: Path) -> dict | None:
+    """The ledger beside ``save_path``, or None. A ledger in a newer format than this tool knows is refused."""
+    lp = ledger_path(save_path)
+    if not lp.is_file():
+        return None
+    data = json.loads(lp.read_text(encoding="utf-8"))
+    if data.get("format") != LEDGER_FORMAT:
+        raise EditError(f"{lp.name}: ledger format {data.get('format')!r}; this tool reads format {LEDGER_FORMAT} "
+                        "(update the tool)")
+    return data
+
+
+def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
+    """One ledger entry: the edit, its values, and every change with its offset in the input and in the output (the
+    output offset moves by the size difference of the changes before it, so revert can work on the output)."""
+    changes, shift = [], 0
+    for c in sorted(p.changes, key=lambda c: c.offset):
+        changes.append({"offset": c.offset, "offset_out": c.offset + shift,
+                        "before": base64.b64encode(c.before).decode("ascii"),
+                        "after": base64.b64encode(c.after).decode("ascii")})
+        shift += len(c.after) - len(c.before)
+    return {"edit": p.edit.name, "pack": "builtin", "params": dict(p.params), "what": p.what,
+            "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
 
 
 def write_planned(p: Planned, *, force: bool = False):
-    """Apply the planned changes and write the output beside the original (never over it)."""
+    """Apply the planned changes, write the output beside the original (never over it), and write its ledger: the
+    input's ledger entries, if it had one, followed by this edit's."""
+    in_sha = hashlib.sha256(p.src.read_bytes()).hexdigest() if p.src else ""
+    prior = read_ledger(p.src) if p.src else None
     p.save.set_gamestate(apply_changes(p.save.gamestate, p.changes))
-    return write_save(p.save, p.out, force=force)
+    res = write_save(p.save, p.out, force=force)
+    entries = list(prior["entries"]) if prior else []
+    entries.append(_entry(p, res.sha256, in_sha))
+    ledger = {"format": LEDGER_FORMAT, "save": p.out.name, "entries": entries}
+    atomic_write(ledger_path(p.out), json.dumps(ledger, indent=1) + "\n")
+    return res

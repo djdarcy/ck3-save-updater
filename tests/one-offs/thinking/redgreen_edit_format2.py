@@ -15,7 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
-TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py"]
+TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
+         "tests/test_edit_ledger.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -70,11 +71,30 @@ MUTANTS = [
      "    except UnsupportedKindError as exc:\n        raise EditError",
      "    except KeyError as exc:\n        raise EditError"),
     ("D8 --force ignored", "edit.py",
-     "    return write_save(p.save, p.out, force=force)",
-     "    return write_save(p.save, p.out, force=False)"),
+     "    res = write_save(p.save, p.out, force=force)",
+     "    res = write_save(p.save, p.out, force=False)"),
     ("D9 missing values not refused", "edit.py",
      "    if missing:\n        usage",
      "    if False:\n        usage"),
+    # U3, 2026-11-11: the ledger
+    ("L1 no ledger written", "edit.py",
+     '    atomic_write(ledger_path(p.out), json.dumps(ledger, indent=1) + "\\n")',
+     "    pass"),
+    ("L2 output offsets not shifted", "edit.py",
+     "        shift += len(c.after) - len(c.before)",
+     "        shift += 0"),
+    ("L3 the input's ledger not carried", "edit.py",
+     '    entries = list(prior["entries"]) if prior else []',
+     "    entries = []"),
+    ("L4 a newer ledger format read", "edit.py",
+     '    if data.get("format") != LEDGER_FORMAT:',
+     "    if False:"),
+    ("L5 the output hash not recorded", "edit.py",
+     '"input_sha256": in_sha, "sha256": out_sha,',
+     '"input_sha256": in_sha, "sha256": in_sha,'),
+    ("L6 the input hash not recorded", "edit.py",
+     '"input_sha256": in_sha, "sha256": out_sha,',
+     '"input_sha256": "", "sha256": out_sha,'),
 ]
 
 
