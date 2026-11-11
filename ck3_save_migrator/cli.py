@@ -833,6 +833,61 @@ def run_lint(save, args, reference_path: Path | None):
     return lint_gamestate(save.gamestate, known=data, reference=reference, game_dir=game_dir)
 
 
+def _edit_flags(args) -> list[str]:
+    """``edit``'s own flags may come after the edit's values (``edit <save> set-sex 78307 male --dry-run``); take
+    them out of the trailing values, which belong to the edit."""
+    rest, vals = [], list(args.values or [])
+    while vals:
+        t = vals.pop(0)
+        if t == "--dry-run":
+            args.dry_run = True
+        elif t == "--yes":
+            args.yes = True
+        elif t == "--force":
+            args.force = True
+        elif t in ("-o", "--output") and vals:
+            args.output = vals.pop(0)
+        else:
+            rest.append(t)
+    return rest
+
+
+def cmd_edit(args) -> int:
+    """``ck3update edit <save> <edit> [values]``: plan the edit, show it, ask at a terminal unless --yes, write
+    ``<save stem>__<edit>.ck3`` beside the original (2026-11-06 front-door DWP, addendum 2026-11-09, U2)."""
+    from . import edit as E
+    values = _edit_flags(args)
+    if not args.edit:
+        names = ", ".join(sorted(E.BUILTIN)) or "none yet"
+        say(MINIMAL, f"edits: {names}; ck3update edit <save> <edit> [values]", "rules")
+        return 0
+    save_path = Path(args.save)
+    p = E.plan_edit(save_path, args.edit, values, out=Path(args.output) if args.output else None)
+    say(MINIMAL, f"EDIT   {p.edit.name}: {p.edit.title}", "rules")
+    say(MINIMAL, f"  save   : {save_path}", "io")
+    say(MINIMAL, f"  target : {p.what}", "rules")
+    for c in p.changes:
+        say(DEFAULT, f"  change at {c.offset:,}: {c.before[:80]!r} -> {c.after[:80]!r}", "rules")
+    say(MINIMAL, f"  output : {p.out}", "io")
+    if args.dry_run:
+        say(MINIMAL, "dry run: nothing written", "io")
+        return 0
+    if not args.yes and interactive():
+        sys.stderr.write(f"Write {p.out.name}? [y/N] ")
+        sys.stderr.flush()
+        try:
+            answer = sys.stdin.readline()
+        except (EOFError, OSError):
+            answer = ""
+        if answer.strip().lower() not in ("y", "yes"):
+            say(MINIMAL, "not written", "io")
+            return 1
+    res = E.write_planned(p, force=args.force)
+    say(MINIMAL, f"wrote: {res.path}", "io")
+    say(DEFAULT, f"  sha256        : {res.sha256}", "io")
+    return 0
+
+
 def cmd_lint(args) -> int:
     save = read_save_logged(args.save)
     for w in save.warnings:
@@ -1400,6 +1455,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("save", help=SAVE_HELP)
     p.add_argument("--game-dir", help=GAME_DIR_HELP)
     p.set_defaults(func=cmd_inspect)
+
+    p = sub.add_parser("edit", help="change a save on purpose with one named edit, written beside the original "
+                                    "(never part of update)")
+    p.add_argument("save", help=SAVE_HELP)
+    p.add_argument("edit", nargs="?", help="the edit's name (with no name: list the edits)")
+    p.add_argument("values", nargs=argparse.REMAINDER, help="the edit's values, in order or as --<name> <value>")
+    p.add_argument("-o", "--output", help="where to write (default: <save name>__<edit>.ck3 beside the save)")
+    p.add_argument("--dry-run", action="store_true", help="show the change, write nothing")
+    p.add_argument("--yes", action="store_true", help="do not ask before writing")
+    p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
+    p.set_defaults(func=cmd_edit)
 
     p = sub.add_parser("migrate", help="read a save and write a migrated copy (never in place)")
     p.add_argument("save", help=SAVE_HELP)

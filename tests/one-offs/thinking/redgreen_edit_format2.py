@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
-TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py"]
+TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -47,6 +47,34 @@ MUTANTS = [
     ("E9 any kind value", "patches/model.py",
      '    if role not in ("fix", "edit"):',
      '    if role is None:'),
+    # U2, 2026-11-09: the front door
+    ("D1 output not named <stem>__<edit>", "edit.py",
+     'return save_path.with_name(f"{save_path.stem}__{edit_name}.ck3")',
+     'return save_path.with_name(f"{save_path.stem}_{edit_name}.ck3")'),
+    ("D2 a dry run writes", "cli.py",
+     '        say(MINIMAL, "dry run: nothing written", "io")\n        return 0',
+     '        say(MINIMAL, "dry run: nothing written", "io")'),
+    ("D3 never asks", "cli.py",
+     "    if not args.yes and interactive():\n        sys.stderr.write(f\"Write",
+     "    if False:\n        sys.stderr.write(f\"Write"),
+    ("D4 --yes ignored", "cli.py",
+     "    if not args.yes and interactive():\n        sys.stderr.write(f\"Write",
+     "    if interactive():\n        sys.stderr.write(f\"Write"),
+    ("D5 named values not read", "edit.py",
+     '        if t.startswith("--") and t[2:].replace("-", "_") in names:',
+     '        if False and t.startswith("--"):'),
+    ("D6 flags after the values not taken out", "cli.py",
+     '        if t == "--dry-run":\n            args.dry_run = True',
+     '        if t == "--never-a-flag":\n            args.dry_run = True'),
+    ("D7 a binary save not explained", "edit.py",
+     "    except UnsupportedKindError as exc:\n        raise EditError",
+     "    except KeyError as exc:\n        raise EditError"),
+    ("D8 --force ignored", "edit.py",
+     "    return write_save(p.save, p.out, force=force)",
+     "    return write_save(p.save, p.out, force=False)"),
+    ("D9 missing values not refused", "edit.py",
+     "    if missing:\n        usage",
+     "    if False:\n        usage"),
 ]
 
 
@@ -63,7 +91,7 @@ def run_tests() -> tuple[int, str]:
 
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
-    files = {n: PKG / n for n in ("patches/model.py",)}
+    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

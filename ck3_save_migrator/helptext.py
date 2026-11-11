@@ -28,6 +28,9 @@ GROUPS = [
         ("update", ("update",), "write the updated copy beside the save"),
         ("check", ("check",), "for each patch: needed, done, or can't tell"),
     ]),
+    ("editing a save", [
+        ("edit", ("edit",), "change a save on purpose; writes a copy beside it"),
+    ]),
     ("when something looks wrong", [
         ("lint", ("lint",), "check an updated save before you load it in the game"),
         ("help <id>", ("help",), "what one rule, patch or pack does (ck3update help R11)"),
