@@ -28,6 +28,10 @@ ck3-save-updater brings an old Crusader Kings III save up to the game version yo
 - [New-map regions](new-map-regions.md): how the regions the 1.20 map added are brought into an older save.
 - [Platform support](platform-support.md): what the tool is tested on.
 
+## Editing a save
+
+- [Editing a save](editing-a-save.md): change one thing on purpose, such as a character's sex, and undo it.
+
 ## Your own fixes
 
 - [Writing a patch](writing-a-patch.md): your own fixes, as `patch.toml` files in your packs folder.

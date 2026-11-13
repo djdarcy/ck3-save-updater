@@ -44,6 +44,8 @@ class EditDef:
     plan: Callable = None           # plan(gamestate: bytes, params: dict) -> (changes, what): the changes and a line
                                     # naming what they touch
     help: str = ""                  # a paragraph for `help <edit>`
+    id: str = ""                    # its patch id in its pack ("E1"); "" for an edit defined in code
+    pack: str = "builtin"           # the pack it comes from; "builtin" for an edit defined in code
 
 
 @dataclass
@@ -85,12 +87,43 @@ def builtin() -> dict[str, EditDef]:
         pack = load_pack(shipped_pack_folder(EDITS_PACK), from_disk=False, context_fields=set())
         for p in pack.edits():
             if p.kind == "script":
-                BUILTIN.setdefault(p.name, EditDef(p.name, p.title, p.params, edit_function(p), p.help))
+                BUILTIN.setdefault(p.name, EditDef(p.name, p.title, p.params, edit_function(p), p.help, p.id,
+                                                   pack.id))
     return BUILTIN
 
 
+def lookup(name: str) -> EditDef | None:
+    """The edit a player names, by its name or its patch id, any case; ``revert`` too. None when there is none."""
+    want = name.strip().lower()
+    if want == "revert":
+        return REVERT
+    return next((e for e in builtin().values() if want in (e.name.lower(), e.id.lower() or None)), None)
+
+
+def listing() -> list[tuple[str, str, str, str, str]]:
+    """One row per edit the door offers: (id, name, pack, state, title). A shipped edit is always ``ready``; the
+    other states (not trusted, changed since trusted, turned off) belong to a player's packs."""
+    rows = [(e.id or "-", e.name, e.pack, "ready", e.title)
+            for e in sorted(builtin().values(), key=lambda e: (e.id == "", e.id, e.name))]
+    return rows + [("-", REVERT.name, REVERT.pack, "ready", REVERT.title)]
+
+
+def help_lines(e: EditDef) -> list[str]:
+    """What ``ck3update help <edit>`` prints: the usage, each value with its type, and the edit's own paragraph."""
+    usage = " ".join(f"<{n}>" for n, _, _ in e.params)
+    out = [f"{(e.id + ' ') if e.id else ''}{e.name}: {e.title}",
+           f"  pack      : {e.pack}",
+           "  kind      : an edit (ck3update edit runs it; update never does)",
+           f"  usage     : ck3update edit <save> {e.name}{(' ' + usage) if usage else ''}"]
+    for n, kind, text in e.params:
+        out.append(f"  value     : {n} ({kind})" + (f" -- {text}" if text else ""))
+    if e.help:
+        out += ["", "  " + e.help]
+    return out
+
+
 def find_edit(name: str) -> EditDef:
-    e = builtin().get(name)
+    e = lookup(name) if name.strip().lower() != "revert" else None
     if e is None:
         known = ", ".join(sorted(BUILTIN)) or "none yet"
         raise EditError(f"no edit named {name!r} (known: {known}); `ck3update edit --list` lists them")
@@ -229,7 +262,7 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
                         "before": base64.b64encode(c.before).decode("ascii"),
                         "after": base64.b64encode(c.after).decode("ascii")})
         shift += len(c.after) - len(c.before)
-    entry = {"edit": p.edit.name, "pack": "builtin", "params": dict(p.params), "what": p.what,
+    entry = {"edit": p.edit.name, "pack": p.edit.pack, "params": dict(p.params), "what": p.what,
              "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
     if p.dangerous:                    # the director's ruling 2026-11-13 02:32: record-only until edits have a span
         entry["dangerous"] = True

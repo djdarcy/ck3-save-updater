@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.10] - 2026-11-13
+
+### Added
+- `ck3update edit --list` lists the edits with their id, pack and state, and needs no save. `ck3update edit <save>` with no edit lists them too.
+- `ck3update help <edit>` says what an edit takes and does, by its name or its id. An edit can be run by its id as well.
+- A new page, [Editing a save](docs/editing-a-save.md), covers the edits, how to name a character, and how to undo an edit.
+
+### Changed
+- An edit's ledger entry names the pack the edit came from.
+
 ## [0.5.9] - 2026-11-13
 
 ### Added
@@ -731,7 +741,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...HEAD
+[0.5.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...v0.5.10
 [0.5.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...v0.5.7

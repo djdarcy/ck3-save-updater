@@ -18,7 +18,7 @@ PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
          "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py",
-         "tests/test_edit_set_sex.py"]
+         "tests/test_edit_set_sex.py", "tests/test_edit_list.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -229,6 +229,28 @@ MUTANTS = [
     ("H4 the edits pack not loaded", "edit.py",
      '            if p.kind == "script":',
      "            if False:"),
+    # U10, 2026-11-13: edit --list and help <edit>
+    ("T1 an edit not found by its id", "edit.py",
+     "if want in (e.name.lower(), e.id.lower() or None)",
+     "if want == e.name.lower()"),
+    ("T2 revert not looked up", "edit.py",
+     '    if want == "revert":\n        return REVERT',
+     '    if False:\n        return REVERT'),
+    ("T3 the ledger does not name the pack", "edit.py",
+     '"pack": p.edit.pack,',
+     '"pack": "builtin",'),
+    ("T4 --list after the values ignored", "cli.py",
+     '        elif t == "--list":\n            args.list = True',
+     '        elif t == "--list":\n            args.list = False'),
+    ("T5 the listing names no pack", "edit.py",
+     '    rows = [(e.id or "-", e.name, e.pack, "ready", e.title)',
+     '    rows = [(e.id or "-", e.name, "builtin", "ready", e.title)'),
+    ("T6 help leaves the values out", "edit.py",
+     "    for n, kind, text in e.params:",
+     "    for n, kind, text in ():"),
+    ("T7 help does not know edits", "cli.py",
+     "    if an_edit is not None:",
+     "    if False:"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),

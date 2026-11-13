@@ -871,6 +871,8 @@ def _edit_flags(args) -> list[str]:
             args.no_bak = True
         elif t == "--dangerous":
             args.dangerous = True
+        elif t == "--list":
+            args.list = True
         elif t in ("-o", "--output") and vals:
             args.output = vals.pop(0)
         else:
@@ -883,9 +885,13 @@ def cmd_edit(args) -> int:
     ``<save stem>__<edit>.ck3`` beside the original (2026-11-06 front-door DWP, addendum 2026-11-09, U2)."""
     from . import edit as E
     values = _edit_flags(args)
-    if not args.edit:
-        names = ", ".join(sorted(E.builtin())) or "none yet"
-        say(MINIMAL, f"edits: {names}; ck3update edit <save> <edit> [values]", "rules")
+    if args.list or not args.edit:
+        rows = E.listing()
+        w = [max(len(r[i]) for r in rows) for i in range(4)]
+        say(MINIMAL, "EDITS  ck3update edit <save> <name> [values]", "rules")
+        for r in rows:
+            say(MINIMAL, "  " + "  ".join(r[i].ljust(w[i]) for i in range(4)) + "  " + r[4], "rules")
+        say(MINIMAL, "`ck3update help <name>` says what an edit takes and does.", "rules")
         return 0
     save_path = Path(args.save)
     if args.bak and args.no_bak:
@@ -1310,8 +1316,14 @@ def cmd_help(args) -> int:
                 for line in _patch_help(p, pack.id, rules.get(p.id) if pack is shipped else None):
                     say(MINIMAL, line, "rules")
                 return 0
+    from . import edit as E
+    an_edit = E.lookup(want)
+    if an_edit is not None:
+        for line in E.help_lines(an_edit):
+            say(MINIMAL, line, "rules")
+        return 0
     names = [pack.id for pack, _, _ in packs] + [x for pack, _, _ in packs for p in pack.ordered()
-                                                 for x in (p.id, p.name)]
+                                                 for x in (p.id, p.name)] + [r[1] for r in E.listing()]
     close = difflib.get_close_matches(want, names, n=3)
     if re.fullmatch(r"[A-Za-z]{1,4}\d+", want):        # a patch id: its pack is not installed here
         raise ValueError(f"no pack found holds patch {want}; `ck3update packs` lists the packs found (your packs "
@@ -1512,8 +1524,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("edit", help="change a save on purpose with one named edit, written beside the original "
                                     "(never part of update)")
-    p.add_argument("save", help=SAVE_HELP)
+    p.add_argument("save", nargs="?", help=SAVE_HELP)
     p.add_argument("edit", nargs="?", help="the edit's name (with no name: list the edits)")
+    p.add_argument("--list", action="store_true", help="list the edits (no save needed)")
     p.add_argument("values", nargs=argparse.REMAINDER, help="the edit's values, in order or as --<name> <value>")
     p.add_argument("-o", "--output", help="where to write (default: <save name>__<edit>.ck3 beside the save)")
     p.add_argument("--dry-run", action="store_true", help="show the change, write nothing")
