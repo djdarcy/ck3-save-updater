@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
-         "tests/test_edit_ledger.py", "tests/test_edit_revert.py"]
+         "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -111,6 +111,31 @@ MUTANTS = [
     ("R6 any entry number taken", "edit.py",
      "    elif arg.isdigit() and int(arg) < len(entries):",
      "    elif arg.isdigit():"),
+    # U5, 2026-11-11: --in-place and the backup key
+    ("B1 backups off by default", "config.py",
+     '    return bool(read_config(path).get("backup", True))',
+     '    return bool(read_config(path).get("backup", False))'),
+    ("B2 --no-bak ignored", "cli.py",
+     '    if getattr(args, "no_bak", False):\n        return False',
+     '    if False:\n        return False'),
+    ("B3 --bak ignored", "cli.py",
+     '    if getattr(args, "bak", False):\n        return True',
+     '    if False:\n        return True'),
+    ("B4 a backup kept even when off", "cli.py",
+     "    if not backup:\n        os.replace(tmp, save)",
+     "    if False:\n        os.replace(tmp, save)"),
+    ("B5 the ledger not moved to the save", "cli.py",
+     '        atomic_write(E.ledger_path(save_path), json.dumps(led, indent=1) + "\\n")',
+     "        pass"),
+    ("B6 an existing backup overwritten", "cli.py",
+     "    if args.in_place and backup and bak.exists() and not args.force:",
+     "    if False:"),
+    ("B7 a bad backup value read as true", "config.py",
+     '    if not isinstance(data.get("backup", True), bool):',
+     "    if False:"),
+    ("B8 rewriting the config drops backup", "config.py",
+     '    if "backup" in data:             # kept as written',
+     '    if False:                        # kept as written'),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
@@ -130,7 +155,7 @@ def run_tests() -> tuple[int, str]:
 
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
-    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py")}
+    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

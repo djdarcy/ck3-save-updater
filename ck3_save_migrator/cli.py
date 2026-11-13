@@ -520,7 +520,7 @@ def cmd_update(args) -> int:
         from .plan import read_light
         args.record_seed = read_light(save_path).random_seed
     if args.in_place:
-        if bak.exists() and not args.force and not args.dry_run:
+        if want_backup(args) and bak.exists() and not args.force and not args.dry_run:
             raise OutputExistsError(f"the backup {bak} already exists (use --force to replace it)")
         # the output is written beside the save under a temporary name, verified, then swapped in
         out = save_path.with_name(f"{save_path.stem}.ck3update-tmp.ck3")
@@ -561,7 +561,7 @@ def cmd_update(args) -> int:
             say(ERROR, f"lint found errors: the update was not put in place; it is at {where} for inspection",
                 "io", err=True)
             return code
-        swap = swap_in_place(out, save_path, bak, report)
+        swap = swap_in_place(out, save_path, bak, report, backup=want_backup(args))
         if swap:
             return swap
         written = [(save_path, written[0][1])]
@@ -577,10 +577,27 @@ def cmd_update(args) -> int:
     return code
 
 
-def swap_in_place(tmp: Path, save: Path, bak: Path, report: Path | None) -> int:
+def want_backup(args) -> bool:
+    """Whether ``--in-place`` keeps the original: ``--bak`` / ``--no-bak`` for this run, else the config file's
+    ``backup`` (true by default; djdarcy 2026-11-08)."""
+    if getattr(args, "bak", False):
+        return True
+    if getattr(args, "no_bak", False):
+        return False
+    from .config import backup_on
+    return backup_on()
+
+
+def swap_in_place(tmp: Path, save: Path, bak: Path, report: Path | None, backup: bool = True) -> int:
     """``--in-place``: the original becomes ``<name>.bak.ck3`` and the verified output (``tmp``, beside it) takes
     the save's name. If the second rename fails, the first is undone. The report's ``output`` and the lint file
-    beside the output follow the save's name. 0 when done; 1, naming both files, when the swap failed."""
+    beside the output follow the save's name. 0 when done; 1, naming both files, when the swap failed. With
+    ``backup`` off (``--no-bak``, or ``backup = false``) the output replaces the save and the original is gone."""
+    if not backup:
+        os.replace(tmp, save)
+        _follow_output(tmp, save, report, report)
+        say(MINIMAL, f"in place: {save} (no backup kept: the original is gone)", "io")
+        return 0
     os.replace(save, bak)
     try:
         os.replace(tmp, save)
@@ -845,6 +862,12 @@ def _edit_flags(args) -> list[str]:
             args.yes = True
         elif t == "--force":
             args.force = True
+        elif t == "--in-place":
+            args.in_place = True
+        elif t == "--bak":
+            args.bak = True
+        elif t == "--no-bak":
+            args.no_bak = True
         elif t in ("-o", "--output") and vals:
             args.output = vals.pop(0)
         else:
@@ -862,7 +885,13 @@ def cmd_edit(args) -> int:
         say(MINIMAL, f"edits: {names}; ck3update edit <save> <edit> [values]", "rules")
         return 0
     save_path = Path(args.save)
+    if args.bak and args.no_bak:
+        raise ValueError("--bak and --no-bak contradict each other")
+    if args.in_place and args.output:
+        raise ValueError("--in-place writes the edit under the save's own name; it does not take -o")
     out = Path(args.output) if args.output else None
+    if args.in_place:                  # written beside under a temporary name, verified, then swapped in
+        out = save_path.with_name(f"{save_path.stem}.ck3update-tmp.ck3")
     p = E.plan_revert(save_path, values, out=out) if args.edit == "revert" else \
         E.plan_edit(save_path, args.edit, values, out=out)
     say(MINIMAL, f"EDIT   {p.edit.name}: {p.edit.title}", "rules")
@@ -884,7 +913,23 @@ def cmd_edit(args) -> int:
         if answer.strip().lower() not in ("y", "yes"):
             say(MINIMAL, "not written", "io")
             return 1
-    res = E.write_planned(p, force=args.force)
+    backup = want_backup(args) if args.in_place else True
+    bak = save_path.with_name(save_path.stem + ".bak.ck3")
+    if args.in_place and backup and bak.exists() and not args.force:
+        raise OutputExistsError(f"the backup {bak} already exists (use --force to replace it)")
+    res = E.write_planned(p, force=args.force or args.in_place)
+    if args.in_place:
+        tmp, tmp_led = p.out, E.ledger_path(p.out)
+        if backup and E.ledger_path(save_path).is_file():   # the backup keeps the original's own ledger
+            os.replace(E.ledger_path(save_path), E.ledger_path(bak))
+        swap = swap_in_place(tmp, save_path, bak, None, backup=backup)
+        if swap:
+            return swap
+        led = json.loads(tmp_led.read_text(encoding="utf-8"))
+        led["save"] = save_path.name
+        atomic_write(E.ledger_path(save_path), json.dumps(led, indent=1) + "\n")
+        tmp_led.unlink()
+        return 0
     say(MINIMAL, f"wrote: {res.path}", "io")
     say(DEFAULT, f"  sha256        : {res.sha256}", "io")
     return 0
@@ -1467,6 +1512,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="show the change, write nothing")
     p.add_argument("--yes", action="store_true", help="do not ask before writing")
     p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
+    p.add_argument("--in-place", action="store_true", help="the edited save takes the save's own name; the original "
+                                                           "is kept as <name>.bak.ck3 unless --no-bak")
+    ebk = p.add_mutually_exclusive_group()
+    ebk.add_argument("--bak", action="store_true", help="with --in-place: keep the original as <name>.bak.ck3")
+    ebk.add_argument("--no-bak", action="store_true", help="with --in-place: keep no backup; the original is gone")
     p.set_defaults(func=cmd_edit)
 
     p = sub.add_parser("migrate", help="read a save and write a migrated copy (never in place)")
@@ -1559,6 +1609,10 @@ def build_parser() -> argparse.ArgumentParser:
             return
         p.add_argument("--in-place", action="store_true",
                        help="the updated save takes the save's own name; the original is kept as <name>.bak.ck3")
+        bk = p.add_mutually_exclusive_group()
+        bk.add_argument("--bak", action="store_true", help="with --in-place: keep the original as <name>.bak.ck3 "
+                                                           "(the default unless the config says backup = false)")
+        bk.add_argument("--no-bak", action="store_true", help="with --in-place: keep no backup; the original is gone")
         p.add_argument("--ask", action=argparse.BooleanOptionalAction, default=None,
                        help="print the plan, then ask before running it ('Run the update now? [y/N]'). The default "
                             "in a terminal; a script, a pipe or output sent to a file runs without asking. --no-ask "

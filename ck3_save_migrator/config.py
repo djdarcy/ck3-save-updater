@@ -71,7 +71,16 @@ def read_config(path: Path | None = None) -> dict:
     cache = data.get("cache", {})
     if not isinstance(cache, dict) or not isinstance(cache.get("index", False), bool):
         raise ValueError(f"{path}: [cache] index must be true or false")
+    if not isinstance(data.get("backup", True), bool):
+        raise ValueError(f"{path}: 'backup' must be true or false")
     return data
+
+
+def backup_on(path: Path | None = None) -> bool:
+    """``backup``: whether ``--in-place`` keeps the original as ``<name>.bak.ck3`` (update and edit alike). On by
+    default for new players (djdarcy, 2026-11-08: "the default should be set to on"); ``--bak`` / ``--no-bak`` decide
+    for one run."""
+    return bool(read_config(path).get("backup", True))
 
 
 def index_cache_on(path: Path | None = None) -> bool:
@@ -131,6 +140,8 @@ def write_config(data: dict, path: Path | None = None) -> Path:
         lines.append(f"pack_dirs = [{', '.join(json.dumps(d) for d in data['pack_dirs'])}]")
     if data.get("transplant"):
         lines.append(f"transplant = {json.dumps(data['transplant'])}")
+    if "backup" in data:             # kept as written: the player's own backup choice
+        lines.append(f"backup = {json.dumps(bool(data['backup']))}")
     if data.get("cache"):            # kept as written: the player's own cache choice
         lines += ["", "[cache]"] + [f"{k} = {json.dumps(v)}" for k, v in data["cache"].items()]
     if data.get("display"):          # kept as written: the player's own layout choices

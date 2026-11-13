@@ -2,7 +2,7 @@
 
 This page walks a player through bringing an old Crusader Kings III save forward to the game version installed now: `ck3update status` to see what will happen, then `ck3update update` to do it. Words the tool coins are explained in the [glossary](glossary.md).
 
-**The tool never launches the game, and never changes the save you give it** unless you ask for `--in-place`, and then only after keeping the original as `<name>.bak.ck3`. Every other result is a new file beside your save. (`ck3update soak` is the one command that starts the game; it is separate, and neither `status` nor `update` runs it.)
+**The tool never launches the game, and never changes the save you give it** unless you ask for `--in-place`. Even then the original is kept as `<name>.bak.ck3`, unless you turn backups off (`--no-bak`, or `backup = false` in the [config file](config.md)). Every other result is a new file beside your save. (`ck3update soak` is the one command that starts the game; it is separate, and neither `status` nor `update` runs it.)
 
 ## Before you start
 
@@ -117,7 +117,7 @@ Any input you do not give this time takes the record's latest value ([pre-filled
 2. The original is renamed to `<name>.bak.ck3`.
 3. The output is renamed to `<name>.ck3`.
 
-If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--custom-faith-as` gives two outputs, so in place needs `--custom-faith-as faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
+If the last rename fails, the first is undone: the original keeps its own name, and the run exits 1 naming both files. Only a clean run is put in place: when lint finds an error (exit 4), the original is left as it is and the output is written to `<name>__updated__<game version>.ck3` for inspection, with its lint file and report beside it. An existing `.bak.ck3` is refused (exit 2) unless you give `--force`. `--no-bak` keeps no backup: the original is gone once the update takes its name. `backup = false` in the [config file](config.md) makes that the default, and `--bak` keeps one for a single run. The report is `<name>.report.json`. `--in-place` does not take `-o`. A custom faith with no `--custom-faith-as` gives two outputs, so in place needs `--custom-faith-as faith` or `rite` (or one in the record). Without `--in-place`, the output is still `<name>__updated__<game version>.ck3`.
 
 ## Performance after updating a large save
 

@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-11-11
+
+### Added
+- `ck3update edit --in-place` gives the edited save the original's name, keeping the original as `<name>.bak.ck3`. The edit's ledger moves with it, and the backup keeps the original's own ledger, so revert still works.
+- A `backup` setting in the config file, `true` by default, decides whether `--in-place` keeps that backup, for `update` and `edit` alike. `--bak` and `--no-bak` decide for one run. With no backup, one line says the original is gone.
+
 ## [0.5.4] - 2026-11-11
 
 ### Added
@@ -700,7 +706,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...HEAD
+[0.5.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.1...v0.5.2
