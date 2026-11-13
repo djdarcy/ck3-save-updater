@@ -596,7 +596,7 @@ def _span_why(applies: dict | None, sv: str | None, gv: str | None,
 
 
 def _dangerous(ok: bool, why: str, skip_why: str, pack: str, dangerous: bool, notes: list) -> tuple[bool, str]:
-    """``--dangerous`` (djdarcy 2026-11-08; the director's ruling 2026-11-09 02:32): a pack whose version span leaves
+    """``--dangerous`` (djdarcy 2026-11-08; the director's ruling 2026-11-13 02:32): a pack whose version span leaves
     this save out runs anyway; the plan says so in its own NOTES line, and lint checks the output as always. A pack
     for another save game (its campaign seed) is never forced."""
     if dangerous and not ok and skip_why == NOT_SELECTED:

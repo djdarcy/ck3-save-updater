@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
-         "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py"]
+         "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py",
+         "tests/test_edit_set_sex.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -35,8 +36,8 @@ MUTANTS = [
      '        if f in d and fmt < 2:',
      '        if f in d and fmt < 1:'),
     ("E5 the role is never read", "patches/model.py",
-     "source=where, folder=folder, from_disk=from_disk, role=role, params=params)",
-     "source=where, folder=folder, from_disk=from_disk, params=params)"),
+     "source=where, folder=folder, from_disk=from_disk, role=role, params=params, help=help_text)",
+     "source=where, folder=folder, from_disk=from_disk, params=params, help=help_text)"),
     ("E6 params allowed on a fix", "patches/model.py",
      '    if params and role != "edit":',
      '    if params and role == "nothing":'),
@@ -154,16 +155,16 @@ MUTANTS = [
      "        p.dangerous = True\n        say(MINIMAL, \"  --dangerous",
      "        pass\n        say(MINIMAL, \"  --dangerous"),
     # U7, 2026-11-13: the ironman flip and the reader table
-    ("I1 meta_data not flipped", "edit.py",
+    ("I1 meta_data not flipped", "builtin_edits.py",          # I1-I4 moved with the code in U9
      '    if m:\n        changes.append(Change(m.start(1), b"yes", b"no"))',
      '    if False:\n        changes.append(Change(m.start(1), b"yes", b"no"))'),
-    ("I2 ironman_manager not flipped", "edit.py",
+    ("I2 ironman_manager not flipped", "builtin_edits.py",
      "        if m2:",
      "        if False:"),
-    ("I3 the manager search runs past its block", "edit.py",
+    ("I3 the manager search runs past its block", "builtin_edits.py",
      "close.start() if close else len(gamestate)",
      "len(gamestate)"),
-    ("I4 CRLF lines not matched", "edit.py",
+    ("I4 CRLF lines not matched", "builtin_edits.py",
      'rb"(?m)^\\tironman=(yes)\\r?$"',
      'rb"(?m)^\\tironman=(yes)$"'),
     ("I5 the reader table ignored", "edit.py",
@@ -195,11 +196,39 @@ MUTANTS = [
      " - ((d[1], d[2]) < (b[1], b[2]))",
      ""),
     ("C9 the editor does not resolve characters", "edit.py",
-     "                out[name] = resolve_character(gamestate, params[name], index).id",
+     "                out[name] = resolve_character(gamestate, params[name], index_for(gamestate)).id",
      "                out[name] = params[name]"),
     ("C10 a number not converted", "edit.py",
      "                out[name] = int(params[name])",
      "                out[name] = params[name]"),
+    # U9, 2026-11-13: set-sex, the edits pack, help and since on an edit
+    ("S1 to male removes nothing", "builtin_edits.py",
+     '        return [Change(c.open + m.start(), m.group(0), b"")], what',
+     "        return [], what"),
+    ("S2 to female not placed after birth", "builtin_edits.py",
+     '    at = c.open + (m.end() if m else body.index(b"\\n") + 1)',
+     '    at = c.open + body.index(b"\\n") + 1'),
+    ("S3 a CRLF save gets an LF line", "builtin_edits.py",
+     '    newline = b"\\r\\n" if gamestate[at - 2:at] == b"\\r\\n" else b"\\n"',
+     '    newline = b"\\n"'),
+    ("S4 already that sex not refused", "builtin_edits.py",
+     "    if c.female == female:",
+     "    if False:"),
+    ("S5 any word taken for a sex", "builtin_edits.py",
+     "    if sex not in SEXES:",
+     "    if False:"),
+    ("H1 an edit's help not read", "patches/model.py",
+     "role=role, params=params, help=help_text)",
+     'role=role, params=params, help="")'),
+    ("H2 help allowed on a fix", "patches/model.py",
+     '    if help_text and role != "edit":',
+     "    if False:"),
+    ("H3 since optional for a fix too", "patches/model.py",
+     '**({"default": ""} if role == "edit" else {})',
+     'default=""'),
+    ("H4 the edits pack not loaded", "edit.py",
+     '            if p.kind == "script":',
+     "            if False:"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
@@ -220,7 +249,7 @@ def run_tests() -> tuple[int, str]:
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
     files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py",
-                                     "characters.py")}
+                                     "characters.py", "builtin_edits.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

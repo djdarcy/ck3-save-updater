@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.9] - 2026-11-13
+
+### Added
+- `ck3update edit <save> set-sex <character> male|female` changes one living character's sex. Only that character's sex flag changes. Their face keeps its genes, and the game works out heirs again by itself within a day of play. A character who already has that sex is refused, and nothing is written.
+- The built-in edits now live in a pack of their own, read the same way as the update's patches. An edit's patch file can carry a `help` paragraph, and it need not give `since`.
+
 ## [0.5.8] - 2026-11-13
 
 ### Added
@@ -725,7 +731,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...HEAD
+[0.5.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...v0.5.6

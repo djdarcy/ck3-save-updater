@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from ck3_save_migrator import cli
+from ck3_save_migrator import builtin_edits, cli
 from ck3_save_migrator import edit as E
 from ck3_save_migrator.savefile import parse_save, read_save
 from tests.fixtures.make_ck3 import DEFAULT_BODY, DEFAULT_META, build_ck3
@@ -46,7 +46,7 @@ def test_ironman_off_flips_meta_and_the_manager_and_nothing_else(tmp_path):
 def test_crlf_line_endings_are_flipped_too(tmp_path):
     meta, body = IRON_META.replace(b"\n", b"\r\n"), (DEFAULT_BODY + MANAGER).replace(b"\n", b"\r\n")
     p = save_with(tmp_path, meta, body)
-    changes, what = E.plan_ironman_off(read_save(p).gamestate, {})
+    changes, what = builtin_edits.ironman_off(read_save(p).gamestate, {})
     assert len(changes) == 2 and what == "ironman=yes -> no in meta_data and ironman_manager"
 
 
@@ -84,4 +84,4 @@ def test_a_reader_registered_for_a_kind_is_used(tmp_path, monkeypatch):
 
 
 def test_ironman_off_is_listed():
-    assert "ironman-off" in E.BUILTIN
+    assert "ironman-off" in E.builtin()

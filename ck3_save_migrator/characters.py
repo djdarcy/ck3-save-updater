@@ -176,9 +176,21 @@ class CharacterIndex:
         return out
 
 
+_last: CharacterIndex | None = None
+
+
+def index_for(gamestate: bytes) -> CharacterIndex:
+    """The index over ``gamestate``, kept for the next caller with the very same bytes object (the resolver, then
+    the edit it resolved for): building it reads every character once, seconds on a real save."""
+    global _last
+    if _last is None or _last.g is not gamestate:
+        _last = CharacterIndex(gamestate)
+    return _last
+
+
 def resolve_character(gamestate: bytes, text: str, index: CharacterIndex | None = None) -> Character:
     """Exactly one living character for ``text``, or a CharacterError saying what matched and how to narrow it."""
-    ix = index or CharacterIndex(gamestate)
+    ix = index or index_for(gamestate)
     found = ix.find(text)
     if len(found) == 1:
         return found[0]

@@ -1,4 +1,4 @@
-"""``--dangerous`` (U6; the director's ruling 2026-11-09 02:32): on update/status a pack whose version span leaves the
+"""``--dangerous`` (U6; the director's ruling 2026-11-13 02:32): on update/status a pack whose version span leaves the
 save out runs anyway and the plan says so; on edit it is record-only (the ledger marks the run) until edits declare a
 span."""
 

@@ -1,0 +1,18 @@
+format = 2
+id = "E1"
+name = "set-sex"
+title = "make a living character male or female"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:set_sex"
+help = "Changes one living character's sex. Give the character by id, or by first name with a parent's first name, the house's name or a title they hold; then male or female. Only the character's own sex flag changes. Their face keeps its genes, and the game works out heirs again by itself within a day of play. Marriages and betrothals are left as they are."
+
+# A character's sex is `female=yes` present or absent at depth 1 of their entry (finding F13: the game keeps the
+# change on load and recomputes heir lists itself).
+
+[params.who]
+type = "character"
+help = "the character: an id, or a first name and what narrows it"
+
+[params.sex]
+type = "text"
+help = "male or female"

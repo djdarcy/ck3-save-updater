@@ -78,6 +78,7 @@ class Patch:
                                     # (blocks addressed that held a target)
     role: str = "fix"               # "fix": update's door; "edit": the save editor's (kind = "edit", format 2)
     params: tuple = ()              # an edit's typed parameters: ((name, type, help), ...)
+    help: str = ""                  # an edit's paragraph for `help <edit>` (format 2)
 
     @property
     def kind(self) -> str:
@@ -285,11 +286,11 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     d = _read(entry, where)
     fmt = _format(d, where)
     known = {"format", "id", "name", "title", "since", "default", "requires", "tested", "issue", "edit", "done",
-             "script", "run", "matched", "kind", "params"}
+             "script", "run", "matched", "kind", "params", "help"}
     extra = set(d) - known
     if extra:
         raise PatchError(f"{where}: unknown field '{sorted(extra)[0]}'")
-    for f in ("kind", "params"):
+    for f in ("kind", "params", "help"):
         if f in d and fmt < 2:
             raise PatchError(f"{where}: field '{f}' needs format = 2")
     role = _need(d, "kind", str, where, default="fix")
@@ -299,6 +300,9 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     params = _params(d, where) if "params" in d else ()
     if params and role != "edit":
         raise PatchError(f"{where}: [params] are for edits (kind = \"edit\")")
+    help_text = _need(d, "help", str, where, default="")
+    if help_text and role != "edit":
+        raise PatchError(f"{where}: field 'help' is for edits (kind = \"edit\")")
     context_fields = set(context_fields) | {name for name, _, _ in params}
     pid = _need(d, "id", str, where)
     kinds = [k for k in ("edit", "script", "run") if k in d]
@@ -307,10 +311,12 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
                          f"{', '.join(kinds) or 'none'}")
     common = dict(
         id=pid, name=_need(d, "name", str, where), title=_need(d, "title", str, where),
-        since=_need(d, "since", str, where), default=_need(d, "default", bool, where, default=True),
+        # an edit is asked for by name, on any save its reader opens: it need not say since when it applies
+        since=_need(d, "since", str, where, **({"default": ""} if role == "edit" else {})),
+        default=_need(d, "default", bool, where, default=True),
         requires=tuple(_need(d, "requires", list, where, default=[])),
         tested=_need(d, "tested", dict, where, default={}), issue=_need(d, "issue", str, where, default=""),
-        source=where, folder=folder, from_disk=from_disk, role=role, params=params)
+        source=where, folder=folder, from_disk=from_disk, role=role, params=params, help=help_text)
     if not all(isinstance(r, str) for r in common["requires"]):
         raise PatchError(f"{where}: field 'requires' must be a list of patch ids")
     if "script" in d:

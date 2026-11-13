@@ -1,0 +1,6 @@
+format = 2
+id = "edits"
+title = "Built-in edits (ck3update edit)"
+order = ["E1", "E2"]
+
+# Every patch here is kind = "edit": `ck3update edit <save> <name>` runs it, and `update` never does.

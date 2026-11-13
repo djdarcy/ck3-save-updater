@@ -16,14 +16,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
 from ._version import get_version
 from .config import atomic_write
-from .savefile import KIND_NAMES, KIND_UNIFIED_TEXT, CK3Save, meta_block_end, parse_header, read_save, write_save
+from .savefile import KIND_NAMES, KIND_UNIFIED_TEXT, CK3Save, parse_header, read_save, write_save
 
 
 class EditError(ValueError):
@@ -65,6 +64,8 @@ LEDGER_FORMAT = 1
 
 
 BUILTIN: dict[str, EditDef] = {}
+EDITS_PACK = "edits"                # the shipped pack of built-in edits, beside to_1_20 (the ruling of 2026-11-08)
+_pack_read = False
 
 
 def register(edit: EditDef) -> EditDef:
@@ -73,8 +74,23 @@ def register(edit: EditDef) -> EditDef:
     return edit
 
 
+def builtin() -> dict[str, EditDef]:
+    """The built-in edits by name: the shipped ``edits`` pack's code edits, read once, and any registered in code.
+    A code edit's ``script`` names its plan function, ``plan(gamestate, params) -> (changes, what)``."""
+    global _pack_read
+    if not _pack_read:
+        _pack_read = True
+        from .patches.model import load_pack
+        from .patches.pack import edit_function, shipped_pack_folder
+        pack = load_pack(shipped_pack_folder(EDITS_PACK), from_disk=False, context_fields=set())
+        for p in pack.edits():
+            if p.kind == "script":
+                BUILTIN.setdefault(p.name, EditDef(p.name, p.title, p.params, edit_function(p), p.help))
+    return BUILTIN
+
+
 def find_edit(name: str) -> EditDef:
-    e = BUILTIN.get(name)
+    e = builtin().get(name)
     if e is None:
         known = ", ".join(sorted(BUILTIN)) or "none yet"
         raise EditError(f"no edit named {name!r} (known: {known}); `ck3update edit --list` lists them")
@@ -114,13 +130,12 @@ def parse_params(edit: EditDef, tokens: list[str]) -> dict:
 def resolve_params(edit: EditDef, params: dict, gamestate: bytes) -> dict:
     """Turn each typed value into what the edit works on: a ``character`` becomes one living character's id (or
     the edit is refused with the candidates), a ``number`` an int; ``text`` stays as given."""
-    from .characters import CharacterError, CharacterIndex, resolve_character
-    out, index = dict(params), None
+    from .characters import CharacterError, index_for, resolve_character
+    out = dict(params)
     for name, kind, _ in edit.params:
         if kind == "character":
-            index = index or CharacterIndex(gamestate)
             try:
-                out[name] = resolve_character(gamestate, params[name], index).id
+                out[name] = resolve_character(gamestate, params[name], index_for(gamestate)).id
             except CharacterError as exc:
                 raise EditError(f"{edit.name}: {exc}") from None
         elif kind == "number":
@@ -216,43 +231,9 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
         shift += len(c.after) - len(c.before)
     entry = {"edit": p.edit.name, "pack": "builtin", "params": dict(p.params), "what": p.what,
              "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
-    if p.dangerous:                    # the director's ruling 2026-11-09 02:32: record-only until edits have a span
+    if p.dangerous:                    # the director's ruling 2026-11-13 02:32: record-only until edits have a span
         entry["dangerous"] = True
     return entry
-
-
-_IRONMAN_YES = re.compile(rb"(?m)^\tironman=(yes)\r?$")     # depth 1 of its block
-_IRONMAN_MANAGER = re.compile(rb"(?m)^ironman_manager=\{\r?$")
-_TOP_CLOSE = re.compile(rb"(?m)^\}")
-
-
-def plan_ironman_off(gamestate: bytes, params: dict):
-    """``ironman=yes`` to ``no`` in the two places a text save keeps it: the ``meta_data`` block (whose plaintext
-    copy before the zip is re-derived on write, so it follows) and the top-level ``ironman_manager`` block."""
-    changes, where = [], []
-    meta_end = meta_block_end(gamestate)
-    m = _IRONMAN_YES.search(gamestate, 0, meta_end)
-    if m:
-        changes.append(Change(m.start(1), b"yes", b"no"))
-        where.append("meta_data")
-    mm = _IRONMAN_MANAGER.search(gamestate, meta_end)
-    if mm:
-        close = _TOP_CLOSE.search(gamestate, mm.end())
-        m2 = _IRONMAN_YES.search(gamestate, mm.end(), close.start() if close else len(gamestate))
-        if m2:
-            changes.append(Change(m2.start(1), b"yes", b"no"))
-            where.append("ironman_manager")
-    what = "ironman=yes -> no in " + " and ".join(where) if where else "ironman is already off"
-    return changes, what
-
-
-register(EditDef(
-    "ironman-off", "turn ironman off in a text save",
-    plan=plan_ironman_off,
-    help="Sets ironman=no where a text save keeps the flag: its meta_data block (and the copy before the zip) "
-         "and its ironman_manager block. A save with ironman already off is left alone. A binary save, which is "
-         "what the game writes for an ironman campaign, cannot be read yet, so this edit is for text saves only. "
-         "Whether the game loads a flipped save as an ordinary one is not measured yet."))
 
 
 REVERT = EditDef("revert", "undo edits recorded in the save's ledger (itself an edit, so it can be undone)",

@@ -884,7 +884,7 @@ def cmd_edit(args) -> int:
     from . import edit as E
     values = _edit_flags(args)
     if not args.edit:
-        names = ", ".join(sorted(E.BUILTIN)) or "none yet"
+        names = ", ".join(sorted(E.builtin())) or "none yet"
         say(MINIMAL, f"edits: {names}; ck3update edit <save> <edit> [values]", "rules")
         return 0
     save_path = Path(args.save)

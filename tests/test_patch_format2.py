@@ -95,6 +95,20 @@ def test_params_are_for_edits_only(tmp_path):
     assert "[params] are for edits" in refused(tmp_path, EDIT.replace('kind = "edit"', 'kind = "fix"'))
 
 
+def test_an_edit_may_carry_help_and_leave_since_out(tmp_path):
+    text = EDIT.replace('since = "1.20"\n', 'help = "Gives gold."\n')
+    p = load(tmp_path, text)
+    assert (p.help, p.since) == ("Gives gold.", "")
+    assert load(tmp_path, EDIT, "Y-y").help == ""
+
+
+def test_help_is_for_edits_in_format_2_and_a_fix_still_needs_since(tmp_path):
+    fix2 = FIX.replace("format = 1", "format = 2")
+    assert "field 'help' is for edits" in refused(tmp_path, fix2.replace('since = "1.20"', 'since = "1.20"\nhelp = "x"'))
+    assert "field 'help' needs format = 2" in refused(tmp_path, FIX.replace('since = "1.20"', 'since = "1.20"\nhelp = "x"'))
+    assert "since" in refused(tmp_path, fix2.replace('since = "1.20"\n', ''))
+
+
 def test_an_unknown_param_type_is_refused(tmp_path):
     msg = refused(tmp_path, EDIT.replace('type = "number"', 'type = "artifact"'))
     assert "[params.amount] type must be one of character, number, text" in msg

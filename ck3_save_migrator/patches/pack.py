@@ -71,6 +71,11 @@ def _function(patch: Patch):
     return func
 
 
+def edit_function(patch: Patch):
+    """The plan function a code edit's ``script`` names: ``plan(gamestate, params) -> (changes, what)``."""
+    return _function(patch)
+
+
 def _declarative(patch: Patch):
     def apply(save, ctx, rule):
         values = context_values(ctx)

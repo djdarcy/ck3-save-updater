@@ -1,0 +1,7 @@
+format = 2
+id = "E2"
+name = "ironman-off"
+title = "turn ironman off in a text save"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:ironman_off"
+help = "Sets ironman=no where a text save keeps the flag: its meta_data block (and the copy before the zip) and its ironman_manager block. A save with ironman already off is left alone. A binary save, which is what the game writes for an ironman campaign, cannot be read yet, so this edit is for text saves only. Whether the game loads a flipped save as an ordinary one is not measured yet."
