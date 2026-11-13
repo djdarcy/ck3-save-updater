@@ -75,7 +75,7 @@ def ledger(p: Path) -> dict:
 def test_edit_dangerous_is_recorded_in_the_ledger(toy, capsys):
     assert cli.main(["edit", str(toy), "rename", "--dangerous"]) == 0
     assert ledger(toy.with_name("Camp__rename.ck3"))["entries"][-1].get("dangerous") is True
-    assert "edits declare no version span yet" in capsys.readouterr().out
+    assert "nothing was overridden; the ledger marks the run" in capsys.readouterr().out
 
 
 def test_an_edit_without_the_flag_is_not_marked(toy):

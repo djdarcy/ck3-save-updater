@@ -46,6 +46,9 @@ class EditDef:
     help: str = ""                  # a paragraph for `help <edit>`
     id: str = ""                    # its patch id in its pack ("E1"); "" for an edit defined in code
     pack: str = "builtin"           # the pack it comes from; "builtin" for an edit defined in code
+    state: str = "ready"            # "ready", or why it will not run: "not trusted", "changed since trusted",
+                                    # "turned off", "name taken by a built-in edit"
+    span: str | None = None         # its pack's [applies] save span (">=1.20"), or None: any save
 
 
 @dataclass
@@ -57,7 +60,8 @@ class Planned:
     save: CK3Save = field(repr=False, default=None)
     out: Path | None = None
     src: Path | None = None             # the save the edit read (its ledger, if any, is carried into the output's)
-    dangerous: bool = False             # --dangerous: recorded in the ledger (edits carry no version span yet)
+    dangerous: bool = False             # --dangerous was given: recorded in the ledger
+    note: str | None = None             # what --dangerous overrode (the edit's pack leaves this save's version out)
     steps: list | None = None           # revert: change lists applied one after another (each undoes one entry)
     entries: list | None = None         # revert: the output's whole ledger, prepared by plan_revert
 
@@ -81,7 +85,6 @@ def builtin() -> dict[str, EditDef]:
     A code edit's ``script`` names its plan function, ``plan(gamestate, params) -> (changes, what)``."""
     global _pack_read
     if not _pack_read:
-        _pack_read = True
         from .patches.model import load_pack
         from .patches.pack import edit_function, shipped_pack_folder
         pack = load_pack(shipped_pack_folder(EDITS_PACK), from_disk=False, context_fields=set())
@@ -89,23 +92,117 @@ def builtin() -> dict[str, EditDef]:
             if p.kind == "script":
                 BUILTIN.setdefault(p.name, EditDef(p.name, p.title, p.params, edit_function(p), p.help, p.id,
                                                    pack.id))
+        _pack_read = True              # only once every edit loaded: a failure part-way is tried again
     return BUILTIN
 
 
+def _named(e: EditDef, want: str) -> bool:
+    return want in (e.name.lower(), e.id.lower() or None)
+
+
+def _declarative_plan(patch, pack_vars: dict) -> Callable:
+    """The plan function of a declarative edit: its ``[[edit]]`` tables run through the patch engine, with the
+    edit's values (and the pack's ``vars.toml``) filling the ``@@name@@`` templates. Nothing is changed here: the
+    engine's planned edits become the editor's change list."""
+    def plan(gamestate: bytes, params: dict):
+        from .patches import engine
+        values = {**{k: str(v) for k, v in pack_vars.items()}, **{k: str(v) for k, v in params.items()}}
+        pl = engine.plan(gamestate, patch, values)
+        if pl.failure:
+            raise EditError(f"{patch.name}: {pl.failure}")
+        skipped = [r["skipped"] for r in pl.stats if r.get("skipped")]
+        if skipped:
+            raise EditError(f"{patch.name}: {patch.source}: {skipped[0]}")
+        changes = [Change(e.start, gamestate[e.start:e.end], e.replacement) for e in pl.edits]
+        parts = []
+        for name, kind, _ in patch.params:
+            if kind == "character":
+                from .characters import index_for
+                ix = index_for(gamestate)
+                c = ix.character(int(params[name]))
+                parts.append(" ".join(ix.describe(c).split()) if c else f"{name}={params[name]}")
+            else:
+                parts.append(f"{name}={params[name]}")
+        found = sum(r.get("found", 0) for r in pl.stats)
+        if not changes:
+            parts.append("no such place in this save" if not found else "already so")
+        return changes, "; ".join(parts) or f"{len(changes)} change(s)"
+    return plan
+
+
+def player_edits() -> list[EditDef]:
+    """The edits in the player's own packs (the packs folder and ``pack_dirs``), each with its state. A declarative
+    edit runs as it is; one that runs code needs its pack trusted, like a fix (``ck3update trust``). No code of a
+    pack is imported here: a code edit's function loads when it runs. An edit that names a program (``[run]``) is
+    not offered."""
+    from .config import disabled_ids
+    from .patches.pack import edit_function
+    from .userpacks import find_user_packs
+    off, out = set(disabled_ids()), []
+    taken = {x for e in builtin().values() for x in (e.name.lower(), e.id.lower()) if x} | {"revert"}
+    for up in find_user_packs().packs:
+        for p in up.pack.edits():
+            if p.kind == "run":
+                continue
+            state = "ready" if up.state == "runs" else up.state
+            if p.id in off:
+                state = "turned off"
+            if p.name.lower() in taken or p.id.lower() in taken:
+                state = "name taken by a built-in edit"
+            plan = _declarative_plan(p, up.vars) if p.kind == "declarative" else \
+                (lambda g, params, _p=p: edit_function(_p)(g, params))
+            out.append(EditDef(p.name, p.title, p.params, plan, p.help, p.id, up.pack.id, state,
+                               (up.pack.applies or {}).get("save")))
+    return out
+
+
 def lookup(name: str) -> EditDef | None:
-    """The edit a player names, by its name or its patch id, any case; ``revert`` too. None when there is none."""
+    """The edit a player names, by its name or its patch id, any case; ``revert`` too. A built-in edit is found
+    without reading the player's packs. None when there is none."""
     want = name.strip().lower()
     if want == "revert":
         return REVERT
-    return next((e for e in builtin().values() if want in (e.name.lower(), e.id.lower() or None)), None)
+    hit = next((e for e in builtin().values() if _named(e, want)), None)
+    return hit or next((e for e in player_edits() if _named(e, want)), None)
 
 
-def listing() -> list[tuple[str, str, str, str, str]]:
-    """One row per edit the door offers: (id, name, pack, state, title). A shipped edit is always ``ready``; the
-    other states (not trusted, changed since trusted, turned off) belong to a player's packs."""
+def outside_span(e: EditDef, save_version: str | None) -> bool:
+    """Does the edit's pack declare a save span that leaves this save's version out? Unknown either way: no."""
+    if not e.span or not save_version:
+        return False
+    from .patches.model import span_matches
+    return span_matches(e.span, save_version) is False
+
+
+def listing(save_version: str | None = None) -> list[tuple[str, str, str, str, str]]:
+    """One row per edit the door offers: (id, name, pack, state, title). A shipped edit is always ``ready``; a
+    player's may be ``not trusted``, ``changed since trusted`` or ``turned off``; with a save's version, an edit
+    whose pack leaves that version out is ``outside this save's version``."""
     rows = [(e.id or "-", e.name, e.pack, "ready", e.title)
             for e in sorted(builtin().values(), key=lambda e: (e.id == "", e.id, e.name))]
-    return rows + [("-", REVERT.name, REVERT.pack, "ready", REVERT.title)]
+    rows.append(("-", REVERT.name, REVERT.pack, "ready", REVERT.title))
+    for e in player_edits():
+        state = "outside this save's version" if e.state == "ready" and outside_span(e, save_version) else e.state
+        rows.append((e.id or "-", e.name, e.pack, state, e.title))
+    return rows
+
+
+def check_runnable(e: EditDef, save_version: str | None, dangerous: bool) -> str | None:
+    """Refuse an edit that may not run, with what to do about it. Returns a note when ``--dangerous`` let an edit
+    run outside its pack's version span, else None."""
+    if e.state in ("not trusted", "changed since trusted"):
+        raise EditError(f"{e.name} is in your pack {e.pack}, which runs code and is {e.state}: read it, then "
+                        f"`ck3update trust {e.pack}`")
+    if e.state == "turned off":
+        raise EditError(f"{e.name} ({e.id}) is turned off: `ck3update enable {e.id}` turns it back on")
+    if e.state != "ready":
+        raise EditError(f"{e.name} in your pack {e.pack}: {e.state}; give it another name and id")
+    if outside_span(e, save_version):
+        if not dangerous:
+            raise EditError(f"{e.name} is for saves {e.span}, and this save is {save_version}; --dangerous runs it "
+                            "anyway")
+        return f"{e.name} runs outside its version span (saves {e.span}; this save is {save_version})"
+    return None
 
 
 def help_lines(e: EditDef) -> list[str]:
@@ -224,16 +321,27 @@ def apply_changes(gamestate: bytes, changes: list) -> bytes:
     return b"".join(parts)
 
 
-def plan_edit(save_path: Path, edit_name: str, tokens: list[str], *, out: Path | None = None) -> Planned:
-    """Read the save, resolve the edit and its params, and plan its changes. Writes nothing."""
+def save_version(save: CK3Save) -> str | None:
+    """The game version the save's meta block names, or None."""
+    from .discover import save_versions
+    return save_versions(save.meta).get("version")
+
+
+def plan_edit(save_path: Path, edit_name: str, tokens: list[str], *, out: Path | None = None,
+              dangerous: bool = False) -> Planned:
+    """Read the save, resolve the edit and its params, and plan its changes. Writes nothing. An edit that may not
+    run (its pack not trusted, turned off, or for other save versions unless ``dangerous``) is refused first."""
     edit = find_edit(edit_name)
     params = parse_params(edit, tokens)
     save = read_editable(save_path)
+    note = check_runnable(edit, save_version(save), dangerous)
     params = resolve_params(edit, params, save.gamestate)
     changes, what = edit.plan(save.gamestate, params)
     if not changes:
         raise EditError(f"{edit.name}: nothing to change ({what})")
-    return Planned(edit, params, list(changes), what, save, out or output_path(save_path, edit.name), save_path)
+    p = Planned(edit, params, list(changes), what, save, out or output_path(save_path, edit.name), save_path)
+    p.note = note
+    return p
 
 
 def ledger_path(save_path: Path) -> Path:
@@ -264,8 +372,10 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
         shift += len(c.after) - len(c.before)
     entry = {"edit": p.edit.name, "pack": p.edit.pack, "params": dict(p.params), "what": p.what,
              "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
-    if p.dangerous:                    # the director's ruling 2026-11-13 02:32: record-only until edits have a span
-        entry["dangerous"] = True
+    if p.dangerous:                    # the director's ruling 2026-11-13 02:32: always recorded; since U11 it also
+        entry["dangerous"] = True      # overrides the save span of an edit's pack, and the entry says so
+        if p.note:
+            entry["dangerous_note"] = p.note
     return entry
 
 

@@ -109,6 +109,11 @@ def test_help_is_for_edits_in_format_2_and_a_fix_still_needs_since(tmp_path):
     assert "since" in refused(tmp_path, fix2.replace('since = "1.20"\n', ''))
 
 
+def test_a_template_in_a_path_must_be_a_known_value(tmp_path):
+    msg = refused(tmp_path, EDIT.replace('path = "living/@@who@@"', 'path = "living/@@whom@@"'))
+    assert "template @@whom@@ is not a known value" in msg
+
+
 def test_an_unknown_param_type_is_refused(tmp_path):
     msg = refused(tmp_path, EDIT.replace('type = "number"', 'type = "artifact"'))
     assert "[params.amount] type must be one of character, number, text" in msg

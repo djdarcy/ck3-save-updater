@@ -70,6 +70,10 @@ A revert is refused once the game has saved over the file. Then the original sav
 | `--bak`, `--no-bak` | with `--in-place`: keep the original as `<name>.bak.ck3`, or keep no backup (see [Configuration](config.md)) |
 | `--list` | list the edits |
 
+## Your own edits
+
+You can write edits of your own and keep them in your packs folder. `ck3update edit --list` then shows them beside the built-in ones. [Writing a patch](writing-a-patch.md#writing-an-edit) explains how.
+
 ## What cannot be edited yet
 
 A binary save cannot be read. That is what the game writes for an ironman campaign. The tool says so and stops.

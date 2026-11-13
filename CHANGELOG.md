@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.11] - 2026-11-13
+
+### Added
+- You can write your own edits. An edit is a patch with `kind = "edit"` in a pack of yours, and `ck3update edit` offers it beside the built-in ones. It can take a character, a number or text, and use them as `@@name@@` in its paths and values. `update` never runs an edit, and `edit` never offers a fix. See [Writing a patch](docs/writing-a-patch.md#writing-an-edit).
+- An edit that runs code needs its pack trusted first, with `ck3update trust`. An edit made of `[[edit]]` tables runs as it is. `ck3update edit --list` shows each edit's state, and `disable` and `enable` work on an edit's id.
+- A pack can say which saves its edits are for, with `[applies] save = "..."`. `edit` refuses a save outside that span. `--dangerous` runs the edit anyway, and the ledger records what it overrode.
+
+### Changed
+- A patch's path can hold a `@@name@@` value. Before, only keys, values and payloads could.
+
 ## [0.5.10] - 2026-11-13
 
 ### Added
@@ -741,7 +751,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...HEAD
+[0.5.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...v0.5.10
 [0.5.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...v0.5.9
 [0.5.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...v0.5.8

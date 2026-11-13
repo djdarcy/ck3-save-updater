@@ -395,7 +395,7 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     edits = tuple(_edit(i, e, where) for i, e in enumerate(raw, 1))
     for e in edits:
         where_values = [x for k, vals in e.where.items() for x in (vals[1] if k == "field" else vals)]
-        for v in (e.key, e.value, e.to, e.payload, *where_values):
+        for v in (e.key, e.value, e.to, e.payload, *where_values, *e.paths):
             for name in TEMPLATE.findall(v or ""):
                 if name not in context_fields:
                     raise PatchError(f"{where} [[edit]] #{e.index}: template @@{name}@@ is not a known value "

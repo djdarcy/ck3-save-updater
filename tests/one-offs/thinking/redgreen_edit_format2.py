@@ -18,7 +18,7 @@ PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
          "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py",
-         "tests/test_edit_set_sex.py", "tests/test_edit_list.py"]
+         "tests/test_edit_set_sex.py", "tests/test_edit_list.py", "tests/test_edit_player_packs.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -231,8 +231,8 @@ MUTANTS = [
      "            if False:"),
     # U10, 2026-11-13: edit --list and help <edit>
     ("T1 an edit not found by its id", "edit.py",
-     "if want in (e.name.lower(), e.id.lower() or None)",
-     "if want == e.name.lower()"),
+     "    return want in (e.name.lower(), e.id.lower() or None)",
+     "    return want == e.name.lower()"),
     ("T2 revert not looked up", "edit.py",
      '    if want == "revert":\n        return REVERT',
      '    if False:\n        return REVERT'),
@@ -251,6 +251,44 @@ MUTANTS = [
     ("T7 help does not know edits", "cli.py",
      "    if an_edit is not None:",
      "    if False:"),
+    # U11, 2026-11-13: a player's own edits. P1 and P8 let an untrusted pack's edit through the state check; the
+    # safety test replaces the code importer with one that fails the test, so no pack code can load (rule 1b).
+    ("P1 an untrusted pack not refused as such", "edit.py",
+     '    if e.state in ("not trusted", "changed since trusted"):',
+     "    if False:"),
+    ("P2 any state runs", "edit.py",
+     '    if e.state != "ready":',
+     "    if False:"),
+    ("P3 turned off ignored", "edit.py",
+     "            if p.id in off:",
+     "            if False:"),
+    ("P4 the pack's save span never checked", "edit.py",
+     "    if outside_span(e, save_version):",
+     "    if False:"),
+    ("P5 --dangerous does not override the span", "edit.py",
+     "        if not dangerous:",
+     "        if True:"),
+    ("P6 what --dangerous overrode not recorded", "edit.py",
+     '            entry["dangerous_note"] = p.note',
+     "            pass"),
+    ("P7 a path's template not filled", "patches/engine.py",
+     "    for p in spec.paths:                # a path may name a value too",
+     "    for p in ():                        # a path may name a value too"),
+    ("P8 a pack's trust state not read", "edit.py",
+     '            state = "ready" if up.state == "runs" else up.state',
+     '            state = "ready"'),
+    ("P9 a built-in name can be taken", "edit.py",
+     "            if p.name.lower() in taken or p.id.lower() in taken:",
+     "            if False:"),
+    ("P10 a path's template not checked at load", "patches/model.py",
+     "*where_values, *e.paths):",
+     "*where_values):"),
+    ("P11 disable does not find an edit", "cli.py",
+     "            p = next((p for p in up.pack.patches.values() if t in (p.id.lower(), p.name.lower())), None)",
+     "            p = next((p for p in up.pack.ordered() if t in (p.id.lower(), p.name.lower())), None)"),
+    ("P12 the listing ignores the save's version", "edit.py",
+     '''        state = "outside this save's version" if e.state == "ready" and outside_span(e, save_version) else e.state''',
+     "        state = e.state"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
@@ -271,7 +309,7 @@ def run_tests() -> tuple[int, str]:
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
     files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py",
-                                     "characters.py", "builtin_edits.py")}
+                                     "characters.py", "builtin_edits.py", "patches/engine.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

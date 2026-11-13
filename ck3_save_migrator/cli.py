@@ -886,7 +886,13 @@ def cmd_edit(args) -> int:
     from . import edit as E
     values = _edit_flags(args)
     if args.list or not args.edit:
-        rows = E.listing()
+        version = None
+        if args.save and Path(args.save).is_file():      # with a save: mark the edits its version leaves out
+            try:
+                version = E.save_version(E.read_editable(Path(args.save)))
+            except (ValueError, OSError):
+                version = None
+        rows = E.listing(version)
         w = [max(len(r[i]) for r in rows) for i in range(4)]
         say(MINIMAL, "EDITS  ck3update edit <save> <name> [values]", "rules")
         for r in rows:
@@ -902,7 +908,7 @@ def cmd_edit(args) -> int:
     if args.in_place:                  # written beside under a temporary name, verified, then swapped in
         out = save_path.with_name(f"{save_path.stem}.ck3update-tmp.ck3")
     p = E.plan_revert(save_path, values, out=out) if args.edit == "revert" else \
-        E.plan_edit(save_path, args.edit, values, out=out)
+        E.plan_edit(save_path, args.edit, values, out=out, dangerous=args.dangerous)
     say(MINIMAL, f"EDIT   {p.edit.name}: {p.edit.title}", "rules")
     say(MINIMAL, f"  save   : {save_path}", "io")
     say(MINIMAL, f"  target : {p.what}", "rules")
@@ -911,8 +917,8 @@ def cmd_edit(args) -> int:
     say(MINIMAL, f"  output : {p.out}", "io")
     if args.dangerous:
         p.dangerous = True
-        say(MINIMAL, "  --dangerous: edits declare no version span yet, so none was checked; the ledger marks the run",
-            "rules")
+        say(MINIMAL, "  --dangerous: " + (p.note or "this edit has no version span that leaves this save out, so "
+                                          "nothing was overridden") + "; the ledger marks the run", "rules")
     if args.dry_run:
         say(MINIMAL, "dry run: nothing written", "io")
         return 0
@@ -1187,11 +1193,12 @@ def skipped_by_config(skipped: list[str]) -> str:
 
 
 def find_rule_or_user_patch(token: str):
-    """A built-in rule, else a patch of the player's own packs, by id or name (any case); refused when neither."""
+    """A built-in rule, else a patch of the player's own packs (a fix or an edit), by id or name (any case);
+    refused when neither."""
     t = token.strip().lower()
     if not any(t in (r.id.lower(), r.name.lower()) for r in REGISTRY):
         for up in find_user_packs().packs:
-            p = next((p for p in up.pack.ordered() if t in (p.id.lower(), p.name.lower())), None)
+            p = next((p for p in up.pack.patches.values() if t in (p.id.lower(), p.name.lower())), None)
             if p is not None:
                 return p
     return find_rule(token)
@@ -1220,7 +1227,7 @@ def cmd_enable(args) -> int:
 def cmd_disabled(args) -> int:
     ids = disabled_ids()
     names = {r.id: r.name for r in REGISTRY}
-    names.update({p.id: p.name for up in find_user_packs().packs for p in up.pack.ordered()})
+    names.update({p.id: p.name for up in find_user_packs().packs for p in up.pack.patches.values()})
     for i in ids:
         say(MINIMAL, f"{i:4} {names.get(i, '(not a known rule)')}", "rules")
     if not ids:

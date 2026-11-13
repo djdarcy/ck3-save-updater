@@ -275,7 +275,7 @@ payload = "\tnew_field=no\n"
 
 ### Templates
 
-`@@name@@` in a value is replaced when the patch runs: `@@target_version@@` (for example `1.20.1.2`), `@@target_save_game_version@@` (`18`), `@@portraits_version@@` (given with `--portraits-version`), and the tool's other settings by their names (`game_dir`, `old_game_dir`, `reference`). An edit whose template has no value is skipped, which is how R7 sets `portraits_version` only when you ask.
+`@@name@@` in a value or a path is replaced when the patch runs: `@@target_version@@` (for example `1.20.1.2`), `@@target_save_game_version@@` (`18`), `@@portraits_version@@` (given with `--portraits-version`), and the tool's other settings by their names (`game_dir`, `old_game_dir`, `reference`). An edit whose template has no value is skipped, which is how R7 sets `portraits_version` only when you ask.
 
 ### expect
 
@@ -340,6 +340,70 @@ A run patch can say how to tell it has already run, so `update` does not run it 
 - or `done_command = [...]` in the `[run]` table: a program given `@@input@@`, a temporary copy of the save; exit code 0 means already done, any other means needed. It is code, so it runs only for a trusted pack in your packs folder or with `--allow-run`, under the patch's `timeout`; otherwise the verdict is "unknown (done_command not run: not trusted)".
 
 `ck3update help <patch id>` prints a patch's title, pack, since, default, needs (with their help) and done check.
+
+## Writing an edit
+
+A patch fixes what a game update broke, and `update` runs it. An edit changes something because you ask for it, and only `ck3update edit` runs it (see [Editing a save](editing-a-save.md)). An edit is a patch with `kind = "edit"`, in format 2. One pack can hold both. `update` never runs the edits, and `edit` never offers the fixes.
+
+```toml
+format = 2
+id = "G1"
+name = "set-gold"
+title = "set a character's gold"
+kind = "edit"
+help = "Sets the gold a character holds. Only a character who holds gold has the value to set."
+
+[params.who]
+type = "character"
+help = "the character: an id, or a first name and what narrows it"
+
+[params.amount]
+type = "number"
+
+[[edit]]
+path = "living/@@who@@/alive_data/gold"
+op = "set"
+key = "value"
+value = "@@amount@@"
+expect = 1
+```
+
+```
+ck3update edit My_Campaign.ck3 set-gold "Conchenn nic Bruide" 5000
+ck3update edit My_Campaign.ck3 set-gold --who 78307 --amount 5000
+```
+
+What is new compared with a fix:
+
+- **`kind = "edit"`** makes it an edit. It needs `format = 2` in the patch file.
+- **`[params.<name>]`** declares a value the player gives, in order or as `--<name> <value>`. Every value is required. Its `type` is `character`, `number` or `text`.
+  - A `character` is found for you, by id or by name, and refused when several match. Your edit receives the character's id.
+  - A `number` is a whole number.
+  - `text` is passed as written.
+- **`@@<name>@@`** puts a value into the edit, in a path, a key, a value or a payload.
+- **`help`** is the paragraph `ck3update help <name>` prints.
+- **`since`** can be left out.
+
+`expect = 1` makes the edit fail when the place is not there, instead of writing nothing silently. Without it, an edit that finds nothing is refused with "nothing to change".
+
+An edit of `[[edit]]` tables runs without trust, like a fix of that kind. An edit can also be code. `script = "<file>.py:<function>"` names a function `plan(gamestate, params)` that returns a list of changes and one line saying what it touches. A pack with code must be trusted first, with `ck3update trust <pack>`. The tool's own `set-sex` is written this way, in `ck3_save_migrator/builtin_edits.py`. A `[run]` program cannot be an edit.
+
+`ck3update edit --list` shows your edits with the built-in ones, and each one's state: `ready`, `not trusted`, `changed since trusted`, or `turned off` (`ck3update disable <id>`). An edit cannot take the name or the id of a built-in edit.
+
+### Edits and save versions
+
+A save's layout changes between game versions. The example above is right for a 1.20 save, where gold is `gold={ value=100 }`. A 1.8 save keeps it as `gold=18.9375`, one level up, so there the path is `living/@@who@@/alive_data` and the key is `gold`.
+
+A save this tool has just updated can hold both layouts. The characters it carried over keep the old one until the game saves the campaign once, and the game reads both. So look at the save before you write an edit for it, and after the first save in the game, look again.
+
+Say which saves your pack is for in its `pack.toml`:
+
+```toml
+[applies]
+save = ">=1.20"
+```
+
+`edit` then refuses a save outside that span and says so. `--dangerous` runs the edit anyway, and the ledger records it. With a save, `ck3update edit <save> --list` marks such an edit `outside this save's version`.
 
 ## Running your pack
 

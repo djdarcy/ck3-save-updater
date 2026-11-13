@@ -79,9 +79,15 @@ def _filled(spec: EditSpec, values: dict) -> tuple[EditSpec | None, list[str]]:
                 filled.append(y)
                 missing += m
             where[k] = tuple(filled)
+    paths = []
+    for p in spec.paths:                # a path may name a value too: living/@@who@@ (an edit's character)
+        y, m = fill(p, values)
+        paths.append(y)
+        missing += m
     if missing:
         return None, missing
-    return replace(spec, key=out["key"], value=out["value"], to=out["to"], where=where, payload=out["payload"]), []
+    return replace(spec, paths=tuple(paths), key=out["key"], value=out["value"], to=out["to"], where=where,
+                   payload=out["payload"]), []
 
 
 # --------------------------------------------------------------------------- targets
