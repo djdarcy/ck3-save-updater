@@ -111,6 +111,26 @@ def parse_params(edit: EditDef, tokens: list[str]) -> dict:
     return out
 
 
+def resolve_params(edit: EditDef, params: dict, gamestate: bytes) -> dict:
+    """Turn each typed value into what the edit works on: a ``character`` becomes one living character's id (or
+    the edit is refused with the candidates), a ``number`` an int; ``text`` stays as given."""
+    from .characters import CharacterError, CharacterIndex, resolve_character
+    out, index = dict(params), None
+    for name, kind, _ in edit.params:
+        if kind == "character":
+            index = index or CharacterIndex(gamestate)
+            try:
+                out[name] = resolve_character(gamestate, params[name], index).id
+            except CharacterError as exc:
+                raise EditError(f"{edit.name}: {exc}") from None
+        elif kind == "number":
+            try:
+                out[name] = int(params[name])
+            except ValueError:
+                raise EditError(f"{edit.name}: {name} must be a whole number, not {params[name]!r}") from None
+    return out
+
+
 def output_path(save_path: Path, edit_name: str) -> Path:
     """The default output: ``<save stem>__<edit>.ck3`` beside the original (djdarcy's Q261106-06 answer)."""
     return save_path.with_name(f"{save_path.stem}__{edit_name}.ck3")
@@ -161,6 +181,7 @@ def plan_edit(save_path: Path, edit_name: str, tokens: list[str], *, out: Path |
     edit = find_edit(edit_name)
     params = parse_params(edit, tokens)
     save = read_editable(save_path)
+    params = resolve_params(edit, params, save.gamestate)
     changes, what = edit.plan(save.gamestate, params)
     if not changes:
         raise EditError(f"{edit.name}: nothing to change ({what})")

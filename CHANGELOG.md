@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-11-13
+
+### Added
+- Edits can take a character. You give an id, or a first name followed by a parent's first name, the house's name or a title the character holds, such as `Conchenn nic Bruide`. Words like "nic", "mac" and "of" are skipped. When several living characters match, the edit is refused and each one is listed with id, sex, age, house, parents and titles, so you can pick the id. A name nobody answers to is refused too. No shipped edit takes a character yet: `set-sex` comes next.
+
 ## [0.5.7] - 2026-11-13
 
 ### Added
@@ -720,7 +725,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...HEAD
+[0.5.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...v0.5.8
 [0.5.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...v0.5.5

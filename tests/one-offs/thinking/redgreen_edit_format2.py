@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
-         "tests/test_dangerous.py", "tests/test_edit_ironman.py"]
+         "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -169,6 +169,37 @@ MUTANTS = [
     ("I5 the reader table ignored", "edit.py",
      "    reader = READERS.get(header.kind)",
      "    reader = {KIND_UNIFIED_TEXT: read_save}.get(header.kind)"),
+    # U8, 2026-11-13: the character resolver
+    ("C1 the dead's child lists not read", "characters.py",
+     "        for space in (self.living, self.dead):",
+     "        for space in (self.living,):"),
+    ("C2 a mother taken for a father", "characters.py",
+     "                slot = 1 if _FEMALE.search(body) else 0",
+     "                slot = 0"),
+    ("C3 particles not ignored", "characters.py",
+     "        rest = [p for p in pieces[1:] if p.lower() not in PARTICLES]",
+     "        rest = list(pieces[1:])"),
+    ("C4 several matches taken", "characters.py",
+     "    if len(found) == 1:",
+     "    if found:"),
+    ("C5 a past holder counted", "characters.py",
+     '_HOLDER = re.compile(rb"(?m)^\\tholder=(\\d+)")',
+     '_HOLDER = re.compile(rb"holder=(\\d+)")'),
+    ("C6 an id finds the dead", "characters.py",
+     "        e = self.living.get(cid)",
+     "        e = self.living.get(cid) or self.dead.get(cid)"),
+    ("C7 a house or title prefix not stripped", "characters.py",
+     '            names.add(key.split("_", 1)[-1].lower())',
+     "            pass"),
+    ("C8 age ignores the birthday", "characters.py",
+     " - ((d[1], d[2]) < (b[1], b[2]))",
+     ""),
+    ("C9 the editor does not resolve characters", "edit.py",
+     "                out[name] = resolve_character(gamestate, params[name], index).id",
+     "                out[name] = params[name]"),
+    ("C10 a number not converted", "edit.py",
+     "                out[name] = int(params[name])",
+     "                out[name] = params[name]"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
@@ -188,7 +219,8 @@ def run_tests() -> tuple[int, str]:
 
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
-    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py")}
+    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py",
+                                     "characters.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():
