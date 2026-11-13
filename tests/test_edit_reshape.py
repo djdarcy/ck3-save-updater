@@ -170,7 +170,7 @@ def test_one_loader_serves_built_in_and_player_packs(save):
     assert (e.name, e.role, e.state, e.pack) == ("set-gold", "edit", "ready", "mine")
     changes, what = e.plan(E.open_context(save), {"who": 10, "amount": 7})
     assert [(c.before, c.after) for c in changes] == [(b"100", b"7")]
-    assert all(x.role == "edit" and x.state == "ready" for x in E.builtin().values())
+    assert all(x.state == "ready" and x.pack == "edits" for x in E.builtin().values())
 
 
 def test_listing_with_a_save_does_not_read_the_whole_save(save, monkeypatch, capsys):

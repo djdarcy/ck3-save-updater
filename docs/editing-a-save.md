@@ -13,6 +13,10 @@ ck3update edit --list
 | Edit | What it does |
 |---|---|
 | `set-sex` | makes a living character male or female |
+| `events` | lists the events queued for a character (writes nothing) |
+| `event-show` | shows one queued event (writes nothing) |
+| `event-remove` | removes one queued event, so it never fires |
+| `event-reroll` | gives one queued event a new seed, so it rolls again |
 | `ironman-off` | turns ironman off in a text save |
 | `revert` | undoes edits this tool made |
 
@@ -45,6 +49,36 @@ ck3update edit My_Campaign.ck3 set-sex 78307 male
 ```
 
 The tool never guesses between two characters. Only living characters can be edited.
+
+## Events that have not happened yet
+
+A save holds a queue of events the game will fire later: a child's personality event, a title changing hands, and thousands more. You can look at the ones about a character, remove one, or make one roll again.
+
+```
+ck3update edit My_Campaign.ck3 events "Murchad mac Brian"
+```
+
+```
+1234 Murchad (M, age 10, born 977.9.30) house 77 dynn_Example father 1200 Brian mother 1201 Sadb titles -
+  #52     987.10.28   child_personality.4000                       seed 2087479515  (root)
+  #9424   989.3.3     child_personality.4015                       seed 904695798  (root)
+  2 of the save's 12825 queued events
+```
+
+Each line gives the event's number, the date it fires, its name and its seed. `(root)` means the event is about that character. `(as <name>)` means another character's event names them.
+
+`event-show <number>` prints one event as the save holds it. Neither command writes anything.
+
+```
+ck3update edit My_Campaign.ck3 event-reroll 52
+ck3update edit My_Campaign.ck3 event-remove 52
+```
+
+`event-reroll` changes the event's seed. The seed decides what the event rolls when it fires, so a new seed can give another outcome. It can also give the same one. You cannot choose the outcome: the save does not store one before the event fires.
+
+`event-remove` takes the event out, so it never fires. It does not undo what earlier events already did.
+
+An event's number belongs to one file. After a removal the later events move up by one, so list them again before the next edit. Event names are the game's own, such as `child_personality.4000`. The game's event files say what each one does.
 
 ## Undoing an edit
 

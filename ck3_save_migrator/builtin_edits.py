@@ -71,3 +71,64 @@ def ironman_off(ctx, params: dict):
             where.append("ironman_manager")
     what = "ironman=yes -> no in " + " and ".join(where) if where else "ironman is already off"
     return changes, what
+
+
+# --------------------------------------------------------------------------- queued events
+def _event(ctx, number: int, name: str):
+    """The queued event a player named by its number, or the refusal that says how to find one."""
+    events = ctx.events
+    if not 1 <= number <= len(events):
+        raise EditError(f"{name}: this save has {len(events)} queued events, numbered from 1; "
+                        "`ck3update edit <save> events <character>` lists a character's with their numbers")
+    return events[number - 1]
+
+
+def _about(ctx, e) -> str:
+    """One line naming an event: its number, date, name, and whose it is."""
+    who = ""
+    if e.root_type == "char" and e.root is not None:
+        who = f" for {e.root} {ctx.characters.first_names.get(e.root, '?')}"
+    return f"#{e.number} {e.event} on {e.date or '?'}{who}"
+
+
+def events_view(ctx, params: dict) -> list[str]:
+    """The queued events about one character, soonest first, each with the number the other event edits take."""
+    from .events import events_of
+    who = int(params["who"])
+    c = ctx.characters.character(who)
+    found = events_of(ctx.gamestate, who)
+    head = " ".join(ctx.characters.describe(c).split()) if c else str(who)
+    if not found:
+        return [head, "  no queued events"]
+    return [head] + ["  " + e.line(role) for e, role in found] + \
+           [f"  {len(found)} of the save's {len(ctx.events)} queued events"]
+
+
+def event_show(ctx, params: dict) -> list[str]:
+    """One queued event as the save holds it."""
+    e = _event(ctx, int(params["number"]), "event-show")
+    text = ctx.gamestate[e.start:e.end].decode("utf-8", "replace").expandtabs(4)
+    return [_about(ctx, e)] + ["  " + ln for ln in text.splitlines()]
+
+
+def event_remove(ctx, params: dict):
+    """Take one queued event out of the save: its whole block, and the blank line the game leaves after it."""
+    e = _event(ctx, int(params["number"]), "event-remove")
+    g, end = ctx.gamestate, e.end
+    for blank in (b"\r\n", b"\n"):
+        if g[end:end + len(blank)] == blank:
+            end += len(blank)
+            break
+    return [Change(e.start, g[e.start:end], b"")], "remove " + _about(ctx, e)
+
+
+def event_reroll(ctx, params: dict):
+    """Give one queued event a new seed, so it rolls again when it fires (finding F16). The new seed is derived
+    from the old one: the same reroll of the same save gives the same seed, and a second reroll another."""
+    from .events import new_seed
+    e = _event(ctx, int(params["number"]), "event-reroll")
+    if e.seed is None:
+        return [], f"{_about(ctx, e)} has no seed"
+    a, b = e.seed_at
+    seed = new_seed(e.seed)
+    return [Change(a, ctx.gamestate[a:b], str(seed).encode())], f"{_about(ctx, e)}: seed {e.seed} -> {seed}"

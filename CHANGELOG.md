@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.13] - 2026-11-13
+
+### Added
+- `ck3update edit <save> events <character>` lists the events the save has queued about a character, soonest first, with each one's number, date, name and seed. `event-show <number>` prints one. Neither writes anything.
+- `event-reroll <number>` gives a queued event a new seed, so it rolls again when it fires. Measured in the game: a new seed changed the outcome for 7 of 22 children's events, against a 1% background. You cannot choose an outcome, because the save stores none before the event fires.
+- `event-remove <number>` takes a queued event out of the save.
+
 ## [0.5.12] - 2026-11-13
 
 ### Added
@@ -768,7 +775,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...HEAD
+[0.5.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...v0.5.10

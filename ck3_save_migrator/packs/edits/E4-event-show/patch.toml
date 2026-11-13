@@ -1,0 +1,11 @@
+format = 2
+id = "E4"
+name = "event-show"
+title = "show one queued event as the save holds it"
+kind = "view"
+script = "ck3_save_migrator.builtin_edits:event_show"
+help = "Prints one queued event's block: its name, its subject, its seed, its targets and its date. Take the number from the events list. Nothing is written."
+
+[params.number]
+type = "number"
+help = "the event's number, from the events list"

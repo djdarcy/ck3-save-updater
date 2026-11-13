@@ -19,7 +19,7 @@ TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/t
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
          "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py",
          "tests/test_edit_set_sex.py", "tests/test_edit_list.py", "tests/test_edit_player_packs.py",
-         "tests/test_edit_reshape.py"]
+         "tests/test_edit_reshape.py", "tests/test_edit_events.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -318,6 +318,34 @@ MUTANTS = [
     ('N9 an edit run as a view', 'edit.py',
      '    if edit.role != "view":',
      '    if False:'),
+    # U13-U15, 2026-11-13: queued events (the views, remove, reroll)
+    ("V1 an event naming her among its targets not listed", "events.py",
+     "            if names:",
+     "            if False:"),
+    ("V2 events not listed soonest first", "events.py",
+     "    return sorted(out, key=lambda pair: (date_key(pair[0].date), pair[0].number))",
+     "    return out"),
+    ("V3 the blank line after a removed event left behind", "builtin_edits.py",
+     "            end += len(blank)",
+     "            end += 0"),
+    ("V4 a reroll keeps the seed", "builtin_edits.py",
+     "    seed = new_seed(e.seed)",
+     "    seed = e.seed"),
+    ("V5 any event number taken", "builtin_edits.py",
+     "    if not 1 <= number <= len(events):",
+     "    if False:"),
+    ("V6 a target that is not a character counted", "events.py",
+     r'_TARGET = re.compile(rb"(?m)^\t\t\t(\w+)=\{\s*type=char\s*identity=(\d+)")',
+     r'_TARGET = re.compile(rb"(?m)^\t\t\t(\w+)=\{\s*type=\w+\s*identity=(\d+)")'),
+    ("V7 a new seed past the game's range", "events.py",
+     "    return (seed * 7 + 12345) % SEED_MODULUS",
+     "    return seed * 7 + 12345"),
+    ("V8 the seed's place taken inside the block, not the save", "events.py",
+     "            (m.start() + seed.start(1), m.start() + seed.end(1)) if seed else None,",
+     "            (seed.start(1), seed.end(1)) if seed else None,"),
+    ("V9 the block's own newline not part of it", "events.py",
+     '        end += 2 if g[end:end + 2] == b"\\r\\n" else 1 if g[end:end + 1] == b"\\n" else 0',
+     "        end += 0"),
     ('L6 the input hash not recorded', 'edit.py',
      '    p.entries[0]["input_sha256"] = p.ctx.input_sha256',
      '    p.entries[0]["input_sha256"] = ""'),
@@ -338,7 +366,7 @@ def run_tests() -> tuple[int, str]:
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
     files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py",
-                                     "characters.py", "builtin_edits.py", "patches/engine.py")}
+                                     "characters.py", "builtin_edits.py", "patches/engine.py", "events.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

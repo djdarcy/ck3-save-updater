@@ -1,0 +1,13 @@
+format = 2
+id = "E3"
+name = "events"
+title = "list the events queued for a character"
+kind = "view"
+script = "ck3_save_migrator.builtin_edits:events_view"
+help = "Lists the events the save has queued about one character, soonest first. Each line gives the event's number, the date it fires, its name and its seed. The number is what event-show, event-remove and event-reroll take. An event is listed when the character is its subject, or when it names the character among its targets. Nothing is written."
+
+# A queued event is a top-level triggered_event={ ... } block; the editor numbers them by their order in the save.
+
+[params.who]
+type = "character"
+help = "the character: an id, or a first name and what narrows it"

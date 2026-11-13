@@ -1,0 +1,11 @@
+format = 2
+id = "E5"
+name = "event-remove"
+title = "remove one queued event, so it never fires"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:event_remove"
+help = "Takes one queued event out of the save, so the game never fires it. Take the number from the events list. The numbers belong to one file: after a removal, the later events move up by one, so list them again before the next edit. Removing an event does not undo what earlier events already did."
+
+[params.number]
+type = "number"
+help = "the event's number, from the events list"

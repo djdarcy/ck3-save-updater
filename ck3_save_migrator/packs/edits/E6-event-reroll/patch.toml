@@ -1,0 +1,13 @@
+format = 2
+id = "E6"
+name = "event-reroll"
+title = "give one queued event a new seed, so it rolls again"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:event_reroll"
+help = "Changes the seed of one queued event. The seed decides what the event rolls when it fires, so a new seed can give another outcome. It can also give the same one: the dice are rolled again, not loaded. Take the number from the events list. You cannot choose an event's outcome, because the save does not store one before the event fires."
+
+# Finding F16: a new seed in a queued event changed its outcome for 7 of 22 children, against a 1% background.
+
+[params.number]
+type = "number"
+help = "the event's number, from the events list"

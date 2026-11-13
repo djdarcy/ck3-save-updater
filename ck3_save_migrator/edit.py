@@ -86,6 +86,12 @@ class EditContext:
         from .characters import CharacterIndex
         return CharacterIndex(self.gamestate)
 
+    @cached_property
+    def events(self) -> list:
+        """The save's queued events, in its order (:func:`ck3_save_migrator.events.queued_events`)."""
+        from .events import queued_events
+        return queued_events(self.gamestate)
+
 
 @dataclass(frozen=True)
 class EditDef:
