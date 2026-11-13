@@ -16,7 +16,8 @@ from ck3_save_migrator.savefile import read_save
 from tests.fixtures.make_ck3 import build_ck3
 
 
-def toy_plan(g: bytes, params: dict):
+def toy_plan(ctx, params: dict):
+    g = ctx.gamestate
     """Rename character 1: first_name="Beidh" -> the given name. One change, at the name's bytes."""
     m = re.search(rb'first_name="Beidh"', g)
     return [E.Change(m.start(), m.group(0), f'first_name="{params["name"]}"'.encode())], "character 1 (Beidh)"

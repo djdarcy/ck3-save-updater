@@ -70,14 +70,13 @@ type = "character"
 """
 
 NICK_PY = """from pathlib import Path
-from ck3_save_migrator.characters import index_for
 from ck3_save_migrator.edit import Change
 
 Path(__file__).with_name("imported.txt").write_text("imported", encoding="utf-8")
 
 
-def plan(gamestate, params):
-    c = index_for(gamestate).character(params["who"])
+def plan(ctx, params):
+    c = ctx.characters.character(params["who"])
     return [Change(c.open + 1, b"\\n", b'\\n\\tnickname="x"\\n')], f"character {c.id}"
 """
 
@@ -211,11 +210,12 @@ def test_a_pack_for_other_save_versions_is_refused_unless_dangerous(save, capsys
     assert "outside this save's version" in capsys.readouterr().out
     assert cli.main(["edit", str(save), "set-gold", "10", "5000"]) == 1
     err = capsys.readouterr().err
-    assert "is for saves >=1.20, and this save is 1.8.1" in err and "--dangerous" in err and written(save) == []
+    assert "its pack mine is not for this save (save 1.8.1 does not match >=1.20)" in err
+    assert "--dangerous" in err and written(save) == []
     assert cli.main(["edit", str(save), "set-gold", "10", "5000", "--dangerous"]) == 0
-    assert "runs outside its version span" in capsys.readouterr().out
+    assert "runs on a save its pack mine is not for" in capsys.readouterr().out
     entry = E.read_ledger(save.with_name("Camp__set-gold.ck3"))["entries"][-1]
-    assert entry["dangerous"] is True and "saves >=1.20; this save is 1.8.1" in entry["dangerous_note"]
+    assert entry["dangerous"] is True and "save 1.8.1 does not match >=1.20" in entry["dangerous_note"]
 
 
 def test_a_span_that_covers_the_save_runs_plainly(save):

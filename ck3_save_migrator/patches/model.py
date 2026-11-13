@@ -76,7 +76,7 @@ class Patch:
     run: dict | None = None
     matched: str = "found"          # the report's matched: targets "found", "blocks" addressed, or "blocks-hit"
                                     # (blocks addressed that held a target)
-    role: str = "fix"               # "fix": update's door; "edit": the save editor's (kind = "edit", format 2)
+    role: str = "fix"               # "fix": update's door; "edit" and "view": the save editor's (kind =, format 2)
     params: tuple = ()              # an edit's typed parameters: ((name, type, help), ...)
     help: str = ""                  # an edit's paragraph for `help <edit>` (format 2)
 
@@ -99,11 +99,11 @@ class Pack:
     def ordered(self) -> list[Patch]:
         """The pack's fixes in order: what update, status and check run. Edits are never among them (the ruling
         of 2026-11-08: one engine, two doors); ``edits()`` gives those."""
-        return [p for p in (self.patches[i] for i in self.order) if p.role != "edit"]
+        return [p for p in (self.patches[i] for i in self.order) if p.role == "fix"]
 
     def edits(self) -> list[Patch]:
-        """The pack's edits in order: what ``ck3update edit`` offers."""
-        return [p for p in (self.patches[i] for i in self.order) if p.role == "edit"]
+        """What ``ck3update edit`` offers from the pack, in order: its edits and its views."""
+        return [p for p in (self.patches[i] for i in self.order) if p.role != "fix"]
 
 
 # --------------------------------------------------------------------------- reading
@@ -294,15 +294,18 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
         if f in d and fmt < 2:
             raise PatchError(f"{where}: field '{f}' needs format = 2")
     role = _need(d, "kind", str, where, default="fix")
-    if role not in ("fix", "edit"):
-        raise PatchError(f"{where}: field 'kind' is \"fix\" (update runs it) or \"edit\" (ck3update edit runs it), "
-                         f"not {role!r}")
+    if role not in ("fix", "edit", "view"):
+        raise PatchError(f"{where}: field 'kind' is \"fix\" (update runs it), \"edit\" (ck3update edit runs it) or "
+                         f"\"view\" (ck3update edit shows it, and nothing is written), not {role!r}")
     params = _params(d, where) if "params" in d else ()
-    if params and role != "edit":
+    if params and role == "fix":
         raise PatchError(f"{where}: [params] are for edits (kind = \"edit\")")
     help_text = _need(d, "help", str, where, default="")
-    if help_text and role != "edit":
+    if help_text and role == "fix":
         raise PatchError(f"{where}: field 'help' is for edits (kind = \"edit\")")
+    if role == "view" and "script" not in d:
+        raise PatchError(f"{where}: a view is code: script = \"<file>.py:<function>\", a function "
+                         "show(ctx, params) that returns the lines to show")
     context_fields = set(context_fields) | {name for name, _, _ in params}
     pid = _need(d, "id", str, where)
     kinds = [k for k in ("edit", "script", "run") if k in d]
@@ -312,7 +315,7 @@ def load_patch(folder, *, from_disk: bool, context_fields: set[str]) -> Patch:
     common = dict(
         id=pid, name=_need(d, "name", str, where), title=_need(d, "title", str, where),
         # an edit is asked for by name, on any save its reader opens: it need not say since when it applies
-        since=_need(d, "since", str, where, **({"default": ""} if role == "edit" else {})),
+        since=_need(d, "since", str, where, **({} if role == "fix" else {"default": ""})),
         default=_need(d, "default", bool, where, default=True),
         requires=tuple(_need(d, "requires", list, where, default=[])),
         tested=_need(d, "tested", dict, where, default={}), issue=_need(d, "issue", str, where, default=""),

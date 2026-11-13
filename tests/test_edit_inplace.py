@@ -21,7 +21,8 @@ from tests.test_update import game, old_save
 saves = TU.saves
 
 
-def rename_plan(g: bytes, params: dict):
+def rename_plan(ctx, params: dict):
+    g = ctx.gamestate
     m = re.search(rb'first_name="Beidh"', g)
     return [E.Change(m.start(), m.group(0), f'first_name="{params["name"]}"'.encode())], "character 1"
 

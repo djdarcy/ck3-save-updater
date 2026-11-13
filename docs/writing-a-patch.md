@@ -386,7 +386,40 @@ What is new compared with a fix:
 
 `expect = 1` makes the edit fail when the place is not there, instead of writing nothing silently. Without it, an edit that finds nothing is refused with "nothing to change".
 
-An edit of `[[edit]]` tables runs without trust, like a fix of that kind. An edit can also be code. `script = "<file>.py:<function>"` names a function `plan(gamestate, params)` that returns a list of changes and one line saying what it touches. A pack with code must be trusted first, with `ck3update trust <pack>`. The tool's own `set-sex` is written this way, in `ck3_save_migrator/builtin_edits.py`. A `[run]` program cannot be an edit.
+An edit of `[[edit]]` tables runs without trust, like a fix of that kind. An edit can also be code. `script = "<file>.py:<function>"` names a function `plan(ctx, params)` that returns a list of changes and one line saying what it touches. A pack with code must be trusted first, with `ck3update trust <pack>`. The tool's own `set-sex` is written this way, in `ck3_save_migrator/builtin_edits.py`. A `[run]` program cannot be an edit.
+
+`ctx` is what the tool already knows about the save:
+
+| `ctx.` | What it is |
+|---|---|
+| `gamestate` | the save's contents, as bytes |
+| `version` | the game version the save names, such as `1.20.1.2` |
+| `date` | the save's date, as `(year, month, day)` |
+| `seed` | the campaign's `random_seed` |
+| `characters` | the character index: `ctx.characters.character(id)` gives one living character |
+| `path` | the save file |
+
+### A view
+
+A view shows something and writes nothing. It is a patch with `kind = "view"` and a `script`. Its function is `show(ctx, params)`, and it returns the lines to print. It takes values like an edit, and `ck3update edit <save> <name>` runs it. No file is written and no ledger is touched.
+
+```toml
+format = 2
+id = "V1"
+name = "who-is"
+title = "show one character"
+kind = "view"
+script = "view.py:show"
+
+[params.who]
+type = "character"
+```
+
+```python
+def show(ctx, params):
+    c = ctx.characters.character(params["who"])
+    return [f"{c.id} {c.first_name}, born {c.birth}"]
+```
 
 `ck3update edit --list` shows your edits with the built-in ones, and each one's state: `ready`, `not trusted`, `changed since trusted`, or `turned off` (`ck3update disable <id>`). An edit cannot take the name or the id of a built-in edit.
 
@@ -404,6 +437,8 @@ save = ">=1.20"
 ```
 
 `edit` then refuses a save outside that span and says so. `--dangerous` runs the edit anyway, and the ledger records it. With a save, `ck3update edit <save> --list` marks such an edit `outside this save's version`.
+
+A pack can also be for one campaign only, with `campaign = { name = "...", seed = <the save's random_seed> }` under `[applies]`. Its edits are then refused on any other save game, and the list marks them `for another save game`.
 
 ## Running your pack
 

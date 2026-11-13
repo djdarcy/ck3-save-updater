@@ -46,7 +46,7 @@ def test_ironman_off_flips_meta_and_the_manager_and_nothing_else(tmp_path):
 def test_crlf_line_endings_are_flipped_too(tmp_path):
     meta, body = IRON_META.replace(b"\n", b"\r\n"), (DEFAULT_BODY + MANAGER).replace(b"\n", b"\r\n")
     p = save_with(tmp_path, meta, body)
-    changes, what = builtin_edits.ironman_off(read_save(p).gamestate, {})
+    changes, what = builtin_edits.ironman_off(E.open_context(p), {})
     assert len(changes) == 2 and what == "ironman=yes -> no in meta_data and ironman_manager"
 
 
@@ -76,7 +76,7 @@ def test_a_binary_save_is_still_refused_with_its_kind(tmp_path, capsys):
 def test_a_reader_registered_for_a_kind_is_used(tmp_path, monkeypatch):
     """The plug point a melter would use: a reader for kind 03 that returns a text save."""
     text = build_ck3(meta=IRON_META, body=DEFAULT_BODY + MANAGER)
-    monkeypatch.setitem(E.READERS, 3, lambda path: parse_save(text, source=Path(path)))
+    monkeypatch.setitem(E.READERS, 3, lambda data, path: parse_save(text, source=Path(path)))
     p = tmp_path / "Bin.ck3"
     p.write_bytes(build_ck3(kind=3))
     planned = E.plan_edit(p, "ironman-off", [])

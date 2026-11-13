@@ -4,6 +4,23 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.12] - 2026-11-13
+
+### Added
+- A pack can hold a view: a patch with `kind = "view"` that shows something about a save and writes nothing. `ck3update edit <save> <name>` runs it.
+- An edit's code now receives a context: the save's contents, version, date and seed, and the character index. The patch guide lists it.
+
+### Changed
+- An edit written as code takes `plan(ctx, params)`. Before, it took the save's bytes. No released version had the old form.
+- `ck3update edit <save> --list` reads only the start of the save, so it answers at once on a large save.
+- A mistyped edit name now lists your own edits too, not only the built-in ones.
+
+### Fixed
+- `edit --in-place` no longer replaces a save that changed while the question was on screen, for example when the game saved over it. It stops and says so.
+- The ledger names the save as it was read. Before, it hashed the file again at write time, which could name a newer file than the one the edit was planned on.
+- When an in-place swap failed, the save lost its ledger and could no longer be reverted. The ledger now stays with the save.
+- A pack meant for one campaign (`[applies] campaign`) had its edits offered on every save. They are now refused on another save game, unless you pass `--dangerous`.
+
 ## [0.5.11] - 2026-11-13
 
 ### Added
@@ -751,7 +768,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...HEAD
+[0.5.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...v0.5.11
 [0.5.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.9...v0.5.10
 [0.5.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.8...v0.5.9

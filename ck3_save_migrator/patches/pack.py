@@ -72,7 +72,8 @@ def _function(patch: Patch):
 
 
 def edit_function(patch: Patch):
-    """The plan function a code edit's ``script`` names: ``plan(gamestate, params) -> (changes, what)``."""
+    """The function a code edit's or a view's ``script`` names: an edit's is ``plan(ctx, params) -> (changes,
+    what)``, a view's ``show(ctx, params) -> lines`` (``ctx``: ``edit.EditContext``)."""
     return _function(patch)
 
 

@@ -83,7 +83,8 @@ def test_no_match_is_refused(g):
 
 
 def test_the_editor_resolves_a_character_param(g, tmp_path, monkeypatch, capsys):
-    def plan(gs: bytes, params: dict):
+    def plan(ctx, params: dict):
+        gs = ctx.gamestate
         c = CharacterIndex(gs).character(params["who"])
         return [E.Change(c.open + 1, b"\n", b"\n\tnickname=\"x\"\n")], f"character {c.id}"
     monkeypatch.setitem(E.BUILTIN, "nick", E.EditDef("nick", "nick", (("who", "character", ""),), plan))

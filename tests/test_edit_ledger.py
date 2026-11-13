@@ -17,7 +17,8 @@ from ck3_save_migrator.savefile import read_save
 from tests.fixtures.make_ck3 import build_ck3
 
 
-def rename_plan(g: bytes, params: dict):
+def rename_plan(ctx, params: dict):
+    g = ctx.gamestate
     """Two changes of different lengths: character 1's and character 2's first names."""
     a = re.search(rb'first_name="Beidh"', g)
     b = re.search(rb'first_name="Simin"', g)
@@ -70,7 +71,8 @@ def test_the_ledger_reproduces_the_input_from_the_output(save):
 
 
 def test_a_second_edit_appends_after_the_first(save, monkeypatch):
-    def simin_plan(g, params):
+    def simin_plan(ctx, params):
+        g = ctx.gamestate
         m = re.search(rb'first_name="S"', g)
         return [E.Change(m.start(), m.group(0), f'first_name="{params["name"]}"'.encode())], "character 2"
     monkeypatch.setitem(E.BUILTIN, "rename2", E.EditDef("rename2", "rename 2", (("name", "text", ""),), simin_plan))

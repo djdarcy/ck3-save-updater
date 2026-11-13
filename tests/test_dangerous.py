@@ -54,7 +54,8 @@ def test_dangerous_runs_it_and_says_so(tmp_path, saves):
     assert p.inputs.get("dangerous") is True                         # what the record stores
 
 
-def rename_plan(g: bytes, params: dict):
+def rename_plan(ctx, params: dict):
+    g = ctx.gamestate
     m = re.search(rb'first_name="Beidh"', g)
     return [E.Change(m.start(), m.group(0), b'first_name="B"')], "character 1"
 

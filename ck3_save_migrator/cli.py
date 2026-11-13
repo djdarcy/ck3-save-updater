@@ -886,13 +886,15 @@ def cmd_edit(args) -> int:
     from . import edit as E
     values = _edit_flags(args)
     if args.list or not args.edit:
-        version = None
-        if args.save and Path(args.save).is_file():      # with a save: mark the edits its version leaves out
-            try:
-                version = E.save_version(E.read_editable(Path(args.save)))
+        version = seed = None
+        if args.save and Path(args.save).is_file():      # with a save: mark the edits that are for other saves.
+            try:                                         # The meta block and the first megabyte are enough.
+                from .plan import read_light
+                light = read_light(Path(args.save))
+                version, seed = save_versions(light.meta).get("version"), light.random_seed
             except (ValueError, OSError):
-                version = None
-        rows = E.listing(version)
+                version = seed = None
+        rows = E.listing(version, seed)
         w = [max(len(r[i]) for r in rows) for i in range(4)]
         say(MINIMAL, "EDITS  ck3update edit <save> <name> [values]", "rules")
         for r in rows:
@@ -904,6 +906,11 @@ def cmd_edit(args) -> int:
         raise ValueError("--bak and --no-bak contradict each other")
     if args.in_place and args.output:
         raise ValueError("--in-place writes the edit under the save's own name; it does not take -o")
+    found = E.find_edit(args.edit) if args.edit != "revert" else None
+    if found is not None and found.role == "view":       # a view shows; nothing is planned, asked or written
+        for line in E.run_view(save_path, args.edit, values, dangerous=args.dangerous):
+            say(MINIMAL, line, "rules")
+        return 0
     out = Path(args.output) if args.output else None
     if args.in_place:                  # written beside under a temporary name, verified, then swapped in
         out = save_path.with_name(f"{save_path.stem}.ck3update-tmp.ck3")
@@ -916,9 +923,8 @@ def cmd_edit(args) -> int:
         say(DEFAULT, f"  change at {c.offset:,}: {c.before[:80]!r} -> {c.after[:80]!r}", "rules")
     say(MINIMAL, f"  output : {p.out}", "io")
     if args.dangerous:
-        p.dangerous = True
-        say(MINIMAL, "  --dangerous: " + (p.note or "this edit has no version span that leaves this save out, so "
-                                          "nothing was overridden") + "; the ledger marks the run", "rules")
+        say(MINIMAL, "  --dangerous: " + (p.note or "this edit's pack does not leave this save out, so nothing was "
+                                          "overridden") + "; the ledger marks the run", "rules")
     if args.dry_run:
         say(MINIMAL, "dry run: nothing written", "io")
         return 0
@@ -936,14 +942,18 @@ def cmd_edit(args) -> int:
     bak = save_path.with_name(save_path.stem + ".bak.ck3")
     if args.in_place and backup and bak.exists() and not args.force:
         raise OutputExistsError(f"the backup {bak} already exists (use --force to replace it)")
+    if args.in_place and sha256(save_path.read_bytes()) != p.ctx.input_sha256:
+        # the game (or anything) saved over it while the plan was on screen: its newer bytes must not be replaced
+        raise E.EditError(f"{save_path.name} has changed since it was read; nothing was written. Run the edit "
+                          "again on the save as it is now")
     res = E.write_planned(p, force=args.force or args.in_place)
     if args.in_place:
         tmp, tmp_led = p.out, E.ledger_path(p.out)
+        swap = swap_in_place(tmp, save_path, bak, None, backup=backup)
+        if swap:                       # undone: the save keeps its name, and so its own ledger stays beside it
+            return swap
         if backup and E.ledger_path(save_path).is_file():   # the backup keeps the original's own ledger
             os.replace(E.ledger_path(save_path), E.ledger_path(bak))
-        swap = swap_in_place(tmp, save_path, bak, None, backup=backup)
-        if swap:
-            return swap
         led = json.loads(tmp_led.read_text(encoding="utf-8"))
         led["save"] = save_path.name
         atomic_write(E.ledger_path(save_path), json.dumps(led, indent=1) + "\n")

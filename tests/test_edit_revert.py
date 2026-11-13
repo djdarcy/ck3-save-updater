@@ -17,7 +17,8 @@ from tests.fixtures.make_ck3 import build_ck3
 
 
 def name_plan(old: bytes):
-    def plan(g: bytes, params: dict):
+    def plan(ctx, params: dict):
+        g = ctx.gamestate
         m = re.search(rb'first_name="' + old + rb'"', g)
         return [E.Change(m.start(), m.group(0), f'first_name="{params["name"]}"'.encode())], old.decode()
     return plan
@@ -59,7 +60,8 @@ def test_revert_undoes_the_last_edit_into_a_new_file(save):
 def test_revert_undoes_an_edit_of_several_changes_of_different_lengths(save, monkeypatch):
     # the second change's place in the edited file moved by the first change's size difference: revert must use the
     # output offsets (red-green R2 survived without this test)
-    def both(g, params):
+    def both(ctx, params):
+        g = ctx.gamestate
         a = re.search(rb'first_name="Beidh"', g)
         b = re.search(rb'first_name="Simin"', g)
         return [E.Change(a.start(), a.group(0), b'first_name="Brigid-a-much-longer-name"'),
