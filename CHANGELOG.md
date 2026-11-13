@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.16] - 2026-11-13
+
+### Fixed
+- `events` and `event-show` showed `?` as the name of a queued on_action, the game's own scheduled pulses and effects, which make up nearly half of a save's queue. They now read `on_action <name>`. Removing or rerolling one already worked.
+
 ## [0.5.15] - 2026-11-13
 
 ### Added
@@ -788,7 +793,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...HEAD
+[0.5.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...v0.5.16
 [0.5.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...v0.5.15
 [0.5.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...v0.5.13

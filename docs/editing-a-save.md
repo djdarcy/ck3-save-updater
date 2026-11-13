@@ -70,6 +70,8 @@ ck3update edit My_Campaign.ck3 events "Murchad mac Brian"
 
 Each line gives the event's number, the date it fires, its name and its seed. `(root)` means the event is about that character. `(as <name>)` means another character's event names them.
 
+Some lines read `on_action <name>` in place of an event's name. Those are not events but the game's own scheduled pulses and effects, such as a yearly pulse. They can be shown, rerolled and removed like events. Leave them alone unless you know what one does: the game relies on many of them.
+
 `event-show <number>` prints one event as the save holds it. Neither command writes anything.
 
 ```

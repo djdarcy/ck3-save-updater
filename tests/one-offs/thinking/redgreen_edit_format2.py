@@ -396,6 +396,13 @@ MUTANTS = [
     ("A7 the copy not on a line of its own", "builtin_edits.py",
      'Change(art.end, b"", newline + copy_entry(g, art, new, who))',
      'Change(art.end, b"", copy_entry(g, art, new, who))'),
+    # 0.5.16, 2026-11-13: queued on_actions
+    ("X1 a queued on_action's name not read", "events.py",
+     r"""_EVENT = re.compile(rb'(?m)^\t(event|on_action)="?([^"\r\n]+)"?')""",
+     r"""_EVENT = re.compile(rb'(?m)^\t(event|event)="?([^"\r\n]+)"?')"""),
+    ("X2 an on_action shown as if it were an event", "events.py",
+     '        return self.event if self.kind == "event" else f"on_action {self.event}"',
+     "        return self.event"),
     ('L6 the input hash not recorded', 'edit.py',
      '    p.entries[0]["input_sha256"] = p.ctx.input_sha256',
      '    p.entries[0]["input_sha256"] = ""'),

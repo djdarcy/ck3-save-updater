@@ -88,7 +88,7 @@ def _about(ctx, e) -> str:
     who = ""
     if e.root_type == "char" and e.root is not None:
         who = f" for {e.root} {ctx.characters.first_names.get(e.root, '?')}"
-    return f"#{e.number} {e.event} on {e.date or '?'}{who}"
+    return f"#{e.number} {e.label} on {e.date or '?'}{who}"
 
 
 def events_view(ctx, params: dict) -> list[str]:

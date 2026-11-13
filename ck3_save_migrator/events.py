@@ -1,6 +1,8 @@
 """The events a save has queued: its top-level ``triggered_event={ ... }`` blocks.
 
-Each block is one event the game will fire on a date::
+Each block is one thing the game will fire on a date. Most are events (``event="namespace.number"``); the rest queue
+an on_action, a pulse or a scripted effect, with ``on_action="<name>"`` in the event's place (5,728 of play14's
+12,825). Both are numbered, listed, removed and rerolled alike; only an event can be scheduled. An event's block::
 
     triggered_event={
     	event="child_personality.4000"
@@ -31,7 +33,7 @@ import re
 from dataclasses import dataclass
 
 _OPEN = re.compile(rb"(?m)^triggered_event=\{\r?\n")
-_EVENT = re.compile(rb'(?m)^\tevent="?([^"\r\n]+)"?')
+_EVENT = re.compile(rb'(?m)^\t(event|on_action)="?([^"\r\n]+)"?')
 _DATE = re.compile(rb"(?m)^\tdate=([\d.]+)")
 _SEED = re.compile(rb"(?m)^\t\tseed=(-?\d+)")
 _ROOT = re.compile(rb"(?m)^\t\troot=\{\s*type=(\w+)\s*identity=(\d+)")
@@ -51,10 +53,17 @@ class QueuedEvent:
     seed: int | None
     seed_at: tuple[int, int] | None    # where the seed's digits are in the gamestate
     targets: tuple = ()             # ((name, character id), ...) from event_targets
+    kind: str = "event"             # "event", or "on_action": the block queues an on_action (a pulse, an effect),
+                                    # named by `on_action=` where an event has `event=`
+
+    @property
+    def label(self) -> str:
+        """The name as shown: an event's own, or ``on_action <name>``."""
+        return self.event if self.kind == "event" else f"on_action {self.event}"
 
     def line(self, role: str = "") -> str:
         seed = f"seed {self.seed}" if self.seed is not None else "no seed"
-        return f"#{self.number:<6} {self.date or '?':<11} {self.event:<44} {seed}" + (f"  ({role})" if role else "")
+        return f"#{self.number:<6} {self.date or '?':<11} {self.label:<44} {seed}" + (f"  ({role})" if role else "")
 
 
 def queued_events(g: bytes) -> list[QueuedEvent]:
@@ -69,11 +78,12 @@ def queued_events(g: bytes) -> list[QueuedEvent]:
         blk = g[m.start():end]
         ev, date, seed, root = _EVENT.search(blk), _DATE.search(blk), _SEED.search(blk), _ROOT.search(blk)
         out.append(QueuedEvent(
-            n, m.start(), end, ev.group(1).decode("utf-8", "replace") if ev else "?",
+            n, m.start(), end, ev.group(2).decode("utf-8", "replace") if ev else "?",
             date.group(1).decode() if date else "", root.group(1).decode() if root else "",
             int(root.group(2)) if root else None, int(seed.group(1)) if seed else None,
             (m.start() + seed.start(1), m.start() + seed.end(1)) if seed else None,
-            tuple((t.group(1).decode(), int(t.group(2))) for t in _TARGET.finditer(blk))))
+            tuple((t.group(1).decode(), int(t.group(2))) for t in _TARGET.finditer(blk)),
+            ev.group(1).decode() if ev else "event"))
     return out
 
 

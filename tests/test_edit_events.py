@@ -68,6 +68,26 @@ def test_crlf_saves_are_read_too():
     assert g[found[0].start:found[0].end] == E1[:-1].replace(b"\n", b"\r\n")
 
 
+ON_ACTION = (b"triggered_event={\n\ton_action=\"yearly_pulse\"\n\tscope={\n\t\troot={\n\t\t\ttype=char\n"
+             b"\t\t\tidentity=10\n\t\t}\n\t\tseed=444\n\t}\n\tdate=987.10.28\n}\n")
+
+
+def test_a_queued_on_action_is_read_and_named_as_one(tmp_path, capsys, monkeypatch):
+    """Not every queued block is an event: some queue an on_action, named by on_action= (5,728 of play14's
+    12,825). They are numbered and listed with the events, and say what they are."""
+    g = DEFAULT_META + BODY + E1 + ON_ACTION + TAIL
+    found = EV.queued_events(g)
+    assert [(e.number, e.kind, e.event, e.label, e.seed) for e in found] == [
+        (1, "event", "on_action.1", "on_action.1", 333), (2, "on_action", "yearly_pulse", "on_action yearly_pulse", 444)]
+    monkeypatch.setattr(cli, "interactive", lambda: False)
+    p = tmp_path / "Camp.ck3"
+    p.write_bytes(build_ck3(body=BODY + E1 + ON_ACTION + TAIL))
+    assert cli.main(["edit", str(p), "events", "10"]) == 0
+    assert "on_action yearly_pulse" in capsys.readouterr().out
+    assert cli.main(["edit", str(p), "event-remove", "2"]) == 0                  # removed like an event
+    assert read_save(p.with_name("Camp__event-remove.ck3")).gamestate == DEFAULT_META + BODY + E1 + TAIL
+
+
 # --------------------------------------------------------------------------- the views
 def test_events_lists_a_characters_own_and_the_ones_naming_her_soonest_first(save, capsys):
     assert cli.main(["edit", str(save), "events", "Conchenn nic Bruide"]) == 0
