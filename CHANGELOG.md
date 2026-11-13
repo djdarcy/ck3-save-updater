@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-11-13
+
+### Added
+- The first built-in edit, `ironman-off`. It sets `ironman=no` in a text save, in both places the save keeps the flag. A save with ironman already off is left alone. Whether the game then loads the save as an ordinary one is not measured yet.
+
+### Changed
+- The editor chooses how to read a save by its header, so a reader for binary saves can be added later. Binary saves are still refused, and the message now names their header kind.
+
 ## [0.5.6] - 2026-11-13
 
 ### Added
@@ -712,7 +720,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.7...HEAD
+[0.5.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...v0.5.7
 [0.5.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...v0.5.4

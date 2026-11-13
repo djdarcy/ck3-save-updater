@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
-         "tests/test_dangerous.py"]
+         "tests/test_dangerous.py", "tests/test_edit_ironman.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -68,9 +68,9 @@ MUTANTS = [
     ("D6 flags after the values not taken out", "cli.py",
      '        if t == "--dry-run":\n            args.dry_run = True',
      '        if t == "--never-a-flag":\n            args.dry_run = True'),
-    ("D7 a binary save not explained", "edit.py",
-     "    except UnsupportedKindError as exc:\n        raise EditError",
-     "    except KeyError as exc:\n        raise EditError"),
+    ("D7 a binary save not explained", "edit.py",          # re-anchored for U7's reader table
+     "    if reader is None:\n        raise EditError",
+     "    if False:\n        raise EditError"),
     ("D8 --force ignored", "edit.py",
      "    res = write_save(p.save, p.out, force=force)\n    entries = list(prior",
      "    res = write_save(p.save, p.out, force=False)\n    entries = list(prior"),
@@ -153,6 +153,22 @@ MUTANTS = [
     ("G5 edit's flag not carried to the plan", "cli.py",
      "        p.dangerous = True\n        say(MINIMAL, \"  --dangerous",
      "        pass\n        say(MINIMAL, \"  --dangerous"),
+    # U7, 2026-11-13: the ironman flip and the reader table
+    ("I1 meta_data not flipped", "edit.py",
+     '    if m:\n        changes.append(Change(m.start(1), b"yes", b"no"))',
+     '    if False:\n        changes.append(Change(m.start(1), b"yes", b"no"))'),
+    ("I2 ironman_manager not flipped", "edit.py",
+     "        if m2:",
+     "        if False:"),
+    ("I3 the manager search runs past its block", "edit.py",
+     "close.start() if close else len(gamestate)",
+     "len(gamestate)"),
+    ("I4 CRLF lines not matched", "edit.py",
+     'rb"(?m)^\\tironman=(yes)\\r?$"',
+     'rb"(?m)^\\tironman=(yes)$"'),
+    ("I5 the reader table ignored", "edit.py",
+     "    reader = READERS.get(header.kind)",
+     "    reader = {KIND_UNIFIED_TEXT: read_save}.get(header.kind)"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),

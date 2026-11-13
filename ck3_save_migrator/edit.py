@@ -16,13 +16,14 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
 from ._version import get_version
 from .config import atomic_write
-from .savefile import CK3Save, UnsupportedKindError, read_save, write_save
+from .savefile import KIND_NAMES, KIND_UNIFIED_TEXT, CK3Save, meta_block_end, parse_header, read_save, write_save
 
 
 class EditError(ValueError):
@@ -115,13 +116,26 @@ def output_path(save_path: Path, edit_name: str) -> Path:
     return save_path.with_name(f"{save_path.stem}__{edit_name}.ck3")
 
 
+# The reader for each save header kind the editor can open. Each returns a CK3Save whose gamestate is text. A
+# binary (melted) reader would register its kinds here; it waits on the legal answer about shipping a token table
+# (the ruling of 2026-11-08, item 7), so binary kinds are refused for now.
+READERS: dict[int, Callable[[Path], CK3Save]] = {KIND_UNIFIED_TEXT: read_save}
+
+
 def read_editable(save_path: Path) -> CK3Save:
-    """Read a save the editor can change; a binary (ironman) save is refused with the sentence why."""
-    try:
-        return read_save(save_path)
-    except UnsupportedKindError as exc:
-        raise EditError(f"{save_path.name} is a binary save (ironman, or saved in binary mode); the editor reads "
-                        f"text saves only ({exc})") from None
+    """Read a save the editor can change, through the reader for its header kind; a kind with no reader (a binary
+    save: ironman, or saved in binary mode) is refused with the sentence why."""
+    save_path = Path(save_path)
+    if not save_path.is_file():
+        raise FileNotFoundError(f"save file not found: {save_path}")
+    with open(save_path, "rb") as fh:
+        header = parse_header(fh.read(64))
+    reader = READERS.get(header.kind)
+    if reader is None:
+        raise EditError(f"{save_path.name} is a binary save (ironman, or saved in binary mode; header kind "
+                        f"{header.kind:02x}, {KIND_NAMES.get(header.kind, 'unknown')}); the editor reads text "
+                        "saves only")
+    return reader(save_path)
 
 
 def apply_changes(gamestate: bytes, changes: list) -> bytes:
@@ -184,6 +198,40 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
     if p.dangerous:                    # the director's ruling 2026-11-09 02:32: record-only until edits have a span
         entry["dangerous"] = True
     return entry
+
+
+_IRONMAN_YES = re.compile(rb"(?m)^\tironman=(yes)\r?$")     # depth 1 of its block
+_IRONMAN_MANAGER = re.compile(rb"(?m)^ironman_manager=\{\r?$")
+_TOP_CLOSE = re.compile(rb"(?m)^\}")
+
+
+def plan_ironman_off(gamestate: bytes, params: dict):
+    """``ironman=yes`` to ``no`` in the two places a text save keeps it: the ``meta_data`` block (whose plaintext
+    copy before the zip is re-derived on write, so it follows) and the top-level ``ironman_manager`` block."""
+    changes, where = [], []
+    meta_end = meta_block_end(gamestate)
+    m = _IRONMAN_YES.search(gamestate, 0, meta_end)
+    if m:
+        changes.append(Change(m.start(1), b"yes", b"no"))
+        where.append("meta_data")
+    mm = _IRONMAN_MANAGER.search(gamestate, meta_end)
+    if mm:
+        close = _TOP_CLOSE.search(gamestate, mm.end())
+        m2 = _IRONMAN_YES.search(gamestate, mm.end(), close.start() if close else len(gamestate))
+        if m2:
+            changes.append(Change(m2.start(1), b"yes", b"no"))
+            where.append("ironman_manager")
+    what = "ironman=yes -> no in " + " and ".join(where) if where else "ironman is already off"
+    return changes, what
+
+
+register(EditDef(
+    "ironman-off", "turn ironman off in a text save",
+    plan=plan_ironman_off,
+    help="Sets ironman=no where a text save keeps the flag: its meta_data block (and the copy before the zip) "
+         "and its ironman_manager block. A save with ironman already off is left alone. A binary save, which is "
+         "what the game writes for an ironman campaign, cannot be read yet, so this edit is for text saves only. "
+         "Whether the game loads a flipped save as an ordinary one is not measured yet."))
 
 
 REVERT = EditDef("revert", "undo edits recorded in the save's ledger (itself an edit, so it can be undone)",
