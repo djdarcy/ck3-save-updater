@@ -405,7 +405,8 @@ def make_plan(args, *, writes: bool = False, display_checks: bool = True):
                            old_portrait_mods=portrait_mods_arg(args, "old_portrait_mods"),
                            face_changes=face_changes_arg(args),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
-                           detect=not args.no_detect, progress=sp.update, display_checks=display_checks)
+                           detect=not args.no_detect, progress=sp.update, display_checks=display_checks,
+                           dangerous=getattr(args, "dangerous", False))
 
 
 # this run's settings the output helpers read: --plain, and when main() started (the verdict's wall time)
@@ -868,6 +869,8 @@ def _edit_flags(args) -> list[str]:
             args.bak = True
         elif t == "--no-bak":
             args.no_bak = True
+        elif t == "--dangerous":
+            args.dangerous = True
         elif t in ("-o", "--output") and vals:
             args.output = vals.pop(0)
         else:
@@ -900,6 +903,10 @@ def cmd_edit(args) -> int:
     for c in p.changes:
         say(DEFAULT, f"  change at {c.offset:,}: {c.before[:80]!r} -> {c.after[:80]!r}", "rules")
     say(MINIMAL, f"  output : {p.out}", "io")
+    if args.dangerous:
+        p.dangerous = True
+        say(MINIMAL, "  --dangerous: edits declare no version span yet, so none was checked; the ledger marks the run",
+            "rules")
     if args.dry_run:
         say(MINIMAL, "dry run: nothing written", "io")
         return 0
@@ -1514,6 +1521,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
     p.add_argument("--in-place", action="store_true", help="the edited save takes the save's own name; the original "
                                                            "is kept as <name>.bak.ck3 unless --no-bak")
+    p.add_argument("--dangerous", action="store_true", help="run an edit outside the game versions it declares "
+                                                            "(recorded in the ledger)")
     ebk = p.add_mutually_exclusive_group()
     ebk.add_argument("--bak", action="store_true", help="with --in-place: keep the original as <name>.bak.ck3")
     ebk.add_argument("--no-bak", action="store_true", help="with --in-place: keep no backup; the original is gone")
@@ -1600,6 +1609,9 @@ def build_parser() -> argparse.ArgumentParser:
                             "(default: the gene-shipping mods the launcher enables, from dlc_load.json; '' for vanilla)")
         p.add_argument("--no-record", action="store_true",
                        help="neither read nor write this save game's record (the inputs of its earlier updates)")
+        p.add_argument("--dangerous", action="store_true",
+                       help="run a pack even on a save outside its version span (the plan says so; lint checks the "
+                            "output; the record marks the run)")
         p.add_argument("--no-detect", action="store_true",
                        help="do not read the whole save to judge each built-in rule needed or done (the plan then "
                             "reads only its first megabyte, and an up-to-date save is not re-checked)")

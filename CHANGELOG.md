@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-11-13
+
+### Added
+- `--dangerous` on `status` and `update` runs a pack even when its version span leaves the save out. Without it such a pack is skipped, as before. The plan's NOTES name each pack that runs this way, the record keeps the flag, and the checks on the output still run.
+- On `edit`, `--dangerous` is written into the edit's ledger entry. Edits declare no version span yet, so the flag changes nothing else for now.
+
 ## [0.5.5] - 2026-11-11
 
 ### Added
@@ -706,7 +712,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.5...v0.5.6
 [0.5.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.4...v0.5.5
 [0.5.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.2...v0.5.3

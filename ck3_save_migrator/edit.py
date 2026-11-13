@@ -55,6 +55,7 @@ class Planned:
     save: CK3Save = field(repr=False, default=None)
     out: Path | None = None
     src: Path | None = None             # the save the edit read (its ledger, if any, is carried into the output's)
+    dangerous: bool = False             # --dangerous: recorded in the ledger (edits carry no version span yet)
     steps: list | None = None           # revert: change lists applied one after another (each undoes one entry)
     entries: list | None = None         # revert: the output's whole ledger, prepared by plan_revert
 
@@ -178,8 +179,11 @@ def _entry(p: Planned, out_sha: str, in_sha: str) -> dict:
                         "before": base64.b64encode(c.before).decode("ascii"),
                         "after": base64.b64encode(c.after).decode("ascii")})
         shift += len(c.after) - len(c.before)
-    return {"edit": p.edit.name, "pack": "builtin", "params": dict(p.params), "what": p.what,
-            "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
+    entry = {"edit": p.edit.name, "pack": "builtin", "params": dict(p.params), "what": p.what,
+             "tool": get_version(), "input_sha256": in_sha, "sha256": out_sha, "changes": changes}
+    if p.dangerous:                    # the director's ruling 2026-11-09 02:32: record-only until edits have a span
+        entry["dangerous"] = True
+    return entry
 
 
 REVERT = EditDef("revert", "undo edits recorded in the save's ledger (itself an edit, so it can be undone)",

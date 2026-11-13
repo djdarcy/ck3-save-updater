@@ -16,7 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 PKG = ROOT / "ck3_save_migrator"
 TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/test_edit_cli.py",
-         "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py"]
+         "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
+         "tests/test_dangerous.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -136,6 +137,22 @@ MUTANTS = [
     ("B8 rewriting the config drops backup", "config.py",
      '    if "backup" in data:             # kept as written',
      '    if False:                        # kept as written'),
+    # U6, 2026-11-13: --dangerous
+    ("G1 the span never overridden", "plan.py",
+     "    if dangerous and not ok and skip_why == NOT_SELECTED:",
+     "    if False:"),
+    ("G2 the plan does not say so", "plan.py",
+     '        notes.append(f"--dangerous: {pack} runs outside its version span ({why}); lint checks the output")',
+     "        pass"),
+    ("G3 the record not marked", "plan.py",
+     '        inputs["dangerous"] = True',
+     "        pass"),
+    ("G4 the ledger not marked", "edit.py",
+     '        entry["dangerous"] = True',
+     "        pass"),
+    ("G5 edit's flag not carried to the plan", "cli.py",
+     "        p.dangerous = True\n        say(MINIMAL, \"  --dangerous",
+     "        pass\n        say(MINIMAL, \"  --dangerous"),
     ("L6 the input hash not recorded", "edit.py",
      '"input_sha256": in_sha, "sha256": out_sha,',
      '"input_sha256": "", "sha256": out_sha,'),
@@ -155,7 +172,7 @@ def run_tests() -> tuple[int, str]:
 
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
-    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py")}
+    files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

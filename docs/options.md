@@ -20,6 +20,7 @@ The most used options of `migrate`. `ck3update migrate --help` lists every optio
 | `--old-portrait-mods` | the portrait mods the save was written with, as Workshop ids or folders, in load order: the save's own builds, when the installed ones have changed or gone (default: the installed build of each mod the save lists, or a built-in table where the tool has one, whichever fits the save's faces better; `""` for vanilla). An entry that is neither an installed mod nor a folder is refused |
 | `--no-dna` | leave every face in the save's own gene layout (R19 does not run; the same as `--rules -R19`) |
 | `--pack` | a folder of `patch.toml` fixes to apply after the selected rules (see [Writing a patch](writing-a-patch.md)) |
+| `--dangerous` | `status` and `update`: run a pack whose version span leaves the save out. The plan's NOTES name each pack that runs this way, and the record keeps the flag. The checks on the output still run. On `edit` the flag is only written into the ledger, since edits declare no version span yet |
 
 ## Custom faiths
 

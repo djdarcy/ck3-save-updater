@@ -595,6 +595,16 @@ def _span_why(applies: dict | None, sv: str | None, gv: str | None,
     return ok, "; ".join(parts), ok and bool(spans), NOT_SELECTED
 
 
+def _dangerous(ok: bool, why: str, skip_why: str, pack: str, dangerous: bool, notes: list) -> tuple[bool, str]:
+    """``--dangerous`` (djdarcy 2026-11-08; the director's ruling 2026-11-09 02:32): a pack whose version span leaves
+    this save out runs anyway; the plan says so in its own NOTES line, and lint checks the output as always. A pack
+    for another save game (its campaign seed) is never forced."""
+    if dangerous and not ok and skip_why == NOT_SELECTED:
+        notes.append(f"--dangerous: {pack} runs outside its version span ({why}); lint checks the output")
+        return True, f"{why} -- run anyway (--dangerous)"
+    return ok, why
+
+
 REWORK = "1.13"                       # the map rework: a save below it needs the new-map rules to load in 1.20
 TRANSPLANT = ("R14", "R15", "R16")    # rules.select adds R17, which writes what they plan
 CONTEXT_PRESENT = {"target_version", "target_save_game_version", "wos_shape", "expansion_orders", "mod_dirs"}
@@ -657,7 +667,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 transplant: str | None = None, use_record: bool = True, in_place: bool = False,
                 detect: bool = False, progress=None, no_dna: bool = False,
                 portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None,
-                face_changes: list[str] | None = None, display_checks: bool = True) -> UpdatePlan:
+                face_changes: list[str] | None = None, display_checks: bool = True,
+                dangerous: bool = False) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -773,6 +784,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # --custom-faith-as shapes the outputs, not the plan: update pre-fills it from the record itself (cli.cmd_update)
     inputs = {"vars": dict(variables), "old_game_dir": old_game_dir, "transplant": transplant,
               "old_portrait_mods": old_portrait_mods, "face_changes": face_changes}
+    if dangerous:                       # the record marks a run made outside a pack's span (ruling 11-09 02:32)
+        inputs["dangerous"] = True
 
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
@@ -792,6 +805,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # ---- the built-in pack, and the rules --rules selects from it
     shipped = read_pack()
     ok, why, covers, skip_why = _span_why(shipped.applies, sv["version"], gv, seed)
+    ok, why = _dangerous(ok, why, skip_why, f"the built-in pack {shipped.id}", dangerous, notes)
     pack_rows = [PackChoice(shipped.id, "built in", "(inside the package)", ok, why)]
     covered = covers
     steps: list[Step] = []
@@ -849,6 +863,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     found = find_user_packs().packs
     for up in found:
         ok, why, covers, skip_why = _span_why(up.pack.applies, sv["version"], gv, seed)
+        ok, why = _dangerous(ok, why, skip_why, f"your pack {up.id}", dangerous, notes)
         pack_rows.append(PackChoice(up.id, "yours", str(up.folder), ok, why, up.state))
         runnable = up.state == "runs" or (allow_run and up.state != "turned off")
         if ok and runnable:
@@ -877,6 +892,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     for folder in packs or []:
         pk = read_pack(folder)
         ok, why, covers, skip_why = _span_why(pk.applies, sv["version"], gv, seed)
+        ok, why = _dangerous(ok, why, skip_why, f"--pack {pk.id}", dangerous, notes)
         pack_rows.append(PackChoice(pk.id, "--pack", str(folder), ok, why))
         named_packs.add(pk.id)
         if not ok:
