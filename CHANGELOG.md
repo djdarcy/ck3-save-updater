@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.14] - 2026-11-13
+
+### Added
+- `ck3update edit <save> event-schedule <character> <event> <date>` queues an event for a living character. The event must be one the game defines, in its own files or in a Workshop mod the save lists. `--dangerous` skips that check, for an event of a mod kept elsewhere. A date before the save's own is refused.
+- Tested in the game on a copy of a real campaign. A scheduled event fired and did its work, where two unedited runs left the child unchanged. A child whose queued events were removed stayed unchanged for ten months, where the unedited runs changed him. The game later queued a new event for him by its own rules.
+
 ## [0.5.13] - 2026-11-13
 
 ### Added
@@ -775,7 +781,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...HEAD
+[0.5.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...v0.5.12
 [0.5.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.10...v0.5.11

@@ -17,6 +17,7 @@ ck3update edit --list
 | `event-show` | shows one queued event (writes nothing) |
 | `event-remove` | removes one queued event, so it never fires |
 | `event-reroll` | gives one queued event a new seed, so it rolls again |
+| `event-schedule` | queues an event for a character on a date |
 | `ironman-off` | turns ironman off in a text save |
 | `revert` | undoes edits this tool made |
 
@@ -76,7 +77,15 @@ ck3update edit My_Campaign.ck3 event-remove 52
 
 `event-reroll` changes the event's seed. The seed decides what the event rolls when it fires, so a new seed can give another outcome. It can also give the same one. You cannot choose the outcome: the save does not store one before the event fires.
 
-`event-remove` takes the event out, so it never fires. It does not undo what earlier events already did.
+`event-remove` takes the event out, so it does not fire. It does not undo what earlier events already did. The game can queue the same event again later by its own rules. In a test, a child whose event was removed had a new one queued by the game some months on.
+
+```
+ck3update edit My_Campaign.ck3 event-schedule "Murchad mac Brian" child_personality.4015 987.11.5
+```
+
+`event-schedule` adds an event to the queue: the character it is about, the event's name, and the date it fires. The event must be one the game defines, in its own files or in a Workshop mod the save lists. For an event of a mod kept somewhere else, `--dangerous` skips that check. The date cannot be before the save's own date.
+
+What happens when the event fires is up to the event. Each one checks its own conditions and does nothing if they do not hold. A scheduled event is given the character only. An event that expects more, such as a second character, may not work as it does in play.
 
 An event's number belongs to one file. After a removal the later events move up by one, so list them again before the next edit. Event names are the game's own, such as `child_personality.4000`. The game's event files say what each one does.
 

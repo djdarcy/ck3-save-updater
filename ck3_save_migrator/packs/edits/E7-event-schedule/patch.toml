@@ -1,0 +1,19 @@
+format = 2
+id = "E7"
+name = "event-schedule"
+title = "queue an event for a character on a date"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:event_schedule"
+help = "Adds one event to the save's queue, about a living character, to fire on the date you give. The event must be one the game defines, in its own events or in the Workshop mods the save lists. The date cannot be before the save's own date. What the event then does is the game's business: an event checks its own conditions when it fires, and may do nothing if they do not hold."
+
+[params.who]
+type = "character"
+help = "the character the event is about: an id, or a first name and what narrows it"
+
+[params.event]
+type = "text"
+help = "the event's name, namespace.number, such as child_personality.4000"
+
+[params.date]
+type = "text"
+help = "the date it fires, year.month.day"

@@ -57,10 +57,19 @@ class EditContext:
     save: CK3Save
     path: Path | None = None
     input_sha256: str = ""              # of the file's bytes as read (what the ledger names as the input)
+    dangerous: bool = False             # --dangerous was given: an edit may skip a check it says it skips
 
     @property
     def gamestate(self) -> bytes:
         return self.save.gamestate
+
+    @cached_property
+    def game_dir(self) -> Path | None:
+        """The game's ``game`` folder ($CK3_GAME_DIR, else found through Steam), or None."""
+        import os
+        from .discover import discover_games
+        found = discover_games(None, os.environ.get("CK3_GAME_DIR"))
+        return found[0].path if found else None
 
     @cached_property
     def version(self) -> str | None:
@@ -427,6 +436,7 @@ def _prepare(edit_name: str, save_path: Path, tokens: list[str], dangerous: bool
     edit = find_edit(edit_name)
     params = parse_params(edit, tokens)
     ctx = open_context(save_path)
+    ctx.dangerous = dangerous
     note = check_runnable(edit, ctx.version, ctx.seed, dangerous)
     return edit, ctx, resolve_params(edit, params, ctx), note
 

@@ -132,3 +132,40 @@ def event_reroll(ctx, params: dict):
     a, b = e.seed_at
     seed = new_seed(e.seed)
     return [Change(a, ctx.gamestate[a:b], str(seed).encode())], f"{_about(ctx, e)}: seed {e.seed} -> {seed}"
+
+
+def event_schedule(ctx, params: dict):
+    """Queue an event for a living character on a date: one new block, placed before the first queued event with
+    a later date. The event must be one the game defines (its own events, or those of the Workshop mods the save
+    lists); the date may not be before the save's own."""
+    from .events import EVENT_NAME, date_key, event_block, event_defined, scheduled_seed
+    from .lint import workshop_mod_dirs
+    who, name, date = int(params["who"]), str(params["event"]).strip(), str(params["date"]).strip()
+    c = ctx.characters.character(who)
+    if c is None:
+        raise EditError(f"event-schedule: no living character has the id {who}")
+    if not EVENT_NAME.fullmatch(name):
+        raise EditError(f"event-schedule: an event is named namespace.number, such as child_personality.4000; "
+                        f"not {name!r}")
+    d = date_key(date)
+    if not re.fullmatch(r"\d+\.\d+\.\d+", date) or not (1 <= d[1] <= 12 and 1 <= d[2] <= 31):
+        raise EditError(f"event-schedule: the date is year.month.day, such as 987.11.5; not {date!r}")
+    if ctx.date and d < ctx.date:
+        raise EditError(f"event-schedule: {date} is before the save's date, {'.'.join(map(str, ctx.date))}")
+    if not ctx.dangerous:
+        if ctx.game_dir is None:
+            raise EditError("event-schedule: the game folder was not found, so the event cannot be checked "
+                            "(set CK3_GAME_DIR, or pass --dangerous to schedule it unchecked)")
+        if event_defined(name, ctx.game_dir, workshop_mod_dirs(ctx.save.meta, ctx.game_dir)) is None:
+            raise EditError(f"event-schedule: no event {name} in the game's events or in the Workshop mods the "
+                            "save lists (--dangerous schedules it anyway, for an event of a mod kept elsewhere)")
+    events, g = ctx.events, ctx.gamestate
+    if not events:
+        raise EditError("event-schedule: this save has no queued events to place a new one among")
+    newline = b"\r\n" if b"\r\n" in g[events[0].start:events[0].end] else b"\n"
+    block = event_block(name, who, scheduled_seed(ctx.seed, who, name, d), ".".join(map(str, d)), newline)
+    gap = g[events[0].end:events[1].start] if len(events) > 1 else b""       # what the save puts between two blocks
+    later = next((e for e in events if date_key(e.date) > d), None)
+    change = Change(later.start, b"", block + gap) if later else Change(events[-1].end, b"", gap + block)
+    what = f"queue {name} on {'.'.join(map(str, d))} for " + " ".join(ctx.characters.describe(c).split())
+    return [change], what
