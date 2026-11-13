@@ -18,6 +18,8 @@ ck3update edit --list
 | `event-remove` | removes one queued event, so it never fires |
 | `event-reroll` | gives one queued event a new seed, so it rolls again |
 | `event-schedule` | queues an event for a character on a date |
+| `artifacts` | lists the artifacts a character holds (writes nothing) |
+| `give-artifact` | gives a character a copy of an artifact in the save |
 | `ironman-off` | turns ironman off in a text save |
 | `revert` | undoes edits this tool made |
 
@@ -88,6 +90,30 @@ ck3update edit My_Campaign.ck3 event-schedule "Murchad mac Brian" child_personal
 What happens when the event fires is up to the event. Each one checks its own conditions and does nothing if they do not hold. A scheduled event is given the character only. An event that expects more, such as a second character, may not work as it does in play.
 
 An event's number belongs to one file. After a removal the later events move up by one, so list them again before the next edit. Event names are the game's own, such as `child_personality.4000`. The game's event files say what each one does.
+
+## Artifacts
+
+```
+ck3update edit My_Campaign.ck3 artifacts "Murchad mac Brian"
+```
+
+```
+1234 Murchad (M, age 40, born 947.8.7) house 77 dynn_Example father 1200 Brian mother 1201 Sadb titles k_munster
+  20         wall_big               Example House Banner
+  72         pedestal               Alms-bowl of the Buddha
+  181        wall_shield            Fine Shield
+  3 artifacts, of the save's 4702
+```
+
+Each line gives an artifact's id, its type and its name. A `-` means the save names no type for it.
+
+```
+ck3update edit My_Campaign.ck3 give-artifact "Sadb ingen Brian" 72
+```
+
+`give-artifact` gives a character a copy of an artifact that is already in the save. Take the id from the `artifacts` list of whoever holds it. The copy has the same name, type, bonuses and history, under a new id. The original stays with its owner. The copy goes into the receiver's inventory, not onto a wall or a pedestal.
+
+The receiver must already hold at least one artifact. The tool cannot yet give one to a character who has never held any. It also cannot make a new artifact from nothing.
 
 ## Undoing an edit
 

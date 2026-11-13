@@ -169,3 +169,52 @@ def event_schedule(ctx, params: dict):
     change = Change(later.start, b"", block + gap) if later else Change(events[-1].end, b"", gap + block)
     what = f"queue {name} on {'.'.join(map(str, d))} for " + " ".join(ctx.characters.describe(c).split())
     return [change], what
+
+
+# --------------------------------------------------------------------------- artifacts
+def artifacts_view(ctx, params: dict) -> list[str]:
+    """The artifacts a character holds: id, type and name, in the order of their inventory."""
+    from .artifacts import artifacts, held_by
+    who = int(params["who"])
+    c = ctx.characters.character(who)
+    if c is None:
+        raise EditError(f"artifacts: no living character has the id {who}")
+    known = artifacts(ctx.gamestate)
+    held = held_by(ctx.gamestate, c.open, c.close)
+    head = " ".join(ctx.characters.describe(c).split())
+    if not held:
+        return [head, "  holds no artifacts"]
+    rows = []
+    for i in held:
+        a = known.get(i)
+        rows.append(f"  {i:<10} {(a.type if a else '') or '-':<22} "
+                    f"{a.name if a else '(not in the artifacts database)'}")
+    return [head] + rows + [f"  {len(held)} artifacts, of the save's {len(known)}"]
+
+
+def give_artifact(ctx, params: dict):
+    """Give a character a copy of an artifact the save already holds: the entry copied under the next free id with
+    the character as its owner, and that id added to the character's inventory (finding F17). The original and its
+    owner are untouched."""
+    from .artifacts import artifacts, copy_entry, inventory_list, next_id
+    who, source = int(params["who"]), int(params["artifact"])
+    c = ctx.characters.character(who)
+    if c is None:
+        raise EditError(f"give-artifact: no living character has the id {who}")
+    g = ctx.gamestate
+    known = artifacts(g)
+    art = known.get(source)
+    if art is None:
+        raise EditError(f"give-artifact: the save has no artifact {source}; `ck3update edit <save> artifacts "
+                        "<character>` lists a character's with their ids")
+    span = inventory_list(g, c.open, c.close)
+    if span is None:
+        raise EditError(f"give-artifact: {c.id} {c.first_name} has no inventory in this save (they have never "
+                        "held an artifact), and the tool cannot make one yet")
+    new = next_id(known)
+    newline = b"\r\n" if b"\r\n" in g[art.start:art.end] else b"\n"
+    entry = Change(art.end, b"", newline + copy_entry(g, art, new, who))
+    listed = Change(span[1], b"", str(new).encode() + b" ")
+    what = (f'a copy of {source} "{art.name}"{f" ({art.type})" if art.type else ""} as {new} for '
+            + " ".join(ctx.characters.describe(c).split()))
+    return [entry, listed], what

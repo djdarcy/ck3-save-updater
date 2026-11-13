@@ -1,0 +1,11 @@
+format = 2
+id = "E8"
+name = "artifacts"
+title = "list the artifacts a character holds"
+kind = "view"
+script = "ck3_save_migrator.builtin_edits:artifacts_view"
+help = "Lists the artifacts in one character's inventory: each one's id, its type and its name. The id is what give-artifact takes. Nothing is written."
+
+[params.who]
+type = "character"
+help = "the character: an id, or a first name and what narrows it"

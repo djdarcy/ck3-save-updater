@@ -19,7 +19,7 @@ TESTS = ["tests/test_patch_format2.py", "tests/test_patches_format.py", "tests/t
          "tests/test_edit_ledger.py", "tests/test_edit_revert.py", "tests/test_edit_inplace.py",
          "tests/test_dangerous.py", "tests/test_edit_ironman.py", "tests/test_characters.py",
          "tests/test_edit_set_sex.py", "tests/test_edit_list.py", "tests/test_edit_player_packs.py",
-         "tests/test_edit_reshape.py", "tests/test_edit_events.py"]
+         "tests/test_edit_reshape.py", "tests/test_edit_events.py", "tests/test_edit_artifacts.py"]
 
 # (name, file, old, new): old must occur exactly once
 MUTANTS = [
@@ -374,6 +374,28 @@ MUTANTS = [
     ("W9 any month and day taken", "builtin_edits.py",
      " or not (1 <= d[1] <= 12 and 1 <= d[2] <= 31):",
      ":"),
+    # U16, 2026-11-13: artifacts and give-artifact
+    ("A1 the copy keeps the old owner", "artifacts.py",
+     "    if m:\n        body = body[:m.start(1)] + str(owner).encode() + body[m.end(1):]",
+     "    if False:\n        body = body[:m.start(1)] + str(owner).encode() + body[m.end(1):]"),
+    ("A2 the new id is past the highest id, not the highest slot", "artifacts.py",
+     "    return max((i & SLOT_MASK for i in ids), default=-1) + 1",
+     "    return max(ids, default=-1) + 1"),
+    ("A3 the receiver's inventory not told", "builtin_edits.py",
+     "    return [entry, listed], what",
+     "    return [entry], what"),
+    ("A4 a receiver with no inventory taken", "builtin_edits.py",
+     "    if span is None:",
+     "    if False:"),
+    ("A5 an artifact the save lacks taken", "builtin_edits.py",
+     "    if art is None:",
+     "    if False:"),
+    ("A6 an owner inside the history taken for the artifact's", "artifacts.py",
+     r'_OWNER = re.compile(rb"(?m)^\t\t\towner=(\d+)")',
+     r'_OWNER = re.compile(rb"owner=(\d+)")'),
+    ("A7 the copy not on a line of its own", "builtin_edits.py",
+     'Change(art.end, b"", newline + copy_entry(g, art, new, who))',
+     'Change(art.end, b"", copy_entry(g, art, new, who))'),
     ('L6 the input hash not recorded', 'edit.py',
      '    p.entries[0]["input_sha256"] = p.ctx.input_sha256',
      '    p.entries[0]["input_sha256"] = ""'),
@@ -394,7 +416,8 @@ def run_tests() -> tuple[int, str]:
 def main() -> int:
     backup = Path(tempfile.mkdtemp(prefix="redgreen_"))
     files = {n: PKG / n for n in ("patches/model.py", "edit.py", "cli.py", "config.py", "plan.py",
-                                     "characters.py", "builtin_edits.py", "patches/engine.py", "events.py")}
+                                     "characters.py", "builtin_edits.py", "patches/engine.py", "events.py",
+                                     "artifacts.py")}
     before = {n: sha(p) for n, p in files.items()}
     saved = {n: backup / n.replace("/", "__") for n in files}      # a flat backup folder: patches/pack.py too
     for n, p in files.items():

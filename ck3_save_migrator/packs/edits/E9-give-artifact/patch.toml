@@ -1,0 +1,18 @@
+format = 2
+id = "E9"
+name = "give-artifact"
+title = "give a character a copy of an artifact in the save"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:give_artifact"
+help = "Gives a character a copy of an artifact that already exists in the save. The copy has the same name, type, bonuses and history as the original, under a new id. The original stays with its owner. Take the artifact's id from the artifacts list of whoever holds it. The character must already hold at least one artifact. The copy goes into their inventory and is not equipped."
+
+# Findings F14 and F17: an id is (generation << 24) | slot; a copy under the next free slot at generation 0, with its
+# id in the owner's inventory list, loads and survives the game's own re-save.
+
+[params.who]
+type = "character"
+help = "who receives the copy: an id, or a first name and what narrows it"
+
+[params.artifact]
+type = "number"
+help = "the id of the artifact to copy, from the artifacts list"

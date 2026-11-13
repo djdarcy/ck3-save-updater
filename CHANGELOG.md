@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.15] - 2026-11-13
+
+### Added
+- `ck3update edit <save> artifacts <character>` lists the artifacts a character holds, with each one's id, type and name. It writes nothing.
+- `ck3update edit <save> give-artifact <character> <artifact id>` gives a character a copy of an artifact that is already in the save. The original stays with its owner. The receiver must already hold at least one artifact.
+- Tested in the game on a copy of a real campaign. A copy given to another character was kept by the game under its new id, owned by the receiver and listed in their inventory, and the original was unchanged.
+
 ## [0.5.14] - 2026-11-13
 
 ### Added
@@ -781,7 +788,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...HEAD
+[0.5.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...v0.5.15
 [0.5.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...v0.5.14
 [0.5.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.12...v0.5.13
 [0.5.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.11...v0.5.12
