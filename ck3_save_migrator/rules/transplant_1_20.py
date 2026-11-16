@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from .. import translate as T
-from ..transplant import TITLES, Transplant
+from ..transplant import TITLES, Transplant, contract_entry
 from ..savefile import CK3Save
 from .religion_1_20 import reference_gamestate
 
@@ -406,8 +406,7 @@ def _lock_step(save: CK3Save, ctx, characters: set[int] | None = None, only: set
                 rows["contract removed: its liege rules nothing"] += 1
         elif th is not None:
             grp = groups.get(gov(c))
-            created.append(f"{nxt}={{\n\t\t\tvassal={c}\n\t\t\tliege={th}\n\t\t\tdate={date}\n\t\t\tlevels={{ 1 }}\n"
-                           + (f"\t\t\tcontract_group={grp.decode()}\n" if grp else "") + "\t\t}\n")
+            created.append(contract_entry(nxt, c, th, date, grp) + "\n")
             ops[th]["add"].append(nxt)
             nxt += 1
             rows["contract written for a title liege"] += 1

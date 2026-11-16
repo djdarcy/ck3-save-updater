@@ -283,6 +283,33 @@ class TestR9:
         assert want, "the fixture's origin faith should carry a faith_type"
         assert val(g, wos, "faith_type") == want
 
+    def test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own(self, paths):
+        """1.8 had no eminent holy sites; 1.20's defines require 1 to 3, and in every faith of the reference they are
+        among the faith's own holy sites (carried-fields goal S4; the advisor's row 4)."""
+        save, _, _ = run(paths, "R8,R10,R9", "faith")
+        g = save.gamestate
+        wos = entry(g, "faiths/database", b"3")
+        holy = set(val(g, wos, "holy_sites").strip("{} ").split())
+        eminent = val(g, wos, "eminent_holy_sites").strip("{} ").split()
+        assert 1 <= len(eminent) <= 3 and set(eminent) <= holy
+
+    def test_custom_faith_writes_only_declared_fields(self, paths):
+        """Every field R10 writes on the custom faith is declared in its builder contract, and every field the
+        contract says it carries or derives is there (the fixture's faith has holy sites, so eminent ones too)."""
+        from ck3_save_migrator import contracts as C
+        from ck3_save_migrator._vendor.savediff import text as T
+        save, _, _ = run(paths, "R8,R10,R9", "faith")
+        g = save.gamestate
+        wos = entry(g, "faiths/database", b"3")
+        written = {c.key.decode() for c in T.iter_children(g, wos.open + 1, wos.close) if c.key}
+        decl = C.CONTRACTS["R10 custom faith"]["fields"]
+        assert written <= set(decl), written - set(decl)
+        must = {f for f, (s, _) in decl.items() if s in (C.CARRIED, C.DERIVED)}
+        # identity fields the fixture's old faith does not carry are left out by R10 (it copies what exists)
+        assert {"faith_type", "eminent_holy_sites", "holy_sites", "religion", "main_rite", "origin", "tag"} <= written
+        assert must - written <= {"desc", "color", "icon", "texticon", "graphical_faith", "piety_icon_group",
+                                  "adjective", "adherent", "adherent_plural", "tenet", "religious_head", "faith_type"}
+
     def test_head_conflict_rite_shape(self, paths):
         save, res, _ = run(paths, "R8,R10,R9", "rite")
         g = save.gamestate

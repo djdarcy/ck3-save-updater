@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.22] - 2026-11-16
+
+### Fixed
+- A custom faith carried from an older save now has eminent holy sites. 1.20 requires every faith to have one to three; 1.8 had none. They are taken from the faith's own holy sites that the faith it was created from counts as eminent, or its first holy site when none match.
+
+### Changed
+- Every rule that builds a save entry field by field now declares, for each field the game's own entries of that kind carry, whether it copies it, works it out (and from what), leaves it out on purpose (with the measurement that showed the game does the same), or leaves it for the game to fill in when it loads the save. A test fails on any field the game has and a rule does not mention, so a field a new game version adds is caught before a player meets a blank. The check from 0.5.21 reads the same declarations.
+
 ## [0.5.21] - 2026-11-16
 
 ### Added
@@ -820,7 +828,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.22...HEAD
+[0.5.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...v0.5.22
 [0.5.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...v0.5.21
 [0.5.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...v0.5.20
 [0.5.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...v0.5.19

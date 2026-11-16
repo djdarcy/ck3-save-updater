@@ -376,17 +376,26 @@ def _insert_before_close(g: bytes, block: gs.Block, payload: bytes, p: gs.EditPa
     p.add(gs.Edit(line_start, line_start, payload, rule, note))
 
 
-def _faith_type(g: bytes, faith_id: str) -> bytes | None:
-    """The `faith_type=` of a faith in the save's faiths database, or None (no such faith, or no type)."""
-    try:
-        db = gs.locate(g, "faiths/database")
-    except gs.GamestateError:
-        return None
-    for e in gs.iter_entries(g, *db.body):
-        if e.key == faith_id.encode():
-            m = re.search(rb"(?m)^\t+faith_type=([\w.]+)", g[e.open:e.close])
-            return m.group(1) if m else None
-    return None
+EMINENT_MAX = 3      # game/common/defines/00_defines.txt: FAITH_EMINENT_HOLY_SITES_MIN_DEFAULT 1, _MAX 3
+
+
+def _faith_type(g: bytes, faiths: dict, faith_id: str) -> bytes | None:
+    """The faith_type of a faith in the save (``_db``'s table), or None when it has none or leaves it empty."""
+    f = faiths.get(faith_id)
+    v = _raw(g, f, "faith_type") if f is not None else None
+    return v if v and v != b'""' else None
+
+
+def _eminent_holy_sites(g: bytes, faiths: dict, origin_id: str, holy_idx: list[str]) -> list[str]:
+    """A faith's eminent holy sites, derived for a faith 1.8 made (1.8 had no eminent sites): its own holy sites that
+    its origin faith counts as eminent, in its own order, else its first holy site; at most three. In every faith of
+    the 1.20.1.2 reference the eminent sites are 1 to 3 of the faith's own holy sites, and the game's defines require
+    at least one. Empty only when the faith has no holy site at all."""
+    f = faiths.get(origin_id)
+    raw = _raw(g, f, "eminent_holy_sites") if f is not None else None
+    origin = set(raw.strip(b"{} \t\r\n").split()) if raw else set()
+    picked = [h for h in holy_idx if h.encode() in origin][:EMINENT_MAX]
+    return picked or holy_idx[:1]
 
 
 def r10_custom_faith(save: CK3Save, ctx, rule):
@@ -495,11 +504,15 @@ def r10_custom_faith(save: CK3Save, ctx, rule):
             # 1.20 names a faith's type first (faith_type=christian_faith); the type holds the names text asks the faith
             # for (HighGodName: "God"), so a faith without one shows them blank (finding F25). 1.8 had no faith types:
             # the custom faith takes the type of the faith it came from.
-            ftype = _faith_type(g, parent_faith)
+            ftype = _faith_type(g, faiths, parent_faith)
+            # the fields written here are declared, one by one, in contracts.CONTRACTS["R10 custom faith"]
+            eminent = _eminent_holy_sites(g, faiths, parent_faith, holy_idx)
             faith_lines = ([b"faith_type=" + ftype] if ftype else []) + [
                            b"religion=" + rel_id.encode(), b"main_rite=" + str(rid).encode(),
                            b"organization=" + str(oid).encode(),
-                           b"holy_sites={ " + b" ".join(x.encode() for x in holy_idx) + b" }",
+                           b"holy_sites={ " + b" ".join(x.encode() for x in holy_idx) + b" }"] + (
+                          [b"eminent_holy_sites={ " + b" ".join(x.encode() for x in eminent) + b" }"] if eminent
+                          else []) + [
                            b"changes={"] + ([b"\t" + changes] if changes else []) + [
                            b"}",
                            # origin is a faith id (1.20's catholic/orthodox say origin=<christian_faith>);

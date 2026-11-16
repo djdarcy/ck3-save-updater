@@ -1,0 +1,14 @@
+{"test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_builder_contracts.py", "tests/test_religion.py", "tests/test_lint_fields.py", "tests/test_transplant.py"],
+ "generation_mode": 1,
+ "mutations": [
+  {"id": "M1", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "EMINENT_MAX = 3", "mutated": "EMINENT_MAX = 2", "note": "Lowers the cap from 3 to 2."},
+  {"id": "M2", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "return v if v and v != b'\"\"' else None", "mutated": "return v if v else None", "note": "Drops the empty-string normalization."},
+  {"id": "M3", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "origin][:EMINENT_MAX]", "mutated": "origin][:EMINENT_MAX + 1]", "note": "Off-by-one on the cap."},
+  {"id": "M4", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "return picked or holy_idx[:1]", "mutated": "return picked", "note": "Removes the fallback to the first holy site."},
+  {"id": "M5", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "if h.encode() in origin]", "mutated": "if h.encode() not in origin]", "note": "Flips the membership test."},
+  {"id": "M6", "file": "ck3_save_migrator/rules/religion_1_20.py", "original": "picked = [h for h in holy_idx if", "mutated": "picked = [h for h in reversed(holy_idx) if", "note": "Breaks 'in its own order'."},
+  {"id": "M7", "file": "ck3_save_migrator/contracts.py", "original": "if status in (ABSENT, ON_LOAD):", "mutated": "if status in (ABSENT,):", "note": "on_load declarations drop out of lint's allow-list."},
+  {"id": "M8", "file": "ck3_save_migrator/contracts.py", "original": "out.setdefault((c[\"kind\"], f), why)", "mutated": "out.setdefault((f, c[\"kind\"]), why)", "note": "Swaps the key order to (field, kind)."},
+  {"id": "M9", "file": "ck3_save_migrator/contracts.py", "original": "return sorted(set(baseline_fields) - declared)", "mutated": "return sorted(declared - set(baseline_fields))", "note": "Swaps the operands of the set difference."},
+  {"id": "M10", "file": "ck3_save_migrator/transplant.py", "original": "contract_group={group.decode()}\\n\" if group else \"\")", "mutated": "contract_group={group.decode()}\\n\" if group is not None else \"\")", "note": "None versus truthiness: an empty group writes a bare contract_group= line."}
+ ]}

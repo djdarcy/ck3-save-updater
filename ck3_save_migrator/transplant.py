@@ -149,6 +149,17 @@ class Report:
                 "unknown_types": dict(r.unknown_types), "to_pruned": dict(r.to_pruned)}
 
 
+def contract_entry(cid: int, vassal, liege, date: str, group: bytes | None) -> str:
+    """A vassal contract as the update writes it, up to and including its closing brace (no newline after).
+
+    The fields are declared in contracts.CONTRACTS["vassal contract (transplant, title lock-step)"]: vassal, liege,
+    the save's date, the default obligation levels, and the government's contract group when known.
+    liege_dynasty_date is left to the game, which fills it in on load. Used by the transplant (R14-R17) and by the
+    title lock-step (rules/transplant_1_20.py), which wrote the same entry each on their own until 0.5.22."""
+    return (f"{cid}={{\n\t\t\tvassal={vassal}\n\t\t\tliege={liege}\n\t\t\tdate={date}\n\t\t\tlevels={{ 1 }}\n"
+            + (f"\t\t\tcontract_group={group.decode()}\n" if group else "") + "\t\t}")
+
+
 def _set_employer(text: bytes, employer: int) -> bytes:
     """A rewritten character entry, placed in ``employer``'s court (an employer it had is replaced)."""
     emp = f"employer={employer}".encode()
@@ -1446,10 +1457,7 @@ class Transplant:
             dm = re.search(rb"(?m)^date=([\d.]+)", self.save)
             date = dm.group(1).decode() if dm else "1.1.1"
             for x, (liege, group) in sorted(at["create"].items()):
-                body = (f"{nxt}={{\n\t\t\tvassal={cm.translate(x)}\n\t\t\tliege={liege}\n\t\t\tdate={date}\n"
-                        f"\t\t\tlevels={{ 1 }}\n" + (f"\t\t\tcontract_group={group.decode()}\n" if group else "")
-                        + "\t\t}")
-                payload[vkind].append(body.encode())
+                payload[vkind].append(contract_entry(nxt, cm.translate(x), liege, date, group).encode())
                 attach_gains[liege].append(nxt)
                 rep.contracts_created += 1
                 nxt += 1

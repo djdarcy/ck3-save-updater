@@ -1,0 +1,206 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_builder_contracts.py",
+      "tests/test_religion.py",
+      "tests/test_lint_fields.py",
+      "tests/test_transplant.py"
+    ],
+    "timestamp": "2026-11-16T05:30:32-05:00"
+  },
+  "results": [
+    {
+      "id": "M1",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Lowers the cap from 3 to 2.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "...........F............................................................ [ 62%]\n............................................                             [100%]\n================================== FAILURES ===================================\n_ test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three _\n\n    def test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three():\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"12\", [\"7\", \"8\"]) == [\"7\"]      # none in common\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"99\", [\"7\", \"8\"]) == [\"7\"]      # unknown origin\n        many = FAITHS.replace(b\"eminent_holy_sites={ 0 1 5 }\", b\"eminent_holy_sites={ 0 1 5 3 }\")\n>       assert REL._eminent_holy_sites(many, _faiths(many), \"12\", [\"0\", \"1\", \"5\", \"3\"]) == [\"0\", \"1\", \"5\"]\nE       AssertionError: assert ['0', '1'] == ['0', '1', '5']\nE         \nE         Right contains one more item: '5'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:84: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three\n1 failed, 115 passed in 2.77s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ]
+    },
+    {
+      "id": "M2",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Drops the empty-string normalization.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "............F........................................................... [ 62%]\n............................................                             [100%]\n================================== FAILURES ===================================\n_____________ test_faith_type_of_an_empty_or_missing_type_is_none _____________\n\n    def test_faith_type_of_an_empty_or_missing_type_is_none():\n        f = _faiths(FAITHS)\n        assert REL._faith_type(FAITHS, f, \"12\") == b\"christian_faith\"\n>       assert REL._faith_type(FAITHS, f, \"13\") is None and REL._faith_type(FAITHS, f, \"99\") is None\nE       assert (b'\"\"' is None)\nE        +  where b'\"\"' = <function _faith_type at 0x00000266F9A227A0>(b'faiths={\\n\\tdatabase={\\n\\t\\t12={\\n\\t\\t\\tfaith_type=christian_faith\\t\\t\\treligion=8\\n\\t\\t\\tholy_sites={ 0 1 5 3 }\\n\\t..._sites={ 0 1 5 }\\n\\t\\t}\\n\\t\\t13={\\n\\t\\t\\tfaith_type=\"\"\\t\\t\\treligion=8\\n\\t\\t}\\n\\t}\\n}\\nrites={\\n\\tdatabase={\\n\\t}\\n}\\n', {'12': Block(key=b'12', start=23, open=26, close=131), '13': Block(key=b'13', start=135, open=138, close=172)}, '13')\nE        +    where <function _faith_type at 0x00000266F9A227A0> = REL._faith_type\n\ntests\\test_builder_contracts.py:91: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_faith_type_of_an_empty_or_missing_type_is_none\n1 failed, 115 passed in 3.29s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_faith_type_of_an_empty_or_missing_type_is_none"
+      ]
+    },
+    {
+      "id": "M3",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Off-by-one on the cap.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "...........F............................................................ [ 62%]\n............................................                             [100%]\n================================== FAILURES ===================================\n_ test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three _\n\n    def test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three():\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"12\", [\"7\", \"8\"]) == [\"7\"]      # none in common\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"99\", [\"7\", \"8\"]) == [\"7\"]      # unknown origin\n        many = FAITHS.replace(b\"eminent_holy_sites={ 0 1 5 }\", b\"eminent_holy_sites={ 0 1 5 3 }\")\n>       assert REL._eminent_holy_sites(many, _faiths(many), \"12\", [\"0\", \"1\", \"5\", \"3\"]) == [\"0\", \"1\", \"5\"]\nE       AssertionError: assert ['0', '1', '5', '3'] == ['0', '1', '5']\nE         \nE         Left contains one more item: '3'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:84: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three\n1 failed, 115 passed in 2.93s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ]
+    },
+    {
+      "id": "M4",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Removes the fallback to the first holy site.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "rator import contracts as C\n        from ck3_save_migrator._vendor.savediff import text as T\n        save, _, _ = run(paths, \"R8,R10,R9\", \"faith\")\n        g = save.gamestate\n        wos = entry(g, \"faiths/database\", b\"3\")\n        written = {c.key.decode() for c in T.iter_children(g, wos.open + 1, wos.close) if c.key}\n        decl = C.CONTRACTS[\"R10 custom faith\"][\"fields\"]\n        assert written <= set(decl), written - set(decl)\n        must = {f for f, (s, _) in decl.items() if s in (C.CARRIED, C.DERIVED)}\n        # identity fields the fixture's old faith does not carry are left out by R10 (it copies what exists)\n>       assert {\"faith_type\", \"eminent_holy_sites\", \"holy_sites\", \"religion\", \"main_rite\", \"origin\", \"tag\"} <= written\nE       AssertionError: assert {'eminent_hol...eligion', ...} <= {'adherent', ..., 'desc', ...}\nE         \nE         Extra items in the left set:\nE         'eminent_holy_sites'\n\ntests\\test_religion.py:309: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three\nFAILED tests/test_religion.py::TestR9::test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own\nFAILED tests/test_religion.py::TestR9::test_custom_faith_writes_only_declared_fields\n3 failed, 113 passed in 2.75s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three",
+        "tests/test_religion.py::TestR9::test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own",
+        "tests/test_religion.py::TestR9::test_custom_faith_writes_only_declared_fields"
+      ]
+    },
+    {
+      "id": "M5",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Flips the membership test.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order _\n\n    def test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order():\n>       assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"12\", [\"5\", \"9\", \"0\"]) == [\"5\", \"0\"]\nE       AssertionError: assert ['9'] == ['5', '0']\nE         \nE         At index 0 diff: '9' != '5'\nE         Right contains one more item: '0'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:77: AssertionError\n_ test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three _\n\n    def test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three():\n>       assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"12\", [\"7\", \"8\"]) == [\"7\"]      # none in common\nE       AssertionError: assert ['7', '8'] == ['7']\nE         \nE         Left contains one more item: '8'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:81: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three\n2 failed, 114 passed in 3.04s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order",
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ]
+    },
+    {
+      "id": "M6",
+      "file": "ck3_save_migrator/rules/religion_1_20.py",
+      "note": "Breaks 'in its own order'.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "0\"]) == [\"5\", \"0\"]\nE       AssertionError: assert ['0', '5'] == ['5', '0']\nE         \nE         At index 0 diff: '0' != '5'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:77: AssertionError\n_ test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three _\n\n    def test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three():\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"12\", [\"7\", \"8\"]) == [\"7\"]      # none in common\n        assert REL._eminent_holy_sites(FAITHS, _faiths(FAITHS), \"99\", [\"7\", \"8\"]) == [\"7\"]      # unknown origin\n        many = FAITHS.replace(b\"eminent_holy_sites={ 0 1 5 }\", b\"eminent_holy_sites={ 0 1 5 3 }\")\n>       assert REL._eminent_holy_sites(many, _faiths(many), \"12\", [\"0\", \"1\", \"5\", \"3\"]) == [\"0\", \"1\", \"5\"]\nE       AssertionError: assert ['3', '5', '1'] == ['0', '1', '5']\nE         \nE         At index 0 diff: '3' != '0'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:84: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order\nFAILED tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three\n2 failed, 114 passed in 3.26s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order",
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ]
+    },
+    {
+      "id": "M7",
+      "file": "ck3_save_migrator/contracts.py",
+      "note": "on_load declarations drop out of lint's allow-list.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M8",
+      "file": "ck3_save_migrator/contracts.py",
+      "note": "Swaps the key order to (field, kind).",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "                    + b\"\".join(b\"\\t\\t%d={\\n\\t\\t\\tname=x\\n\\t\\t}\\n\" % i for i in range(90, 100)) + b\"\\t}\\n}\\n\")\n        rep = run(ours, ref)\n>       assert finding(rep, \"entries carry the fields\") is None\nE       assert Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, examples=[\"rites/data... a save the game wrote itself (compared with the reference save); text or rules that read it may show a blank or fail') is None\nE        +  where Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, examples=[\"rites/data... a save the game wrote itself (compared with the reference save); text or rules that read it may show a blank or fail') = finding(LintReport(findings=[Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, ...tself (compared with the reference save); text or rules that read it may show a blank or fail')], stats={}, skipped=[]), 'entries carry the fields')\n\ntests\\test_lint_fields.py:85: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_lint_s_allow_list_is_the_contracts_absent_and_on_load_declarations\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\n2 failed, 114 passed in 3.02s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_lint_s_allow_list_is_the_contracts_absent_and_on_load_declarations",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ]
+    },
+    {
+      "id": "M9",
+      "file": "ck3_save_migrator/contracts.py",
+      "note": "Swaps the operands of the set difference.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "ion's new field (1.20's faith_type was one) fails here before a player sees a blank\n        fields = BASELINE[\"databases\"][kind][\"fields\"]\n>       assert C.undeclared(kind, fields) == []\nE       AssertionError: assert ['scripted_relations'] == []\nE         \nE         Left contains one more item: 'scripted_relations'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:21: AssertionError\n_____________ test_undeclared_names_a_field_no_contract_mentions ______________\n\n    def test_undeclared_names_a_field_no_contract_mentions():\n>       assert C.undeclared(\"faiths/database\", [\"faith_type\", \"a_field_from_a_new_game_version\"]) == \\\n            [\"a_field_from_a_new_game_version\"]\nE       AssertionError: assert ['active_cler... 'color', ...] == ['a_field_fro...game_version']\nE         \nE         At index 0 diff: 'active_clerical_electors' != 'a_field_from_a_new_game_version'\nE         Left contains 32 more items, first extra item: 'adherent'\nE         Use -v to get more diff\n\ntests\\test_builder_contracts.py:25: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_builder_contracts.py::test_every_field_of_the_game_s_own_entries_of_the_kind_is_declared[opinions/active_opinions]\nFAILED tests/test_builder_contracts.py::test_undeclared_names_a_field_no_contract_mentions\n2 failed, 114 passed in 3.16s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_builder_contracts.py::test_every_field_of_the_game_s_own_entries_of_the_kind_is_declared[opinions/active_opinions]",
+        "tests/test_builder_contracts.py::test_undeclared_names_a_field_no_contract_mentions"
+      ]
+    },
+    {
+      "id": "M10",
+      "file": "ck3_save_migrator/transplant.py",
+      "note": "None versus truthiness: an empty group writes a bare contract_group= line.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    }
+  ],
+  "summary": {
+    "killed": 8,
+    "survived": 2
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order": [
+        "M5",
+        "M6"
+      ],
+      "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three": [
+        "M1",
+        "M3",
+        "M4",
+        "M5",
+        "M6"
+      ],
+      "tests/test_builder_contracts.py::test_every_field_of_the_game_s_own_entries_of_the_kind_is_declared[opinions/active_opinions]": [
+        "M9"
+      ],
+      "tests/test_builder_contracts.py::test_faith_type_of_an_empty_or_missing_type_is_none": [
+        "M2"
+      ],
+      "tests/test_builder_contracts.py::test_lint_s_allow_list_is_the_contracts_absent_and_on_load_declarations": [
+        "M8"
+      ],
+      "tests/test_builder_contracts.py::test_undeclared_names_a_field_no_contract_mentions": [
+        "M9"
+      ],
+      "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning": [
+        "M8"
+      ],
+      "tests/test_religion.py::TestR9::test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own": [
+        "M4"
+      ],
+      "tests/test_religion.py::TestR9::test_custom_faith_writes_only_declared_fields": [
+        "M4"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_builder_contracts.py::test_every_field_of_the_game_s_own_entries_of_the_kind_is_declared[opinions/active_opinions]",
+        "tests/test_builder_contracts.py::test_undeclared_names_a_field_no_contract_mentions"
+      ],
+      [
+        "tests/test_builder_contracts.py::test_lint_s_allow_list_is_the_contracts_absent_and_on_load_declarations",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ],
+      [
+        "tests/test_religion.py::TestR9::test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own",
+        "tests/test_religion.py::TestR9::test_custom_faith_writes_only_declared_fields"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_are_the_faith_s_own_sites_its_origin_counts_as_eminent_in_its_own_order",
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ],
+      [
+        "tests/test_religion.py::TestR9::test_custom_faith_has_one_to_three_eminent_holy_sites_among_its_own",
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ],
+      [
+        "tests/test_religion.py::TestR9::test_custom_faith_writes_only_declared_fields",
+        "tests/test_builder_contracts.py::test_eminent_holy_sites_fall_back_to_the_first_holy_site_and_never_exceed_three"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

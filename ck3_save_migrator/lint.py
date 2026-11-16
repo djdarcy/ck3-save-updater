@@ -776,12 +776,14 @@ def check_reference_titles(g: bytes, rep: LintReport, reference: bytes, idx: Sec
 # shipped for the save's game version (baselines.py). Design: the carried-fields DWP 2026-11-16__02-34-31 and its
 # addenda; the director's ruling 2026-11-16__03-48-32 (the game's field SET, never its VALUES).
 FIELD_THRESHOLD = 0.97
-# fields the game's own entries nearly all carry that a migrated entry may lack, each with the measurement behind it
-FIELDS_ABSENT_ON_PURPOSE = {
-    ("rites/database", "rite_type"):
-        "a rite made in play has none: the game's own 1.20.1.2 save writes its rites 150 and 151 (Catholicism and "
-        "Orthodoxy, made at the 987 start) without one, as the update writes the rites it makes",
-}
+# fields the game's own entries nearly all carry that a built entry may lack: the builder contracts' "absent" and
+# "on_load" declarations (contracts.py), each with the measurement behind it -- one list for the rules and the lint
+def _contract_allow_list() -> dict:
+    from .contracts import allowed
+    return allowed()
+
+
+FIELDS_ABSENT_ON_PURPOSE = _contract_allow_list()
 # Measured 2026-11-16: flagged on an update's output (MIGRATE_TEST__play14) and gone from the game's own re-save of it
 # (MIGRATE_TEST__s0a_control_resaved), against the 1.20.1.2 baseline.
 _ON_LOAD = "the game fills it in on load: missing on {} in an update's output, on none in the game's re-save of it"
