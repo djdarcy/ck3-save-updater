@@ -218,3 +218,182 @@ def give_artifact(ctx, params: dict):
     what = (f'a copy of {source} "{art.name}"{f" ({art.type})" if art.type else ""} as {new} for '
             + " ".join(ctx.characters.describe(c).split()))
     return [entry, listed], what
+
+
+# --------------------------------------------------------------------------- acknowledge-child
+# The state the game itself writes for "the husband's son in law, another man's in blood" (1,351 characters in the
+# founding campaign): the legal father lists the child, the child's own `real_father=` names the real one, and the
+# child carries no bastard-family trait. Design: 2026-11-15__04-13-46__dev-workflow-process__acknowledge-child-*.md
+BASTARD_TRAITS = ("bastard", "wild_oat", "legitimized_bastard", "disputed_heritage")   # remove_all_bastard_traits
+PARENTAGE_SECRETS = ("secret_unmarried_illegitimate_child", "secret_disputed_heritage")
+PASTS = ("honest", "clean")
+_FAMILY = re.compile(rb"(?m)^\tfamily_data=\{\r?\n")
+_FAMILY_END = re.compile(rb"(?m)^\t\}")
+_CHILDREN = re.compile(rb"(?m)^\t\tchild=\{([^}\n]*)\}")          # these lists sit on one line in a save
+_SPOUSES = re.compile(rb"(?m)^\t\t(?:primary_spouse|spouse)=(\d+)|^\t\tformer_spouses=\{([^}\n]*)\}")
+_TRAITS = re.compile(rb"(?m)^\ttraits=\{([^}\n]*)\}")
+_BIRTH = re.compile(rb"(?m)^\tbirth=([\d.]+)")
+_ID_LIST = re.compile(rb"(?m)^\t+(?:secrets|targeting_secrets)=\{([^}\n]*)\}")
+
+
+def _entry_of(ix, cid: int):
+    return ix.living.get(cid) or ix.dead.get(cid)
+
+
+def _family(g: bytes, e):
+    """The span of a character's family_data block body, or None."""
+    m = _FAMILY.search(g, e.open, e.close)
+    if not m:
+        return None
+    end = _FAMILY_END.search(g, m.end(), e.close)
+    return (m.end(), end.start()) if end else None
+
+
+def _list_text(ids) -> bytes:
+    return b"{ " + b" ".join(str(i).encode() for i in ids) + b" }" if ids else b"{ }"
+
+
+def _birth_key(g: bytes, e) -> tuple:
+    m = _BIRTH.search(g, e.open, e.close) if e else None
+    return tuple(int(x) for x in m.group(1).split(b".")) if m else (99999,)
+
+
+def _parentage_secrets(g: bytes, child: int) -> list:
+    """(id, entry, type) of each parentage secret whose target is the child."""
+    from . import gamestate as gs
+    try:
+        db = gs.locate(g, "secrets/secrets")
+    except gs.GamestateError:
+        return []
+    out = []
+    target = re.compile(rb"target=\{\s*type=char\s*identity=" + str(child).encode() + rb"\s")
+    for e in gs.iter_entries(g, *db.body):
+        body = g[e.open:e.close]
+        t = re.search(rb'(?m)^\t+type="(secret_[a-z_]+)"', body)
+        if t and t.group(1).decode() in PARENTAGE_SECRETS and target.search(body):
+            out.append((e.key.decode(), e, t.group(1).decode(), e.open + t.start(1), e.open + t.end(1)))
+    return out
+
+
+def _remove_secret(g: bytes, sid: str, entry) -> list:
+    """The changes that take one secret out of the save: its entry, the knowledge records of who knows it, and its
+    id in every character's `secrets={ }` or `targeting_secrets={ }` list. Any other mention of the id is refused,
+    since removing the entry would leave it pointing at nothing."""
+    from . import gamestate as gs
+    s, e = gs.removal_span(g, entry.start, entry.end)
+    changes, covered = [Change(s, g[s:e], b"")], [(entry.start, entry.end)]
+    try:
+        known = gs.locate(g, "secrets/known_secrets")
+        rx = re.compile(rb"(?m)^\t+secret=" + sid.encode() + rb"\r?$")
+        for c in gs.iter_children(g, known.open + 1, known.close):
+            if c.block is not None and rx.search(g, c.block.open, c.block.close):
+                a, b = gs.removal_span(g, c.start, c.block.end)
+                changes.append(Change(a, g[a:b], b""))
+                covered.append((c.start, c.block.end))
+    except gs.GamestateError:
+        pass
+    for m in re.finditer(rb"(?<![\w.])" + sid.encode() + rb"(?![\w.])", g):
+        p = m.start()
+        if any(a <= p < b for a, b in covered):
+            continue
+        line_start = g.rfind(b"\n", 0, p) + 1
+        lm = _ID_LIST.match(g, line_start)
+        if not lm or not (lm.start(1) <= p < lm.end(1)):
+            context = g[line_start:g.find(b"\n", p)].decode("utf-8", "replace").strip()[:80]
+            raise EditError(f"acknowledge-child: the secret {sid} is also named in a place the tool does not know "
+                            f"({context!r}), so it cannot be removed safely; use honest instead")
+        ids = [x for x in g[lm.start(1):lm.end(1)].split() if x != sid.encode()]
+        if ids:
+            changes.append(Change(lm.start(1), g[lm.start(1):lm.end(1)], b" " + b" ".join(ids) + b" "))
+        else:
+            a, b = gs.removal_span(g, lm.start(), lm.end())
+            changes.append(Change(a, g[a:b], b""))
+    return changes
+
+
+def acknowledge_child(ctx, params: dict):
+    """A man takes a child of his wife (or former wife) as his own in law: the child joins his `child={ }` list in
+    birth order and loses every bastard-family trait; `real_father` is kept. The parentage secret becomes the game's
+    "disputed heritage" secret (`honest`), or is removed with every mention of it (`clean`)."""
+    from .translate import traits_lookup
+    past = str(params["past"]).strip().lower()
+    if past not in PASTS:
+        raise EditError(f"acknowledge-child: the past is honest (the truth stays a secret that can be found out) "
+                        f"or clean (no secret is left), not {params['past']!r}")
+    g, ix = ctx.gamestate, ctx.characters
+    child, father = ix.character(int(params["child"])), ix.character(int(params["father"]))
+    if child is None:
+        raise EditError(f"acknowledge-child: no living character has the id {params['child']}")
+    if father is None:
+        raise EditError(f"acknowledge-child: no living character has the id {params['father']}")
+    if father.female:
+        raise EditError(f"acknowledge-child: {father.id} {father.first_name} is a woman; a save records a child's "
+                        "real mother only, so only a legal father can be set")
+    if father.id == child.id:
+        raise EditError("acknowledge-child: a character cannot be their own father")
+    if child.father is not None and child.father != father.id:
+        raise EditError(f"acknowledge-child: {child.id} {child.first_name} already has a legal father, "
+                        f"{child.father} {ix.first_names.get(child.father, '?')}; this edit does not move a child "
+                        "from one father to another")
+    if child.mother is None:
+        raise EditError(f"acknowledge-child: no mother of {child.id} {child.first_name} is recorded, so there is "
+                        "no wife whose child this could be")
+    me = _entry_of(ix, child.mother)
+    fam = _family(g, me) if me else None
+    spouses = set()
+    if fam:
+        for m in _SPOUSES.finditer(g, fam[0], fam[1]):
+            spouses |= {int(m.group(1))} if m.group(1) else {int(x) for x in m.group(2).split()}
+    note = ""
+    if father.id not in spouses:
+        if not ctx.dangerous:
+            raise EditError(f"acknowledge-child: {father.id} {father.first_name} is not a husband or former husband "
+                            f"of the child's mother, {child.mother} {ix.first_names.get(child.mother, '?')}; "
+                            "--dangerous allows it")
+        note = "; not the mother's husband (--dangerous)"
+    changes, parts = [], []
+    if child.father is None:
+        fe = _entry_of(ix, father.id)
+        ffam = _family(g, fe)
+        if ffam is None:
+            raise EditError(f"acknowledge-child: {father.id} {father.first_name} has no family block in this save, "
+                            "and the tool does not make one yet")
+        cm = _CHILDREN.search(g, ffam[0], ffam[1])
+        if cm:
+            kids = [int(x) for x in cm.group(1).split()]
+            mine = _birth_key(g, _entry_of(ix, child.id))
+            at = sum(1 for k in kids if _birth_key(g, _entry_of(ix, k)) <= mine)
+            new = kids[:at] + [child.id] + kids[at:]
+            span = (cm.start(1) - 1, cm.end(1) + 1)          # the braces and what is between them
+            changes.append(Change(span[0], g[span[0]:span[1]], _list_text(new)))
+        else:
+            nl = b"\r\n" if g[ffam[1] - 2:ffam[1]] == b"\r\n" else b"\n"
+            changes.append(Change(ffam[1], b"", b"\t\tchild=" + _list_text([child.id]) + nl))
+        parts.append(f"{father.id} {father.first_name} lists him as a child")
+    names = traits_lookup(g)
+    drop = {str(i).encode() for i, n in enumerate(names) if n in BASTARD_TRAITS}
+    ce = _entry_of(ix, child.id)
+    tm = _TRAITS.search(g, ce.open, ce.close)
+    if tm:
+        have = tm.group(1).split()
+        gone = [names[int(x)] for x in have if x in drop]
+        if gone:
+            keep = [x for x in have if x not in drop]
+            changes.append(Change(tm.start(1) - 1, g[tm.start(1) - 1:tm.end(1) + 1],
+                                  b"{ " + b" ".join(keep) + b" }" if keep else b"{ }"))
+            parts.append("traits removed: " + ", ".join(gone))
+    for sid, entry, kind, a, b in _parentage_secrets(g, child.id):
+        if past == "clean":
+            changes += _remove_secret(g, sid, entry)
+            parts.append(f"secret {sid} ({kind}) removed")
+        elif kind != "secret_disputed_heritage":
+            changes.append(Change(a, g[a:b], b"secret_disputed_heritage"))
+            parts.append(f"secret {sid} becomes secret_disputed_heritage")
+    real = re.search(rb"(?m)^\t\treal_father=(\d+)", g[ce.open:ce.close])
+    who = " ".join(ix.describe(child).split())
+    if not changes:
+        return [], f"{child.id} {child.first_name} is already {father.first_name}'s child in law, with nothing to " \
+                   "remove"
+    keep_real = f"real father {int(real.group(1))} {ix.first_names.get(int(real.group(1)), '?')} kept" if real \
+        else "no real father recorded"
+    return changes, f"{who}: " + "; ".join(parts + [keep_real]) + note

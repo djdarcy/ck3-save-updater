@@ -1,0 +1,22 @@
+format = 2
+id = "E10"
+name = "acknowledge-child"
+title = "a man takes his wife's child as his own (the real father kept)"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:acknowledge_child"
+help = "Makes a child born outside the marriage the legitimate child of the mother's husband (or former husband). The child joins his children and loses the bastard and wild oat traits. The save keeps the real father, as the game does for any child whose father in law is not the father in blood. Choose the past: honest keeps the truth as the game's disputed heritage secret, which others can discover in play (exposing it costs opinion and legitimacy, not inheritance); clean removes the secret, so the truth stays only in the save. The child's house is not changed. A legitimate son may now come before his younger siblings in the line of succession."
+
+# Design: 2026-11-15__04-13-46__dev-workflow-process__acknowledge-child-a-husband-takes-a-child-as-his-own.md
+# The target state is the one the game writes itself for 1,351 characters of the founding campaign.
+
+[params.child]
+type = "character"
+help = "the child: an id, or a first name and what narrows it"
+
+[params.father]
+type = "character"
+help = "the mother's husband, who takes the child as his own"
+
+[params.past]
+type = "text"
+help = "honest (the truth stays a secret that can be found out) or clean (no secret is left)"

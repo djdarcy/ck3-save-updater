@@ -4,6 +4,32 @@
 
 **An edit never changes the save you give it.** It writes a new file beside it, named `<save name>__<edit>.ck3`. Use `--in-place` if you want the edited save to keep the original's name. Even then the original is kept as `<name>.bak.ck3`, unless you turn backups off.
 
+You do not need to know how a save is built. You name the edit and what it applies to. The tool finds the place, shows you the change, and writes it only when you agree.
+
+## Before you start
+
+- **Close the game first**, or at least do not edit the save the game has loaded. Edit a save, then load the edited file.
+- **The save must be a text save.** That is what the game writes for an ordinary campaign. An ironman save is in another format, and the tool says so and stops.
+- **A large save takes a few seconds.** The first time an edit looks up a character, the tool reads every character in the save. On a 240 MB campaign that is about ten seconds.
+- **Try `--dry-run` first.** It shows the exact change and writes nothing.
+
+## One edit, start to finish
+
+```
+ck3update edit My_Campaign.ck3 set-sex "Conchenn nic Bruide" male
+```
+
+```
+EDIT   set-sex: make a living character male or female
+  save   : My_Campaign.ck3
+  target : 78307 Conchenn (F, age 7, born 980.8.16) house 5483 father 64975 Bruide mother 65171 E_lfweard titles -
+  change at 133,532,726: b'\tfemale=yes\n' -> b''
+  output : My_Campaign__set-sex.ck3
+Write My_Campaign__set-sex.ck3? [y/N]
+```
+
+Read the `target` line. It names the one character the edit found, with enough to be sure it is the right one. The `change` line shows the bytes that will go and the bytes that will take their place. Answer `y`, and the new file is written beside your save. Load that file in the game.
+
 ## The edits
 
 ```
@@ -13,6 +39,7 @@ ck3update edit --list
 | Edit | What it does |
 |---|---|
 | `set-sex` | makes a living character male or female |
+| `acknowledge-child` | makes a child born outside the marriage the legitimate child of the mother's husband |
 | `events` | lists the events queued for a character (writes nothing) |
 | `event-show` | shows one queued event (writes nothing) |
 | `event-remove` | removes one queued event, so it never fires |
@@ -92,6 +119,27 @@ ck3update edit My_Campaign.ck3 event-schedule "Murchad mac Brian" child_personal
 What happens when the event fires is up to the event. Each one checks its own conditions and does nothing if they do not hold. A scheduled event is given the character only. An event that expects more, such as a second character, may not work as it does in play.
 
 An event's number belongs to one file. After a removal the later events move up by one, so list them again before the next edit. Event names are the game's own, such as `child_personality.4000`. The game's event files say what each one does.
+
+## A child taken as a husband's own
+
+```
+ck3update edit My_Campaign.ck3 acknowledge-child "Gabran" "Bruide" honest
+```
+
+`acknowledge-child` makes a child born outside the marriage the legitimate child of the mother's husband, or of a former husband. The child joins his children and loses the bastard and wild oat traits. Nothing is forgotten: the save keeps the real father, the way the game does for any child whose father in law is not the father in blood.
+
+The last value says what happens to the truth:
+
+- **`honest`** keeps it as the game's "disputed heritage" secret. Other characters can find it out in play. If it is exposed, the child takes the Disputed Heritage trait, which costs opinion and legitimacy but does not stop him inheriting.
+- **`clean`** removes the secret, so nobody in the game can find it out. The real father is still recorded in the save.
+
+Some things to know:
+
+- **A legitimate son may come first in the line of succession.** He may now inherit ahead of younger brothers and sisters. The game works out heirs again by itself within a day of play.
+- **The child's house is not changed.**
+- **Only a father can be set.** A save records a child's real mother only, so a wife cannot take her husband's child as hers.
+- **The father must be the mother's husband or former husband.** `--dangerous` allows another man.
+- **A child who already has a father in law is refused.** This edit does not move a child from one father to another.
 
 ## Artifacts
 

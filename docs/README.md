@@ -1,12 +1,17 @@
 # ck3-save-updater documentation
 
-ck3-save-updater brings an old Crusader Kings III save up to the game version you have installed. These pages explain how to use it and what it does. New here? Start with the [Quick start](https://github.com/djdarcy/ck3-save-updater#quick-start) in the main README.
+ck3-save-updater does two things. It brings an old Crusader Kings III save up to the game version you have installed. It also edits a save: it changes one thing you ask for, such as a character's sex or an event waiting to happen. These pages explain how to use it and what it does. New here? Start with the [Quick start](https://github.com/djdarcy/ck3-save-updater#quick-start) in the main README.
 
 ## Updating a save
 
 - [Updating a save](updating-a-save.md): the whole process, from `status` to `update`, and how to do it by hand.
 - [The reference save](reference-save.md): how to make a new game on your campaign's date, with `reference-mod`.
 - [Glossary](glossary.md): every term the tool uses, and every header `status` prints.
+
+## Editing a save
+
+- [Editing a save](editing-a-save.md): change one thing on purpose and undo it. A character's sex, the events queued for a character, a copy of an artifact.
+- [Writing an edit](writing-a-patch.md#writing-an-edit): your own edits, in your packs folder, with no code for the simple ones.
 
 ## Settings and options
 
@@ -27,10 +32,6 @@ ck3-save-updater brings an old Crusader Kings III save up to the game version yo
 - [Rules](rules.md): every built-in rule, what it changes, and why.
 - [New-map regions](new-map-regions.md): how the regions the 1.20 map added are brought into an older save.
 - [Platform support](platform-support.md): what the tool is tested on.
-
-## Editing a save
-
-- [Editing a save](editing-a-save.md): change one thing on purpose, such as a character's sex, and undo it.
 
 ## Your own fixes
 

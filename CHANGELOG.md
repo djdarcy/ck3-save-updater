@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.17] - 2026-11-15
+
+### Added
+- `ck3update edit <save> acknowledge-child <child> <father> honest|clean` makes a child born outside the marriage the legitimate child of the mother's husband. The child joins his children and loses the bastard and wild oat traits, and the save keeps the real father. `honest` leaves the truth as a secret others can discover in play. `clean` removes the secret and every mention of it.
+
 ## [0.5.16] - 2026-11-13
 
 ### Fixed
@@ -793,7 +798,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...HEAD
+[0.5.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...v0.5.17
 [0.5.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...v0.5.16
 [0.5.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...v0.5.15
 [0.5.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.13...v0.5.14

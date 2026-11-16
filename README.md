@@ -15,6 +15,8 @@
 
 `ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects and moves data to where the new version expects it. It rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith. Faces keep their look under the portrait mods you play with. Perks, regiments, innovations, county modifiers and artifact bonuses that the game renamed are matched to their new names. House feuds and running plots come across, and plots keep their agents. Artifacts keep their pictures and armour models.
 
+**It can also edit a save.** `ck3update edit` changes one thing in a save because you want it changed, with no need to know how a save is built. Make a daughter a son (normal in-game cheat codes can't do this). See the events waiting to happen to a character, then reroll one, remove one, or schedule one. Give someone a copy of an artifact. Each edit shows you the change first, writes a new file beside your save, and can be undone. See [Change something on purpose](#change-something-on-purpose-ck3update-edit).
+
 ## Quick start
 
 Wherever you see `My Save`, put your save's name (with or without `.ck3`). Your save itself is never changed, the update is written to a new file beside it.
@@ -150,6 +152,43 @@ REFUSED: the gap 1.8.1 -> 1.21.0: no selected pack declares it covers it (a pack
 
 Do what the fix says, then run `status` again. Nothing is written while a plan is refused. [Troubleshooting](docs/troubleshooting.md) covers the common messages.
 
+## Change something on purpose: `ck3update edit`
+
+`update` carries your save into the new game version. `edit` is for a different job. It changes one thing in a save because you chose to. It works on any text save the tool can read, updated or not.
+
+```bash
+ck3update edit "My_Campaign" set-sex "Conchenn nic Bruide" male
+```
+
+This finds the character, shows the one change it will make, and asks before writing. On a `y` it writes `My_Campaign__set-sex.ck3` beside your save. Your save is not touched.
+
+What you can do today:
+
+| You want to | Run |
+|---|---|
+| see what edits there are | `ck3update edit --list` |
+| learn what one takes and does | `ck3update help set-sex` |
+| make a character male or female | `ck3update edit <save> set-sex <character> male` |
+| make a wife's child legitimate as her husband's own | `ck3update edit <save> acknowledge-child <child> <husband> honest` |
+| see the events queued for a character | `ck3update edit <save> events <character>` |
+| make a queued event roll again | `ck3update edit <save> event-reroll <number>` |
+| stop a queued event from firing | `ck3update edit <save> event-remove <number>` |
+| queue an event for a character | `ck3update edit <save> event-schedule <character> <event> <date>` |
+| see the artifacts a character holds | `ck3update edit <save> artifacts <character>` |
+| give a character a copy of an artifact | `ck3update edit <save> give-artifact <character> <artifact id>` |
+| undo the last edit | `ck3update edit <the edited save> revert` |
+
+A few things hold for every edit:
+
+- **You see the change before it is written.** `--dry-run` shows it and writes nothing. `--yes` skips the question.
+- **Your save is never changed.** The result is a new file beside it. `--in-place` gives the result your save's name and keeps the original as `<name>.bak.ck3`.
+- **Every edit can be undone.** Each one writes a small ledger beside its output, and `revert` reads it.
+- **You name a character the way you would say it.** Give an id, or a first name with a parent's name, the house or a title. When several characters match, the tool lists them and you pick one. It never guesses.
+
+Some limits are worth knowing. You cannot choose how an event turns out, because the save does not hold an outcome before the event fires. A reroll rolls the dice again. A removed event can be queued again by the game later. An artifact can be copied, not made from nothing. Ironman saves cannot be read.
+
+You can also write your own edits and keep them in your packs folder, with no code for the simple ones. [Editing a save](docs/editing-a-save.md) covers every edit. [Writing a patch](docs/writing-a-patch.md#writing-an-edit) shows how to write one.
+
 ## Performance after updating a large save
 
 A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both causes measured so far are the game's own behaviour, which a big save makes visible, and both have workarounds:
@@ -166,6 +205,7 @@ A large updated campaign can stutter in 1.20.1.2 where a new game does not. Both
 The [documentation guide](docs/README.md) organizes these pages by what you are trying to do. It is also the front page of [the project's site](https://djdarcy.github.io/ck3-save-updater/).
 
 - [Updating a save](docs/updating-a-save.md): the whole process, `status` then `update`, and doing it by hand.
+- [Editing a save](docs/editing-a-save.md): change one thing on purpose, such as a character's sex or a queued event, and undo it.
 - [Glossary](docs/glossary.md): every term the tool uses, and every header `status` prints.
 - [The reference save](docs/reference-save.md): making a save at your campaign's date, with `reference-mod`.
 - [Troubleshooting](docs/troubleshooting.md): what the common messages mean and what to do.
