@@ -397,3 +397,60 @@ def acknowledge_child(ctx, params: dict):
     keep_real = f"real father {int(real.group(1))} {ix.first_names.get(int(real.group(1)), '?')} kept" if real \
         else "no real father recorded"
     return changes, f"{who}: " + "; ".join(parts + [keep_real]) + note
+
+
+# --------------------------------------------------------------------------- set-eminent-holy-sites
+# The game's own rule (common/decisions/50_holy_site_decisions.txt:33-38, elevate_holy_site_decision): a site must
+# already be one of the faith's holy sites, and a faith has 1 to 3 eminent ones (defines FAITH_EMINENT_HOLY_SITES_MIN /
+# _MAX_DEFAULT, 00_defines.txt:920-927). In a save, holy_sites={} lists every site and eminent_holy_sites={} the subset
+# (all 104 faiths of the founding campaign). Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-...
+EMINENT_MIN, EMINENT_MAX = 1, 3
+_RULE_HOLY = "game/common/decisions/50_holy_site_decisions.txt:33-38"
+
+
+def _faith_entry(g: bytes, faith_id: str):
+    from . import gamestate as gs
+    db = gs.locate(g, "faiths/database")
+    return next(e for e in gs.iter_entries(g, db.open + 1, db.close) if e.key == faith_id.encode())
+
+
+def set_eminent_holy_sites(ctx, params: dict):
+    """A faith's eminent holy sites: 1 to 3 of its own holy sites, as the head of faith may choose in play. Only the
+    faith's ``eminent_holy_sites={}`` changes; the sites' own faith lists do not record eminence."""
+    from . import faith_lookup as FL
+    g = ctx.gamestate
+    try:
+        faith = FL.find_faith(g, str(params["faith"]))
+        table = FL.holy_sites(g)
+        want = [FL.find_holy_site(g, s, table) for s in re.split(r"[,\s]+", str(params["sites"]).strip()) if s]
+    except LookupError as e:
+        raise EditError(f"set-eminent-holy-sites: {e}") from None
+    label = lambda ids: ", ".join(f"{table.get(i, '?')} ({i})" for i in ids) or "none"
+    problems = []
+    if len(set(want)) != len(want):
+        problems.append("a site is named twice")
+    stray = [i for i in want if i not in faith.holy_sites]
+    if stray:
+        problems.append(f"{label(stray)} {'is' if len(stray) == 1 else 'are'} not among the faith's holy sites "
+                        f"({label(faith.holy_sites)}); the game makes only a faith's own holy site eminent ({_RULE_HOLY})")
+    if not EMINENT_MIN <= len(set(want)) <= EMINENT_MAX:
+        problems.append(f"a faith has {EMINENT_MIN} to {EMINENT_MAX} eminent holy sites, not {len(set(want))} "
+                        "(game/common/defines/00_defines.txt:920-927)")
+    if problems and not ctx.dangerous:
+        raise EditError("set-eminent-holy-sites: " + "; ".join(problems) + " (--dangerous writes it anyway)")
+    name = faith.name or faith.tag or faith.id
+    if want == faith.eminent:
+        return [], f"faith {faith.id} {name}: eminent holy sites are already {label(want)}"
+    e = _faith_entry(g, faith.id)
+    body = g[e.open:e.close]
+    new = b"eminent_holy_sites={ " + b" ".join(i.encode() for i in want) + b" }"
+    m = re.search(rb"(?m)^\t+(eminent_holy_sites=\{[^}\n]*\})", body)
+    if m:
+        change = Change(e.open + m.start(1), m.group(1), new)
+    else:                                   # after holy_sites, where the game writes it
+        h = re.search(rb"(?m)^(\t+)holy_sites=\{[^}\n]*\}(\r?\n)", body)
+        if h is None:
+            raise EditError(f"set-eminent-holy-sites: faith {faith.id} has no holy_sites line to place it after")
+        change = Change(e.open + h.end(), b"", h.group(1) + new + h.group(2))
+    forced = f" (forced: {'; '.join(problems)})" if problems else ""
+    return [change], f"faith {faith.id} {name}: eminent holy sites {label(faith.eminent)} -> {label(want)}{forced}"

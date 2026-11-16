@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.25] - 2026-11-16
+
+### Added
+- A new edit, `set-eminent-holy-sites`, chooses which of a faith's holy sites are eminent, as its head of faith may in play. For example, `ck3update edit <save> set-eminent-holy-sites "Way of Scarcity" "jerusalem rome iona"`. Name one to three of the faith's own holy sites, by name or number. A site the faith does not hold is refused, and so are fewer than one or more than three. The refusal names the game's own rule. `--dangerous` writes the choice anyway and says it was forced. Only the faith's list of eminent sites changes.
+
 ## [0.5.24] - 2026-11-16
 
 ### Added
@@ -842,7 +847,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.24...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.25...HEAD
+[0.5.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.24...v0.5.25
 [0.5.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.23...v0.5.24
 [0.5.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.22...v0.5.23
 [0.5.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...v0.5.22

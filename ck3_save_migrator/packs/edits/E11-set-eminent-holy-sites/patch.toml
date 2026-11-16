@@ -1,0 +1,17 @@
+format = 2
+id = "E11"
+name = "set-eminent-holy-sites"
+title = "choose a faith's eminent holy sites"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:set_eminent_holy_sites"
+help = "Sets which of a faith's holy sites are eminent, as its head of faith may choose in play. Name one to three of the faith's own holy sites, by their names or numbers. A site that is not one of the faith's holy sites is refused, as the game refuses it."
+
+# Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-eminent-sites-doctrines-set-faith.md
+
+[params.faith]
+type = "text"
+help = "the faith: its name, its key or its number"
+
+[params.sites]
+type = "text"
+help = "one to three of the faith's holy sites, separated by commas or spaces: names (jerusalem, rome, iona) or numbers"
