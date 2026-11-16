@@ -1,0 +1,193 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_field_baseline.py"
+    ],
+    "timestamp": "2026-11-16T04:27:59-05:00"
+  },
+  "results": [
+    {
+      "id": "M1",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "None-vs-truthiness: a database with 0 entries is no longer skipped, so it is recorded with entries 0. If any field exists for it, the division by n raises ZeroDivisionError.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M2",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Removed guard: load_baseline(None) reaches joinpath with None and raises TypeError instead of returning None.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "tor/ck3_save_migrator'), 'baselines', None, 'fields.json')\npaths = ['C:\\\\code\\\\ck3-save-migrator\\\\ck3_save_migrator', 'baselines']\narg = None, path = None\n\n    def __init__(self, *args):\n        paths = []\n        for arg in args:\n            if isinstance(arg, PurePath):\n                if arg._flavour is ntpath and self._flavour is posixpath:\n                    # GH-103631: Convert separators for backwards compatibility.\n                    paths.extend(path.replace('\\\\', '/') for path in arg._raw_paths)\n                else:\n                    paths.extend(arg._raw_paths)\n            else:\n                try:\n                    path = os.fspath(arg)\n                except TypeError:\n                    path = arg\n                if not isinstance(path, str):\n>                   raise TypeError(\n                        \"argument should be a str or an os.PathLike \"\n                        \"object where __fspath__ returns a str, \"\n                        f\"not {type(path).__name__!r}\")\nE                   TypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'NoneType'\n\nC:\\Python312\\Lib\\pathlib.py:373: TypeError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_load_baseline_returns_none_for_a_version_that_ships_none\n1 failed, 7 passed in 0.35s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_load_baseline_returns_none_for_a_version_that_ships_none"
+      ]
+    },
+    {
+      "id": "M3",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Inverted check: a version that ships returns None, and one that does not ships goes on to read a missing file.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " # the shipped file must regenerate byte for byte on any machine: key order fixed at every level, not insertion\n        text = B.dumps(B.build_baseline(save(), 3))\n        assert text == json.dumps(json.loads(text), indent=1, sort_keys=True) + \"\\n\"\n>       assert B.load_baseline(\"1.20.1.2\") is not None\nE       AssertionError: assert None is not None\nE        +  where None = <function load_baseline at 0x000001D067875C60>('1.20.1.2')\nE        +    where <function load_baseline at 0x000001D067875C60> = B.load_baseline\n\ntests\\test_field_baseline.py:66: AssertionError\n____ test_shipped_baseline_field_names_are_identifiers_never_ids_or_values ____\n\n    def test_shipped_baseline_field_names_are_identifiers_never_ids_or_values():\n        import re\n        b = B.load_baseline(\"1.20.1.2\")\n>       names = {k for d in b[\"databases\"].values() for k in d[\"fields\"]}\nE       TypeError: 'NoneType' object is not subscriptable\n\ntests\\test_field_baseline.py:72: TypeError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith\nFAILED tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order\nFAILED tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values\n3 failed, 5 passed in 0.22s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order",
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith"
+      ]
+    },
+    {
+      "id": "M4",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "The rounding precision drops to three places, against the docstring's four.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M5",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Swapped pair: [share_present, share_empty] is written as [share_empty, share_present].",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "v to get more diff\n\ntests\\test_field_baseline.py:23: AssertionError\n_____________ test_as_coverage_feeds_coverage_gaps_as_the_witness _____________\n\n    def test_as_coverage_feeds_coverage_gaps_as_the_witness():\n        # F25 against the baseline: our faith 1 leaves faith_type empty, every faith in the game's own save carries it\n        b = B.build_baseline(save(), 3)\n        ours = K.field_coverage(*_g_idx(META + b'religion={\\n\\tfaiths={\\n\\t\\t0={\\n\\t\\t\\tfaith_type=x\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"a\"\\n\\t\\t}\\n\\t\\t1={\\n\\t\\t\\tfaith_type=\"\"\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"b\"\\n\\t\\t}\\n\\t}\\n}\\n'), \"religion/faiths\")\n        rows = K.coverage_gaps(ours, B.as_coverage(b, \"religion/faiths\"))\n>       assert [(r[\"field\"], r[\"missing\"], r[\"empty\"]) for r in rows] == [(\"faith_type\", 0, 1)]\nE       AssertionError: assert [] == [('faith_type', 0, 1)]\nE         \nE         Right contains one more item: ('faith_type', 0, 1)\nE         Use -v to get more diff\n\ntests\\test_field_baseline.py:58: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values\nFAILED tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness\n2 failed, 6 passed in 0.23s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness",
+        "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values"
+      ]
+    },
+    {
+      "id": "M6",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Swapped unpacking in as_coverage: present and empty counts are rebuilt from each other's share.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "                                                                 [100%]\n================================== FAILURES ===================================\n_____________ test_as_coverage_feeds_coverage_gaps_as_the_witness _____________\n\n    def test_as_coverage_feeds_coverage_gaps_as_the_witness():\n        # F25 against the baseline: our faith 1 leaves faith_type empty, every faith in the game's own save carries it\n        b = B.build_baseline(save(), 3)\n        ours = K.field_coverage(*_g_idx(META + b'religion={\\n\\tfaiths={\\n\\t\\t0={\\n\\t\\t\\tfaith_type=x\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"a\"\\n\\t\\t}\\n\\t\\t1={\\n\\t\\t\\tfaith_type=\"\"\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"b\"\\n\\t\\t}\\n\\t}\\n}\\n'), \"religion/faiths\")\n        rows = K.coverage_gaps(ours, B.as_coverage(b, \"religion/faiths\"))\n>       assert [(r[\"field\"], r[\"missing\"], r[\"empty\"]) for r in rows] == [(\"faith_type\", 0, 1)]\nE       AssertionError: assert [] == [('faith_type', 0, 1)]\nE         \nE         Right contains one more item: ('faith_type', 0, 1)\nE         Use -v to get more diff\n\ntests\\test_field_baseline.py:58: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness\n1 failed, 7 passed in 0.23s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness"
+      ]
+    },
+    {
+      "id": "M7",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Off-by-one threshold: a database with exactly min_entries entries is dropped from the baseline.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "Error: 'religion/faiths'\n\ntests\\test_field_baseline.py:21: KeyError\n_____________ test_as_coverage_feeds_coverage_gaps_as_the_witness _____________\n\n    def test_as_coverage_feeds_coverage_gaps_as_the_witness():\n        # F25 against the baseline: our faith 1 leaves faith_type empty, every faith in the game's own save carries it\n        b = B.build_baseline(save(), 3)\n        ours = K.field_coverage(*_g_idx(META + b'religion={\\n\\tfaiths={\\n\\t\\t0={\\n\\t\\t\\tfaith_type=x\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"a\"\\n\\t\\t}\\n\\t\\t1={\\n\\t\\t\\tfaith_type=\"\"\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"b\"\\n\\t\\t}\\n\\t}\\n}\\n'), \"religion/faiths\")\n        rows = K.coverage_gaps(ours, B.as_coverage(b, \"religion/faiths\"))\n>       assert [(r[\"field\"], r[\"missing\"], r[\"empty\"]) for r in rows] == [(\"faith_type\", 0, 1)]\nE       AssertionError: assert [] == [('faith_type', 0, 1)]\nE         \nE         Right contains one more item: ('faith_type', 0, 1)\nE         Use -v to get more diff\n\ntests\\test_field_baseline.py:58: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values\nFAILED tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness\n2 failed, 6 passed in 0.24s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness",
+        "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values"
+      ]
+    },
+    {
+      "id": "M8",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped normalization: the final newline the docstring promises is gone.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "......F.                                                                 [100%]\n================================== FAILURES ===================================\n______________ test_dumps_writes_every_level_in_sorted_key_order ______________\n\n    def test_dumps_writes_every_level_in_sorted_key_order():\n        # the shipped file must regenerate byte for byte on any machine: key order fixed at every level, not insertion\n        text = B.dumps(B.build_baseline(save(), 3))\n>       assert text == json.dumps(json.loads(text), indent=1, sort_keys=True) + \"\\n\"\nE       assert '{\\n \"databas...\"1.20.1.2\"\\n}' == '{\\n \"databas....20.1.2\"\\n}\\n'\nE         \nE         Skipping 293 identical leading characters in diff, use -v to show\nE           1.20.1.2\"\nE         - }\nE         + }\n\ntests\\test_field_baseline.py:65: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order\n1 failed, 7 passed in 0.25s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ]
+    },
+    {
+      "id": "M9",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Removed filter: shipped_versions lists every entry under baselines/, including directories with no fields.json and stray files.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M10",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Truncation instead of rounding: a rounded share times n (0.3333*3=0.9999) gives 0, not 1.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M11",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped default: a baseline without a databases key raises KeyError instead of giving the empty coverage shape.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M12",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Lost field: the baseline no longer records which game version wrote the save.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "F.......                                                                 [100%]\n================================== FAILURES ===================================\n_______________ test_baseline_holds_field_shares_and_no_values ________________\n\n    def test_baseline_holds_field_shares_and_no_values():\n        b = B.build_baseline(save(), min_entries=3)\n        db = b[\"databases\"][\"religion/faiths\"]\n>       assert b[\"game_version\"] == \"1.20.1.2\" and db[\"entries\"] == 3\nE       AssertionError: assert (None == '1.20.1.2')\n\ntests\\test_field_baseline.py:22: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values\n1 failed, 7 passed in 0.24s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values"
+      ]
+    }
+  ],
+  "summary": {
+    "survived": 5,
+    "killed": 7
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness": [
+        "M5",
+        "M6",
+        "M7"
+      ],
+      "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values": [
+        "M12",
+        "M5",
+        "M7"
+      ],
+      "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order": [
+        "M3",
+        "M8"
+      ],
+      "tests/test_field_baseline.py::test_load_baseline_returns_none_for_a_version_that_ships_none": [
+        "M2"
+      ],
+      "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values": [
+        "M3"
+      ],
+      "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith": [
+        "M3"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ],
+      [
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith",
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

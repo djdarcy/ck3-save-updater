@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.20] - 2026-11-16
+
+### Added
+- The tool now ships a record, for Crusader Kings III 1.20.1.2, of which fields each kind of entry in a save carries: faiths, rites, titles, characters, contracts and the rest. It holds field names and how often each appears, never the values in them. The coming check that an updated save is complete compares against it, so that check works for players who have no reference save of their own. A record for a newer game version can be made from any save that version wrote (`scripts/make_field_baseline.py`).
+
 ## [0.5.19] - 2026-11-16
 
 ### Added
@@ -808,7 +813,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...HEAD
+[0.5.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...v0.5.20
 [0.5.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...v0.5.19
 [0.5.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...v0.5.18
 [0.5.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...v0.5.17

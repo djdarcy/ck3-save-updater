@@ -1,0 +1,12 @@
+{"test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_field_baseline.py"],
+ "generation_mode": 1,
+ "mutations": [
+  {"id": "R1", "file": "ck3_save_migrator/baselines.py", "original": "    return save_versions(g[:65536])[\"version\"]", "mutated": "    return save_versions(g[:256])[\"version\"]", "note": "Boundary: the head window shrinks, so a meta_data version= past 256 bytes is no longer seen."},
+  {"id": "R2", "file": "ck3_save_migrator/baselines.py", "original": "    for path in sorted(K.database_paths(g, idx, min_entries)):", "mutated": "    for path in sorted(K.database_paths(g, idx, 20)):", "note": "Dropped parameter: min_entries is ignored and the default is hard-coded."},
+  {"id": "R3", "file": "ck3_save_migrator/baselines.py", "original": "                     \"fields\": {k: [round(f[\"present\"] / n, _ROUND), round(f[\"empty\"] / n, _ROUND)]", "mutated": "                     \"fields\": {k: [round(f[\"present\"] / n), round(f[\"empty\"] / n)]", "note": "Dropped normalization: the shares round to whole numbers instead of four places."},
+  {"id": "R4", "file": "ck3_save_migrator/baselines.py", "original": "            continue", "mutated": "            break", "note": "Early exit: the first zero-entry database stops the loop."},
+  {"id": "R5", "file": "ck3_save_migrator/baselines.py", "original": "    return json.dumps(baseline, indent=1, sort_keys=True) + \"\\n\"", "mutated": "    return json.dumps(baseline, indent=1, sort_keys=False) + \"\\n\"", "note": "Determinism: dumps keeps insertion order instead of sorting."},
+  {"id": "R6", "file": "ck3_save_migrator/baselines.py", "original": "    except (OSError, ValueError):", "mutated": "    except OSError:", "note": "Removed guard: a corrupt fields.json raises instead of returning None."},
+  {"id": "R7", "file": "ck3_save_migrator/baselines.py", "original": "        f = resources.files(\"ck3_save_migrator\").joinpath(\"baselines\", version, \"fields.json\")", "mutated": "        f = resources.files(\"ck3_save_migrator\").joinpath(\"baselines\", \"fields.json\")", "note": "Dropped path segment: the version directory is skipped, so load_baseline always returns None."},
+  {"id": "R8", "file": "ck3_save_migrator/baselines.py", "original": "        return sorted(p.name for p in root.iterdir() if p.joinpath(\"fields.json\").is_file())", "mutated": "        return [p.name for p in root.iterdir() if p.joinpath(\"fields.json\").is_file()]", "note": "Dropped sort: the result follows iterdir order."}
+ ]}

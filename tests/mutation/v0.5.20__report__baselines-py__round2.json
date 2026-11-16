@@ -1,0 +1,145 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_field_baseline.py"
+    ],
+    "timestamp": "2026-11-16T04:30:34-05:00"
+  },
+  "results": [
+    {
+      "id": "R1",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Boundary: the head window shrinks, so a meta_data version= past 256 bytes is no longer seen.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped parameter: min_entries is ignored and the default is hard-coded.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "Error: 'religion/faiths'\n\ntests\\test_field_baseline.py:21: KeyError\n_____________ test_as_coverage_feeds_coverage_gaps_as_the_witness _____________\n\n    def test_as_coverage_feeds_coverage_gaps_as_the_witness():\n        # F25 against the baseline: our faith 1 leaves faith_type empty, every faith in the game's own save carries it\n        b = B.build_baseline(save(), 3)\n        ours = K.field_coverage(*_g_idx(META + b'religion={\\n\\tfaiths={\\n\\t\\t0={\\n\\t\\t\\tfaith_type=x\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"a\"\\n\\t\\t}\\n\\t\\t1={\\n\\t\\t\\tfaith_type=\"\"\\n\\t\\t\\treligion=0\\n'\n                                               b'\\t\\t\\tname=\"b\"\\n\\t\\t}\\n\\t}\\n}\\n'), \"religion/faiths\")\n        rows = K.coverage_gaps(ours, B.as_coverage(b, \"religion/faiths\"))\n>       assert [(r[\"field\"], r[\"missing\"], r[\"empty\"]) for r in rows] == [(\"faith_type\", 0, 1)]\nE       AssertionError: assert [] == [('faith_type', 0, 1)]\nE         \nE         Right contains one more item: ('faith_type', 0, 1)\nE         Use -v to get more diff\n\ntests\\test_field_baseline.py:58: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values\nFAILED tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness\n2 failed, 9 passed in 0.33s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness",
+        "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values"
+      ]
+    },
+    {
+      "id": "R3",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped normalization: the shares round to whole numbers instead of four places.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R4",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Early exit: the first zero-entry database stops the loop.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R5",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Determinism: dumps keeps insertion order instead of sorting.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "......F....                                                              [100%]\n================================== FAILURES ===================================\n______________ test_dumps_writes_every_level_in_sorted_key_order ______________\n\n    def test_dumps_writes_every_level_in_sorted_key_order():\n        # the shipped file must regenerate byte for byte on any machine: key order fixed at every level, not insertion\n        text = B.dumps(B.build_baseline(save(), 3))\n>       assert text == json.dumps(json.loads(text), indent=1, sort_keys=True) + \"\\n\"\nE       assert '{\\n \"format\"...n  }\\n }\\n}\\n' == '{\\n \"databas....20.1.2\"\\n}\\n'\nE         \nE           {\nE         +  \"format\": 1,\nE         +  \"game_version\": \"1.20.1.2\",\nE            \"databases\": {\nE             \"religion/faiths\": {\nE              \"entries\": 3,...\nE         \nE         ...Full output truncated (25 lines hidden), use '-vv' to show\n\ntests\\test_field_baseline.py:65: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order\n1 failed, 10 passed in 0.34s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ]
+    },
+    {
+      "id": "R6",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Removed guard: a corrupt fields.json raises instead of returning None.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R7",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped path segment: the version directory is skipped, so load_baseline always returns None.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " # the shipped file must regenerate byte for byte on any machine: key order fixed at every level, not insertion\n        text = B.dumps(B.build_baseline(save(), 3))\n        assert text == json.dumps(json.loads(text), indent=1, sort_keys=True) + \"\\n\"\n>       assert B.load_baseline(\"1.20.1.2\") is not None\nE       AssertionError: assert None is not None\nE        +  where None = <function load_baseline at 0x00000282D79FDD00>('1.20.1.2')\nE        +    where <function load_baseline at 0x00000282D79FDD00> = B.load_baseline\n\ntests\\test_field_baseline.py:66: AssertionError\n____ test_shipped_baseline_field_names_are_identifiers_never_ids_or_values ____\n\n    def test_shipped_baseline_field_names_are_identifiers_never_ids_or_values():\n        import re\n        b = B.load_baseline(\"1.20.1.2\")\n>       names = {k for d in b[\"databases\"].values() for k in d[\"fields\"]}\nE       TypeError: 'NoneType' object is not subscriptable\n\ntests\\test_field_baseline.py:72: TypeError\n=========================== short test summary info ===========================\nFAILED tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith\nFAILED tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order\nFAILED tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values\n3 failed, 8 passed in 0.33s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order",
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith"
+      ]
+    },
+    {
+      "id": "R8",
+      "file": "ck3_save_migrator/baselines.py",
+      "note": "Dropped sort: the result follows iterdir order.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    }
+  ],
+  "summary": {
+    "survived": 5,
+    "killed": 3
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness": [
+        "R2"
+      ],
+      "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values": [
+        "R2"
+      ],
+      "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order": [
+        "R5",
+        "R7"
+      ],
+      "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values": [
+        "R7"
+      ],
+      "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith": [
+        "R7"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_field_baseline.py::test_as_coverage_feeds_coverage_gaps_as_the_witness",
+        "tests/test_field_baseline.py::test_baseline_holds_field_shares_and_no_values"
+      ],
+      [
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_field_baseline.py::test_shipped_baseline_field_names_are_identifiers_never_ids_or_values",
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ],
+      [
+        "tests/test_field_baseline.py::test_the_shipped_1_20_1_2_baseline_loads_and_records_faith_type_on_every_faith",
+        "tests/test_field_baseline.py::test_dumps_writes_every_level_in_sorted_key_order"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

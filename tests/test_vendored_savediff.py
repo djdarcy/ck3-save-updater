@@ -3,8 +3,8 @@
 savediff stays vendored until it becomes its own repository, and becoming one must be a copy of its folder. So:
 (a) the folder holds exactly the files its _VENDORED.md names; (b) nothing in it imports the host package, no
 relative import climbs out of it, and the host's name appears in none of its code; (c) every import is from the
-standard library or from inside the folder; (d) no host module outside _vendor imports it (an allowlist, empty
-today); (e) a copy of the folder imports and runs with the host made unimportable.
+standard library or from inside the folder; (d) no host module outside _vendor imports it except those named in
+an allowlist; (e) a copy of the folder imports and runs with the host made unimportable.
 
 Each check is a function of a folder, so the guard is also run against a copy of the tree with a violation planted
 in it: a guard that cannot fail proves nothing.
@@ -27,8 +27,9 @@ HOST = ROOT / "ck3_save_migrator"
 VENDOR = HOST / "_vendor" / "savediff"
 PACKAGE = "ck3_save_migrator._vendor.savediff"
 TOKEN = "ck3_save_migrator"
-# host modules (outside _vendor) allowed to import savediff: none yet; the future `diff` command goes here
-ALLOWED_IMPORTERS: set[str] = set()
+# host modules (outside _vendor) allowed to import savediff; the future `diff` command goes here too.
+# baselines.py (0.5.20): the per-version field baseline, built with savediff's field_coverage (carried-fields goal S2)
+ALLOWED_IMPORTERS: set[str] = {"ck3_save_migrator.baselines"}
 
 
 def _files(root: Path) -> set[str]:
