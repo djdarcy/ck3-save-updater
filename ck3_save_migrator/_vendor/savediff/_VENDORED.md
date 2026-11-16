@@ -71,6 +71,13 @@ Written anew, generalising the probe's `ids` (lines 143-148, as `entry_keys`), `
 - `field_keys` reads the field through `iter_children` of the whole entry body, so "depth 1" is exact. The probe reads only the first 4,096 bytes of each entry, requires `key=` at a line start after tabs, and counts braces without skipping quoted strings.
 - `entry_keys`, `field_keys` and `scalar_map` return empty when the path is absent; the probe's `title_keys` and `character_lookup` reader raise.
 
+`database_paths`, `field_coverage` and `coverage_gaps` (2026-11-16, 0.5.19) generalise the host's two field-census probes, `tests/one-offs/field_coverage.py` (2026-10-30) and `tests/one-offs/thinking/missing_fields_census.py` (2026-11-16, finding F25), written anew. Differences from both probes:
+
+- fields are read through `iter_children`, so a second key written on the same line as another counts (the probes' line-start regex missed `religion` on every 1.20 faith);
+- a field written but holding nothing (`""` or `{ }`) is counted as empty, not as present (the probes counted the game's `faith_type=""` as carried, which hid F25);
+- entries without a numeric key (anonymous `{...}` records, as in `opinions/active_opinions`) are counted, by position;
+- `coverage_gaps` compares our entries with a witness's of the same kind (a reference save, or ours), so a field most of ours lack but every witness entry carries is found; the second probe compared only siblings.
+
 ## schema.py
 
 Copied from `ck3_save_migrator/idschema.py` at commit `e0a6ab3`, lines 17-433 (everything after its module docstring: `PLAIN`, `TYPED`, `TRAIT`, `REVIEW`, `SPACES`, `IDENTITY`, `KIND_SPACE`, `TYPE_SPACE`, `FIELDS`, `_DATE`, `norm_key`, `classify`, `_family`, `_plain`, `PLAIN_FIELDS`), after a new module docstring.

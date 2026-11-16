@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.19] - 2026-11-16
+
+### Added
+- Groundwork for a check that every entry an update writes carries the fields the game's own entries of that kind carry. A new internal helper counts, for each kind of entry in a save, which fields each entry has and which it leaves empty, and compares them with a reference save. It reads a field written on the same line as another and counts an empty value as empty, two things the earlier one-off probes got wrong. Nothing a player runs changes yet.
+
 ## [0.5.18] - 2026-11-16
 
 ### Fixed
@@ -803,7 +808,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...HEAD
+[0.5.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...v0.5.19
 [0.5.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...v0.5.18
 [0.5.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...v0.5.17
 [0.5.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...v0.5.16
