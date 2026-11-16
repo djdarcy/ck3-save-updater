@@ -1,0 +1,14 @@
+{"test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_lint_fields.py"],
+ "generation_mode": 1,
+ "mutations": [
+  {"id": "M1", "file": "ck3_save_migrator/lint.py", "original": "    return lack > expected + 3 * expected ** 0.5", "mutated": "    return lack >= expected + 3 * expected ** 0.5", "note": "Boundary flip: a lack exactly at the allowance counts as a gap."},
+  {"id": "M2", "file": "ck3_save_migrator/lint.py", "original": "    return lack > expected + 3 * expected ** 0.5", "mutated": "    return lack > expected", "note": "Drops the three-standard-deviations term."},
+  {"id": "M3", "file": "ck3_save_migrator/lint.py", "original": "    lack = row[\"missing\"] + row[\"empty\"]", "mutated": "    lack = row[\"missing\"]", "note": "Drops the empty count from the lack."},
+  {"id": "M4", "file": "ck3_save_migrator/lint.py", "original": "    expected = (1 - row[\"witness_share\"]) * row[\"entries\"]", "mutated": "    expected = row[\"witness_share\"] * row[\"entries\"]", "note": "Filled share instead of lacking share."},
+  {"id": "M5", "file": "ck3_save_migrator/lint.py", "original": "            if not beyond_witness(row):", "mutated": "            if beyond_witness(row):", "note": "Inverts the filter."},
+  {"id": "M6", "file": "ck3_save_migrator/lint.py", "original": "    if ref is None and base is None:", "mutated": "    if ref is None or base is None:", "note": "and/or swap: the check is always skipped."},
+  {"id": "M7", "file": "ck3_save_migrator/lint.py", "original": "        if not ours[\"entries\"]:", "mutated": "        if not ours:", "note": "Databases with zero entries of ours are no longer skipped."},
+  {"id": "M8", "file": "ck3_save_migrator/lint.py", "original": "            if key in FIELDS_ABSENT_ON_PURPOSE or key in FIELDS_FILLED_ON_LOAD:", "mutated": "            if key in FIELDS_ABSENT_ON_PURPOSE and key in FIELDS_FILLED_ON_LOAD:", "note": "or/and swap."},
+  {"id": "M9", "file": "ck3_save_migrator/lint.py", "original": "    nothing = [p for p in K.database_paths(g, gi) if p not in witnessed]", "mutated": "    nothing = [p for p in K.database_paths(g, gi) if p in witnessed]", "note": "Comparison flip."},
+  {"id": "M10", "file": "ck3_save_migrator/lint.py", "original": "        for row in K.coverage_gaps(ours, wit, threshold):", "mutated": "        for row in K.coverage_gaps(wit, ours, threshold):", "note": "Swapped arguments."}
+ ]}

@@ -769,6 +769,103 @@ def check_reference_titles(g: bytes, rep: LintReport, reference: bytes, idx: Sec
             gloss="Titles the fresh game has that the engine is measured to create in a migrated save; left to it")
 
 
+# ----------------------------------------------------------------------------------------------- carried fields
+# A migrated entry must carry the fields the game's own entries of that kind carry (finding F25, 2026-11-16: the carried
+# custom faith had no faith_type, so event text naming its god printed a blank, and the game's own re-save wrote
+# faith_type="" rather than repairing it). Witness: the reference save when there is one, else the field baseline
+# shipped for the save's game version (baselines.py). Design: the carried-fields DWP 2026-11-16__02-34-31 and its
+# addenda; the director's ruling 2026-11-16__03-48-32 (the game's field SET, never its VALUES).
+FIELD_THRESHOLD = 0.97
+# fields the game's own entries nearly all carry that a migrated entry may lack, each with the measurement behind it
+FIELDS_ABSENT_ON_PURPOSE = {
+    ("rites/database", "rite_type"):
+        "a rite made in play has none: the game's own 1.20.1.2 save writes its rites 150 and 151 (Catholicism and "
+        "Orthodoxy, made at the 987 start) without one, as the update writes the rites it makes",
+}
+# Measured 2026-11-16: flagged on an update's output (MIGRATE_TEST__play14) and gone from the game's own re-save of it
+# (MIGRATE_TEST__s0a_control_resaved), against the 1.20.1.2 baseline.
+_ON_LOAD = "the game fills it in on load: missing on {} in an update's output, on none in the game's re-save of it"
+FIELDS_FILLED_ON_LOAD = {
+    ("living", "ethnicity"): _ON_LOAD.format("36,700 of 44,553 living"),
+    ("dead_unprunable", "ethnicity"): _ON_LOAD.format("38,386 of 38,925 dead"),
+    ("landed_titles/landed_titles", "nomad_name_type"): _ON_LOAD.format("12,670 of 18,427 titles"),
+    ("faiths/database", "religious_head"): _ON_LOAD.format("1 of 104 faiths"),
+    ("mercenary_company_manager/mercenary_companies", "county"): _ON_LOAD.format("2 of 640 companies"),
+}
+# what a missing field costs the player, where it is known
+FIELD_MEANING = {
+    ("faiths/database", "faith_type"): "event text that names the faith's god shows a blank",
+    ("faiths/database", "eminent_holy_sites"): "the game expects 1 to 3 eminent holy sites on every faith",
+}
+
+
+def beyond_witness(row: dict) -> bool:
+    """True when more of our entries lack the field than the witness's own share allows. The game itself leaves a
+    field out of some entries (2% of its living characters have no traits); that many of ours lacking it is normal.
+    Allowed: the witness's lacking share of our entries, plus three standard deviations of that count. A field on
+    every witness entry allows none (F25: 1 faith of 104 without faith_type is a gap)."""
+    lack = row["missing"] + row["empty"]
+    expected = (1 - row["witness_share"]) * row["entries"]
+    return lack > expected + 3 * expected ** 0.5
+
+
+def field_witness(g: bytes, reference: bytes | None):
+    """(name, gamestate-or-None, baseline-or-None) of what ``g``'s entries are compared with: the reference save,
+    else the shipped baseline for ``g``'s game version, else neither."""
+    from . import baselines
+    if reference is not None:
+        return "the reference save", reference, None
+    version = baselines.game_version(g)
+    b = baselines.load_baseline(version)
+    if b is not None:
+        return f"the field baseline for {version}", None, b
+    return f"no field baseline for {version or 'this version'}", None, None
+
+
+def check_reference_fields(g: bytes, rep: LintReport, reference: bytes | None = None,
+                           threshold: float = FIELD_THRESHOLD) -> None:
+    """Every entry of a kind carries, filled, each field the game's own entries of that kind carry (at least
+    ``threshold`` of them). A field the update cannot fill is named here, in the player's terms where known."""
+    from . import baselines
+    from ._vendor.savediff import keys as K, text as T
+    name, ref, base = field_witness(g, reference)
+    if ref is None and base is None:
+        rep.skipped.append(f"carried fields: {name} ships with the tool; pass --reference with a save that version "
+                           "wrote to check them")
+        return
+    gi = T.SectionIndex(g)
+    ri = T.SectionIndex(ref) if ref is not None else None
+    paths = sorted(K.database_paths(ref, ri) if ref is not None else base["databases"])
+    gaps, allowed, nothing = [], [], []
+    for path in paths:
+        ours = K.field_coverage(g, gi, path)
+        if not ours["entries"]:
+            continue
+        wit = K.field_coverage(ref, ri, path) if ref is not None else baselines.as_coverage(base, path)
+        for row in K.coverage_gaps(ours, wit, threshold):
+            if not beyond_witness(row):
+                continue
+            key = (path, row["field"])
+            ids = (row["missing_examples"] + row["empty_examples"])[:4]
+            what = (f"{path}: {row['missing'] + row['empty']} of {row['entries']} lack `{row['field']}` "
+                    f"(missing {row['missing']}, empty {row['empty']}; e.g. {', '.join(ids)}); the game's own "
+                    f"carry it on {row['witness_share']:.0%}")
+            if key in FIELDS_ABSENT_ON_PURPOSE or key in FIELDS_FILLED_ON_LOAD:
+                allowed.append(f"{what} -- {FIELDS_ABSENT_ON_PURPOSE.get(key) or FIELDS_FILLED_ON_LOAD[key]}")
+            else:
+                gaps.append(what + (f" -- {FIELD_MEANING[key]}" if key in FIELD_MEANING else ""))
+    witnessed = set(paths)
+    nothing = [p for p in K.database_paths(g, gi) if p not in witnessed]
+    rep.add("entries carry the fields the game's own entries carry", "warn", gaps, limit=60,
+            gloss=f"A kind of entry the update wrote lacks, or leaves empty, a field nearly every entry of that kind "
+                  f"carries in a save the game wrote itself (compared with {name}); text or rules that read it may "
+                  f"show a blank or fail")
+    rep.add("fields left out on purpose or filled by the game", "info", allowed, limit=20,
+            gloss="Fields a migrated entry may lack, each with the measurement that showed it")
+    rep.add("kinds of entry with nothing to compare with", "info", nothing, limit=20,
+            gloss=f"Kinds the save holds that {name} has too few of to compare; not checked, not clean")
+
+
 _INLINE_NAME = re.compile(rb"\n\t(name|adj|pre|article)=")
 
 
@@ -1228,10 +1325,11 @@ def check_keys(g: bytes, rep: LintReport, words: set[bytes], sources: list[str])
 
 def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes | None = None,
                    mod_dirs: list[Path] | None = None, keys: bool = True,
-                   known: GameData | tuple[set[bytes], list[str]] | None = None) -> LintReport:
+                   known: GameData | tuple[set[bytes], list[str]] | None = None, fields: bool = True) -> LintReport:
     """All checks on one gamestate. ``known`` reuses a load_game_data() result (a run with two outputs builds
     it once; a (words, sources) pair is accepted too); otherwise it is built from game_dir, reference and
-    mod_dirs. ``keys=False`` skips the game-data checks (key names and the reject families)."""
+    mod_dirs. ``keys=False`` skips the game-data checks (key names and the reject families). ``fields=False`` skips
+    the carried-fields check (about a minute on a large save)."""
     rep = LintReport()
     idx = SectionIndex(g)
     check_structure(g, rep)
@@ -1243,6 +1341,8 @@ def lint_gamestate(g: bytes, *, game_dir: Path | None = None, reference: bytes |
     check_ai(g, rep, idx)
     if reference is not None:
         check_reference_titles(g, rep, reference, idx)
+    if fields:
+        check_reference_fields(g, rep, reference)
     check_contracts(g, rep, idx)
     check_realms(g, rep, idx)
     check_meta(g, rep, idx)

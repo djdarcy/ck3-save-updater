@@ -2,6 +2,11 @@
 
 Guarded authority, not an allowlist (see the test-mutation skill): entries are grouped under the target file and its `git hash-object` (first 12). When the file's hash no longer matches its heading, every entry under it is stale: re-triage before reuse, and never feed stale entries to a generator. Only separated-generation runs (a fresh agent with the source and nothing else) write here.
 
+## ck3_save_migrator/lint.py @ 6376af38d67b
+
+- `return lack > expected + 3 * expected ** 0.5` -> `return lack >= ...` (in `beyond_witness`) -- **equivalent** -- an exact tie needs the allowance to land on a whole number, which the float arithmetic of a four-place share almost never produces: (1 - 0.99) * 100 is 1.0000000000000009, so the allowance for 1 in 100 is 4.0000000000000027 and both operators agree on 4. 2026-11-16, generation mode 1.
+- `if not ours["entries"]:` -> `if not ours:` (in `check_reference_fields`) -- **equivalent** -- with none of our entries, `coverage_gaps` finds nothing missing (0 entries minus 0 present), so skipping or not skipping the database gives the same rows. 2026-11-16, generation mode 1.
+
 ## ck3_save_migrator/baselines.py @ f33d1246dbae
 
 - `if not n:` -> `if n is None:` -- **don't-care** -- differs only when every entry of a database fails to parse: the database is then recorded with 0 entries and no fields, which every reader (`as_coverage`, `coverage_gaps`) already treats as "nothing to compare with". 2026-11-16, generation mode 1.

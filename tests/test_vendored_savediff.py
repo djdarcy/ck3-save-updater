@@ -28,8 +28,9 @@ VENDOR = HOST / "_vendor" / "savediff"
 PACKAGE = "ck3_save_migrator._vendor.savediff"
 TOKEN = "ck3_save_migrator"
 # host modules (outside _vendor) allowed to import savediff; the future `diff` command goes here too.
-# baselines.py (0.5.20): the per-version field baseline, built with savediff's field_coverage (carried-fields goal S2)
-ALLOWED_IMPORTERS: set[str] = {"ck3_save_migrator.baselines"}
+# baselines.py (0.5.20): the per-version field baseline, built with savediff's field_coverage (carried-fields goal S2);
+# lint.py (0.5.21): the carried-fields check, which compares a save's entries with a witness's (S3)
+ALLOWED_IMPORTERS: set[str] = {"ck3_save_migrator.baselines", "ck3_save_migrator.lint"}
 
 
 def _files(root: Path) -> set[str]:

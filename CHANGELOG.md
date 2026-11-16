@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.21] - 2026-11-16
+
+### Added
+- `lint`, and the check `update` runs on its output, now report entries that lack a field the game's own entries of that kind carry, or leave it empty. Each line names the kind of entry, how many lack the field, and examples, so a player can see what the update left out. Where the cost is known, it says so; for example, a faith without a faith type shows a blank wherever an event names its god. The comparison is with the reference save when there is one, and otherwise with the record shipped for the save's game version.
+- A field the game leaves out of some of its own entries is reported only when more of the save's entries lack it than the game's own share allows. Fields the game fills in by itself when it loads a save, and fields it leaves out on purpose, are listed separately with the measurement behind each. Kinds of entry the record has too few of to compare are listed as not checked, never as clean.
+- The check takes about a minute on a large save. For a game version with no record and no reference save, it says so and is skipped.
+
 ## [0.5.20] - 2026-11-16
 
 ### Added
@@ -813,7 +820,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...HEAD
+[0.5.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...v0.5.21
 [0.5.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...v0.5.20
 [0.5.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...v0.5.19
 [0.5.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...v0.5.18

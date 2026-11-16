@@ -74,11 +74,14 @@ Each finding is described in plain words first. For what the game will log, the 
 - a ruler's domain lists only titles they hold;
 - stored script scopes point at things that exist;
 - armies have soldiers;
-- a mercenary company's title key is `x_mc_<company id>` (a candidate check: a title keyed for another company; no rule fixes it yet).
+- a mercenary company's title key is `x_mc_<company id>` (a candidate check: a title keyed for another company; no rule fixes it yet);
+- entries carry the fields the game's own entries of that kind carry. Each line names a kind of entry (faiths, titles, artifacts...), the field, how many lack it or leave it empty, and a few examples. Where the cost is known it says so: a faith with no faith type shows a blank wherever an event names its god. The comparison is with the reference save when one is given, otherwise with the record of fields shipped for the save's game version (1.20.1.2 today). A field the game itself leaves out of some entries is reported only when more of the save's entries lack it than the game's own share allows. With no record for the version and no reference save, the check is skipped and says so. It takes about a minute on a large save.
 
 ### Information
 
-- titles a fresh game has that the save lacks, but that the game creates by itself.
+- titles a fresh game has that the save lacks, but that the game creates by itself;
+- fields a migrated entry may lack, each with the measurement that showed it: fields the game fills in by itself when it loads the save (a character's ethnicity, for one), and fields the game leaves out of its own entries of that kind (a rite made in play has no rite type);
+- kinds of entry the record has too few of to compare: not checked, which is not the same as clean.
 
 ### What the game will log
 

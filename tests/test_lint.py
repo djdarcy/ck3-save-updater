@@ -18,6 +18,13 @@ from ck3_save_migrator import cli
 from ck3_save_migrator import gamestate as gs
 from ck3_save_migrator import lint as L
 from ck3_save_migrator import rules as R
+
+
+@pytest.fixture(autouse=True)
+def _no_carried_fields_check(monkeypatch):
+    """The fixtures here are minimal 1.20 saves written for other checks: against the shipped 1.20.1.2 field baseline
+    nearly every entry lacks fields. The carried-fields check has its own tests (test_lint_fields.py)."""
+    monkeypatch.setattr(L, "check_reference_fields", lambda *a, **k: None)
 from ck3_save_migrator import savefile as sf
 from ck3_save_migrator.idschema import IDENTITY, SPACES
 from tests.fixtures.make_ck3 import build_ck3

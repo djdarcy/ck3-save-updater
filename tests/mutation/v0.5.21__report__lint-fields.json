@@ -1,0 +1,220 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_lint_fields.py"
+    ],
+    "timestamp": "2026-11-16T04:57:27-05:00"
+  },
+  "results": [
+    {
+      "id": "M1",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Boundary flip: a lack exactly at the allowance counts as a gap.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M2",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Drops the three-standard-deviations term.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M3",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Drops the empty count from the lack.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": ".F.........                                                              [100%]\n================================== FAILURES ===================================\n____________________ test_an_empty_faith_type_is_a_gap_too ____________________\n\n    def test_an_empty_faith_type_is_a_gap_too():\n        # the game's own re-save wrote faith_type=\"\" for the faith the update left without one\n        rep = run(save(*(faith(i) for i in range(29)), faith(29, '\"\"')), REF)\n>       assert \"missing 0, empty 1\" in finding(rep, \"entries carry the fields\").examples[0]\nE       AttributeError: 'NoneType' object has no attribute 'examples'\n\ntests\\test_lint_fields.py:50: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too - Att...\n1 failed, 10 passed in 0.54s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too"
+      ]
+    },
+    {
+      "id": "M4",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Filled share instead of lacking share.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "Error\n_ test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness _\n\n    def test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness():\n        name, ref, base = L.field_witness(META, None)\n        assert name == \"the field baseline for 1.20.1.2\" and ref is None and base is not None\n        # the shipped baseline has 103 faiths, every one with faith_type: one of ours without it is a gap\n        rep = run(save(*(faith(i) for i in range(29)), faith(29, None)))\n>       assert any(\"1 of 30 lack `faith_type`\" in e for e in finding(rep, \"entries carry the fields\").examples)\nE       AttributeError: 'NoneType' object has no attribute 'examples'\n\ntests\\test_lint_fields.py:85: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player\nFAILED tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too - Att...\nFAILED tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\nFAILED tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness\n5 failed, 6 passed in 0.56s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning",
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too",
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness"
+      ]
+    },
+    {
+      "id": "M5",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Inverts the filter.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "Error\n_ test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness _\n\n    def test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness():\n        name, ref, base = L.field_witness(META, None)\n        assert name == \"the field baseline for 1.20.1.2\" and ref is None and base is not None\n        # the shipped baseline has 103 faiths, every one with faith_type: one of ours without it is a gap\n        rep = run(save(*(faith(i) for i in range(29)), faith(29, None)))\n>       assert any(\"1 of 30 lack `faith_type`\" in e for e in finding(rep, \"entries carry the fields\").examples)\nE       AttributeError: 'NoneType' object has no attribute 'examples'\n\ntests\\test_lint_fields.py:85: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player\nFAILED tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too - Att...\nFAILED tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\nFAILED tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness\n5 failed, 6 passed in 0.73s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning",
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too",
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness"
+      ]
+    },
+    {
+      "id": "M6",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "and/or swap: the check is always skipped.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "ry the fields\").examples)\nE       AttributeError: 'NoneType' object has no attribute 'examples'\n\ntests\\test_lint_fields.py:85: AttributeError\n_ test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean _\n\n    def test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean():\n        rep = run(save(*(faith(i) for i in range(30)), rites=25), REF)\n        nothing = finding(rep, \"kinds of entry with nothing to compare with\")\n>       assert nothing is not None and nothing.examples == [\"rites/database\"]\nE       assert (None is not None)\n\ntests\\test_lint_fields.py:97: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player\nFAILED tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too - Att...\nFAILED tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\nFAILED tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness\nFAILED tests/test_lint_fields.py::test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean\n6 failed, 5 passed in 0.94s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning",
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too",
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness"
+      ]
+    },
+    {
+      "id": "M7",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Databases with zero entries of ours are no longer skipped.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M8",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "or/and swap.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "META + (b\"rites={\\n\\tdatabase={\\n\" + b\"\".join(b\"\\t\\t%d={\\n\\t\\t\\trite_type=r\\n\\t\\t}\\n\" % i for i in range(90))\n                       + b\"\".join(b\"\\t\\t%d={\\n\\t\\t\\tname=x\\n\\t\\t}\\n\" % i for i in range(90, 100)) + b\"\\t}\\n}\\n\")\n        rep = run(ours, ref)\n>       assert finding(rep, \"entries carry the fields\") is None\nE       assert Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, examples=[\"rites/data... a save the game wrote itself (compared with the reference save); text or rules that read it may show a blank or fail') is None\nE        +  where Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, examples=[\"rites/data... a save the game wrote itself (compared with the reference save); text or rules that read it may show a blank or fail') = finding(LintReport(findings=[Finding(check=\"entries carry the fields the game's own entries carry\", severity='warn', count=1, ...tself (compared with the reference save); text or rules that read it may show a blank or fail')], stats={}, skipped=[]), 'entries carry the fields')\n\ntests\\test_lint_fields.py:75: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\n1 failed, 10 passed in 0.80s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ]
+    },
+    {
+      "id": "M9",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Comparison flip.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": ".......F...                                                              [100%]\n================================== FAILURES ===================================\n_ test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean _\n\n    def test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean():\n        rep = run(save(*(faith(i) for i in range(30)), rites=25), REF)\n        nothing = finding(rep, \"kinds of entry with nothing to compare with\")\n>       assert nothing is not None and nothing.examples == [\"rites/database\"]\nE       AssertionError: assert (Finding(check='kinds of entry with nothing to compare with', severity='info', count=1, examples=['faiths/database'], note='', gloss='Kinds the save holds that the reference save has too few of to compare; not checked, not clean') is not None and ['faiths/database'] == ['rites/database']\nE         \nE         At index 0 diff: 'faiths/database' != 'rites/database'\nE         Use -v to get more diff)\n\ntests\\test_lint_fields.py:97: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean\n1 failed, 10 passed in 0.61s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean"
+      ]
+    },
+    {
+      "id": "M10",
+      "file": "ck3_save_migrator/lint.py",
+      "note": "Swapped arguments.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "Error\n_ test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness _\n\n    def test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness():\n        name, ref, base = L.field_witness(META, None)\n        assert name == \"the field baseline for 1.20.1.2\" and ref is None and base is not None\n        # the shipped baseline has 103 faiths, every one with faith_type: one of ours without it is a gap\n        rep = run(save(*(faith(i) for i in range(29)), faith(29, None)))\n>       assert any(\"1 of 30 lack `faith_type`\" in e for e in finding(rep, \"entries carry the fields\").examples)\nE       AttributeError: 'NoneType' object has no attribute 'examples'\n\ntests\\test_lint_fields.py:85: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player\nFAILED tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too - Att...\nFAILED tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share\nFAILED tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning\nFAILED tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness\n5 failed, 6 passed in 0.64s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning",
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too",
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness"
+      ]
+    }
+  ],
+  "summary": {
+    "survived": 3,
+    "killed": 7
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player": [
+        "M10",
+        "M4",
+        "M5",
+        "M6"
+      ],
+      "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning": [
+        "M10",
+        "M4",
+        "M5",
+        "M6",
+        "M8"
+      ],
+      "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share": [
+        "M10",
+        "M4",
+        "M5",
+        "M6"
+      ],
+      "tests/test_lint_fields.py::test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_clean": [
+        "M6",
+        "M9"
+      ],
+      "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too": [
+        "M10",
+        "M3",
+        "M4",
+        "M5",
+        "M6"
+      ],
+      "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness": [
+        "M10",
+        "M4",
+        "M5",
+        "M6"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ],
+      [
+        "tests/test_lint_fields.py::test_a_faith_without_faith_type_is_named_with_what_it_costs_the_player",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too"
+      ],
+      [
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ],
+      [
+        "tests/test_lint_fields.py::test_a_field_the_game_leaves_out_of_some_entries_is_flagged_only_beyond_that_share",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too"
+      ],
+      [
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness",
+        "tests/test_lint_fields.py::test_a_field_left_out_on_purpose_is_info_with_its_measurement_not_a_warning"
+      ],
+      [
+        "tests/test_lint_fields.py::test_without_a_reference_the_shipped_baseline_for_the_save_s_version_is_the_witness",
+        "tests/test_lint_fields.py::test_an_empty_faith_type_is_a_gap_too"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}
