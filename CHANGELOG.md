@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.24] - 2026-11-16
+
+### Added
+- Groundwork for three faith edits (choosing a faith's eminent holy sites, changing a character's faith, changing a faith's doctrines). An internal helper finds a faith, a rite or a holy site in a save by its number, its key or its name, ignoring case and punctuation. A name that fits two entries is refused with their numbers, and a name that fits none gets the nearest names. Nothing a player runs changes yet.
+
 ## [0.5.23] - 2026-11-16
 
 ### Changed
@@ -837,7 +842,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.23...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.24...HEAD
+[0.5.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.23...v0.5.24
 [0.5.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.22...v0.5.23
 [0.5.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...v0.5.22
 [0.5.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...v0.5.21
