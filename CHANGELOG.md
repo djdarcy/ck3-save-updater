@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.23] - 2026-11-16
+
+### Changed
+- The check of carried fields no longer warns about titles that have no capital. A title with no land has none, and the game writes them so itself: the same 544 titles lack a capital in an old 1.8 save, in the updated save, and in the game's own save of the updated one. They are mostly council and holy-order titles and the titles of religious heads. They are now listed as information, with that measurement.
+
+### Documentation
+- The README says what the update checks after it writes your save, including the fields it may have left out.
+- The rules reference says that a carried custom faith gets a faith type and eminent holy sites.
+
 ## [0.5.22] - 2026-11-16
 
 ### Fixed
@@ -828,7 +837,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.22...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.23...HEAD
+[0.5.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.22...v0.5.23
 [0.5.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.21...v0.5.22
 [0.5.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.20...v0.5.21
 [0.5.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.19...v0.5.20

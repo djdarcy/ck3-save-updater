@@ -107,6 +107,20 @@ def test_a_kind_the_witness_lacks_is_listed_as_nothing_to_compare_with_never_as_
     assert nothing is not None and nothing.examples == ["rites/database"]
 
 
+def test_titles_without_a_capital_are_the_game_s_own_shape_and_listed_as_such():
+    # 544 titles without a capital in the original 1.8.1 save, the update's output and the game's re-save alike
+    # (carried-fields S5): info with that measurement, not a warning
+    ref = META + (b"landed_titles={\n\tlanded_titles={\n"
+                  + b"".join(b"\t\t%d={\n\t\t\tkey=c_%d\n\t\t\tcapital=%d\n\t\t}\n" % (i, i, i) for i in range(30))
+                  + b"\t}\n}\n")
+    ours = META + (b"landed_titles={\n\tlanded_titles={\n"
+                   + b"".join(b"\t\t%d={\n\t\t\tkey=c_%d\n\t\t\tcapital=%d\n\t\t}\n" % (i, i, i) for i in range(20))
+                   + b"".join(b"\t\t%d={\n\t\t\tkey=x_%d\n\t\t}\n" % (i, i) for i in range(20, 30)) + b"\t}\n}\n")
+    rep = run(ours, ref)
+    assert finding(rep, "entries carry the fields") is None
+    assert "a title with no land has none" in finding(rep, "fields left out on purpose").examples[0]
+
+
 @pytest.mark.parametrize("fields, ran", [(True, True), (False, False)])
 def test_lint_gamestate_runs_the_check_unless_told_not_to(monkeypatch, fields, ran):
     calls = []

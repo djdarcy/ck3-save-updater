@@ -139,6 +139,8 @@ With a reference save, the new-map regions are brought in by default, so no `--r
 
 **Checking first.** `ck3update status "My Save"` prints the plan without asking and writes nothing. An `update` right after it reuses its checks.
 
+**Checking after.** When the update has written your save, it checks the result. One of the checks compares every kind of entry with what the game itself writes. If a faith, a title or an artifact lacks a field the game's own entries carry, the report names it, says how many lack it, and gives examples. Where the cost is known, it says that too, for example a blank in event text. Fields the game fills in by itself when it loads the save are listed separately. See [Checking a save](docs/lint.md).
+
 ## When it refuses
 
 A refused plan ends with each reason and a `fix:` line under it saying what to do:

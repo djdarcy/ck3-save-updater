@@ -77,7 +77,7 @@ These remove what 1.20 rejects when it loads an older save, or move data to wher
 | Rule | Name | Since | What it changes |
 |---|---|---|---|
 | R8 | religion-transplant | 1.20.0 (By God Alone: faiths/rites databases) | replaces the save's religion with the reference's religions, faiths, rites, holy sites and religious organizations, with titles and cultures translated by name to the save's own numbering |
-| R10 | custom-faith | 1.20.0 | carries the save's own custom faiths (for example the Way of Scarcity) as a faith or as a rite, with their doctrines, fervor, religious head, holy sites, founder (when that character is still in the save) and dated history, wherever 1.20 has a place for each |
+| R10 | custom-faith | 1.20.0 | carries the save's own custom faiths (for example the Way of Scarcity) as a faith or as a rite, with their doctrines, fervor, religious head, holy sites, founder (when that character is still in the save) and dated history, wherever 1.20 has a place for each. Two things 1.8 never had are worked out: the faith's type, taken from the faith it was created from (1.20 keeps the god's names there, so text that names the god is not left blank), and one to three eminent holy sites, chosen from its own holy sites |
 | R9 | faith-to-rite | 1.20.0 (characters and counties point at a rite) | replaces each character's and county's old faith with the matching 1.20 rite, and updates script variables that refer to a faith or religion |
 | R12 | faithless-rite | 1.20.0 (rite on every character) | gives characters with no recorded faith their house head's rite, falling back to the dynasty head, then the employer, then the player; each fallback is reported |
 

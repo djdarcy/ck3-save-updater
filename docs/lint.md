@@ -80,7 +80,7 @@ Each finding is described in plain words first. For what the game will log, the 
 ### Information
 
 - titles a fresh game has that the save lacks, but that the game creates by itself;
-- fields a migrated entry may lack, each with the measurement that showed it: fields the game fills in by itself when it loads the save (a character's ethnicity, for one), and fields the game leaves out of its own entries of that kind (a rite made in play has no rite type);
+- fields a migrated entry may lack, each with the measurement that showed it: fields the game fills in by itself when it loads the save (a character's ethnicity, for one), fields the game leaves out of its own entries of that kind (a rite made in play has no rite type), and shapes the game writes itself in old saves and new alike (a title with no land has no capital);
 - kinds of entry the record has too few of to compare: not checked, which is not the same as clean.
 
 ### What the game will log

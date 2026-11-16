@@ -794,6 +794,15 @@ FIELDS_FILLED_ON_LOAD = {
     ("faiths/database", "religious_head"): _ON_LOAD.format("1 of 104 faiths"),
     ("mercenary_company_manager/mercenary_companies", "county"): _ON_LOAD.format("2 of 640 companies"),
 }
+# Shapes the game itself writes, in the old save and in its own re-save of the update's output alike, so a migrated
+# entry carries them as the game made them. Measured 2026-11-16 (tests/one-offs/thinking/s5_settle_candidates.py) on
+# the founding campaign's original 1.8.1 save, the update's output and the game's re-save.
+FIELDS_AS_THE_GAME_WROTE = {
+    ("landed_titles/landed_titles", "capital"):
+        "a title with no land has none: 544 titles without one in the original 1.8.1 save, the update's output and "
+        "the game's re-save alike (515 council and holy-order x_ titles, religious heads such as d_sunni, empty "
+        "kingdoms); a fresh game has only 14 because it holds fewer such titles",
+}
 # what a missing field costs the player, where it is known
 FIELD_MEANING = {
     ("faiths/database", "faith_type"): "event text that names the faith's god shows a blank",
@@ -852,8 +861,10 @@ def check_reference_fields(g: bytes, rep: LintReport, reference: bytes | None = 
             what = (f"{path}: {row['missing'] + row['empty']} of {row['entries']} lack `{row['field']}` "
                     f"(missing {row['missing']}, empty {row['empty']}; e.g. {', '.join(ids)}); the game's own "
                     f"carry it on {row['witness_share']:.0%}")
-            if key in FIELDS_ABSENT_ON_PURPOSE or key in FIELDS_FILLED_ON_LOAD:
-                allowed.append(f"{what} -- {FIELDS_ABSENT_ON_PURPOSE.get(key) or FIELDS_FILLED_ON_LOAD[key]}")
+            why = (FIELDS_ABSENT_ON_PURPOSE.get(key) or FIELDS_FILLED_ON_LOAD.get(key)
+                   or FIELDS_AS_THE_GAME_WROTE.get(key))
+            if why:
+                allowed.append(f"{what} -- {why}")
             else:
                 gaps.append(what + (f" -- {FIELD_MEANING[key]}" if key in FIELD_MEANING else ""))
     witnessed = set(paths)
