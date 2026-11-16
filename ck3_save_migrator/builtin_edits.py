@@ -454,3 +454,76 @@ def set_eminent_holy_sites(ctx, params: dict):
         change = Change(e.open + h.end(), b"", h.group(1) + new + h.group(2))
     forced = f" (forced: {'; '.join(problems)})" if problems else ""
     return [change], f"faith {faith.id} {name}: eminent holy sites {label(faith.eminent)} -> {label(want)}{forced}"
+
+
+# --------------------------------------------------------------------------- set-faith
+# A character's faith is one depth-1 line of their entry, rite=<rite id> (every living and dead character of the v16
+# golden has exactly one, 44,553 + 38,925, measured 2026-11-16); the rite names its faith, the faith its religion.
+# Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-eminent-sites-doctrines-set-faith.md
+_RITE_LINE = re.compile(rb"(?m)^\trite=(\d+)\r?$")
+
+
+def _rite_label(r, faiths: dict) -> str:
+    """A rite as a player knows it. A base rite has a rite_type (shafii); a custom faith's own rite (source=fallback,
+    rite 152 of Way of Scarcity in v16) has no name, type or tag, and is known by its faith."""
+    own = r.name or r.rite_type or r.tag
+    if own:
+        return f"{own} ({r.id})"
+    f = faiths.get(r.faith)
+    return f"{(f.name or f.tag) if f else 'faith ' + str(r.faith)}'s own rite ({r.id})"
+
+
+def _faith_label(faiths: dict, fid) -> str:
+    f = faiths.get(fid)
+    return f"{(f.name or f.tag) if f else '?'} ({fid})"
+
+
+def set_faith(ctx, params: dict):
+    """A character's rite, as a conversion in play would set it: the target is a rite (by number, key or name) or a
+    faith, which means its main rite. Only the character's ``rite=`` line changes; titles, holy orders and faith heads
+    stay as they are. A dead character is changed only under ``--dangerous``."""
+    from . import faith_lookup as FL
+    from .characters import CharacterError, resolve_character
+    g, ix = ctx.gamestate, ctx.characters
+    who = " ".join(str(params["who"]).split())
+    dead = False
+    try:
+        c = resolve_character(g, who, ix)
+        cid, entry, first = c.id, ix.living[c.id], c.first_name
+    except CharacterError as exc:
+        if not (who.isdigit() and int(who) in ix.dead):
+            raise EditError(f"set-faith: {exc}") from None
+        cid, entry, first, dead = int(who), ix.dead[int(who)], ix.first_names.get(int(who), "?"), True
+        if not ctx.dangerous:
+            raise EditError(f"set-faith: {cid} {first} is dead; the game converts only the living "
+                            "(--dangerous changes the dead character's record anyway)")
+    rites, faiths = FL.rites(g), FL.faiths(g)
+    target = str(params["target"]).strip()
+    try:
+        rite = FL.find_rite(g, target, rites)
+        how = ""
+    except LookupError as rite_err:
+        try:
+            faith = FL.find_faith(g, target, faiths)
+        except LookupError as faith_err:
+            raise EditError(f"set-faith: {target!r} is neither a rite nor a faith ({rite_err}; {faith_err})") from None
+        if faith.main_rite not in rites:
+            raise EditError(f"set-faith: faith {faith.id} {faith.name or faith.tag} names no main rite in this save")
+        rite, how = rites[faith.main_rite], f", the main rite of {_faith_label(faiths, faith.id)}"
+    body = g[entry.open:entry.close]
+    m = _RITE_LINE.search(body)
+    if m is None:
+        raise EditError(f"set-faith: {cid} {first} has no rite= line to change")
+    old = rites.get(m.group(1).decode())
+    old_text = _rite_label(old, faiths) if old else m.group(1).decode()
+    if m.group(1).decode() == rite.id:
+        return [], f"{cid} {first} already follows {_rite_label(rite, faiths)}"
+    notes = []
+    if old is None or old.faith != rite.faith:
+        notes.append(f"faith {_faith_label(faiths, old.faith if old else None)} -> {_faith_label(faiths, rite.faith)}: "
+                     "under a same-faith succession law this can change who inherits from them and whom they inherit")
+    notes.append("titles, holy orders and faith heads are unchanged")
+    if dead:
+        notes.append("dead: forced")
+    what = f"{cid} {first}: rite {old_text} -> {_rite_label(rite, faiths)}{how}; " + "; ".join(notes)
+    return [Change(entry.open + m.start(1), m.group(1), rite.id.encode())], what

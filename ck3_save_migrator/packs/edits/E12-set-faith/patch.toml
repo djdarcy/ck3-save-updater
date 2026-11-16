@@ -1,0 +1,19 @@
+format = 2
+id = "E12"
+name = "set-faith"
+title = "change a character's faith or rite"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:set_faith"
+help = "Changes the faith a character follows, as a conversion in play would. Name a rite (Shafi'i, a rite's key, or its number) to choose the rite exactly. Name a faith (Sunni) to give them that faith's main rite. Their titles, holy orders and faith heads do not change. If the faith changes, a same-faith succession law may change who inherits from them. A dead character is changed only with --dangerous."
+
+# Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-eminent-sites-doctrines-set-faith.md
+# The character is text, not the door's `character` type, so a dead character's id can reach the edit (the door
+# resolves only the living); the living are resolved by the same resolve_character, with its candidate list.
+
+[params.who]
+type = "text"
+help = "the character: an id, or a first name and what narrows it (a parent's first name, the house, a title)"
+
+[params.target]
+type = "text"
+help = "a rite (its name, key or number) or a faith (its name or key), which means the faith's main rite"
