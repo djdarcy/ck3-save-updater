@@ -271,6 +271,18 @@ class TestR9:
         assert x["faith_heads"]["dynamic_faith_3"] == "x_x_599"                   # WoS keeps Beidh's council
         assert x["faith_heads"]["sunni"] == "d_sunni" and x["head_conflicts"] == []
 
+    def test_custom_faith_takes_its_origins_faith_type(self, paths):
+        """1.20 names a faith's god by its faith type (HighGodName), so a faith without one shows a blank in text
+        such as "only [GetFaith.HighGodName] deserves such praise"; the carried custom faith takes the type of the
+        faith it came from (finding F25)."""
+        save, _, _ = run(paths, "R8,R10,R9", "faith")
+        g = save.gamestate
+        wos = entry(g, "faiths/database", b"3")
+        origin = val(g, wos, "origin")
+        want = val(g, entry(g, "faiths/database", origin.encode()), "faith_type")
+        assert want, "the fixture's origin faith should carry a faith_type"
+        assert val(g, wos, "faith_type") == want
+
     def test_head_conflict_rite_shape(self, paths):
         save, res, _ = run(paths, "R8,R10,R9", "rite")
         g = save.gamestate

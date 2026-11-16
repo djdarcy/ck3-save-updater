@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.18] - 2026-11-16
+
+### Fixed
+- A custom faith carried from an older save now has a faith type, taken from the faith it was created from. 1.20 keeps the name of a faith's god on its type, so without one, event text that names the god showed a blank, as in "only ___ deserves such praise". A custom faith made from a Christian faith now names "God".
+
 ## [0.5.17] - 2026-11-15
 
 ### Added
@@ -798,7 +803,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.18...HEAD
+[0.5.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.17...v0.5.18
 [0.5.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.16...v0.5.17
 [0.5.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.15...v0.5.16
 [0.5.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.14...v0.5.15

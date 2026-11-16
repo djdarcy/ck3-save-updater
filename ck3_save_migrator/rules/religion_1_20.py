@@ -376,6 +376,19 @@ def _insert_before_close(g: bytes, block: gs.Block, payload: bytes, p: gs.EditPa
     p.add(gs.Edit(line_start, line_start, payload, rule, note))
 
 
+def _faith_type(g: bytes, faith_id: str) -> bytes | None:
+    """The `faith_type=` of a faith in the save's faiths database, or None (no such faith, or no type)."""
+    try:
+        db = gs.locate(g, "faiths/database")
+    except gs.GamestateError:
+        return None
+    for e in gs.iter_entries(g, *db.body):
+        if e.key == faith_id.encode():
+            m = re.search(rb"(?m)^\t+faith_type=([\w.]+)", g[e.open:e.close])
+            return m.group(1) if m else None
+    return None
+
+
 def r10_custom_faith(save: CK3Save, ctx, rule):
     """Bring custom faiths (the save's own, e.g. 102 "Way of Scarcity") into 1.20, as a faith or as a rite.
 
@@ -479,7 +492,12 @@ def r10_custom_faith(save: CK3Save, ctx, rule):
             christian = christian or next((r for r in rel_entries if _str(_raw(g, r, "religion_type")) == "christianity_religion"), None)
             rel_id = christian.key.decode() if christian is not None else "0"
             t3 = b"\t\t\t"
-            faith_lines = [b"religion=" + rel_id.encode(), b"main_rite=" + str(rid).encode(),
+            # 1.20 names a faith's type first (faith_type=christian_faith); the type holds the names text asks the faith
+            # for (HighGodName: "God"), so a faith without one shows them blank (finding F25). 1.8 had no faith types:
+            # the custom faith takes the type of the faith it came from.
+            ftype = _faith_type(g, parent_faith)
+            faith_lines = ([b"faith_type=" + ftype] if ftype else []) + [
+                           b"religion=" + rel_id.encode(), b"main_rite=" + str(rid).encode(),
                            b"organization=" + str(oid).encode(),
                            b"holy_sites={ " + b" ".join(x.encode() for x in holy_idx) + b" }",
                            b"changes={"] + ([b"\t" + changes] if changes else []) + [
