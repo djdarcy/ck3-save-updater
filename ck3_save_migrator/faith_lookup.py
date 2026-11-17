@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass, field
 
 from . import gamestate as gs
+from .names import NO_GAME_HINT, NameBook, norm
 
 
 class LookupError_(LookupError):
@@ -96,37 +97,65 @@ def holy_sites(g: bytes) -> dict[str, str]:
 
 
 def _norm(s: str | None) -> str:
-    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+    return norm(s or "")
 
 
-def _find(kind: str, key: str, items: dict, names) -> str:
-    """The id whose id, or any of `names(item)`, matches `key` (case and punctuation ignored). Exactly one, or raise."""
+def _find(kind: str, key: str, items: dict, names, *, label=None, prefer=None, book=None, hint=True) -> str:
+    """The id whose id, or any of `names(item)`, matches `key` (names.norm: case, accents and punctuation ignored).
+    `prefer` (ids) is tried first when several match: a faith's own holy sites before all holy sites. Exactly one,
+    or LookupError_ listing the candidates by `label(id)` (with their ids), or the nearest names."""
     if key in items:
         return key
     want = _norm(key)
     hits = [i for i, it in items.items() if want and want in {_norm(n) for n in names(it) if n}]
+    if len(hits) > 1 and prefer:
+        mine = [i for i in hits if i in set(prefer)]
+        if len(mine) == 1:
+            return mine[0]
     if len(hits) == 1:
         return hits[0]
+    show = label or (lambda i: i)
     if len(hits) > 1:
-        raise LookupError_(f"{kind} {key!r} matches several: {', '.join(sorted(hits))}; give the id")
+        raise LookupError_(f"{kind} {key!r} names {len(hits)}: {', '.join(show(i) for i in sorted(hits))}; "
+                           "write the one you mean")
     pool = sorted({n for it in items.values() for n in names(it) if n})
     near = difflib.get_close_matches(key, pool, n=4, cutoff=0.5)
-    raise LookupError_(f"no {kind} {key!r}" + (f"; nearest: {', '.join(near)}" if near else ""))
+    raise LookupError_(f"no {kind} {key!r}" + (f"; nearest: {', '.join(near)}" if near else "")
+                       + ("" if book or not hint else f" ({NO_GAME_HINT})"))
 
 
-def find_faith(g: bytes, key: str, table: dict | None = None) -> Faith:
+def find_faith(g: bytes, key: str, table: dict | None = None, *, book: NameBook | None = None) -> Faith:
     t = table if table is not None else faiths(g)
-    return t[_find("faith", key, t, lambda f: (f.tag, f.name))]
+    shown = (lambda f: book.display(f.tag)) if book else (lambda f: None)
+    return t[_find("faith", key, t, lambda f: (f.tag, f.name, shown(f)), book=book, hint=False,
+                   label=lambda i: f"{t[i].name or t[i].tag} ({i})")]     # a faith's name is in the save itself
 
 
-def find_rite(g: bytes, key: str, table: dict | None = None) -> Rite:
+def rite_name(r: Rite, book: NameBook | None = None) -> str | None:
+    """The name the game shows for a rite (Shafi'i), or its own name/type/tag without a game folder."""
+    return (book.display(r.rite_type) if book and r.rite_type else None) or r.name or r.rite_type or r.tag
+
+
+def find_rite(g: bytes, key: str, table: dict | None = None, *, book: NameBook | None = None) -> Rite:
     t = table if table is not None else rites(g)
-    return t[_find("rite", key, t, lambda r: (r.tag, r.name, r.rite_type))]
+    shown = (lambda r: book.display(r.rite_type) if r.rite_type else None) if book else (lambda r: None)
+    return t[_find("rite", key, t, lambda r: (r.tag, r.name, r.rite_type, shown(r)), book=book,
+                   label=lambda i: f"{rite_name(t[i], book) or '?'} ({i})")]
 
 
-def find_holy_site(g: bytes, key: str, table: dict | None = None) -> str:
+def holy_site_name(typ: str, book: NameBook | None = None) -> str:
+    """The name the game shows for a holy site type (Ise Jingū), or the type itself without a game folder."""
+    return (book.display(f"holy_site_{typ}_name") if book else None) or typ
+
+
+def find_holy_site(g: bytes, key: str, table: dict | None = None, *, book: NameBook | None = None,
+                   prefer=None) -> str:
+    """A holy site's id by id, type ("ise_jingu") or the name the game shows ("Ise Jingu", "Ise Jingū"). `prefer`:
+    ids tried first when a name is shared (Carthage, Toledo and Dwin each name two sites, measured 2026-11-17)."""
     t = table if table is not None else holy_sites(g)
-    return _find("holy site", key, t, lambda typ: (typ,))
+    shown = (lambda typ: book.display(f"holy_site_{typ}_name")) if book else (lambda typ: None)
+    return _find("holy site", key, t, lambda typ: (typ, shown(typ)), prefer=prefer, book=book,
+                 label=lambda i: f"{holy_site_name(t[i], book)} ({t[i]}, {i})")
 
 
 def religion_doctrines(g: bytes, religion: str, table: dict | None = None) -> set[str]:

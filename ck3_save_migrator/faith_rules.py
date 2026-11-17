@@ -124,3 +124,37 @@ def load(game_dir: str) -> Rules:
         if m:
             cap, cap_where = int(m.group(1)), f"00_defines.txt:{text.count(chr(10), 0, m.start()) + 1}"
     return Rules(doctrines, tenets, unique_sets, cap, cap_where, group_category, religion_defaults)
+
+
+def belief_name(rules: Rules, key: str, book=None) -> str:
+    """How the game shows a tenet or doctrine: "Christian Syncretism"; a doctrine with its group, "Pilgrimage
+    Attitude: Encouraged", because 8 doctrine names are shared across groups (measured 2026-11-17). Without a game
+    folder, the key."""
+    name = (book.display(f"{key}_name") if book else None) or key
+    d = rules.doctrines.get(key)
+    if d and book:
+        return f"{book.display(f'{d.group}_name') or d.group}: {name}"
+    return name
+
+
+def find_belief(rules: Rules, text: str, book=None) -> str:
+    """A tenet's or doctrine's key from its key, the name the game shows, or "Group: Name". A name several
+    doctrines share ("Encouraged") is refused, listing each as "Group: Name (key)"; the group name is matched against
+    the group's key and the name the game shows ("Pilgrimage Attitude")."""
+    from .faith_lookup import LookupError_, _find
+    from .names import norm, split_qualifier
+    group, name = split_qualifier(text)
+    keys = sorted(set(rules.tenets) | set(rules.doctrines))
+    if group:
+        g = norm(group)
+        groups = {k for k in rules.group_category
+                  if norm(k) == g or (book and norm(book.display(f"{k}_name") or "") == g)}
+        if not groups:
+            raise LookupError_(f"no doctrine group {group!r}")
+        keys = [k for k in keys if k in rules.doctrines and rules.doctrines[k].group in groups]
+    else:
+        name = text.strip()
+    shown = (lambda k: book.display(f"{k}_name")) if book else (lambda k: None)
+    items = {k: k for k in keys}
+    return _find("tenet or doctrine", name, items, lambda k: (k, shown(k)), book=book,
+                 label=lambda k: f"{belief_name(rules, k, book)} ({k})")

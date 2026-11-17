@@ -11,6 +11,8 @@ import sys
 
 CLI = "ck3_save_migrator/cli.py"
 NAMES = "ck3_save_migrator/names.py"
+LOOKUP = "ck3_save_migrator/faith_lookup.py"
+RULES = "ck3_save_migrator/faith_rules.py"
 SLICES = {
     "s1": ("tests/test_cli_output_encoding.py", {
         "a main guards its streams": (CLI, "    safe_output()                                        # an accented",
@@ -33,6 +35,23 @@ SLICES = {
         "h longest reads all words as one run": (NAMES, '        chunks = [" ".join(chunks)] if chunks else []',
                                                  "        chunks = chunks"),
     }),
+    "s4": ("tests/test_display_names.py tests/test_faith_lookup.py", {
+        "a holy sites by display name": (LOOKUP, '    shown = (lambda typ: book.display(f"holy_site_{typ}_name")) '
+                                                 'if book else (lambda typ: None)', "    shown = lambda typ: None"),
+        "b the preferred ids settle a shared name": (LOOKUP, "        if len(mine) == 1:", "        if False:"),
+        "c references resolved": (NAMES, "        for _ in range(REF_DEPTH):", "        for _ in range(0):"),
+        "d a miss says the game folder is needed": (LOOKUP,
+                                                    '                       + ("" if book or not hint else '
+                                                    'f" ({NO_GAME_HINT})"))', '                       + "")'),
+        "e rites by display name": (LOOKUP, "    shown = (lambda r: book.display(r.rite_type) if r.rite_type else None) "
+                                            "if book else (lambda r: None)", "    shown = lambda r: None"),
+        "f a group by its display name": (RULES, '                  if norm(k) == g or (book and norm(book.display('
+                                                 'f"{k}_name") or "") == g)}', "                  if norm(k) == g}"),
+        "g tenets and doctrines by display name": (RULES, '    shown = (lambda k: book.display(f"{k}_name")) if book '
+                                                          'else (lambda k: None)', "    shown = lambda k: None"),
+        "h lookups fold accents": (LOOKUP, '    return norm(s or "")',
+                                   '    return re.sub(r"[^a-z0-9]", "", (s or "").lower())'),
+    }),
 }
 TESTS, REVERTS = SLICES[sys.argv[1] if len(sys.argv) > 1 else "s1"]
 originals = {f: pathlib.Path(f).read_bytes() for f in {src for src, _o, _n in REVERTS.values()}}
@@ -44,7 +63,7 @@ for name, (src, old, new) in REVERTS.items():
         marked = first + "  # REDGREEN-MUTANT" + ("\n" + rest[0] if rest else "")
         pathlib.Path(src).write_bytes(text.replace(old, marked, 1).encode("utf-8"))
         r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--no-header", "-rf",
-                            TESTS], capture_output=True, text=True, timeout=300)
+                            *TESTS.split()], capture_output=True, text=True, timeout=300)
         failed = [ln.split("::")[-1][:90] for ln in r.stdout.splitlines() if ln.startswith("FAILED")]
         print(f"{name}: {r.stdout.strip().splitlines()[-1]}")
         for f in failed:

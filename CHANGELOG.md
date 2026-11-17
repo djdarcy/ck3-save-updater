@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.31] - 2026-11-17
+
+### Added
+- Lookups now know the names the game shows, read from its own language files. A holy site can be found as "Ise Jingū" or "Ise Jingu", a rite as "Ásatrú" or "asatru", and a tenet as "Christian Syncretism". A doctrine is found by its group and name, as in "Pilgrimage Attitude: Encouraged". Some names are shared: "Encouraged" fits doctrines in two groups, and "Carthage" names two holy sites. A shared name is refused with each match listed, so you can pick one. Without the game folder, the game's keys still work, and a name that fails says the game folder is needed. Accents never have to be typed, even for names a save holds itself. The edits take these up in the next version.
+
 ## [0.5.30] - 2026-11-17
 
 ### Added
@@ -874,7 +879,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...HEAD
+[0.5.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...v0.5.31
 [0.5.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...v0.5.30
 [0.5.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...v0.5.29
 [0.5.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...v0.5.28

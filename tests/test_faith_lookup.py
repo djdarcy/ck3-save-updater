@@ -59,7 +59,7 @@ def test_an_unknown_name_is_refused_with_the_nearest_names():
 def test_a_name_two_entries_share_is_refused_and_the_ids_given():
     # rite 152 and faith 103 share "Way of Scarcity", but within one table a shared name must not pick one silently
     g = G.replace(b'tag="hanafi"\n\t\t\tname="Hanafi"', b'tag="hanafi"\n\t\t\tname="Shafi\'i"')
-    with pytest.raises(LookupError, match="several: 13, 16"):
+    with pytest.raises(LookupError, match=r"names 2: Shafi'i \(13\), Shafi'i \(16\); write the one you mean"):
         F.find_rite(g, "Shafi'i")
 
 

@@ -12,6 +12,7 @@ import sys
 import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 FOLD_ERRORS = "ck3fold"
 SIGNS = "+-"
@@ -163,3 +164,58 @@ def safe_output(*streams) -> None:
                 s.reconfigure(errors=FOLD_ERRORS)
             except (ValueError, OSError):       # a stream that cannot be reconfigured keeps its behaviour
                 pass
+
+
+# --------------------------------------------------------------------------- the game's display names
+_LOC_LINE = re.compile(r'^\s*([\w.\-]+):\d*\s*"(.*)"\s*(?:#.*)?$')
+_LOC_REF = re.compile(r"\$([\w.\-]+)\$")
+REF_DEPTH = 4
+NO_GAME_HINT = "the game's display names need the game folder: set CK3_GAME_DIR"
+
+
+class NameBook:
+    """The names the game shows a player, from ``<game>/localization/<language>/**/*.yml`` (` key:0 "Value" # x`).
+
+    A value that points at other keys (``"$c_bordeaux$"``, ``"$a$ of $b$"``) is resolved, up to REF_DEPTH levels;
+    16 holy-site and rite names and 5 tenet/doctrine/group names need it (measured 2026-11-17). English is the
+    default; another language is one argument away. Loaded on first use (1,250 files, about 0.2 s).
+    """
+
+    def __init__(self, game_dir, language: str = "english"):
+        self.root = Path(game_dir) / "localization" / language
+        self._raw: dict | None = None
+
+    @property
+    def raw(self) -> dict:
+        if self._raw is None:
+            out: dict = {}
+            for f in sorted(self.root.rglob("*.yml")):
+                for line in f.read_text(encoding="utf-8-sig", errors="replace").splitlines():
+                    m = _LOC_LINE.match(line)
+                    if m and m.group(1) not in out:
+                        out[m.group(1)] = m.group(2)
+            self._raw = out
+        return self._raw
+
+    def display(self, key: str | None) -> str | None:
+        """The display name for a localisation key, references resolved; None when the game has none."""
+        if not key:
+            return None
+        value = self.raw.get(key)
+        for _ in range(REF_DEPTH):
+            if value is None or "$" not in value:
+                break
+            value = _LOC_REF.sub(lambda m: self.raw.get(m.group(1), m.group(0)), value)
+        return value or None
+
+
+@lru_cache(maxsize=4)
+def _book(path: str, language: str) -> NameBook:
+    return NameBook(path, language)
+
+
+def book(game_dir, language: str = "english") -> NameBook | None:
+    """The NameBook of a game folder (one per folder and language), or None without a game folder."""
+    if not game_dir or not (Path(game_dir) / "localization" / language).is_dir():
+        return None
+    return _book(str(game_dir), language)
