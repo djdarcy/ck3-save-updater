@@ -1508,7 +1508,11 @@ def cmd_reference_mod(args) -> int:
         if overridden:
             say(DEFAULT, "  given on the command line, so not read from the history: "
                          + ", ".join(f"--{k}" for k in overridden), "io")
-    b = make_bookmark(date=date, **fields)
+    if game is None:                                 # the version and the art come from the install when it is found
+        game = find_game_dir(args.game_dir)
+    from .discover import game_version
+    gv = game_version(game) if game is not None else None
+    b = make_bookmark(date=date, **fields, game_version=gv)
     out = args.out
     if out is None:                                  # the game's own mod folder, where the launcher looks
         docs = game_documents_dir()
@@ -1516,10 +1520,13 @@ def cmd_reference_mod(args) -> int:
             raise FileNotFoundError("the game's documents folder was not found; give --out \"<the game's mod "
                                     "folder>\"")
         out = docs / "mod"
-    for p in write_mod(b, Path(out)):
+    written = write_mod(b, Path(out), game_dir=game)
+    for p in written:
         say(MINIMAL, f"wrote: {p}", "io")
-    say(MINIMAL, f"next: in the game's launcher, enable the mod 'Reference bookmark {b.date} (ck3update)', start a "
-                 f"new game from the bookmark '{b.date} Reference (ck3update)', and save as soon as it loads, "
+    if not any(p.suffix == ".dds" for p in written):
+        say(DEFAULT, "  no bookmark art: the game's folder was not found, so the bookmark screen will be plain", "io")
+    say(MINIMAL, f"next: in the game's launcher, enable the mod 'Ref Bookmark {b.date} (ck3update)', start a "
+                 f"new game from the bookmark 'Ref {b.date}', and save as soon as it loads, "
                  f"before you unpause",
         "io")
     say(MINIMAL, "then: `ck3update status` and `update` find that save by themselves in the save folder (or name it "

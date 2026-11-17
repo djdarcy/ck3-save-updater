@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-11-17
+
+The start of the 0.6 line: Crusader Kings III 1.21 "Florin" (Silk & Silver).
+
+### Changed
+- `reference-mod` writes a bookmark mod for the game you have installed. The mod's supported version is the installed one (`1.21.*` today), so the launcher no longer marks it out of date, and its description names that version. The names are shorter, so the date fits on the bookmark's tab: the mod is "Ref Bookmark 987.10.27 (ck3update)" and the bookmark "Ref 987.10.27".
+- The bookmark screen is no longer white. `reference-mod` copies the game's own British Isles bookmark picture and a location picture from your installation into the mod. Nothing is drawn or shipped with the tool. Without the game's folder the bookmark stays plain, and the command says so. The character still shows as a silhouette for now.
+
 ## [0.5.39] - 2026-11-17
 
 ### Changed
@@ -932,7 +940,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.39...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.39...v0.6.0
 [0.5.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...v0.5.39
 [0.5.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...v0.5.38
 [0.5.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...v0.5.37

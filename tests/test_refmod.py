@@ -51,7 +51,7 @@ def test_the_localization_starts_with_a_bom_and_names_every_key(b):
 
 def test_the_descriptor_and_the_launcher_mod(b, tmp_path):
     d = M.descriptor(b)
-    assert 'name="Reference bookmark 987.10.27 (ck3update)"' in d and 'supported_version="1.20.*"' in d
+    assert 'name="Ref Bookmark 987.10.27 (ck3update)"' in d and 'supported_version="1.20.*"' in d
     assert '\t"Utilities"' in d
     folder = tmp_path / "zz_ref_987_10_27"
     m = M.launcher_mod(b, folder)
@@ -108,7 +108,7 @@ def test_the_command_writes_the_mod_and_prints_the_next_steps(tmp_path, capsys):
     assert cli.main(["reference-mod", *ARGS, "--out", str(tmp_path)]) == 0
     out = capsys.readouterr().out
     assert (tmp_path / "zz_ref_987_10_27" / "common" / "bookmarks" / "bookmarks" / "zz_ref.txt").is_file()
-    assert "enable the mod 'Reference bookmark 987.10.27 (ck3update)'" in out       # the name the launcher shows
+    assert "enable the mod 'Ref Bookmark 987.10.27 (ck3update)'" in out       # the name the launcher shows
     assert "find that save by themselves" in out and "--reference" in out
     assert out.count("wrote: ") == 4
 

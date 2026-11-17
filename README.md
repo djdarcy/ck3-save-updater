@@ -35,8 +35,8 @@ ck3update reference-mod --save "My Save"
 
 That writes a small mod into the game's mod folder. Then, in the game:
 
-1. In the launcher, turn on the mod **Reference bookmark _your date_ (ck3update)** and play. Your usual mods can stay off, but leave out any other mod that changes bookmarks.
-2. Choose **New Game**, pick the bookmark **_your date_ Reference (ck3update)**, pick any character, and start.
+1. In the launcher, turn on the mod **Ref Bookmark _your date_ (ck3update)** and play. Your usual mods can stay off, but leave out any other mod that changes bookmarks.
+2. Choose **New Game**, pick the bookmark **Ref _your date_**, pick any character, and start.
 3. **Save at once**, before unpausing (any name will do, e.g. `Reference`), and quit to the desktop.
 4. Back in the launcher, turn the reference mod off again.
 

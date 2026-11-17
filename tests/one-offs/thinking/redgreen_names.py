@@ -115,6 +115,16 @@ SLICES = {
             "ck3_save_migrator/cli.py", "                refuse_read_only(args.save)          # a save it can never write: before minutes of planning",
             "                pass                                 # a save it can never write: before minutes of planning"),
     }),
+    "u5": ("tests/test_refmod_polish.py", {   # the patch-day goal, S5: reference-mod polish
+        "a the version reaches the descriptor": (
+            "ck3_save_migrator/refmod.py", """            f'name="Ref Bookmark {b.date} (ck3update)"\\nsupported_version="{b.game_version}.*"\\n')""",
+            """            f'name="Ref Bookmark {b.date} (ck3update)"\\nsupported_version="1.20.*"\\n')"""),
+        "b the art is copied": (
+            "ck3_save_migrator/refmod.py", "    for path, source in art(b, out, game_dir).items():",
+            "    for path, source in {}.items():"),
+        "c a bad version is refused": (
+            "ck3_save_migrator/refmod.py", '    if not re.fullmatch(r"\\d+\\.\\d+", gv):', "    if False:"),
+    }),
     "u3": ("tests/test_refmod_names.py", {   # the after-goal-pass goal, S4: reference-mod's ruler flags by name
         "a a name resolves to its key": (
             "ck3_save_migrator/refmod.py", "        if key != v:", "        if False:"),

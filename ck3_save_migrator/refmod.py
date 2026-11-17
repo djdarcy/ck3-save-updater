@@ -54,6 +54,7 @@ class Bookmark:
     female: bool = False
     name: str = ""                # shown on the bookmark screen; defaults to "Character <id>"
     government: str = "feudal_government"
+    game_version: str = "1.20"    # the installed game's major.minor: supported_version and the description name it
 
     @property
     def stem(self) -> str:
@@ -74,7 +75,7 @@ class Bookmark:
 
 def make_bookmark(*, date: str, character: int | str, title: str, culture: str, religion: str, house: str,
                   birth: str, female: bool = False, name: str = "",
-                  government: str = "feudal_government") -> Bookmark:
+                  government: str = "feudal_government", game_version: str | None = None) -> Bookmark:
     """A checked ``Bookmark``: both dates parse, the history id is a number, the keys are game keys."""
     y, mo, d = parse_date(date)
     by, bmo, bd = parse_date(birth)
@@ -88,14 +89,17 @@ def make_bookmark(*, date: str, character: int | str, title: str, culture: str, 
             raise RefModError(f"{label} {key!r} is not a game key")
     if '"' in name or "\n" in name:
         raise RefModError("name may not contain a double quote or a line break")
+    gv = ".".join((game_version or "1.20").split(".")[:2])     # "1.21.0" -> "1.21"
+    if not re.fullmatch(r"\d+\.\d+", gv):
+        raise RefModError(f"game version {game_version!r} is not a version like 1.21.0")
     return Bookmark(f"{y}.{mo}.{d}", int(character), title, culture, religion, house, f"{by}.{bmo}.{bd}",
-                    female, name or f"Character {int(character)}", government)
+                    female, name or f"Character {int(character)}", government, gv)
 
 
 # --------------------------------------------------------------------------- the texts
 def descriptor(b: Bookmark) -> str:
     return (f'version="0.1"\ntags={{\n\t"Utilities"\n}}\n'
-            f'name="Reference bookmark {b.date} (ck3update)"\nsupported_version="1.20.*"\n')
+            f'name="Ref Bookmark {b.date} (ck3update)"\nsupported_version="{b.game_version}.*"\n')
 
 
 def launcher_mod(b: Bookmark, folder: Path) -> str:
@@ -132,8 +136,8 @@ def bookmark(b: Bookmark) -> str:
 def localization(b: Bookmark) -> str:
     """The English localization, starting with the byte-order mark the game requires of a .yml file."""
     return (BOM + "l_english:\n"
-            f' {b.bookmark_key}: "{b.date} Reference (ck3update)"\n'
-            f' {b.bookmark_key}_desc: "A plain 1.20 start on {b.date}, used as a reference save by '
+            f' {b.bookmark_key}: "Ref {b.date}"\n'
+            f' {b.bookmark_key}_desc: "A plain {b.game_version} start on {b.date}, used as a reference save by '
             f'ck3update."\n'
             f' {b.character_key}: "{b.name}"\n'
             f' {b.character_key}_desc: "Reference start for ck3update."\n'
@@ -342,9 +346,31 @@ def files(b: Bookmark, out: Path) -> dict[Path, str]:
     }
 
 
-def write_mod(b: Bookmark, out: Path) -> list[Path]:
+# The game's own bookmark art for the British Isles, copied from the player's install at write time (never shipped):
+# the background of the 1066 "Hastings" bookmark, and its Scotland location picture. Without them the bookmark screen
+# is white and the error log says "background ... not found" (measured on 1.21.0, 2026-11-17).
+ART_BACKGROUND = "bm_1066_hastings.dds"
+ART_LOCATION = "bm_1066_hastings_bookmark_hastings_scotland.dds"
+
+
+def art(b: Bookmark, out: Path, game_dir: Path | None) -> dict[Path, Path]:
+    """mod path -> the player's game file to copy: the bookmark background and the character's location picture,
+    named as the game looks for them (``bm_<key>.dds``, ``bm_<key>_<character key>.dds``). Empty without the game's
+    files, or when either picture is not in the install."""
+    if game_dir is None:
+        return {}
+    src = Path(game_dir) / "gfx" / "interface" / "bookmarks"
+    if not (src / ART_BACKGROUND).is_file() or not (src / ART_LOCATION).is_file():
+        return {}
+    dst = Path(out) / b.folder / "gfx" / "interface" / "bookmarks"
+    return {dst / f"{b.bookmark_key}.dds": src / ART_BACKGROUND,
+            dst / f"{b.bookmark_key}_{b.character_key}.dds": src / ART_LOCATION}
+
+
+def write_mod(b: Bookmark, out: Path, game_dir: Path | None = None) -> list[Path]:
     """Write the mod into ``out``; refuse, before writing anything, if its folder or ``.mod`` file exists or
-    ``out`` is not a folder. Returns the paths written."""
+    ``out`` is not a folder. With the game's folder, also copy the bookmark's art from it (``art``). Returns the
+    paths written."""
     out = Path(out)
     if not out.is_dir():
         raise RefModError(f"output folder does not exist: {out}")
@@ -355,5 +381,9 @@ def write_mod(b: Bookmark, out: Path) -> list[Path]:
     for path, text in files(b, out).items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(text.encode("utf-8"))
+        written.append(path)
+    for path, source in art(b, out, game_dir).items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(source.read_bytes())
         written.append(path)
     return written
