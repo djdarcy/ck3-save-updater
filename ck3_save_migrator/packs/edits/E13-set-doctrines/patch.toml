@@ -1,0 +1,19 @@
+format = 2
+id = "E13"
+name = "set-doctrines"
+title = "change a faith's tenets and doctrines"
+kind = "edit"
+script = "ck3_save_migrator.builtin_edits:set_doctrines"
+help = "Changes a faith's tenets and doctrines, as a reformation in play would. Write +key to add one and -key to remove one, by the game's keys. A doctrine you add replaces the doctrine the faith holds in the same group, or fills the group if it holds none. Swap a tenet by removing one and adding another in the same call. The edit refuses what the game refuses and names the game's rule: a faith holds three tenets, only one syncretism tenet, no tenet closed to its religion, and no doctrine every faith of its religion carries can be dropped. --dangerous writes the change anyway. The faith and its main rite change together. The game's own files are needed to know the rules."
+
+# Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-eminent-sites-doctrines-set-faith.md
+# Rules read from the game (faith_rules.py): doctrine groups and index (doctrine_types), tenets and their can_pick
+# religion exclusions (tenet_types), the unique_*_trigger sets (scripted_triggers), FAITH_CORE_TENETS_CAP (defines).
+
+[params.faith]
+type = "text"
+help = "the faith: its name, its key or its number"
+
+[params.changes]
+type = "text"
+help = "the changes, separated by spaces: +doctrine_pilgrimage_encouraged, -tenet_jewish_syncretism +tenet_christian_syncretism"

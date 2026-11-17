@@ -527,3 +527,148 @@ def set_faith(ctx, params: dict):
         notes.append("dead: forced")
     what = f"{cid} {first}: rite {old_text} -> {_rite_label(rite, faiths)}{how}; " + "; ".join(notes)
     return [Change(entry.open + m.start(1), m.group(1), rite.id.encode())], what
+
+
+# --------------------------------------------------------------------------- set-doctrines
+# A 1.20 faith keeps its tenets and doctrines twice, as `tenet=` / `doctrine=` lines of the faith entry (3 tabs) and
+# of its main rite's data={} (4 tabs); Way of Scarcity's 24 lines are the same set in both (measured on v16). The rules
+# come from the game's files (faith_rules.py). Design: 2026-11-16__15-00-12__dev-workflow-process__three-faith-edits-...
+
+
+def _faith_lines(g: bytes, start: int, end: int, tabs: int) -> list:
+    """(start, end, kind, key, newline) of each tenet=/doctrine= line at exactly `tabs` tabs in g[start:end]."""
+    rx = re.compile(rb"(?m)^" + b"\t" * tabs + rb"(tenet|doctrine)=(\S+)(\r?\n)")
+    return [(m.start(), m.end(), m.group(1).decode(), m.group(2).decode(), m.group(3)) for m in rx.finditer(g, start, end)]
+
+
+def _religion_tag(g: bytes, religion_id: str | None) -> str | None:
+    from . import gamestate as gs
+    try:
+        db = gs.locate(g, "religion/religions")
+    except gs.GamestateError:
+        return None
+    for e in gs.iter_entries(g, db.open + 1, db.close):
+        if e.key == str(religion_id).encode():
+            m = re.search(rb'(?m)\btag="?([\w]+)"?', g[e.open:e.close])
+            return m.group(1).decode() if m else None
+    return None
+
+
+def _rewrite(g: bytes, lines: list, replaced: dict, removed: set, adds: list, indent: bytes) -> list:
+    """The Changes that make one location's lines say the new set: a replaced key rewritten in place, a removed key's
+    line dropped, and each key still to add written after the last line of its kind (or the last line)."""
+    keys_here = {k for *_, k, _ in lines}
+    new = {i: g[s:e] for i, (s, e, *_r) in enumerate(lines)}
+    todo = [k for k in adds if k not in keys_here]
+    for i, (s, e, kind, key, nl) in enumerate(lines):
+        if key in replaced:
+            to = replaced[key]
+            new[i] = b"" if to in keys_here else indent + (b"tenet=" if to.startswith("tenet_") else b"doctrine=") \
+                + to.encode() + nl
+            todo = [k for k in todo if k != to]
+        elif key in removed:
+            new[i] = b""
+    for k in [v for old, v in replaced.items() if old not in keys_here and v not in keys_here]:
+        if k not in todo:
+            todo.append(k)
+    if todo and lines:
+        for k in todo:
+            kind = "tenet" if k.startswith("tenet_") else "doctrine"
+            same = [i for i, ln in enumerate(lines) if ln[2] == kind]
+            at = same[-1] if same else len(lines) - 1
+            new[at] = new[at] + indent + f"{kind}={k}".encode() + lines[at][4]
+    return [Change(s, g[s:e], new[i]) for i, (s, e, *_r) in enumerate(lines) if new[i] != g[s:e]]
+
+
+def set_doctrines(ctx, params: dict):
+    """A faith's tenets and doctrines, as a reformation in play would set them: `+key` adds (a doctrine replaces its
+    group's current one), `-key` removes. The faith's lines and its main rite's data change together. What the game
+    refuses is refused, naming its rule; ``--dangerous`` writes it anyway."""
+    from . import faith_lookup as FL
+    from . import faith_rules
+    from . import gamestate as gs
+    g = ctx.gamestate
+    if ctx.game_dir is None:
+        raise EditError("set-doctrines: the game's own files are needed to know its rules; set CK3_GAME_DIR to the "
+                        "game's 'game' folder")
+    rules = faith_rules.load(str(ctx.game_dir))
+    try:
+        faith = FL.find_faith(g, str(params["faith"]))
+    except LookupError as e:
+        raise EditError(f"set-doctrines: {e}") from None
+    adds, removes = [], []
+    for t in str(params["changes"]).split():
+        (removes if t.startswith("-") else adds).append(t.lstrip("+-"))
+    if not adds and not removes:
+        raise EditError("set-doctrines: name a change: +key adds a tenet or doctrine, -key removes one")
+    fe = _faith_entry(g, faith.id)
+    flines = _faith_lines(g, fe.open, fe.close, 3)
+    rlines, rite_id = [], faith.main_rite
+    if rite_id:
+        db = gs.locate(g, "rites/database")
+        re_ = next((e for e in gs.iter_entries(g, db.open + 1, db.close) if e.key == rite_id.encode()), None)
+        rlines = _faith_lines(g, re_.open, re_.close, 4) if re_ else []
+    have = [k for *_, k, _ in flines] + [k for *_, k, _ in rlines if k not in {x[3] for x in flines}]
+    missing = [k for k in removes if k not in have]
+    if missing:
+        raise EditError(f"set-doctrines: faith {faith.id} does not have {', '.join(missing)}")
+    adds = [k for k in adds if k not in have]
+    if not adds and not removes:
+        return [], f"faith {faith.id} {faith.name or faith.tag}: already has everything named"
+    tag = _religion_tag(g, faith.religion)
+    locked = FL.religion_doctrines(g, faith.religion)
+    problems, replaced, done = [], {}, []
+    is_tenet = lambda k: k in rules.tenets or k.startswith("tenet_")
+    for k in adds:
+        if k not in rules.doctrines and k not in rules.tenets:
+            problems.append(f"{k} is not a doctrine or tenet the game defines")
+        if k in rules.doctrines:
+            grp = rules.doctrines[k].group
+            current = [h for h in have if h in rules.doctrines and rules.doctrines[h].group == grp]
+            for c in current:
+                replaced[c] = k
+            done.append(f"{grp}: {', '.join(current) or 'empty'} -> {k}")
+    gone_tenets = [k for k in removes if is_tenet(k)]
+    new_tenets = [k for k in adds if is_tenet(k)]
+    for old, new in zip(gone_tenets, new_tenets):
+        replaced[old] = new
+        done.append(f"tenet {old} -> {new}")
+    done += [f"tenet {k} removed" for k in gone_tenets[len(new_tenets):]]
+    done += [f"tenet {k} added" for k in new_tenets[len(gone_tenets):]]
+    removed = set(removes) | set(replaced)
+    for k in removes:
+        if k in rules.doctrines and k not in replaced:
+            grp = rules.doctrines[k].group
+            done.append(f"{grp}: {k} removed")
+            if rules.group_must_be_filled(grp):
+                first = rules.group_members(grp)[0].key
+                problems.append(f"removing {k} leaves {grp} ({rules.group_category.get(grp)}) with no doctrine, which a "
+                                f"faith does not choose in play; the game most likely reads it as the group's first, "
+                                f"{first} ({rules.doctrines[first].where})")
+    for k in sorted(removed & locked):
+        where = rules.religion_defaults.get(tag or "", {}).get(k, "game/common/religion/religion_types")
+        problems.append(f"{k} is carried by every faith of {tag or faith.religion} and is not a faith's to drop ({where})")
+    final_tenets = [h for h in have if is_tenet(h) and h not in removed] + new_tenets
+    if gone_tenets or new_tenets:
+        if len(final_tenets) != rules.tenets_cap:
+            problems.append(f"a faith holds {rules.tenets_cap} tenets, not {len(final_tenets)} ({rules.cap_where})")
+        for trig, (members, where) in sorted(rules.unique_sets.items()):
+            both = sorted(set(final_tenets) & members)
+            if len(both) > 1:
+                problems.append(f"a faith may hold only one of {', '.join(both)} ({trig}, {where})")
+        for k in new_tenets:
+            t = rules.tenets.get(k)
+            if t and tag in t.closed_to:
+                problems.append(f"{k} cannot be chosen by a faith of {tag} ({t.where})")
+    if problems and not ctx.dangerous:
+        raise EditError("set-doctrines: " + "; ".join(problems) + " (--dangerous writes it anyway)")
+    changes = _rewrite(g, flines, replaced, removed, adds, b"\t\t\t")
+    changes += _rewrite(g, rlines, replaced, removed, adds, b"\t\t\t\t")
+    rites = FL.rites(g)
+    others = sorted((r.id for r in rites.values() if r.faith == faith.id and r.id != rite_id), key=int)
+    where = f"faith {faith.id} {faith.name or faith.tag}" + (f" and its main rite {rite_id}" if rlines else "")
+    notes = [f"rites {', '.join(others)} keep their own" if others else ""]
+    notes.append("the game's other conditions on choosing these in play are not checked")
+    if problems:
+        notes.append(f"forced: {'; '.join(problems)}")
+    return changes, f"{where}: " + "; ".join(done) + "; " + "; ".join(n for n in notes if n)

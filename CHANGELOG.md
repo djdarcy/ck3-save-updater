@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.27] - 2026-11-16
+
+### Added
+- A new edit, `set-doctrines`, changes a faith's tenets and doctrines, as a reformation in play would. Write `+key` to add one and `-key` to remove one, by the game's keys. For example, `ck3update edit <save> set-doctrines "Way of Scarcity" "+doctrine_pilgrimage_encouraged"`. A doctrine you add replaces the one the faith holds in the same group, or fills the group if it holds none. To swap a tenet, remove one and add another in the same call. The faith and its main rite change together.
+- The rules come from the game's own files, so they follow the installed version. A faith holds three tenets. It may hold only one syncretism tenet. A tenet closed to its religion cannot be chosen, as Christian Syncretism is for a Christian faith. A doctrine every faith of its religion carries cannot be dropped, such as Teachings of Jesus. Each refusal names the file and line of the rule. `--dangerous` writes the change anyway and the report lists what was forced. The game folder is found through Steam or `CK3_GAME_DIR`.
+
 ## [0.5.26] - 2026-11-16
 
 ### Added
@@ -852,7 +858,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.26...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...HEAD
+[0.5.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.26...v0.5.27
 [0.5.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.25...v0.5.26
 [0.5.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.24...v0.5.25
 [0.5.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.23...v0.5.24
