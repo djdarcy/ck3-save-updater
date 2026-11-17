@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-11-17
+
+### Added
+- Groundwork for 1.21 roads. When the game converts an old save to 1.21, the save gets no roads, while a new 1.21 game has about 4,200. The tool can now copy them from a 1.21 reference save into a converted one. `update` does not use it yet: that comes once it is settled who converts a save to 1.21.
+
 ## [0.6.4] - 2026-11-17
 
 ### Added
@@ -964,7 +969,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.1...v0.6.2
