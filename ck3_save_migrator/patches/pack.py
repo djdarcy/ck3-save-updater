@@ -22,6 +22,9 @@ from .model import Pack, Patch, PatchError, as_folder, load_pack
 from .run import context_values, run_patch
 
 SHIPPED = "to_1_20"
+# the built-in packs after SHIPPED, in chain order (patch day 2026-11-17). Each is read for the plan's pack rows; one
+# with no patches yet is a frame, which declares its span and never counts as covering a gap
+SHIPPED_AFTER = ("to_1_21",)
 CONTEXT_FIELDS = {f.name for f in dataclasses.fields(RuleContext) if f.name != "state"}
 
 
@@ -33,6 +36,8 @@ def read_pack(source=None) -> Pack:
     """The shipped pack when ``source`` is None; otherwise the pack folder at ``source`` (a path on disk)."""
     if source is None:
         return load_pack(shipped_pack_folder(), from_disk=False, context_fields=CONTEXT_FIELDS)
+    if source in SHIPPED_AFTER:
+        return load_pack(shipped_pack_folder(source), from_disk=False, context_fields=CONTEXT_FIELDS)
     folder = as_folder(source)
     if isinstance(folder, Path) and not folder.is_dir():
         raise PatchError(f"{folder}: not a pack folder")

@@ -1,0 +1,11 @@
+format = 1
+id = "to_1_21"
+title = "Saves from 1.20 to 1.21 (Florin, Silk & Silver)"
+# no rules yet: patch day's frame (the patch-day goal, S4). The carry, roads, markets and the new fields come as
+# rules in later slices, in the shape the stamp test (S2) and djdarcy's decision (S3) settle.
+order = []
+
+# which saves and games this pack is for (update and status select a pack by it; migrate ignores it)
+[applies]
+save = ">=1.20, <1.21"
+game = ">=1.21, <1.22"

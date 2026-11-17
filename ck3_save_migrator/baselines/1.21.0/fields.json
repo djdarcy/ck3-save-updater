@@ -1,0 +1,1747 @@
+{
+ "databases": {
+  "ai/ai_strategies": {
+   "entries": 4658,
+   "fields": {
+    "active": [
+     1.0,
+     0.0
+    ],
+    "advanced_ai_data": [
+     1.0,
+     0.0
+    ],
+    "initialized": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "armies/regiments": {
+   "entries": 16384,
+   "fields": {
+    "chunks": [
+     0.4109,
+     0.0
+    ],
+    "controlling_title": [
+     0.0012,
+     0.0
+    ],
+    "max": [
+     0.7225,
+     0.0
+    ],
+    "origin": [
+     0.8218,
+     0.0
+    ],
+    "owner": [
+     0.177,
+     0.0
+    ],
+    "owning_title": [
+     0.0012,
+     0.0
+    ],
+    "size": [
+     0.1782,
+     0.0
+    ],
+    "source": [
+     0.5042,
+     0.0
+    ],
+    "type": [
+     0.1445,
+     0.0
+    ]
+   }
+  },
+  "artifacts/artifacts": {
+   "entries": 297,
+   "fields": {
+    "characters": [
+     1.0,
+     0.0
+    ],
+    "decaying": [
+     0.1111,
+     0.0
+    ],
+    "description": [
+     1.0,
+     0.0
+    ],
+    "durability": [
+     1.0,
+     0.0
+    ],
+    "features": [
+     0.0707,
+     0.0
+    ],
+    "history": [
+     1.0,
+     0.0
+    ],
+    "holy_site_owner": [
+     0.4545,
+     0.0
+    ],
+    "max_durability": [
+     1.0,
+     0.0
+    ],
+    "modifiers": [
+     1.0,
+     0.0
+    ],
+    "name": [
+     1.0,
+     0.0
+    ],
+    "owner": [
+     0.5455,
+     0.0
+    ],
+    "quality": [
+     1.0,
+     0.0
+    ],
+    "rarity": [
+     1.0,
+     0.0
+    ],
+    "template": [
+     0.9461,
+     0.0
+    ],
+    "title": [
+     1.0,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.9057,
+     0.0
+    ],
+    "visuals": [
+     1.0,
+     0.0
+    ],
+    "visuals_source": [
+     0.303,
+     0.0
+    ],
+    "wealth": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "buildings/database": {
+   "entries": 26724,
+   "fields": {
+    "building_constructor": [
+     0.0,
+     0.0
+    ],
+    "disabled": [
+     0.0001,
+     0.0
+    ],
+    "fulfilled_trade_good_needs": [
+     0.8243,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "character_memory_manager/database": {
+   "entries": 3948,
+   "fields": {
+    "creation_date": [
+     1.0,
+     0.0
+    ],
+    "end_date": [
+     1.0,
+     0.0
+    ],
+    "participants": [
+     0.7356,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.4113,
+     0.0
+    ]
+   }
+  },
+  "clerical_region_manager/database": {
+   "entries": 52,
+   "fields": {
+    "counties": [
+     0.9808,
+     0.0
+    ],
+    "title": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "coat_of_arms/coat_of_arms_manager_database": {
+   "entries": 31416,
+   "fields": {
+    "color1": [
+     0.9997,
+     0.0
+    ],
+    "color2": [
+     0.9821,
+     0.0
+    ],
+    "color3": [
+     0.8141,
+     0.0
+    ],
+    "color4": [
+     0.0907,
+     0.0
+    ],
+    "colored_emblem": [
+     0.998,
+     0.0
+    ],
+    "pattern": [
+     0.9997,
+     0.0
+    ],
+    "textured_emblem": [
+     0.0,
+     0.0
+    ]
+   }
+  },
+  "council_task_manager/active": {
+   "entries": 9740,
+   "fields": {
+    "court_owner": [
+     1.0,
+     0.0
+    ],
+    "frozen": [
+     0.1599,
+     0.0
+    ],
+    "last_appointed_councillor": [
+     0.0241,
+     0.0
+    ],
+    "last_councillor_change": [
+     0.0528,
+     0.0
+    ],
+    "owner": [
+     0.8401,
+     0.0
+    ],
+    "target": [
+     0.0222,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "court_positions/database": {
+   "entries": 246,
+   "fields": {
+    "court_position": [
+     1.0,
+     0.0
+    ],
+    "employee": [
+     1.0,
+     0.0
+    ],
+    "employer": [
+     1.0,
+     0.0
+    ],
+    "hire_date": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "culture_manager/cultures": {
+   "entries": 255,
+   "fields": {
+    "acceptance": [
+     0.9451,
+     0.0
+    ],
+    "acceptance_changes": [
+     0.0353,
+     0.0
+    ],
+    "building_gfx": [
+     1.0,
+     0.0
+    ],
+    "clothing_gfx": [
+     1.0,
+     0.0
+    ],
+    "coa_gfx": [
+     1.0,
+     0.0
+    ],
+    "collective_noun": [
+     1.0,
+     0.0
+    ],
+    "color": [
+     1.0,
+     0.0
+    ],
+    "created": [
+     1.0,
+     0.0
+    ],
+    "culture_era_data": [
+     1.0,
+     0.0
+    ],
+    "culture_innovation": [
+     1.0,
+     0.0
+    ],
+    "culture_marker": [
+     0.651,
+     0.0
+    ],
+    "culture_reformation": [
+     1.0,
+     0.0
+    ],
+    "culture_template": [
+     1.0,
+     0.0
+    ],
+    "ethnicities": [
+     1.0,
+     0.0
+    ],
+    "ethos": [
+     1.0,
+     0.0
+    ],
+    "fascination_marker": [
+     1.0,
+     0.0
+    ],
+    "head": [
+     0.6941,
+     0.0
+    ],
+    "head_determination": [
+     1.0,
+     0.0
+    ],
+    "heritage": [
+     1.0,
+     0.0
+    ],
+    "house_coa_frame": [
+     0.9608,
+     0.0
+    ],
+    "house_coa_mask_offset": [
+     0.3647,
+     0.0
+    ],
+    "house_coa_mask_scale": [
+     0.5294,
+     0.0
+    ],
+    "language": [
+     1.0,
+     0.0
+    ],
+    "martial_custom": [
+     1.0,
+     0.0
+    ],
+    "name": [
+     1.0,
+     0.0
+    ],
+    "name_list": [
+     1.0,
+     0.0
+    ],
+    "name_order_convention": [
+     1.0,
+     0.8941
+    ],
+    "parents": [
+     0.1961,
+     0.0
+    ],
+    "prefix": [
+     1.0,
+     0.0
+    ],
+    "spread_marker": [
+     0.651,
+     0.0
+    ],
+    "traditions": [
+     1.0,
+     0.0
+    ],
+    "unit_gfx": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.0235,
+     0.0
+    ]
+   }
+  },
+  "dead_unprunable": {
+   "entries": 26853,
+   "fields": {
+    "alive_data": [
+     0.0004,
+     0.0
+    ],
+    "birth": [
+     1.0,
+     0.0
+    ],
+    "court_data": [
+     0.0004,
+     0.0004
+    ],
+    "culture": [
+     0.6494,
+     0.0
+    ],
+    "dead_data": [
+     0.9996,
+     0.0
+    ],
+    "dna": [
+     0.0051,
+     0.0
+    ],
+    "dynasty_house": [
+     0.9532,
+     0.0
+    ],
+    "ethnicity": [
+     1.0,
+     0.0
+    ],
+    "family_data": [
+     0.8752,
+     0.2754
+    ],
+    "female": [
+     0.1193,
+     0.0
+    ],
+    "first_name": [
+     1.0,
+     0.0
+    ],
+    "landed_data": [
+     0.0004,
+     0.0
+    ],
+    "mass": [
+     0.5241,
+     0.0
+    ],
+    "nickname": [
+     0.0067,
+     0.0
+    ],
+    "nickname_text": [
+     1.0,
+     0.9933
+    ],
+    "obscured": [
+     0.0006,
+     0.0
+    ],
+    "organization": [
+     0.0248,
+     0.0
+    ],
+    "playable_data": [
+     0.0004,
+     0.0
+    ],
+    "portrait_override": [
+     0.0088,
+     0.0
+    ],
+    "prowess_age": [
+     0.0209,
+     0.0
+    ],
+    "regnal_name": [
+     0.0145,
+     0.0
+    ],
+    "rite": [
+     1.0,
+     0.0
+    ],
+    "sexuality": [
+     0.0005,
+     0.0
+    ],
+    "skill": [
+     1.0,
+     0.0
+    ],
+    "trait_xp_amounts": [
+     0.2334,
+     0.0
+    ],
+    "traits": [
+     0.9953,
+     0.0
+    ],
+    "was_playable": [
+     0.3727,
+     0.0
+    ]
+   }
+  },
+  "districts/database": {
+   "entries": 17644,
+   "fields": {
+    "buildings": [
+     1.0,
+     0.0
+    ],
+    "disabled": [
+     0.0004,
+     0.0
+    ],
+    "owner": [
+     1.0,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "domiciles/database": {
+   "entries": 1199,
+   "fields": {
+    "acumen": [
+     0.0025,
+     0.0
+    ],
+    "buildings": [
+     1.0,
+     0.0
+    ],
+    "culture": [
+     0.6264,
+     0.0
+    ],
+    "domicile_building_slots": [
+     1.0,
+     0.0
+    ],
+    "domicile_type": [
+     1.0,
+     0.0
+    ],
+    "herd": [
+     0.2052,
+     0.0
+    ],
+    "move_cooldown": [
+     0.0008,
+     0.0
+    ],
+    "owner_title": [
+     1.0,
+     0.0
+    ],
+    "province": [
+     1.0,
+     0.0
+    ],
+    "rite": [
+     0.6264,
+     0.0
+    ]
+   }
+  },
+  "dynasties/dynasties": {
+   "entries": 16027,
+   "fields": {
+    "coat_of_arms_id": [
+     0.6321,
+     0.0
+    ],
+    "dynasty_head": [
+     0.3215,
+     0.0
+    ],
+    "good_for_realm_name": [
+     0.2234,
+     0.0
+    ],
+    "key": [
+     0.7331,
+     0.0
+    ],
+    "localized_name": [
+     0.1333,
+     0.0
+    ],
+    "name": [
+     0.1336,
+     0.0
+    ],
+    "prefix": [
+     0.0674,
+     0.0
+    ],
+    "prestige": [
+     0.3459,
+     0.0
+    ],
+    "variables": [
+     0.0034,
+     0.0
+    ]
+   }
+  },
+  "dynasties/dynasty_house": {
+   "entries": 16739,
+   "fields": {
+    "artifact_claims": [
+     0.0024,
+     0.0
+    ],
+    "artifacts_for_claim": [
+     0.0038,
+     0.0
+    ],
+    "coat_of_arms_id": [
+     0.0366,
+     0.0
+    ],
+    "dynasty": [
+     1.0,
+     0.0
+    ],
+    "forced_coa_religiongroup": [
+     0.0043,
+     0.0
+    ],
+    "found_date": [
+     1.0,
+     0.0
+    ],
+    "head_of_house": [
+     0.3185,
+     0.0
+    ],
+    "historical": [
+     0.5758,
+     0.0
+    ],
+    "house_aspiration": [
+     0.1767,
+     0.0
+    ],
+    "house_aspiration_cooldown": [
+     0.0011,
+     0.0
+    ],
+    "house_aspiration_status": [
+     0.0028,
+     0.0
+    ],
+    "house_title": [
+     0.0057,
+     0.0
+    ],
+    "house_unity": [
+     0.0335,
+     0.0
+    ],
+    "key": [
+     0.0425,
+     0.0
+    ],
+    "localized_name": [
+     0.1618,
+     0.0
+    ],
+    "motto": [
+     1.0,
+     0.416
+    ],
+    "name": [
+     0.7957,
+     0.0
+    ],
+    "prefix": [
+     0.1448,
+     0.0
+    ]
+   }
+  },
+  "faiths/database": {
+   "entries": 104,
+   "fields": {
+    "active_clerical_electors": [
+     0.0096,
+     0.0
+    ],
+    "adherent": [
+     1.0,
+     0.0
+    ],
+    "adherent_plural": [
+     1.0,
+     0.0
+    ],
+    "adjective": [
+     1.0,
+     0.0
+    ],
+    "changes": [
+     1.0,
+     1.0
+    ],
+    "color": [
+     1.0,
+     0.0
+    ],
+    "desc": [
+     0.7212,
+     0.0
+    ],
+    "doctrine": [
+     1.0,
+     0.0
+    ],
+    "eminent_holy_sites": [
+     1.0,
+     0.0
+    ],
+    "faith_type": [
+     1.0,
+     0.0
+    ],
+    "fervor": [
+     1.0,
+     0.0
+    ],
+    "graphical_faith": [
+     1.0,
+     0.7596
+    ],
+    "historical": [
+     1.0,
+     0.0
+    ],
+    "holy_sites": [
+     1.0,
+     0.0
+    ],
+    "icon": [
+     1.0,
+     0.0
+    ],
+    "inactive_clerical_electors": [
+     0.0096,
+     0.0
+    ],
+    "main_rite": [
+     1.0,
+     0.0
+    ],
+    "name": [
+     1.0,
+     0.0
+    ],
+    "organization": [
+     1.0,
+     0.0
+    ],
+    "origin": [
+     0.0192,
+     0.0
+    ],
+    "piety_icon_group": [
+     1.0,
+     1.0
+    ],
+    "religion": [
+     1.0,
+     0.0
+    ],
+    "religious_head": [
+     1.0,
+     0.0
+    ],
+    "saints": [
+     0.2019,
+     0.0
+    ],
+    "tag": [
+     1.0,
+     0.0
+    ],
+    "tenet": [
+     0.6346,
+     0.0
+    ],
+    "tenet_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_heretical_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_neutral_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_popularity": [
+     0.0577,
+     0.0
+    ],
+    "tenet_unknown_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenets": [
+     0.6346,
+     0.0
+    ],
+    "texticon": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.0865,
+     0.0
+    ]
+   }
+  },
+  "faiths/saints": {
+   "entries": 57,
+   "fields": {
+    "character": [
+     1.0,
+     0.0
+    ],
+    "current": [
+     1.0,
+     0.0
+    ],
+    "province": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "important_action_manager/active": {
+   "entries": 25,
+   "fields": {
+    "character": [
+     1.0,
+     0.0
+    ],
+    "important_action_type": [
+     1.0,
+     0.0
+    ],
+    "player": [
+     1.0,
+     0.0
+    ],
+    "scope": [
+     1.0,
+     0.0
+    ],
+    "visible": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "landed_titles/dynamic_templates": {
+   "entries": 805,
+   "fields": {
+    "dyn": [
+     1.0,
+     0.0
+    ],
+    "key": [
+     1.0,
+     0.0
+    ],
+    "tier": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "landed_titles/important_locations": {
+   "entries": 60,
+   "fields": {
+    "county": [
+     1.0,
+     0.0
+    ],
+    "enter_realm": [
+     1.0,
+     0.0
+    ],
+    "interested_title_top_liege": [
+     1.0,
+     0.0
+    ],
+    "leave_realm": [
+     1.0,
+     1.0
+    ],
+    "location_top_liege": [
+     1.0,
+     0.0
+    ],
+    "title": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "landed_titles/landed_titles": {
+   "entries": 20499,
+   "fields": {
+    "always_follows_primary_heir": [
+     0.0123,
+     0.0
+    ],
+    "capital": [
+     0.9994,
+     0.0
+    ],
+    "capital_barony": [
+     0.1731,
+     0.0
+    ],
+    "claim": [
+     0.0341,
+     0.0
+    ],
+    "clerical_elector": [
+     0.0021,
+     0.0
+    ],
+    "clerical_region": [
+     0.0025,
+     0.0
+    ],
+    "coat_of_arms_id": [
+     1.0,
+     0.0
+    ],
+    "color": [
+     0.0393,
+     0.0
+    ],
+    "company_progression": [
+     0.0001,
+     0.0
+    ],
+    "confederation": [
+     1.0,
+     0.0
+    ],
+    "controlled_maa": [
+     0.0007,
+     0.0
+    ],
+    "date": [
+     1.0,
+     0.0
+    ],
+    "de_facto_liege": [
+     0.6292,
+     0.0
+    ],
+    "de_jure_liege": [
+     0.7913,
+     0.0
+    ],
+    "de_jure_vassals": [
+     0.2306,
+     0.0
+    ],
+    "default_coa": [
+     0.9168,
+     0.0
+    ],
+    "definite_form": [
+     0.0537,
+     0.0
+    ],
+    "destroy_if_invalid_heir": [
+     0.0273,
+     0.0
+    ],
+    "domicile": [
+     0.056,
+     0.0
+    ],
+    "duchy_capital_barony": [
+     0.045,
+     0.0
+    ],
+    "heir": [
+     0.2777,
+     0.0
+    ],
+    "history": [
+     0.296,
+     0.0
+    ],
+    "history_government": [
+     0.1683,
+     0.0
+    ],
+    "holder": [
+     0.5653,
+     0.0
+    ],
+    "holy_order": [
+     0.0006,
+     0.0
+    ],
+    "key": [
+     1.0,
+     0.0
+    ],
+    "landless": [
+     0.0393,
+     0.0
+    ],
+    "laws": [
+     0.022,
+     0.0
+    ],
+    "lessee": [
+     0.001,
+     0.0
+    ],
+    "mercenary": [
+     0.027,
+     0.0
+    ],
+    "no_automatic_claims": [
+     0.0393,
+     0.0
+    ],
+    "noble_family": [
+     0.0003,
+     0.0
+    ],
+    "nomad": [
+     0.012,
+     0.0
+    ],
+    "nomad_name_type": [
+     1.0,
+     0.0
+    ],
+    "owned_maa": [
+     0.0007,
+     0.0
+    ],
+    "ruler_uses_title_name": [
+     0.0003,
+     0.0
+    ],
+    "succession_election": [
+     0.0006,
+     0.0
+    ],
+    "succession_result_type": [
+     0.2807,
+     0.0
+    ],
+    "theocratic_lease": [
+     0.0381,
+     0.0
+    ],
+    "title_name_data": [
+     1.0,
+     0.0
+    ],
+    "trade_market": [
+     0.5605,
+     0.0
+    ],
+    "treasury": [
+     1.0,
+     0.9951
+    ],
+    "treasury_budgets": [
+     0.0031,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.0021,
+     0.0
+    ],
+    "voting_session_ended": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "living": {
+   "entries": 28240,
+   "fields": {
+    "alive_data": [
+     1.0,
+     0.0
+    ],
+    "birth": [
+     1.0,
+     0.0
+    ],
+    "court_data": [
+     0.9521,
+     0.1154
+    ],
+    "culture": [
+     0.8038,
+     0.0
+    ],
+    "dna": [
+     0.0001,
+     0.0
+    ],
+    "dynasty_house": [
+     0.3877,
+     0.0
+    ],
+    "ethnicity": [
+     1.0,
+     0.0
+    ],
+    "family_data": [
+     0.3283,
+     0.1748
+    ],
+    "female": [
+     0.2673,
+     0.0
+    ],
+    "first_name": [
+     1.0,
+     0.0
+    ],
+    "landed_data": [
+     0.1646,
+     0.0
+    ],
+    "mass": [
+     0.895,
+     0.0
+    ],
+    "nickname": [
+     0.0006,
+     0.0
+    ],
+    "nickname_text": [
+     1.0,
+     0.9994
+    ],
+    "organization": [
+     0.0666,
+     0.0
+    ],
+    "playable_data": [
+     0.0806,
+     0.0
+    ],
+    "prowess_age": [
+     0.0182,
+     0.0
+    ],
+    "recessive_traits": [
+     0.0075,
+     0.0
+    ],
+    "regnal_name": [
+     0.0006,
+     0.0
+    ],
+    "rite": [
+     1.0,
+     0.0
+    ],
+    "sexuality": [
+     0.1891,
+     0.0
+    ],
+    "skill": [
+     1.0,
+     0.0
+    ],
+    "trait_xp_amounts": [
+     0.3303,
+     0.0
+    ],
+    "traits": [
+     0.979,
+     0.0
+    ],
+    "was_playable": [
+     0.0011,
+     0.0
+    ],
+    "weight": [
+     0.0846,
+     0.0
+    ]
+   }
+  },
+  "mercenary_company_manager/mercenary_companies": {
+   "entries": 553,
+   "fields": {
+    "county": [
+     1.0,
+     0.0
+    ],
+    "culture": [
+     1.0,
+     0.0
+    ],
+    "culture_name": [
+     0.2839,
+     0.0
+    ],
+    "regiments": [
+     1.0,
+     0.0
+    ],
+    "size": [
+     1.0,
+     0.0
+    ],
+    "title": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "opinions/active_opinions": {
+   "entries": 139,
+   "fields": {
+    "owner": [
+     1.0,
+     0.0
+    ],
+    "scripted_relations": [
+     0.4604,
+     0.0
+    ],
+    "target": [
+     1.0,
+     0.0
+    ],
+    "temporary_opinion": [
+     0.5396,
+     0.0
+    ]
+   }
+  },
+  "organization_manager/database": {
+   "entries": 104,
+   "fields": {
+    "coat_of_arms_id": [
+     0.7019,
+     0.0
+    ],
+    "faith": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "provinces": {
+   "entries": 13474,
+   "fields": {
+    "fort_level": [
+     0.2829,
+     0.0
+    ],
+    "holding": [
+     1.0,
+     0.0
+    ],
+    "points_of_interest": [
+     0.0191,
+     0.0
+    ],
+    "province_size_level": [
+     1.0,
+     0.0
+    ],
+    "province_size_value": [
+     1.0,
+     0.0
+    ],
+    "timed_modifier": [
+     0.0141,
+     0.0
+    ],
+    "variables": [
+     0.0042,
+     0.0
+    ]
+   }
+  },
+  "relations/active_relations": {
+   "entries": 1783,
+   "fields": {
+    "active_hook_0": [
+     0.8402,
+     0.0
+    ],
+    "active_hook_1": [
+     0.0022,
+     0.0
+    ],
+    "alliances": [
+     0.069,
+     0.0
+    ],
+    "first": [
+     1.0,
+     0.0
+    ],
+    "matrilineal": [
+     0.032,
+     0.0
+    ],
+    "second": [
+     1.0,
+     0.0
+    ],
+    "truce_0": [
+     0.0566,
+     0.0
+    ],
+    "truce_1": [
+     0.0566,
+     0.0
+    ]
+   }
+  },
+  "religion/holy_sites": {
+   "entries": 273,
+   "fields": {
+    "barony": [
+     1.0,
+     0.0
+    ],
+    "faiths": [
+     0.989,
+     0.0
+    ],
+    "holy_site_type": [
+     1.0,
+     0.0
+    ],
+    "inventory": [
+     1.0,
+     0.0
+    ],
+    "is_active": [
+     0.3956,
+     0.0
+    ],
+    "total_artifact_rarity": [
+     0.3956,
+     0.0
+    ]
+   }
+  },
+  "religion/religions": {
+   "entries": 49,
+   "fields": {
+    "faiths": [
+     1.0,
+     0.0
+    ],
+    "family": [
+     1.0,
+     0.0
+    ],
+    "graphical_faith": [
+     1.0,
+     0.0612
+    ],
+    "piety_icon_group": [
+     1.0,
+     0.8571
+    ],
+    "religion_type": [
+     1.0,
+     0.0
+    ],
+    "tag": [
+     1.0,
+     0.0
+    ],
+    "tenet_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_heretical_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_neutral_background_icon": [
+     1.0,
+     1.0
+    ],
+    "tenet_unknown_background_icon": [
+     1.0,
+     1.0
+    ],
+    "theocracy_government_type": [
+     0.0204,
+     0.0
+    ],
+    "theocracy_lease_contract_type": [
+     0.0204,
+     0.0
+    ]
+   }
+  },
+  "rites/database": {
+   "entries": 152,
+   "fields": {
+    "convert": [
+     1.0,
+     0.0
+    ],
+    "cultures": [
+     0.0329,
+     0.0
+    ],
+    "data": [
+     1.0,
+     0.0
+    ],
+    "enabled": [
+     1.0,
+     0.0
+    ],
+    "faith": [
+     1.0,
+     0.0
+    ],
+    "founder": [
+     1.0,
+     0.0
+    ],
+    "head_of_rite": [
+     1.0,
+     0.0
+    ],
+    "origin_rite": [
+     1.0,
+     0.0
+    ],
+    "override_name": [
+     1.0,
+     0.0
+    ],
+    "rite_type": [
+     0.9868,
+     0.0
+    ],
+    "source": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "roads/database": {
+   "entries": 4201,
+   "fields": {
+    "decay_start_date": [
+     1.0,
+     0.0
+    ],
+    "tier": [
+     1.0,
+     0.0
+    ],
+    "trade_routes": [
+     0.0371,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ],
+    "upgrade_start_date": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "situation_participant_group_manager/database": {
+   "entries": 61,
+   "fields": {
+    "characters": [
+     0.541,
+     0.0
+    ],
+    "situation": [
+     1.0,
+     0.0
+    ],
+    "sub_region": [
+     1.0,
+     0.0
+    ],
+    "type": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     0.1148,
+     0.0
+    ]
+   }
+  },
+  "tax_slot_manager/database": {
+   "entries": 188,
+   "fields": {
+    "liege": [
+     1.0,
+     0.0
+    ],
+    "obligation": [
+     1.0,
+     0.0
+    ],
+    "tax_collector": [
+     1.0,
+     0.0
+    ],
+    "tax_slot_type": [
+     1.0,
+     0.0
+    ],
+    "vassals": [
+     0.9574,
+     0.0
+    ]
+   }
+  },
+  "trade_markets/database": {
+   "entries": 922,
+   "fields": {
+    "category_balances": [
+     0.8937,
+     0.0
+    ],
+    "duchy": [
+     1.0,
+     0.0
+    ],
+    "good_balances": [
+     0.987,
+     0.0
+    ],
+    "imported_category_sources": [
+     0.1269,
+     0.0
+    ],
+    "location": [
+     1.0,
+     0.0
+    ],
+    "next_toll_change_date": [
+     1.0,
+     0.0
+    ],
+    "titles": [
+     1.0,
+     0.0
+    ],
+    "toll_level": [
+     1.0,
+     0.0
+    ],
+    "trade_routes": [
+     0.1844,
+     0.0
+    ]
+   }
+  },
+  "trade_routes/database": {
+   "entries": 106,
+   "fields": {
+    "created": [
+     1.0,
+     0.0
+    ],
+    "demand": [
+     0.0377,
+     0.0
+    ],
+    "focus_type": [
+     0.0377,
+     0.0
+    ],
+    "gold": [
+     0.0377,
+     0.0
+    ],
+    "mode": [
+     1.0,
+     0.0
+    ],
+    "owner": [
+     1.0,
+     0.0
+    ],
+    "path": [
+     1.0,
+     0.0
+    ],
+    "primary_good": [
+     0.0377,
+     0.0
+    ],
+    "roads": [
+     1.0,
+     0.0
+    ],
+    "trade_goods": [
+     1.0,
+     0.0
+    ],
+    "trade_markets": [
+     1.0,
+     0.0
+    ],
+    "transactions": [
+     1.0,
+     0.0
+    ],
+    "variables": [
+     1.0,
+     0.0
+    ]
+   }
+  },
+  "variables/data": {
+   "entries": 55,
+   "fields": {
+    "data": [
+     1.0,
+     0.0
+    ],
+    "flag": [
+     1.0,
+     0.0
+    ],
+    "tick": [
+     0.0545,
+     0.0
+    ]
+   }
+  },
+  "vassal_contracts/database": {
+   "entries": 2644,
+   "fields": {
+    "allegiance": [
+     0.0132,
+     0.0
+    ],
+    "contract_group": [
+     1.0,
+     0.0
+    ],
+    "date": [
+     1.0,
+     0.0
+    ],
+    "levels": [
+     1.0,
+     0.0
+    ],
+    "liege": [
+     1.0,
+     0.0
+    ],
+    "liege_dynasty_date": [
+     1.0,
+     0.0
+    ],
+    "subject_standing": [
+     0.0004,
+     0.0
+    ],
+    "vassal": [
+     1.0,
+     0.0
+    ]
+   }
+  }
+ },
+ "format": 1,
+ "game_version": "1.21.0"
+}

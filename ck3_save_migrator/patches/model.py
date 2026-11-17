@@ -461,8 +461,10 @@ def load_pack(folder, *, from_disk: bool, context_fields: set[str]) -> Pack:
     if after is not None and not (isinstance(after, str) and after):
         raise PatchError(f"{where}: field 'after' must be a patch id (for example \"R17\")")
     order = _need(d, "order", list, where)
-    if not order or not all(isinstance(x, str) for x in order):
-        raise PatchError(f"{where}: field 'order' must be a non-empty list of patch ids")
+    if not all(isinstance(x, str) for x in order):
+        raise PatchError(f"{where}: field 'order' must be a list of patch ids")
+    # an empty order is a frame: a pack that declares its span before its first patch (to_1_21 on patch day). The
+    # checks below still refuse a frame that holds a patch folder, since 'order' would leave it out
     if len(set(order)) != len(order):
         raise PatchError(f"{where}: field 'order' names a patch twice")
     patches: dict = {}

@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-11-17
+
+### Added
+- The tool now knows the shape of a 1.21 save. Its record of the fields a 1.21.0 save holds ships with it. The check after an update uses that record for a save written by 1.21.0.
+- A second built-in pack, `to_1_21`, is listed in every plan. It is for saves from 1.20 going to 1.21. It carries nothing yet, and the plan says so.
+
+### Changed
+- `status` and `update` on a 1.20 save in a 1.21 game now explain the refusal. They name the 1.21 pack, say it carries nothing yet, and say that loading the save in the game converts it the game's own way.
+
 ## [0.6.0] - 2026-11-17
 
 The start of the 0.6 line: Crusader Kings III 1.21 "Florin" (Silk & Silver).
@@ -940,7 +949,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.39...v0.6.0
 [0.5.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...v0.5.39
 [0.5.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...v0.5.38

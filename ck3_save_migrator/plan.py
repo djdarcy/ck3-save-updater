@@ -35,7 +35,7 @@ from .config import transplant_mode
 from .discover import GameInstall, compare_versions, discover_games, parse_version, save_games_dir, save_versions
 from .patches import PatchError, read_pack, rules_from_pack
 from .patches.model import span_matches
-from .patches.pack import run_verdict
+from .patches.pack import SHIPPED_AFTER, run_verdict
 from .patches.run import patch_vars
 from .rules import REGISTRY, select
 from .userpacks import _with_pack_vars, ensure_packs_dir, find_user_packs
@@ -808,6 +808,17 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     ok, why = _dangerous(ok, why, skip_why, f"the built-in pack {shipped.id}", dangerous, notes)
     pack_rows = [PackChoice(shipped.id, "built in", "(inside the package)", ok, why)]
     covered = covers
+    # the later built-in packs: a frame (no patches yet) is shown for its span and never covers the gap, since an
+    # update through it would write the save unchanged (patch day 2026-11-17: to_1_21 before its first patch)
+    frames: list[str] = []
+    for name in SHIPPED_AFTER:
+        later = read_pack(name)
+        l_ok, l_why, l_covers, _ = _span_why(later.applies, sv["version"], gv, seed)
+        if not later.order:
+            if l_ok:
+                frames.append(later.id)
+            l_why += "; a frame: it declares this span and carries nothing yet"
+        pack_rows.append(PackChoice(later.id, "built in", "(inside the package)", l_ok, l_why))
     steps: list[Step] = []
     rules: dict[str, object] = {}
     # per step: needs a reference; the patch (for needs and done checks); whether its code may run; its vars.toml;
@@ -1013,6 +1024,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if gv and sv["version"] and not same_line and not covered and not refusals:
         uncovered = (f"the gap {sv['version']} -> {gv}: no selected pack declares it covers it (a pack's "
                      "[applies] span); nothing would bring the save to the game's version")
+        if frames:
+            uncovered += (f". The built-in {', '.join(frames)} declares this span but carries nothing yet: loading "
+                          "the save in the game converts it the game's own way")
         refusals.append(uncovered)
         fixes[uncovered] = {"fix": "a pack in your packs folder whose [applies] declares this span "
                                    "(docs/writing-a-patch.md), or `ck3update migrate` with the rules you choose"}

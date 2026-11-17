@@ -311,8 +311,42 @@ def test_a_pack_without_a_span_says_so(tmp_path, saves):
                                                 '[[edit]]\npath = "meta_data"\nop = "delete_key"\nkey = "nothing"\n',
                                                 encoding="utf-8")
     p = PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)))
-    assert [(x.id, x.selected, x.why) for x in p.packs[1:]] == [
+    assert [(x.id, x.selected, x.why) for x in p.packs if x.kind != "built in"] == [
         ("mine", True, "no version span declared (matches any version)")]
+
+
+# --------------------------------------------------------------------------- to_1_21, a frame (patch day 2026-11-17)
+def test_a_frame_pack_is_shown_and_never_covers_the_gap(tmp_path, saves):
+    # a 1.20.1.2 save in a 1.21.0 game: to_1_21's span takes it, but a pack with no patches would write the save
+    # unchanged, so the gap stays refused and the refusal says what loading it in the game would do
+    s = ref_save(saves, "Florin.ck3")
+    p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
+    row = next(x for x in p.packs if x.id == "to_1_21")
+    assert (row.kind, row.selected) == ("built in", True) and "a frame" in row.why
+    assert p.uncovered and "to_1_21 declares this span but carries nothing yet" in p.uncovered
+    assert p.uncovered in p.refusals
+
+
+def test_a_frame_pack_outside_its_span_changes_nothing(tmp_path, saves):
+    # the old save in the 1.20 game: to_1_20 covers it as before; to_1_21 is listed, not selected, and not named
+    p = PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)))
+    row = next(x for x in p.packs if x.id == "to_1_21")
+    assert row.selected is False and p.uncovered is None
+
+
+def test_a_frame_may_not_hide_a_patch_folder(tmp_path):
+    # an empty order is legal only while the pack holds no patch: a patch folder it leaves out is still refused
+    from ck3_save_migrator.patches import PatchError, load_pack
+    folder = tmp_path / "frame"
+    folder.mkdir()
+    (folder / "pack.toml").write_text('format = 1\nid = "frame"\ntitle = "t"\norder = []\n', encoding="utf-8")
+    assert load_pack(folder, from_disk=True, context_fields=set()).order == ()
+    (folder / "F1-x").mkdir()
+    (folder / "F1-x" / "patch.toml").write_text('format = 1\nid = "F1"\nname = "x"\ntitle = "t"\nsince = "1"\n\n'
+                                                '[[edit]]\npath = "meta_data"\nop = "delete_key"\nkey = "n"\n',
+                                                encoding="utf-8")
+    with pytest.raises(PatchError, match="leaves out F1"):
+        load_pack(folder, from_disk=True, context_fields=set())
 
 
 # --------------------------------------------------------------------------- the reference save

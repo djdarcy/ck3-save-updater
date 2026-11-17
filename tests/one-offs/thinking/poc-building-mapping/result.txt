@@ -1,0 +1,8 @@
+v17: 19757 buildings, 209 distinct types
+1.21 buildings (the test)                keys= 3548  mapped 8724/19757 = 44.2%  {'R1 same key': 6827, 'R2 same family': 1897, 'unmapped': 11033}
+negative control: 1.21 modifiers         keys= 7518  mapped 0/19757 = 0.0%  {'unmapped': 19757}
+positive control: 1.20.1.2 buildings     keys=  989  mapped 19757/19757 = 100.0%  {'R1 same key': 19757}
+
+unmapped: 11033 buildings, 73 types, 28 families (the successor table's size)
+largest unmapped families: [('guild_halls', 1139), ('hunting_grounds', 1130), ('monastic_schools', 954), ('cereal_fields', 861), ('barracks', 845), ('curtain_walls', 589), ('hill_forts', 588), ('war_camps', 576), ('longhouses', 572), ('palisades', 570), ('market_villages', 566), ('quarries', 565), ('hill_farms', 478), ('military_camps', 322), ('common_tradeport', 302)]
+mapped by family (old -> exists in 1.21): ['idjang_forts', 'kora_kora_yards', 'pastures', 'ramparts', 'watchtowers', 'water_temples']
