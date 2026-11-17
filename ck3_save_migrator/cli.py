@@ -490,6 +490,23 @@ def confirm_run() -> bool:
     return answer.strip().lower() in ("y", "yes")
 
 
+def confirm_replace(paths) -> bool:
+    """``reference-mod --force`` on a mod whose name does not mark it as ours: ask before writing over it (djdarcy
+    2026-11-17). On stderr, like confirm_run; the default is no, since an Enter alone should not overwrite another
+    mod."""
+    sys.stdout.flush()
+    for p in paths:
+        sys.stderr.write(f"{p} exists, and its name does not end in \"(ck3update)\": it may not be a mod "
+                         "reference-mod wrote.\n")
+    sys.stderr.write("Write over it anyway? [y/N] ")
+    sys.stderr.flush()
+    try:
+        answer = sys.stdin.readline()
+    except (EOFError, OSError):
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
 def cmd_update(args) -> int:
     """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
     patch's counts (nothing is written); otherwise write the output and, unless --report names another,
@@ -1520,7 +1537,8 @@ def cmd_reference_mod(args) -> int:
             raise FileNotFoundError("the game's documents folder was not found; give --out \"<the game's mod "
                                     "folder>\"")
         out = docs / "mod"
-    written = write_mod(b, Path(out), game_dir=game)
+    written = write_mod(b, Path(out), game_dir=game, replace=args.force,
+                        confirm=confirm_replace if _tty(sys.stdin) else None)
     for p in written:
         say(MINIMAL, f"wrote: {p}", "io")
     if not any(p.suffix == ".dds" for p in written):
@@ -1832,7 +1850,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="print only the line that fixes this shell's session (for eval or a pipe)")
     p.set_defaults(func=cmd_setup)
 
-    p = sub.add_parser("reference-mod", help="write a bookmark mod that starts a 1.20 game on your campaign's "
+    p = sub.add_parser("reference-mod", help="write a bookmark mod that starts a new game on your campaign's "
                                              "date, to make a --reference save from (docs/reference-save.md)")
     p.add_argument("--date", help="the campaign's date, YYYY.M.D (e.g. 987.10.27)")
     p.add_argument("--save", help="read the date from this save's metadata (meta_date) instead of --date")
@@ -1852,6 +1870,9 @@ def build_parser() -> argparse.ArgumentParser:
                                         "feudal_government)")
     p.add_argument("--out", help="the folder to write the mod into (default: the game's mod folder, in its "
                                  "documents folder, where the launcher looks)")
+    p.add_argument("--force", action="store_true",
+                   help="replace a reference mod this command wrote earlier for the same date (its files are "
+                        "written over; nothing is deleted). Any other mod of that name is still refused")
     p.set_defaults(func=cmd_reference_mod)
     # The commands are listed once, grouped, in the epilog (helptext.GROUPS), not again as argparse's flat list.
     # Each one's help line becomes its own description, so `ck3update <command> -h` opens with it.

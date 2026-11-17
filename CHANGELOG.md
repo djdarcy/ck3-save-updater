@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-11-17
+
+### Added
+- `reference-mod --force` replaces a reference mod it wrote earlier for the same date. You no longer need to move the old one aside after a game update. Its files are written over, and nothing is deleted. The tool knows its own mods by their name, which always ends in "(ck3update)". If the mod there has another name, it asks before writing over it, and the default is no. Without a terminal to ask from, it refuses and says why.
+
 ## [0.6.1] - 2026-11-17
 
 ### Added
@@ -949,7 +954,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.39...v0.6.0
 [0.5.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...v0.5.39

@@ -13,6 +13,7 @@ difficulty, birth, type, dynasty house, dynasty splendor level and position on t
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -367,16 +368,40 @@ def art(b: Bookmark, out: Path, game_dir: Path | None) -> dict[Path, Path]:
             dst / f"{b.bookmark_key}_{b.character_key}.dds": src / ART_LOCATION}
 
 
-def write_mod(b: Bookmark, out: Path, game_dir: Path | None = None) -> list[Path]:
+_OURS = re.compile(r'(?m)^name="[^"\n]*\(ck3update\)"\s*$')     # every name this module has written ends so
+
+
+def _written_by_us(p: Path) -> bool:
+    """A ``.mod`` file, or a mod folder by its ``descriptor.mod``, that names itself "... (ck3update)"."""
+    f = p / "descriptor.mod" if p.is_dir() else p
+    try:
+        return bool(_OURS.search(f.read_text(encoding="utf-8", errors="replace")))
+    except OSError:
+        return False
+
+
+def write_mod(b: Bookmark, out: Path, game_dir: Path | None = None, replace: bool = False,
+              confirm: Callable[[list[Path]], bool] | None = None) -> list[Path]:
     """Write the mod into ``out``; refuse, before writing anything, if its folder or ``.mod`` file exists or
-    ``out`` is not a folder. With the game's folder, also copy the bookmark's art from it (``art``). Returns the
-    paths written."""
+    ``out`` is not a folder. ``replace`` (``--force``, djdarcy 2026-11-17) lets an existing mod be written over: its
+    files are written over in place and nothing is deleted. One that names itself "... (ck3update)" is taken as
+    this command's and replaced at once. For any other, that name is the only evidence there is, so ``confirm`` is
+    asked with the paths (djdarcy: "if we can't tell for certain we can just prompt with a Y/n"); without one (no
+    terminal to answer from) it is refused, saying why. With the game's folder, also copy the bookmark's art from it
+    (``art``). Returns the paths written."""
     out = Path(out)
     if not out.is_dir():
         raise RefModError(f"output folder does not exist: {out}")
-    for p in (out / b.folder, out / f"{b.folder}.mod"):
-        if p.exists():
-            raise RefModError(f"refusing to overwrite {p}: it already exists")
+    existing = [p for p in (out / b.folder, out / f"{b.folder}.mod") if p.exists()]
+    if existing and not replace:
+        raise RefModError(f"refusing to overwrite {existing[0]}: it already exists (--force replaces it)")
+    unknown = [p for p in existing if not _written_by_us(p)]
+    if unknown:
+        if confirm is None:
+            raise RefModError(f"refusing to overwrite {unknown[0]}: its name does not end in \"(ck3update)\", so it "
+                              "may not be a mod reference-mod wrote, and there is no terminal to ask you from")
+        if not confirm(unknown):
+            raise RefModError(f"not overwritten: {unknown[0]} (you answered no)")
     written = []
     for path, text in files(b, out).items():
         path.parent.mkdir(parents=True, exist_ok=True)

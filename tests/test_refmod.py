@@ -98,6 +98,60 @@ def test_an_existing_folder_or_mod_file_is_refused_and_nothing_is_written(b, tmp
     assert sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*")) == before
 
 
+def test_replace_writes_over_a_mod_this_command_wrote(b, tmp_path):
+    # --force (djdarcy 2026-11-17): an earlier reference mod of the same date is written over, in place; a file the
+    # old version wrote and the new one does not is left, not deleted
+    M.write_mod(b, tmp_path)
+    stale = tmp_path / b.folder / "leftover.txt"
+    stale.write_text("old", encoding="utf-8")
+    (tmp_path / b.folder / "descriptor.mod").write_text(
+        'name="Reference bookmark 987.10.27 (ck3update)"\nsupported_version="1.20.*"\n', encoding="utf-8")
+    written = M.write_mod(b, tmp_path, replace=True)
+    assert (tmp_path / b.folder / "descriptor.mod") in written
+    assert "Ref Bookmark" in (tmp_path / b.folder / "descriptor.mod").read_text(encoding="utf-8")
+    assert stale.read_text(encoding="utf-8") == "old"
+
+
+def _foreign(tmp_path, existing):
+    target = tmp_path / existing
+    if existing.endswith(".mod"):
+        target.write_text('name="Somebody Else\'s Mod"\n', encoding="utf-8")
+    else:
+        target.mkdir()
+        (target / "descriptor.mod").write_text('name="Somebody Else\'s Mod"\n', encoding="utf-8")
+    return {p.relative_to(tmp_path).as_posix(): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+
+def _files(tmp_path):
+    return {p.relative_to(tmp_path).as_posix(): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+
+@pytest.mark.parametrize("existing", ["zz_ref_987_10_27", "zz_ref_987_10_27.mod"])
+def test_replace_without_a_terminal_refuses_a_mod_not_marked_as_ours(b, tmp_path, existing):
+    # its name is the only evidence; with nobody to ask, --force is refused and the reason is said
+    before = _foreign(tmp_path, existing)
+    with pytest.raises(M.RefModError, match="no terminal to ask you from"):
+        M.write_mod(b, tmp_path, replace=True)
+    assert _files(tmp_path) == before
+
+
+@pytest.mark.parametrize("existing", ["zz_ref_987_10_27", "zz_ref_987_10_27.mod"])
+def test_replace_asks_about_a_mod_not_marked_as_ours(b, tmp_path, existing):
+    # djdarcy 2026-11-17: "if we can't tell for certain we can just prompt with a Y/n"
+    before = _foreign(tmp_path, existing)
+    asked = []
+    with pytest.raises(M.RefModError, match="you answered no"):
+        M.write_mod(b, tmp_path, replace=True, confirm=lambda ps: asked.append(ps) or False)
+    assert len(asked) == 1 and asked[0] == [tmp_path / existing] and _files(tmp_path) == before
+    M.write_mod(b, tmp_path, replace=True, confirm=lambda ps: True)
+    assert "Ref Bookmark" in (tmp_path / "zz_ref_987_10_27" / "descriptor.mod").read_text(encoding="utf-8")
+
+
+def test_replace_does_not_ask_about_a_mod_marked_as_ours(b, tmp_path):
+    M.write_mod(b, tmp_path)
+    M.write_mod(b, tmp_path, replace=True, confirm=lambda ps: pytest.fail(f"asked about {ps}"))
+
+
 def test_a_missing_output_folder_is_refused(b, tmp_path):
     with pytest.raises(M.RefModError, match="does not exist"):
         M.write_mod(b, tmp_path / "nope")
