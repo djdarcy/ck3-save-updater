@@ -20,6 +20,19 @@ SLICES = {
                                                'in ("strict",) and hasattr(s, "reconfigure"):'),
         "c the '?' fallback": (NAMES, '            out.append("?")', "            out.append(c)"),
     }),
+    "s3": ("tests/test_names.py", {
+        "a commas come first": (NAMES, '    if "," in text:', "    if False:"),
+        "b signs start items": (NAMES, "    if modifiers and any(w[0] in SIGNS for w in words):", "    if False:"),
+        "c the sign is taken off": (NAMES, "        if modifiers and c[0] in SIGNS:", "        if False:"),
+        "d two readings refused": (NAMES, "    if len(found) > 1:", "    if False:"),
+        "e uncovered words named": (NAMES, "        missing = [w for k, w in enumerate(words) if k not in covered]",
+                                    "        missing = []"),
+        "f norm folds accents": (NAMES, '    return re.sub(r"[^a-z0-9]", "", fold_accents(text).lower())',
+                                 '    return re.sub(r"[^a-z0-9]", "", text.lower())'),
+        "g the qualifier split": (NAMES, '    if ":" in text:', "    if False:"),
+        "h longest reads all words as one run": (NAMES, '        chunks = [" ".join(chunks)] if chunks else []',
+                                                 "        chunks = chunks"),
+    }),
 }
 TESTS, REVERTS = SLICES[sys.argv[1] if len(sys.argv) > 1 else "s1"]
 originals = {f: pathlib.Path(f).read_bytes() for f in {src for src, _o, _n in REVERTS.values()}}

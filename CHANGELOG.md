@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.30] - 2026-11-17
+
+### Added
+- Groundwork for typing names the way the game shows them. A shared reader takes the lists you type. Commas separate the items, so `"Bodh Gaya, Jerusalem, Iona"` reads as three names. Without commas each word is one item. A `+` or `-` in front of an item means add or remove, and also marks where the next item starts. A name may carry its group in front of it, as in `Pilgrimage Attitude: Encouraged`. Accents and punctuation are ignored when names are compared. Nothing a player runs changes yet; the edits take it up in a later version.
+
 ## [0.5.29] - 2026-11-17
 
 ### Fixed
@@ -869,7 +874,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...HEAD
+[0.5.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...v0.5.30
 [0.5.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...v0.5.29
 [0.5.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...v0.5.28
 [0.5.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.26...v0.5.27
