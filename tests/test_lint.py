@@ -906,3 +906,51 @@ def test_template_cultures_unregistered_is_a_warning_and_untemplated_ones_are_fi
     rep = L.LintReport()
     L.check_registries(g("0 1"), rep)
     assert rep.findings == []
+
+
+# --------------------------------------------------------------------------- the reference's version (2026-11-17)
+class _Save:
+    meta = b""
+    gamestate = b'meta_data={\n\tversion="1.21.0"\n}\n'
+
+
+def _stub_lint(monkeypatch, ref_version: str) -> dict:
+    """run_lint with everything but the reference choice stubbed: what reference reached lint_gamestate."""
+    import types
+    ref = types.SimpleNamespace(gamestate=f'meta_data={{\n\tversion="{ref_version}"\n}}\n'.encode())
+    seen: dict = {}
+    monkeypatch.setattr(cli, "read_save", lambda p: ref)
+    monkeypatch.setattr(cli, "find_game_dir", lambda x: None)
+    monkeypatch.setattr(cli, "listed_workshop_mods", lambda meta, gd: ([], []))
+    monkeypatch.setattr(cli, "target_dna_length", lambda gd, a: None)
+    monkeypatch.setattr(cli, "load_game_data", lambda *a, **k: None)
+    monkeypatch.setattr(cli, "lint_gamestate", lambda g, **k: seen.update(ref=k.get("reference")))
+    seen["gamestate"] = ref.gamestate
+    return seen
+
+
+def test_a_default_reference_of_another_version_line_is_set_aside(monkeypatch, capsys):
+    # on 1.21 the project's 1.20 default reported 17,680 "missing" titles the 1.21 reference does not
+    import argparse
+    seen = _stub_lint(monkeypatch, "1.20.1.2")
+    cli.run_lint(_Save(), argparse.Namespace(reference=None, game_dir=None, no_keys=False, mods="save"),
+                 Path("ref_1_20_987_10_27.ck3"))
+    assert seen["ref"] is None
+    assert "is from 1.20, this save from 1.21: not used" in capsys.readouterr().err
+
+
+def test_a_named_reference_of_another_version_line_is_used_and_said(monkeypatch, capsys):
+    import argparse
+    seen = _stub_lint(monkeypatch, "1.20.1.2")
+    cli.run_lint(_Save(), argparse.Namespace(reference="ref.ck3", game_dir=None, no_keys=False, mods="save"),
+                 Path("ref.ck3"))
+    assert seen["ref"] == seen["gamestate"]
+    assert "--reference ref.ck3 is from 1.20, this save from 1.21" in capsys.readouterr().err
+
+
+def test_a_reference_of_the_same_line_is_used_quietly(monkeypatch, capsys):
+    import argparse
+    seen = _stub_lint(monkeypatch, "1.21.0")
+    cli.run_lint(_Save(), argparse.Namespace(reference=None, game_dir=None, no_keys=False, mods="save"),
+                 Path("ref_1_21.ck3"))
+    assert seen["ref"] == seen["gamestate"] and "from 1." not in capsys.readouterr().err

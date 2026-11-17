@@ -25,6 +25,8 @@ ck3update lint "My_Old_Campaign.migrated.ck3" --json "My_Old_Campaign.lint.json"
 
 A check that cannot run, because there is no game folder or reference save to compare against, is listed as skipped rather than passed.
 
+The reference save should be from the same game version as the save you check. If one was found by default and it is from another version (a 1.20 reference for a 1.21 save, say), lint sets it aside and says so. Comparing with the wrong version reports differences that are only the version's. A reference you name with `--reference` is always used, with a warning if its version differs.
+
 ## The checks
 
 Each finding is described in plain words first. For what the game will log, the game's own log wording is the check's name, so it can be found in the game's error log.
@@ -75,7 +77,7 @@ Each finding is described in plain words first. For what the game will log, the 
 - stored script scopes point at things that exist;
 - armies have soldiers;
 - a mercenary company's title key is `x_mc_<company id>` (a candidate check: a title keyed for another company; no rule fixes it yet);
-- entries carry the fields the game's own entries of that kind carry. Each line names a kind of entry (faiths, titles, artifacts...), the field, how many lack it or leave it empty, and a few examples. Where the cost is known it says so: a faith with no faith type shows a blank wherever an event names its god. The comparison is with the reference save when one is given, otherwise with the record of fields shipped for the save's game version (1.20.1.2 today). A field the game itself leaves out of some entries is reported only when more of the save's entries lack it than the game's own share allows. With no record for the version and no reference save, the check is skipped and says so. It takes about a minute on a large save.
+- entries carry the fields the game's own entries of that kind carry. Each line names a kind of entry (faiths, titles, artifacts...), the field, how many lack it or leave it empty, and a few examples. Where the cost is known it says so: a faith with no faith type shows a blank wherever an event names its god. The comparison is with the reference save when one is given, otherwise with the record of fields shipped for the save's game version (1.20.1.2 and 1.21.0 today). A field the game itself leaves out of some entries is reported only when more of the save's entries lack it than the game's own share allows. With no record for the version and no reference save, the check is skipped and says so. It takes about a minute on a large save.
 
   Some fields stay unfilled because nothing settles them. The update writes a value only when the game fills it in on load, when the entry's other fields decide it in every one of the game's own saves, or when it is the game's own "nothing". An artifact's type, wealth, quality and modifiers follow from nothing else, so they stay a warning, and the line says which measurement found no rule. So does the template of a culture made in play. Lint does not guess them.
 

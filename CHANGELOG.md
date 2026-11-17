@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6] - 2026-11-17
+
+### Fixed
+- `lint` no longer compares a save with a reference from another game version without saying so. A reference found by default that is from another version is set aside, and the field check uses the record shipped for the save's own version. Before, a 1.21 save checked against the 1.20 reference reported 17,680 "missing" titles that a 1.21 game does not miss. A reference you name with `--reference` is still used, with a warning.
+
 ## [0.6.5] - 2026-11-17
 
 ### Added
@@ -969,7 +974,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...HEAD
+[0.6.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.2...v0.6.3

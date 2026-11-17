@@ -857,11 +857,31 @@ def print_lint(rep, indent: str = "  ", level: int = DEFAULT) -> None:
         say(DEFAULT, f"{indent}  skipped: {s}", "lint")
 
 
+def _line_of(g: bytes) -> str | None:
+    from .baselines import game_version
+    v = game_version(g)
+    return ".".join(v.split(".")[:2]) if v else None
+
+
 def run_lint(save, args, reference_path: Path | None):
     game_dir = find_game_dir(getattr(args, "game_dir", None))
     if getattr(args, "no_keys", False):
         return lint_gamestate(save.gamestate, keys=False, game_dir=game_dir)
     reference = read_save(reference_path).gamestate if reference_path else None
+    if reference is not None:
+        # a reference of another version line compares the save with the wrong game: on 1.21 the project's 1.20
+        # default reported 17,680 "missing" titles that the 1.21 reference does not (2026-11-17). One found by
+        # default is set aside; one named with --reference is used, and said
+        sl, rl = _line_of(save.gamestate), _line_of(reference)
+        if sl and rl and sl != rl:
+            if getattr(args, "reference", None) is None:
+                say(WARNING, f"the reference save found by default ({reference_path.name}) is from {rl}, this save "
+                             f"from {sl}: not used (give --reference with a {sl} save; the field check uses the "
+                             f"shipped baseline meanwhile, where one ships)", "lint", err=True)
+                reference, reference_path = None, None
+            else:
+                say(WARNING, f"--reference {reference_path.name} is from {rl}, this save from {sl}: checks that "
+                             "compare with it may report differences that are only the version's", "lint", err=True)
     mods, missing = listed_workshop_mods(save.meta, game_dir) if getattr(args, "mods", "save") == "save" else ([], [])
     data = load_game_data(game_dir, reference, mods, mods_missing=missing,
                           reference_name=str(reference_path) if reference_path else None,
