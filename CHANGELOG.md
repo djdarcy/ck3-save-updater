@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4] - 2026-11-17
+
+### Added
+- `scripts/conversion_scorecard.py` scores a save against the game's own re-save of it in a new version. Each database is marked kept, re-encoded, dropped or built new, and a last line sums it up. It shows what the game's own conversion keeps and what it loses, so a patch knows where to start. The gamediff guide explains it, with a control to run first.
+
 ## [0.6.3] - 2026-11-17
 
 ### Fixed
@@ -959,7 +964,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.0...v0.6.1

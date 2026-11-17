@@ -67,3 +67,25 @@ A key counts as used when the save contains it as a name anywhere. This is a poi
 - It does not compare `gui/`, `localization/`, `gfx/` or the map's images; only the definition files above.
 - It does not say what a change means. A changed trait might have a new modifier value or a new requirement; open both files to see which.
 - It does not read mods. To see what a mod update changed, point it at the two versions of the mod's folder: a mod has the same `common/` layout.
+
+## The other half: what the game's own conversion does
+
+`gamediff` compares the game's files. It cannot say what the new version does to an old save when it loads one. For that, load a save in the new version, save it again, and score the pair:
+
+```bash
+python -I -X utf8 scripts/conversion_scorecard.py "Old.ck3" "Old_resaved_in_the_new_version.ck3"
+```
+
+It reads every database in both saves and puts each in one of four classes:
+- **kept:** the entries are unchanged.
+- **re-encoded:** every entry is still there, but written differently. This is usually the game renumbering something after its definitions moved.
+- **dropped:** entries or fields the old save had are gone. This column is the work list for a patch.
+- **built new:** a database the old save did not have, which the new version made by itself.
+
+The last line sums it up in one sentence, ready for release notes.
+
+Run a control first: two saves that differ in a few known entries, such as a save and the same save after one `ck3update edit`. The scorecard must show those entries and nothing else. If it shows more, do not trust the real run.
+
+On 1.20 to 1.21 the game kept 98.6% of a migrated save's entries and built 20 new sections, among them trade markets and districts. It dropped what the player had built: most buildings, the wonders, construction in progress, activities and some vassal contracts.
+
+The scorecard reads one level into each entry. A holding's buildings sit deeper, so count those separately.
