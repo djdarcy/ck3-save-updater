@@ -107,6 +107,14 @@ SLICES = {
             '    ("coat_of_arms/coat_of_arms_manager_database", "colored_emblem"):',
             '    ("x", "colored_emblem"):'),
     }),
+    "u4": ("tests/test_savefile.py", {   # the after-goal-pass goal, S5's finding: refuse a read-only save at once
+        "a the header check refuses": (
+            "ck3_save_migrator/savefile.py", "    if header.kind in READ_ONLY_KINDS:\n        raise UnsupportedKindError(f\"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is read only; \"",
+            "    if False:\n        raise UnsupportedKindError(f\"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is read only; \""),
+        "b main calls it for the writing commands": (
+            "ck3_save_migrator/cli.py", "                refuse_read_only(args.save)          # a save it can never write: before minutes of planning",
+            "                pass                                 # a save it can never write: before minutes of planning"),
+    }),
     "u3": ("tests/test_refmod_names.py", {   # the after-goal-pass goal, S4: reference-mod's ruler flags by name
         "a a name resolves to its key": (
             "ck3_save_migrator/refmod.py", "        if key != v:", "        if False:"),

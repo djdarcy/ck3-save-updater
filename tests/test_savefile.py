@@ -404,6 +404,25 @@ def test_a_kind_00_save_is_never_written():
         save.to_bytes()
 
 
+def test_a_read_only_save_is_refused_from_its_header_before_any_work(tmp_path):
+    p = tmp_path / "plain.ck3"
+    p.write_bytes(TEXT_SAVE)
+    with pytest.raises(sf.UnsupportedKindError, match="read only"):
+        sf.refuse_read_only(p)
+    q = tmp_path / "normal.ck3"
+    q.write_bytes(build_ck3())
+    sf.refuse_read_only(q)                                   # kind 02: nothing to say
+
+
+def test_the_writing_commands_refuse_a_read_only_save_at_once(tmp_path, monkeypatch, capsys):
+    from ck3_save_migrator import cli
+    p = tmp_path / "plain.ck3"
+    p.write_bytes(TEXT_SAVE)
+    monkeypatch.setattr(cli, "make_plan", lambda *a, **k: pytest.fail("planned a save it can never write"))
+    assert cli.main(["update", str(p), "-o", str(tmp_path / "out.ck3"), "--no-ask"]) == 1
+    assert "read only" in capsys.readouterr().err and not (tmp_path / "out.ck3").exists()
+
+
 def test_the_binary_kinds_are_still_refused_on_read():
     with pytest.raises(sf.UnsupportedKindError, match="kind 01"):
         sf.parse_save(TEXT_SAVE.replace(b"SAV0100", b"SAV0101", 1))

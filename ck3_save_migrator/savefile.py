@@ -285,6 +285,21 @@ def parse_save(data: bytes, source: Path | None = None) -> CK3Save:
     return save
 
 
+def refuse_read_only(path: str | os.PathLike) -> None:
+    """Refuse at once a save the tool can read but never write, from its header alone, before a command that writes
+    spends minutes on the plan and the rules (the after-goal-pass checklist found the refusal coming only at the
+    write, after about two minutes). A file too short or not a save is left for the full read to report."""
+    with open(path, "rb") as f:
+        head = f.read(64)
+    try:
+        header = parse_header(head)
+    except SaveFormatError:
+        return
+    if header.kind in READ_ONLY_KINDS:
+        raise UnsupportedKindError(f"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is read only; "
+                                   "the tool writes only kind 02 saves (inspect and lint read it)")
+
+
 def read_save(path: str | os.PathLike) -> CK3Save:
     p = Path(path)
     if not p.is_file():

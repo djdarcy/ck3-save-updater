@@ -48,6 +48,7 @@ from .savefile import (
     VerifyError,
     default_output,
     read_save,
+    refuse_read_only,
     same_file,
     sha256,
     write_save,
@@ -1887,6 +1888,9 @@ def main(argv=None) -> int:
         if getattr(args, "save", None):
             # a path, or the name of a save in the game's 'save games' folder (discover.find_save)
             args.save = str(find_save(args.save))
+            if args.func in (cmd_update, cmd_migrate) or (args.func is cmd_edit and getattr(args, "edit", None)
+                                                          and not getattr(args, "list", False)):
+                refuse_read_only(args.save)          # a save it can never write: before minutes of planning
         return args.func(args)
     except (OutputExistsError, InPlaceError) as exc:     # before ValueError: InPlaceError is one
         say(ERROR, f"ERROR: {exc}", "io", err=True)

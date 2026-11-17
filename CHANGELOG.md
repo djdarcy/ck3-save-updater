@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.38] - 2026-11-17
+
+### Fixed
+- `update`, `migrate` and `edit` now refuse an uncompressed save at once. The tool reads such a save but never writes one. Before, the refusal came only at the very end, after a couple of minutes of planning and rules.
+
+### Added
+- A hand-run checklist for 0.5.34 to 0.5.37, `tests/checklists/v0.5.38__Feature__after-goal-pass.md`. It walks through an uncompressed save, a custom faith's filled doctrines, carried cultures, lint's reasons and `reference-mod` by name, on a copy of an old save and in the game itself.
+
 ## [0.5.37] - 2026-11-17
 
 ### Added
@@ -919,7 +927,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...HEAD
+[0.5.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...v0.5.38
 [0.5.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...v0.5.37
 [0.5.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...v0.5.36
 [0.5.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...v0.5.35
