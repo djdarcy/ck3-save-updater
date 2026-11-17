@@ -9,7 +9,7 @@ You do not need to know how a save is built. You name the edit and what it appli
 ## Before you start
 
 - **Close the game first**, or at least do not edit the save the game has loaded. Edit a save, then load the edited file.
-- **The save must be a text save.** That is what the game writes for an ordinary campaign. An ironman save is in another format, and the tool says so and stops.
+- **The save must be a text save.** That is what the game writes for an ordinary campaign. An ironman save is in another format, and the tool says so and stops. A save the game wrote uncompressed can be inspected and linted, but not edited, and `edit` refuses it at once.
 - **A large save takes a few seconds.** The first time an edit looks up a character, the tool reads every character in the save. On a 240 MB campaign that is about ten seconds.
 - **Try `--dry-run` first.** It shows the exact change and writes nothing.
 
@@ -249,5 +249,7 @@ You can write edits of your own and keep them in your packs folder. `ck3update e
 ## What cannot be edited yet
 
 A binary save cannot be read. That is what the game writes for an ironman campaign. The tool says so and stops.
+
+An uncompressed save, which the game writes when its saves are not compressed, can be read by `inspect` and `lint` but not written. `edit` and `update` refuse it at once.
 
 `ironman-off` works on a text save that has ironman on. Whether the game then loads it as an ordinary save has not been tested yet.

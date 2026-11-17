@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.39] - 2026-11-17
+
+### Changed
+- The README and guides describe 0.5.34 to 0.5.38. The README says how the check after an update treats a field nothing decides, and that `reference-mod` takes the names the game shows. The rules reference and "Differences from the game" say that a carried custom faith gets the doctrine groups 1.20 added. They also say that a carried culture gets its head determination. The editing guide says an uncompressed save can be read but not edited.
+
 ## [0.5.38] - 2026-11-17
 
 ### Fixed
@@ -927,7 +932,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.39...HEAD
+[0.5.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.38...v0.5.39
 [0.5.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...v0.5.38
 [0.5.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...v0.5.37
 [0.5.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...v0.5.36

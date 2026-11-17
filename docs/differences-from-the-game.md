@@ -17,11 +17,12 @@ When the current game loads a save from an older version, it converts what it ca
 - **Monastic orders**: the 1.20 orders that hold land in the old world are added as the new version has them, and listed in the report as expansion content. `--no-expansion-orders` leaves them out.
 - **County records**: every county the tool brings in gets its record (culture, faith or rite, development), which the game reads for epidemics, buildings and tournaments. Without it the game's error log fills with "culture trigger [Failed context switch]" within a minute of play.
 - **China's situations** (the dynastic cycle) and every culture 1.20 added.
+- **How each culture chooses its head.** 1.20 gives every culture a head determination, by herd or by domain, and a 1.8 save has none. The game does not add it on load. The tool gives each carried culture the one its definition declares, as every culture in a fresh 1.20 game has. A culture made in play has no definition, so it stays without one.
 - **What each culture is learning.** The game drops the marker naming the innovation a culture is picking up from another, though it keeps the progress. The tool keeps the marker.
 - **Perks, regiments and artifact bonuses the game renamed.** The game deletes what it no longer knows by name. The tool renames the Scholar perk to Erudite, Teutonic Knights to Order Serjeants, and an artifact's scheme-power bonus to the same bonus on scheme phase duration.
 
 ## It keeps the campaign's religion
 
 - **Catholicism and Orthodoxy** stay independent faiths, each with its religious head carried over, as the campaign had them.
-- **Custom faiths** are carried with their doctrines, fervor, religious head, holy sites, founder and history, as a faith of their own or as a rite of the faith their template now belongs to.
+- **Custom faiths** are carried with their doctrines, fervor, religious head, holy sites, founder and history, as a faith of their own or as a rite of the faith their template now belongs to. The doctrine groups 1.20 added (pilgrimage, coronation, monasticism and others) are filled from the faith each was created from. The game would leave them empty and show each group's first option, so a faith that never forbade pilgrimage would show "Forbidden".
 - **Sunni schools.** 1.20 has no rite for the four old Sunni theological schools. The game's own conversion of an old save gives every Ash'ari and Maturidi character the same rite (Hanafi), whatever their school; the tool assigns by school instead. It gives each the nearest 1.20 school of law: Ash'ari becomes Shafi'i, Maturidi and Mu'tazila become Hanafi, and Muwalladi becomes Maliki.
