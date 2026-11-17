@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.28] - 2026-11-16
+
+### Added
+- The editing guide (`docs/editing-a-save.md`) has a new section, "Faith". It covers `set-faith`, `set-eminent-holy-sites` and `set-doctrines`, with an example of each, what each refuses, and the rules `set-doctrines` checks. The README's edit table has a row for each.
+- A hand-run checklist for the three faith edits, `tests/checklists/v0.5.28__Feature__faith-edits.md`. It runs them on a copy of a real save and checks the results in the game.
+
 ## [0.5.27] - 2026-11-16
 
 ### Added
@@ -858,7 +864,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...HEAD
+[0.5.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...v0.5.28
 [0.5.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.26...v0.5.27
 [0.5.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.25...v0.5.26
 [0.5.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.24...v0.5.25

@@ -47,6 +47,9 @@ ck3update edit --list
 | `event-schedule` | queues an event for a character on a date |
 | `artifacts` | lists the artifacts a character holds (writes nothing) |
 | `give-artifact` | gives a character a copy of an artifact in the save |
+| `set-faith` | changes the faith or rite a character follows |
+| `set-eminent-holy-sites` | chooses which of a faith's holy sites are eminent |
+| `set-doctrines` | changes a faith's tenets and doctrines |
 | `ironman-off` | turns ironman off in a text save |
 | `revert` | undoes edits this tool made |
 
@@ -164,6 +167,52 @@ ck3update edit My_Campaign.ck3 give-artifact "Sadb ingen Brian" 72
 `give-artifact` gives a character a copy of an artifact that is already in the save. Take the id from the `artifacts` list of whoever holds it. The copy has the same name, type, bonuses and history, under a new id. The original stays with its owner. The copy goes into the receiver's inventory, not onto a wall or a pedestal.
 
 The receiver must already hold at least one artifact. The tool cannot yet give one to a character who has never held any. It also cannot make a new artifact from nothing.
+
+## Faith
+
+Three edits change faith, each the way the game would allow it in play. Each one refuses what the game refuses. The refusal names the game file and line that holds the rule. `--dangerous` writes the change anyway, and the report says what was forced.
+
+### A character's faith
+
+```
+ck3update edit My_Campaign.ck3 set-faith 16838491 shafii
+```
+
+`set-faith` changes the faith a character follows. Name a rite to choose it exactly. The spelling does not matter, so `Shafi'i` and `shafii` are the same rite. A rite's number works too. Name a faith instead, such as `sunni`, and the character gets that faith's main rite.
+
+Only the character's faith changes. Their titles, holy orders and faith heads stay as they are. The report says when the faith itself changes. Under a same-faith succession law, that can change who inherits from them. A dead character is changed only with `--dangerous`.
+
+### A faith's eminent holy sites
+
+```
+ck3update edit My_Campaign.ck3 set-eminent-holy-sites "Way of Scarcity" "jerusalem rome iona"
+```
+
+`set-eminent-holy-sites` chooses which of a faith's holy sites are eminent. Name one to three sites, by name or number, separated by spaces or commas. Each must already be one of the faith's holy sites. The game refuses any other, and so does this edit. Only the faith's list of eminent sites changes.
+
+### A faith's tenets and doctrines
+
+```
+ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "+doctrine_pilgrimage_encouraged"
+```
+
+`set-doctrines` changes a faith's tenets and doctrines by the game's keys. Write `+key` to add one and `-key` to remove one. A doctrine you add replaces the one the faith holds in the same group. If the faith holds none in that group, the new one fills it. To swap a tenet, remove one and add another in the same call:
+
+```
+ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "-tenet_gnosticism +tenet_communion"
+```
+
+The faith and its main rite change together. Other rites of the same faith keep their own.
+
+The rules come from the game's own files, so the edit needs to find the game. It looks through Steam, or reads `CK3_GAME_DIR` if you set it to the game's `game` folder. These are the rules it checks:
+
+- A faith holds three tenets.
+- A faith holds only one syncretism tenet.
+- A tenet closed to the faith's religion cannot be chosen. Christian Syncretism is closed to a Christian faith.
+- A doctrine that every faith of the religion carries cannot be dropped. Teachings of Jesus is one.
+- A doctrine cannot be removed from a group the faith must fill, unless another takes its place.
+
+The game checks more than these when a faith reforms in play. The edit does not check the rest.
 
 ## Undoing an edit
 

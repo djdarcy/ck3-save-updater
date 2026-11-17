@@ -178,6 +178,9 @@ What you can do today:
 | queue an event for a character | `ck3update edit <save> event-schedule <character> <event> <date>` |
 | see the artifacts a character holds | `ck3update edit <save> artifacts <character>` |
 | give a character a copy of an artifact | `ck3update edit <save> give-artifact <character> <artifact id>` |
+| change the faith or rite a character follows | `ck3update edit <save> set-faith <character> <rite or faith>` |
+| choose which of a faith's holy sites are eminent | `ck3update edit <save> set-eminent-holy-sites <faith> "<site> <site>"` |
+| change a faith's tenets and doctrines | `ck3update edit <save> set-doctrines <faith> "+<key> -<key>"` |
 | undo the last edit | `ck3update edit <the edited save> revert` |
 
 A few things hold for every edit:
