@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.8] - 2026-11-17
+
+### Added
+- Each folder inside the package has a README: what it holds, why it exists, who reads it, how it ships, and anything about its design that may want tidying later. The folders are `packs`, `patches`, `rules`, `baselines`, `known_genes`, `known_titles` and `_vendor`.
+
 ## [0.6.7] - 2026-11-17
 
 ### Fixed
@@ -979,7 +984,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...HEAD
+[0.6.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...v0.6.5

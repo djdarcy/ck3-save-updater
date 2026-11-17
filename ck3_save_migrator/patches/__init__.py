@@ -2,7 +2,7 @@
 
 A pack is a folder of patch folders with a ``pack.toml``; a patch is a folder with a ``patch.toml`` (see
 ``docs/writing-a-patch.md``). ``rules_from_pack`` turns a pack into ``Rule`` objects; the shipped pack
-``to_1_20`` holds the 19 registered rules.
+``to_1_20`` holds the registered rules (29 in its ``order``); ``to_1_21`` is a frame with none yet.
 """
 
 from __future__ import annotations
