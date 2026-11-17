@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.33] - 2026-11-17
+
+### Changed
+- The editing guide (`docs/editing-a-save.md`) and the README show the edits with the names the game shows: characters ("Gabran Aelfweard"), holy sites separated by commas ("Bodh Gaya, Jerusalem, Iona"), rites ("Shafi'i") and doctrines with their group ("Pilgrimage Attitude: Encouraged"). The guide says how names work for every edit that takes a character.
+- A hand-run checklist for typing names, `tests/checklists/v0.5.33__Feature__multi-word-names.md`, runs it on a copy of a real save with the real game.
+
 ## [0.5.32] - 2026-11-17
 
 ### Changed
@@ -889,7 +895,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...HEAD
+[0.5.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...v0.5.33
 [0.5.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...v0.5.32
 [0.5.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...v0.5.31
 [0.5.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...v0.5.30

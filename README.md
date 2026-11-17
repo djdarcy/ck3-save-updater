@@ -164,6 +164,8 @@ ck3update edit "My_Campaign" set-sex "Conchenn nic Bruide" male
 
 This finds the character, shows the one change it will make, and asks before writing. On a `y` it writes `My_Campaign__set-sex.ck3` beside your save. Your save is not touched.
 
+Characters, holy sites, faiths, rites, tenets and doctrines can be typed as the game shows them. Accents never matter. `"Gabran Aelfweard"` finds Gabrán, whose mother is Ælfweard. Separate several names with commas, as in `"Bodh Gaya, Jerusalem, Iona"`.
+
 What you can do today:
 
 | You want to | Run |
@@ -179,8 +181,8 @@ What you can do today:
 | see the artifacts a character holds | `ck3update edit <save> artifacts <character>` |
 | give a character a copy of an artifact | `ck3update edit <save> give-artifact <character> <artifact id>` |
 | change the faith or rite a character follows | `ck3update edit <save> set-faith <character> <rite or faith>` |
-| choose which of a faith's holy sites are eminent | `ck3update edit <save> set-eminent-holy-sites <faith> "<site> <site>"` |
-| change a faith's tenets and doctrines | `ck3update edit <save> set-doctrines <faith> "+<key> -<key>"` |
+| choose which of a faith's holy sites are eminent | `ck3update edit <save> set-eminent-holy-sites <faith> "<site>, <site>"` |
+| change a faith's tenets and doctrines | `ck3update edit <save> set-doctrines <faith> "+<name>, -<name>"` |
 | undo the last edit | `ck3update edit <the edited save> revert` |
 
 A few things hold for every edit:

@@ -69,11 +69,13 @@ Only the character's own sex flag changes. Their face keeps its genes. The game 
 
 Give the character's id, or a first name followed by something that narrows it:
 
-- a parent's first name (`Conchenn nic Bruide`);
-- the house's name;
+- a parent's first name (`Conchenn nic Bruide`, `Gabran Aelfweard`);
+- the house's name (`Gabran Ui Neill`);
 - a title the character holds (`Murchad tara`).
 
-Words such as "nic", "mac" and "of" are skipped. Put a name of several words in quotes.
+Type names as the game shows them. Accents do not matter, so `Gabran` finds Gabrán and `Aelfweard` finds Ælfweard. A name may be more than one word, like a house called "Uí Néill". The save stores names as the game's internal keys (Gabrán is `GabrA_n`), and those work too. The names the game shows need the game folder, which the tool finds through Steam or `CK3_GAME_DIR`. Without it, the internal keys still match, typed plainly. Words such as "nic", "mac" and "of" are skipped. Put the whole query in quotes.
+
+This works the same way for every edit that takes a character.
 
 When several living characters match, nothing is written. The tool lists each one with id, sex, age, house, parents and titles. Pick the id from that list and run the edit again with it:
 
@@ -175,32 +177,34 @@ Three edits change faith, each the way the game would allow it in play. Each one
 ### A character's faith
 
 ```
-ck3update edit My_Campaign.ck3 set-faith 16838491 shafii
+ck3update edit My_Campaign.ck3 set-faith "Gabran Aelfweard" "Shafi'i"
 ```
 
-`set-faith` changes the faith a character follows. Name a rite to choose it exactly. The spelling does not matter, so `Shafi'i` and `shafii` are the same rite. A rite's number works too. Name a faith instead, such as `sunni`, and the character gets that faith's main rite.
+`set-faith` changes the faith a character follows. Name a rite to choose it exactly, as the game shows it. Accents and punctuation do not matter, so `Shafi'i` and `shafii` are the same rite, and so are `Ásatrú` and `asatru`. A rite's number works too. Name a faith instead, such as `Sunni`, and the character gets that faith's main rite.
 
 Only the character's faith changes. Their titles, holy orders and faith heads stay as they are. The report says when the faith itself changes. Under a same-faith succession law, that can change who inherits from them. A dead character is changed only with `--dangerous`.
 
 ### A faith's eminent holy sites
 
 ```
-ck3update edit My_Campaign.ck3 set-eminent-holy-sites "Way of Scarcity" "jerusalem rome iona"
+ck3update edit My_Campaign.ck3 set-eminent-holy-sites "Way of Scarcity" "Bodh Gaya, Jerusalem, Iona"
 ```
 
-`set-eminent-holy-sites` chooses which of a faith's holy sites are eminent. Name one to three sites, by name or number, separated by spaces or commas. Each must already be one of the faith's holy sites. The game refuses any other, and so does this edit. Only the faith's list of eminent sites changes.
+`set-eminent-holy-sites` chooses which of a faith's holy sites are eminent. Name one to three sites, as the game shows them or by number. Separate them with commas. A name of one word each also works with spaces alone, as in `"jerusalem rome iona"`. Each must already be one of the faith's holy sites. The game refuses any other, and so does this edit. When two holy sites share a name (there are two Carthages), the faith's own sites settle which one is meant. Only the faith's list of eminent sites changes.
 
 ### A faith's tenets and doctrines
 
 ```
-ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "+doctrine_pilgrimage_encouraged"
+ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "+Pilgrimage Attitude: Encouraged"
 ```
 
-`set-doctrines` changes a faith's tenets and doctrines by the game's keys. Write `+key` to add one and `-key` to remove one. A doctrine you add replaces the one the faith holds in the same group. If the faith holds none in that group, the new one fills it. To swap a tenet, remove one and add another in the same call:
+`set-doctrines` changes a faith's tenets and doctrines, named as the game shows them. Write `+` before one to add it and `-` before one to remove it. A doctrine is written with its group, as in `Pilgrimage Attitude: Encouraged`, because several groups share names like "Encouraged"; a shared name on its own is refused with each one listed. A doctrine you add replaces the one the faith holds in the same group. If the faith holds none in that group, the new one fills it. To swap a tenet, remove one and add another in the same call:
 
 ```
-ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "-tenet_gnosticism +tenet_communion"
+ck3update edit My_Campaign.ck3 set-doctrines "Way of Scarcity" "-Jewish Syncretism, +Christian Syncretism"
 ```
+
+The game's keys (`+doctrine_pilgrimage_encouraged`, `-tenet_gnosticism`) work as well.
 
 The faith and its main rite change together. Other rites of the same faith keep their own.
 
