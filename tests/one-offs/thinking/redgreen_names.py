@@ -61,6 +61,20 @@ SLICES = {
             "ck3_save_migrator/savefile.py", "        if self.header.kind in READ_ONLY_KINDS:\n            raise UnsupportedKindError",
             "        if False:\n            raise UnsupportedKindError"),
     }),
+    "u1": ("tests/test_rules_doctrine_fill.py", {   # the after-goal-pass goal, S2: doctrine groups in R10
+        "a the origin faith first": (
+            "ck3_save_migrator/rules/religion_1_20.py",
+            "        pick = sorted(k for k in origin_doctrines if k in rules.doctrines and rules.doctrines[k].group == grp)",
+            "        pick = []"),
+        "b the religion's default second": (
+            "ck3_save_migrator/rules/religion_1_20.py",
+            "            pick = sorted(k for k in defaults if k in rules.doctrines and rules.doctrines[k].group == grp)",
+            "            pick = []"),
+        "c a filled group is left alone": (
+            "ck3_save_migrator/rules/religion_1_20.py",
+            "    for grp in sorted(k for k in rules.group_category if rules.group_must_be_filled(k) and k not in groups_have):",
+            "    for grp in sorted(k for k in rules.group_category if rules.group_must_be_filled(k)):"),
+    }),
     "s5": ("tests/test_edit_eminent.py tests/test_edit_set_faith.py tests/test_edit_doctrines.py "
            "tests/test_characters.py tests/test_cli_output_encoding.py", {
         "a eminent: the faith's own sites settle a shared name": (

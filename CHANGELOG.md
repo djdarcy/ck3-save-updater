@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.35] - 2026-11-17
+
+### Fixed
+- A custom faith carried from an older game version now gets the doctrines added since. Way of Scarcity, made in 1.8, had nothing in six doctrine groups 1.20 added, such as pilgrimage, funerals and monasticism. The game read each empty group as its first option, so pilgrimage showed as "Forbidden". The update now fills each such group from the faith it came from. If that faith has none, it uses the religion's own default. On the founding campaign, Way of Scarcity gets its origin faith's choices, including pilgrimage encouraged. The update's report names each group it filled and where the choice came from. Groups that belong to other religions stay empty, as the game's own faiths leave them.
+
 ## [0.5.34] - 2026-11-17
 
 ### Added
@@ -900,7 +905,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...HEAD
+[0.5.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...v0.5.35
 [0.5.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...v0.5.34
 [0.5.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...v0.5.33
 [0.5.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...v0.5.32

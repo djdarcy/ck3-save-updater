@@ -308,6 +308,47 @@ def _known_doctrines(g: bytes, ctx) -> set[str]:
     return known
 
 
+def _fill_doctrine_groups(g: bytes, ctx, faiths: dict, origin_id: str, doctrines: list[bytes]):
+    """The doctrine= lines a carried faith lacks for the choosable groups 1.20 has and its old version did not (the
+    after-goal-pass goal, S2; the director's ruling 2026-11-17__03-48-44, B): for each group the game makes a faith
+    fill (faith_rules.group_must_be_filled) with nothing in it, the origin faith's doctrine of that group first (as
+    faith_type is derived), else the origin's religion's default (religion_types); a group the religion does not
+    define stays empty, as the game's own faiths leave it. The game fills none of these on load (measured 2026-11-17 on
+    its re-save); it reads an empty group as its index-0 doctrine (Way of Scarcity showed pilgrimage "Forbidden").
+    Returns (lines to add, [{group, doctrine, source}]); nothing without the game's files."""
+    if ctx.game_dir is None:
+        return [], []
+    from .. import faith_rules
+    rules = faith_rules.load(str(ctx.game_dir))
+    have = {d.split(b"=", 1)[1].decode() for d in doctrines}
+    groups_have = {rules.doctrines[k].group for k in have if k in rules.doctrines}
+    origin = faiths.get(origin_id)
+    origin_doctrines = ({m.decode() for m in re.findall(rb"(?m)^\t\t\tdoctrine=(\S+)", g[origin.open:origin.close])}
+                        if origin is not None else set())
+    tag = None
+    if origin is not None:
+        rel = _str(_raw(g, origin, "religion"))
+        try:
+            rb_ = gs.locate(g, "religion/religions")
+            ent = next((e for e in gs.iter_entries(g, rb_.open + 1, rb_.close) if e.key == str(rel).encode()), None)
+            m = re.search(rb'(?m)\btag="?(\w+)"?', g[ent.open:ent.close]) if ent is not None else None
+            tag = m.group(1).decode() if m else None
+        except gs.GamestateError:
+            tag = None
+    defaults = rules.religion_defaults.get(tag or "", {})
+    added, filled = [], []
+    for grp in sorted(k for k in rules.group_category if rules.group_must_be_filled(k) and k not in groups_have):
+        pick = sorted(k for k in origin_doctrines if k in rules.doctrines and rules.doctrines[k].group == grp)
+        source = f"origin faith {origin_id}"
+        if not pick:
+            pick = sorted(k for k in defaults if k in rules.doctrines and rules.doctrines[k].group == grp)
+            source = f"{tag} default ({defaults.get(pick[0])})" if pick else ""
+        if pick:
+            added.append(b"doctrine=" + pick[0].encode())
+            filled.append({"group": grp, "doctrine": pick[0], "source": source})
+    return added, filled
+
+
 # --------------------------------------------------------------------------- R10
 def _custom_faiths(ctx) -> dict[str, dict]:
     return {i: f for i, f in ctx.state.get("old_faiths", {}).items() if f.get("name")}
@@ -445,6 +486,8 @@ def r10_custom_faith(save: CK3Save, ctx, rule):
             out[old_id] = {"error": f"template {t!r} has no 1.20 rite or faith"}
             continue
         tenets, doctrines, dropped = _doctrine_lines(block, known)
+        more, filled_groups = _fill_doctrine_groups(g, ctx, faiths, parent_faith, doctrines)
+        doctrines = doctrines + more                    # groups newer than the old save, the game's own fill rule
         head = _old_field(block, "religious_head") or NONE
         title_by_id = _title_keys(g)
         # lineage: the founder (a character id in this save's numbering, kept only if the character is still
@@ -460,7 +503,7 @@ def r10_custom_faith(save: CK3Save, ctx, rule):
                "religious_head": {"id": head.decode(), "title": title_by_id.get(head.decode())},
                "tenets": [x[6:].decode() for x in tenets], "doctrines": len(doctrines),
                "founder": {"id": founder_id, "kept": founder_in is not None, "found_in": founder_in},
-               "changes_entries": n_changes}
+               "changes_entries": n_changes, "filled_doctrine_groups": filled_groups}
         if founder_id != NONE.decode() and founder_in is None:
             lost.append({"what": "founder", "faith": info["name"], "character": founder_id,
                          "why": "not in living or dead_unprunable"})
