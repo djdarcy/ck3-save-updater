@@ -749,6 +749,19 @@ def test_check_realms_a_count_under_a_liege_needs_a_contract_with_him():
     assert _realms(db) == {}                                                       # 1.20 writes database too
 
 
+def test_check_realms_a_dead_character_filed_among_the_living_is_info_not_a_warning():
+    """The founding save's Uilleam of Frisia (45243): filed among the living with dead_data and a domain of titles
+    others hold, in the 1.8.1 save, the update and the game's own re-save alike (after-goal-pass goal, S3)."""
+    people = REALM_PEOPLE + "9={\n\tlanded_data={\n\t\tdomain={ 0 1 }\n\t}\n\tdead_data={\n\t\tdate=980.1.1\n\t}\n}\n"
+    ok = "7={\n\t\tvassal=2\n\t\tliege=1\n\t}\n8={\n\t\tvassal=3\n\t\tliege=2\n\t}\n"
+    found = _realms(_titles_gs(REALM, contracts=ok, living=people))
+    assert "a ruler's domain lists only titles he holds" not in found
+    info = found["a dead character filed among the living keeps an old domain"]
+    assert info.severity == "info" and info.examples == ["9 lists d_top", "9 lists c_low"]
+    alive = people.replace("\tdead_data={\n\t\tdate=980.1.1\n\t}\n", "")
+    assert _realms(_titles_gs(REALM, contracts=ok, living=alive))["a ruler's domain lists only titles he holds"].count == 2
+
+
 def test_check_scopes_finds_scopes_naming_nothing_and_skips_none():
     """djdarcy 2026-10-27, after the council-task crash: "another generic case of a linter check we should have to
     validate all events / actions?" Every stored scope must name something that exists; the game's none is fine."""

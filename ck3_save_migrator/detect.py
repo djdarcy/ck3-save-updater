@@ -142,6 +142,15 @@ def _r30(g, env):
     return _found(len(found), [f"{k} ({n:,})" for k, n in by.most_common(5)], "file references the game renamed")
 
 
+def _r32(g, env):
+    from .rules.to_1_20 import r32_found
+    if env.game_dir is None:                  # the values are the game's culture definitions
+        return Detection("unknown", why="needs the game folder (its culture definitions)")
+    found, _ = r32_found(g, [env.game_dir, *env.mod_dirs])
+    return _found(len(found), [f"{cid} ({tmpl}): {v}" for _, cid, tmpl, v in found],
+                  "carried cultures without the head determination their template declares")
+
+
 def _r31(g, env):
     """R31 repairs by default, so the plan names each ruler and how to keep them as they are (djdarcy, 2026-11-05:
     a player may have edited a save on purpose to free a vassal from his dues)."""
@@ -290,7 +299,7 @@ DETECTORS = {
     "R2": _r2, "R3": _r3, "R21": _r21, "R20": _r20, "R22": _r22, "R6": _dead_titles, "R15": _r15,
     "R8": _religion_layout, "R9": _religion_layout, "R10": _religion_layout, "R12": _religion_layout,
     "R14": _reference_titles, "R16": _reference_titles, "R17": _reference_titles, "R23": _r23, "R19": _r19,
-    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30, "R31": _r31,
+    "R25": _r25, "R27": _r27, "R28": _r28, "R29": _r29, "R30": _r30, "R31": _r31, "R32": _r32,
 }
 
 

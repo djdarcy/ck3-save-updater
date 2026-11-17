@@ -415,10 +415,13 @@ def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
                               for k in (b"key", b"holder", b"de_facto_liege")}
     key = lambda t: (titles.get(t, {}).get(b"key") or t).decode()       # noqa: E731
     doms: dict[bytes, list[bytes]] = {}
+    filed_dead: set[bytes] = set()
     for m in _ENTRY_COL0.finditer(g, living.open, living.close):
         end = g.find(b"\n}", m.end(), living.close)
         d = _DOMAIN.search(g, m.end(), end if end > 0 else living.close)
         doms[m.group(1)] = d.group(1).split() if d else []
+        if g.find(b"\n\tdead_data=", m.end(), end if end > 0 else living.close) >= 0:
+            filed_dead.add(m.group(1))
     lieges: dict[bytes, set[bytes]] = defaultdict(set)
     for sec in ("vassal_contracts/active", "vassal_contracts/database"):
         b = idx.block(sec)
@@ -427,9 +430,10 @@ def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
             v, lg = re.search(rb"[\n\t ]vassal=(\d+)", body), re.search(rb"[\n\t ]liege=(\d+)", body)
             if v and lg:
                 lieges[v.group(1)].add(lg.group(1))
-    bad, barons, foreign = [], [], []
+    bad, barons, foreign, foreign_dead = [], [], [], []
     for c, ts in doms.items():
-        foreign += [f"{c.decode()} lists {key(t)}" for t in ts if titles.get(t, {}).get(b"holder") != c]
+        rows = [f"{c.decode()} lists {key(t)}" for t in ts if titles.get(t, {}).get(b"holder") != c]
+        (foreign_dead if c in filed_dead else foreign).extend(rows)
         if not ts or titles.get(ts[0], {}).get(b"holder") != c:
             continue
         lg = titles[ts[0]][b"de_facto_liege"]
@@ -447,6 +451,12 @@ def check_realms(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
     rep.add("a ruler's domain lists only titles he holds", "warn", foreign,
             gloss="Rulers whose domain lists titles they do not hold (often a dead ruler still filed among the "
                   "living, with an old domain)")
+    # The founding save's Uilleam of Frisia (45243): filed among the living with dead_data and a domain of 19 titles
+    # others hold, in the original 1.8.1 save, the update's output and the game's own 1.20 re-save of it alike
+    # (measured 2026-11-17, after-goal-pass goal S3): a shape the game writes and keeps, so it is reported, not warned.
+    rep.add("a dead character filed among the living keeps an old domain", "info", foreign_dead, limit=20,
+            gloss="Characters with dead_data still filed among the living, whose domain lists titles others hold; "
+                  "the game writes and keeps them so (its own re-save of an updated save leaves them unchanged)")
 
 
 _SCOPE = re.compile(rb"type=(\w+)\s+identity=(\d+)")
@@ -805,6 +815,35 @@ FIELDS_AS_THE_GAME_WROTE = {
         "a title with no land has none: 544 titles without one in the original 1.8.1 save, the update's output and "
         "the game's re-save alike (515 council and holy-order x_ titles, religious heads such as d_sunni, empty "
         "kingdoms); a fresh game has only 14 because it holds fewer such titles",
+    # Measured 2026-11-17 (after-goal-pass goal, S3) on the original 1.8.1 save, an update's output, the game's own
+    # re-save of it, and the two 1.20.1.2 references.
+    ("coat_of_arms/coat_of_arms_manager_database", "colored_emblem"):
+        "a design with no emblem: 226 of the 1.8.1 save's coats are built from sub-coats with none, as the game wrote "
+        "them, and the game's own 1.20 saves write pattern-only coats too (38 of 26,868 in the 987 reference)",
+    ("landed_titles/landed_titles", "coat_of_arms_id"):
+        "six unheld baronies of the founding save (b_uncastillo, b_monzon, b_agramunt, b_llivia, b_pallars_sobira, "
+        "b_seu_d_urgell) have none in the original 1.8.1 save and none in the game's own 1.20 re-save of the update",
+    ("tax_slot_manager/database", "tax_collector"):
+        "a slot nobody has been appointed to: the game's own Persia 867 save has 2 of 146, and its re-save of an "
+        "update keeps the update's 3 without one; choosing a collector is an edit, not a derivation",
+}
+# Fields the update leaves unfilled because no rule settles them: write a value only if the game fills it on load, a
+# function of the entry's other fields holds for every reference entry, or it is the game's own neutral nothing
+# (the director's ruling 2026-11-17__03-48-44). Each stays a warning, with the measurement that found no rule.
+_NO_RULE = "no rule determines it ({}); the update leaves it unknown rather than guess"
+FIELDS_NO_RULE = {
+    ("artifacts/artifacts", "type"): _NO_RULE.format(
+        "an artifact's template or its visuals give more than one type in both 1.20.1.2 references"),
+    ("artifacts/artifacts", "wealth"): _NO_RULE.format(
+        "rarity fixes it in the 987 reference but not in the Persia 867 one: illustrious 100 or 400, famed 70 or 80"),
+    ("artifacts/artifacts", "quality"): _NO_RULE.format(
+        "rarity fixes it in the 987 reference but not in the Persia 867 one: illustrious 100 or 400, famed 70 or 80"),
+    ("artifacts/artifacts", "modifiers"): _NO_RULE.format(
+        "the game writes a modifier on every artifact, its placeholder on only 170 of 300 and 176 of 352"),
+    ("culture_manager/cultures", "culture_template"): _NO_RULE.format(
+        "a culture made in play has none in a save older than the field, and no 1.20 hybrid culture has been measured"),
+    ("culture_manager/cultures", "head_determination"): _NO_RULE.format(
+        "R32 writes it from a culture's template; a culture made in play has no template"),
 }
 # what a missing field costs the player, where it is known
 FIELD_MEANING = {
@@ -869,7 +908,7 @@ def check_reference_fields(g: bytes, rep: LintReport, reference: bytes | None = 
             if why:
                 allowed.append(f"{what} -- {why}")
             else:
-                gaps.append(what + (f" -- {FIELD_MEANING[key]}" if key in FIELD_MEANING else ""))
+                gaps.append(what + "".join(f" -- {m[key]}" for m in (FIELD_MEANING, FIELDS_NO_RULE) if key in m))
     witnessed = set(paths)
     nothing = [p for p in K.database_paths(g, gi) if p not in witnessed]
     rep.add("entries carry the fields the game's own entries carry", "warn", gaps, limit=60,

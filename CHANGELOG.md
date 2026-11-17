@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.36] - 2026-11-17
+
+### Added
+- A new update rule, R32, gives each culture carried from an older save its head determination. 1.20 marks every culture as passing its headship by herd or by domain, and a 1.8 save has neither. The game does not fill it in on load. Every culture in the game's own 1.20 saves carries exactly the value its definition in the game files declares, so a carried culture takes the value its template declares. On the founding campaign that is 189 cultures. A culture made in play has no template, so it stays without one, and lint says so.
+
+### Changed
+- Lint now says why it leaves some fields unfilled. An artifact's type, wealth, quality and modifiers follow from nothing else in the game's own saves, so the update leaves them unknown rather than guess. Lint still warns about them and names the measurement. A culture's template stays unknown for cultures made in play.
+- Lint no longer warns about four shapes the game writes itself. These are coats of arms with no emblem, a few unheld baronies with no coat of arms, tax slots with no collector appointed, and a dead character still filed among the living with an old domain. Each was found the same way in the original save and in the game's own re-save of the update. Lint lists them as information, with that measurement.
+
 ## [0.5.35] - 2026-11-17
 
 ### Fixed
@@ -905,7 +914,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...HEAD
+[0.5.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...v0.5.36
 [0.5.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...v0.5.35
 [0.5.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...v0.5.34
 [0.5.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...v0.5.33

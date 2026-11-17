@@ -75,6 +75,51 @@ SLICES = {
             "    for grp in sorted(k for k in rules.group_category if rules.group_must_be_filled(k) and k not in groups_have):",
             "    for grp in sorted(k for k in rules.group_category if rules.group_must_be_filled(k)):"),
     }),
+    "u2": ("tests/test_rules_head_determination.py", {   # the after-goal-pass goal, S3: R32
+        "a the template's value is written": (
+            "ck3_save_migrator/rules/to_1_20.py",
+            '        found.append((at, e.key.decode(), tmpl, defs[tmpl]))',
+            '        pass'),
+        "b a culture with one is skipped": (
+            "ck3_save_migrator/rules/to_1_20.py",
+            '        if not (e.key and e.key.isdigit()) or re.search(rb"[\\s{]head_determination=", body):',
+            '        if not (e.key and e.key.isdigit()):'),
+        "b2 a field after tabs on one line counts": (
+            "ck3_save_migrator/rules/to_1_20.py",
+            '        if not (e.key and e.key.isdigit()) or re.search(rb"[\\s{]head_determination=", body):',
+            '        if not (e.key and e.key.isdigit()) or re.search(rb"\\n\\t*head_determination=", body):'),
+        "c a later root replaces an earlier one": (
+            "ck3_save_migrator/rules/to_1_20.py",
+            "                    out[m.group(1)] = hd.group(1)",
+            "                    out.setdefault(m.group(1), hd.group(1))"),
+    }),
+    "u2l": ("tests/test_lint_fields.py tests/test_lint.py", {   # the after-goal-pass goal, S3: lint's lists
+        "a a no-rule field says why": (
+            "ck3_save_migrator/lint.py",
+            '                gaps.append(what + "".join(f" -- {m[key]}" for m in (FIELD_MEANING, FIELDS_NO_RULE) if key in m))',
+            '                gaps.append(what + "".join(f" -- {m[key]}" for m in (FIELD_MEANING,) if key in m))'),
+        "b a dead character filed among the living is info": (
+            "ck3_save_migrator/lint.py",
+            "        (foreign_dead if c in filed_dead else foreign).extend(rows)",
+            "        foreign.extend(rows)"),
+        "c colored_emblem is the game's own shape": (
+            "ck3_save_migrator/lint.py",
+            '    ("coat_of_arms/coat_of_arms_manager_database", "colored_emblem"):',
+            '    ("x", "colored_emblem"):'),
+    }),
+    "u3": ("tests/test_refmod_names.py", {   # the after-goal-pass goal, S4: reference-mod's ruler flags by name
+        "a a name resolves to its key": (
+            "ck3_save_migrator/refmod.py", "        if key != v:", "        if False:"),
+        "b houses by prefix and name": (
+            "ck3_save_migrator/refmod.py",
+            '            tables["house"][key] = (key, name, f"{pre.strip()} {name}" if pre and name else None)',
+            '            tables["house"][key] = (key, name)'),
+        "c no game folder: names refused": (
+            "ck3_save_migrator/refmod.py", "        if bad:", "        if False:"),
+        "d the command resolves the flags": (
+            "ck3_save_migrator/cli.py", "    given, resolved = resolve_names(game, given)",
+            "    resolved = []"),
+    }),
     "s5": ("tests/test_edit_eminent.py tests/test_edit_set_faith.py tests/test_edit_doctrines.py "
            "tests/test_characters.py tests/test_cli_output_encoding.py", {
         "a eminent: the faith's own sites settle a shared name": (

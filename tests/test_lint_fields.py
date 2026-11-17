@@ -138,3 +138,27 @@ def test_the_shipped_baseline_flags_nothing_in_a_save_shaped_like_it():
     rep = run(g)
     gap = finding(rep, "entries carry the fields")
     assert gap is None or not any(e.startswith("faiths/database") for e in gap.examples)
+
+
+def test_a_field_no_rule_determines_stays_a_warning_and_says_why():
+    # after-goal-pass goal S3: artifact types follow from nothing in both 1.20.1.2 references -- unknown, not guessed
+    ref = META + (b"artifacts={\n\tartifacts={\n"
+                  + b"".join(b"\t\t%d={\n\t\t\ttype=book\n\t\t}\n" % i for i in range(30)) + b"\t}\n}\n")
+    ours = META + (b"artifacts={\n\tartifacts={\n"
+                   + b"".join(b"\t\t%d={\n\t\t\tname=x\n\t\t}\n" % i for i in range(30)) + b"\t}\n}\n")
+    gap = finding(run(ours, ref), "entries carry the fields")
+    assert gap is not None and "no rule determines it" in gap.examples[0]
+
+
+@pytest.mark.parametrize("path, field", [("coat_of_arms/coat_of_arms_manager_database", "colored_emblem"),
+                                         ("landed_titles/landed_titles", "coat_of_arms_id"),
+                                         ("tax_slot_manager/database", "tax_collector")])
+def test_the_game_s_own_shapes_found_in_s3_are_info_with_their_measurement(path, field):
+    top, sub = path.split("/")
+    ref = META + (f"{top}={{\n\t{sub}={{\n".encode()
+                  + b"".join(b"\t\t%d={\n\t\t\t%s=1\n\t\t}\n" % (i, field.encode()) for i in range(30)) + b"\t}\n}\n")
+    ours = META + (f"{top}={{\n\t{sub}={{\n".encode()
+                   + b"".join(b"\t\t%d={\n\t\t\tother=1\n\t\t}\n" % i for i in range(30)) + b"\t}\n}\n")
+    rep = run(ours, ref)
+    assert finding(rep, "entries carry the fields") is None
+    assert finding(rep, "fields left out on purpose").examples[0].endswith(L.FIELDS_AS_THE_GAME_WROTE[(path, field)])

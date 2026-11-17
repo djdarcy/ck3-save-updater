@@ -1515,6 +1515,88 @@ def r31_contract_repair(save: CK3Save, ctx, rule) -> object:
         "repaired": [{"ruler": c, "title": k, "liege_title": lk, "liege": th} for c, k, lk, th in found]})
 
 
+# --------------------------------------------------------------------------- R32
+_CULTURE_HEAD = re.compile(r"(?m)^\thead_determination\s*=\s*(\w+)")
+_TOP_BLOCK = re.compile(r"(?m)^([a-z][a-z0-9_]*)\s*=\s*\{")
+
+
+def culture_head_determinations(roots) -> dict[str, str]:
+    """culture key -> the head_determination its definition declares (common/culture/cultures/*.txt), across the
+    game and its mods, a later root's definition replacing an earlier one's. A definition that declares none is
+    left out."""
+    out: dict[str, str] = {}
+    for root in roots:
+        for f in sorted((Path(root) / "common" / "culture" / "cultures").glob("*.txt")):
+            text = f.read_text(encoding="utf-8-sig", errors="replace")
+            for m in _TOP_BLOCK.finditer(text):
+                depth, i = 0, m.end() - 1
+                while i < len(text):
+                    depth += {"{": 1, "}": -1}.get(text[i], 0)
+                    if depth == 0:
+                        break
+                    i += 1
+                hd = _CULTURE_HEAD.search(text, m.end(), i)
+                if hd:
+                    out[m.group(1)] = hd.group(1)
+                else:
+                    out.pop(m.group(1), None)
+    return out
+
+
+def r32_found(d: bytes, roots) -> tuple[list[tuple[int, str, str, str]], Counter]:
+    """Read only: each culture without head_determination whose culture_template has a definition declaring one:
+    (where to write, culture id, template, value); and a count of those left, by why."""
+    try:
+        cb = gs.locate(d, "culture_manager/cultures")
+    except gs.GamestateError:
+        return [], Counter()
+    defs = None
+    found, left = [], Counter()
+    for e in gs.iter_entries(d, *cb.body):
+        body = d[e.open:e.close + 1]
+        # the game writes some fields of a culture tab-separated on one line ("...\t\t\thead_determination=..."),
+        # so a field starts after any whitespace, not only a line break
+        if not (e.key and e.key.isdigit()) or re.search(rb"[\s{]head_determination=", body):
+            continue
+        t = re.search(rb'[\s{]culture_template="?([\w\-]+)', body)
+        if not t:
+            left["no culture_template (a culture made in play)"] += 1
+            continue
+        if defs is None:
+            defs = culture_head_determinations(roots)
+        tmpl = t.group(1).decode()
+        if tmpl not in defs:
+            left[f"template {tmpl} has no definition"] += 1
+            continue
+        at = e.close
+        while d[at - 1:at] in (b" ", b"\t", b"\r", b"\n"):
+            at -= 1
+        found.append((at, e.key.decode(), tmpl, defs[tmpl]))
+    return found, left
+
+
+def r32_head_determination(save: CK3Save, ctx, rule) -> object:
+    """Write ``head_determination`` on every culture carried from a save older than the field, from its template.
+
+    1.20 gives each culture a head determination (herd or domain); a 1.8 save has none, and the game does not fill it
+    on load (measured 2026-11-17 on its own re-save of an update: 229 of 284 cultures still without). The game's own
+    rule: every one of the 488 cultures in the two 1.20.1.2 reference saves (244 each) carries exactly the value its
+    template's definition declares in ``common/culture/cultures`` (the after-goal-pass goal, S3;
+    tests/one-offs/head_determination_measure.py), so a carried culture takes the same. A culture made in play has no
+    template and stays without, named by lint: no rule determines it (the director's ruling 2026-11-17__03-48-44)."""
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "culture" / "cultures").is_dir():
+        return rule.result(extra={"skipped": f"no game data at {ctx.game_dir}"})
+    found, left = r32_found(save.gamestate, [ctx.game_dir, *(getattr(ctx, "mod_dirs", []) or [])])
+    p = gs.EditPass()
+    by = Counter()
+    for at, cid, tmpl, value in found:
+        p.count(rule.name).matched += 1
+        p.add(gs.Edit(at, at, b"\n\t\t\thead_determination=" + value.encode(), rule.name, f"culture {cid} ({tmpl})"))
+        by[value] += 1
+    p.apply_to(save)
+    return rule.result(matched=len(found), edited=len(found), extra={"written": dict(by), "left": dict(left)})
+
+
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
 RULES = [
@@ -1551,4 +1633,7 @@ RULES = [
     Rule("R31", "contract-repair", "1.8.1<v<=1.20.1.2",
          "write the missing vassal contract of a ruler whose title answers to a liege (a save edit's leftover)",
          r31_contract_repair),
+    Rule("R32", "head-determination", "1.8.1<v<=1.20.1.2",
+         "give each carried culture the head determination its template's definition declares",
+         r32_head_determination),
 ]
