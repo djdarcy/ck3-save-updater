@@ -78,10 +78,11 @@ def test_bad_options_are_refused(change):
 
 
 # --------------------------------------------------------------------------- writing
-def test_write_mod_writes_four_files_with_the_bom_on_disk(b, tmp_path):
+def test_write_mod_writes_five_files_with_the_bom_on_disk(b, tmp_path):
     written = M.write_mod(b, tmp_path)
     rel = sorted(p.relative_to(tmp_path).as_posix() for p in written)
     assert rel == ["zz_ref_987_10_27.mod", "zz_ref_987_10_27/common/bookmarks/bookmarks/zz_ref.txt",
+                   "zz_ref_987_10_27/common/bookmarks/groups/zz_ref_groups.txt",
                    "zz_ref_987_10_27/descriptor.mod", "zz_ref_987_10_27/localization/english/zz_ref_l_english.yml"]
     yml = tmp_path / "zz_ref_987_10_27" / "localization" / "english" / "zz_ref_l_english.yml"
     assert yml.read_bytes().startswith(b"\xef\xbb\xbfl_english:")
@@ -96,6 +97,18 @@ def test_an_existing_folder_or_mod_file_is_refused_and_nothing_is_written(b, tmp
     with pytest.raises(M.RefModError, match="refusing to overwrite"):
         M.write_mod(b, tmp_path)
     assert sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*")) == before
+
+
+def test_the_bookmark_has_a_group_of_its_own_so_its_tab_is_framed(b, tmp_path):
+    # seen on 1.21.0 (evidence 2026-11-17__17-37-40): a bookmark in no group gets the game's unframed "ungrouped" tab
+    M.write_mod(b, tmp_path)
+    mod = tmp_path / "zz_ref_987_10_27"
+    group = (mod / "common" / "bookmarks" / "groups" / "zz_ref_groups.txt").read_bytes()
+    assert group.startswith(b"\xef\xbb\xbf") and b"bm_group_ref_987_10_27 = {" in group
+    assert b"default_start_date = 987.10.27" in group
+    assert "\tgroup = bm_group_ref_987_10_27\n" in (mod / "common/bookmarks/bookmarks/zz_ref.txt").read_text("utf-8-sig")
+    assert ' bm_group_ref_987_10_27: "Ref 987"' in (mod / "localization/english/zz_ref_l_english.yml").read_text(
+        "utf-8-sig")
 
 
 def test_replace_writes_over_a_mod_this_command_wrote(b, tmp_path):
@@ -164,7 +177,7 @@ def test_the_command_writes_the_mod_and_prints_the_next_steps(tmp_path, capsys):
     assert (tmp_path / "zz_ref_987_10_27" / "common" / "bookmarks" / "bookmarks" / "zz_ref.txt").is_file()
     assert "enable the mod 'Ref Bookmark 987.10.27 (ck3update)'" in out       # the name the launcher shows
     assert "find that save by themselves" in out and "--reference" in out
-    assert out.count("wrote: ") == 4
+    assert out.count("wrote: ") == 5
 
 
 def test_without_out_the_mod_goes_to_the_games_own_mod_folder(tmp_path, monkeypatch, capsys):

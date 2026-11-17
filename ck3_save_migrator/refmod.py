@@ -70,6 +70,12 @@ class Bookmark:
         return f"bm_{self.stem}"
 
     @property
+    def group_key(self) -> str:
+        # a bookmark in no group gets the game's plain "ungrouped" tab, with no stone frame (frontend_bookmarks.gui,
+        # widget_ungrouped_bookmark_button; seen on 1.21.0, 2026-11-17); a group of its own gets the framed year tab
+        return f"bm_group_ref_{self.stem}"
+
+    @property
     def character_key(self) -> str:
         return f"bookmark_ref_{self.stem}_{self.character}"
 
@@ -115,6 +121,7 @@ def bookmark(b: Bookmark) -> str:
             f"# game/history/titles must have them alive and holding it on this date.\n"
             f"{b.bookmark_key} = {{\n"
             f"\tstart_date = {b.date}\n"
+            f"\tgroup = {b.group_key}\n"
             f"\tis_playable = yes\n"
             f"\tweight = {{\n\t\tvalue = 0\n\t}}\n"
             f"\tcharacter = {{\n"
@@ -134,9 +141,18 @@ def bookmark(b: Bookmark) -> str:
             f"}}\n")
 
 
+def bookmark_group(b: Bookmark) -> str:
+    """The bookmark's own group (common/bookmarks/groups), so its tab is the game's framed year tab."""
+    return (BOM + f"# The tab for the ck3update reference start at {b.date}.\n"
+            f"{b.group_key} = {{\n"
+            f"\tdefault_start_date = {b.date}\n"
+            f"}}\n")
+
+
 def localization(b: Bookmark) -> str:
     """The English localization, starting with the byte-order mark the game requires of a .yml file."""
     return (BOM + "l_english:\n"
+            f' {b.group_key}: "Ref {b.date.split(".")[0]}"\n'
             f' {b.bookmark_key}: "Ref {b.date}"\n'
             f' {b.bookmark_key}_desc: "A plain {b.game_version} start on {b.date}, used as a reference save by '
             f'ck3update."\n'
@@ -337,11 +353,12 @@ def meta_date(meta: bytes) -> str:
 
 
 def files(b: Bookmark, out: Path) -> dict[Path, str]:
-    """Every file of the mod, path -> text: the folder's three files and the sibling ``.mod`` file."""
+    """Every file of the mod, path -> text: the folder's four files and the sibling ``.mod`` file."""
     folder = Path(out) / b.folder
     return {
         folder / "descriptor.mod": descriptor(b),
         folder / "common" / "bookmarks" / "bookmarks" / "zz_ref.txt": bookmark(b),
+        folder / "common" / "bookmarks" / "groups" / "zz_ref_groups.txt": bookmark_group(b),
         folder / "localization" / "english" / "zz_ref_l_english.yml": localization(b),
         Path(out) / f"{b.folder}.mod": launcher_mod(b, folder),
     }
