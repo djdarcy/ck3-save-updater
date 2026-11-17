@@ -1864,6 +1864,8 @@ def join_rules_value(argv: list[str]) -> list[str]:
 
 
 def main(argv=None) -> int:
+    from .names import safe_output
+    safe_output()                                        # an accented name never crashes a piped report
     RUN.update(started=time.perf_counter(), plain=False)
     args = build_parser().parse_args(join_rules_value(sys.argv[1:] if argv is None else argv))
     if args.command is None:                             # a bare `ck3update`: where to start, not an error

@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.29] - 2026-11-17
+
+### Fixed
+- A report no longer crashes when it holds a name the console cannot show and the output is piped or redirected. One example is a custom faith named "Shintō Way" with `> report.txt` on Windows. Before, the command stopped with `'charmap' codec can't encode character`. Now the name is written without its accents, as "Shinto Way", and a character with no plain form becomes `?`. An interactive console shows the name as before.
+
 ## [0.5.28] - 2026-11-16
 
 ### Added
@@ -864,7 +869,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...HEAD
+[0.5.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...v0.5.29
 [0.5.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.27...v0.5.28
 [0.5.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.26...v0.5.27
 [0.5.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.25...v0.5.26
