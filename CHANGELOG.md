@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7] - 2026-11-17
+
+### Fixed
+- `reference-mod` also copies the game's button picture for the bookmark list on the left of the bookmark screen. The list draws each bookmark from that picture, and ours had none.
+
 ## [0.6.6] - 2026-11-17
 
 ### Fixed
@@ -974,7 +979,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...HEAD
+[0.6.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...v0.6.6
 [0.6.5]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.3...v0.6.4

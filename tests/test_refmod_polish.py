@@ -56,6 +56,24 @@ def test_the_art_is_copied_from_the_install_under_the_names_the_game_looks_for(g
     assert bg.read_bytes() == b"DDS background" and loc.read_bytes() == b"DDS location"
 
 
+BUTTONS = Path("gfx/interface/icons/bookmark_buttons")
+
+
+def test_the_button_picture_for_the_list_on_the_left_is_copied_when_the_install_has_it(game, tmp_path):
+    # djdarcy 2026-11-17: the bookmark list on the left had nothing for ours; the game draws each entry from
+    # icons/bookmark_buttons/<bookmark key>.dds (frontend_bookmarks.gui, Bookmark.GetButtonIcon)
+    out = tmp_path / "mods"
+    out.mkdir()
+    m = b()
+    assert not [p for p in M.write_mod(m, out, game_dir=game) if BUTTONS.as_posix() in p.as_posix()]
+    (game / BUTTONS).mkdir(parents=True)
+    (game / BUTTONS / M.ART_BACKGROUND).write_bytes(b"DDS button")
+    out2 = tmp_path / "mods2"
+    out2.mkdir()
+    button = out2 / m.folder / BUTTONS / f"{m.bookmark_key}.dds"
+    assert button in M.write_mod(m, out2, game_dir=game) and button.read_bytes() == b"DDS button"
+
+
 def test_without_the_game_or_its_pictures_there_is_no_art(game, tmp_path):
     out = tmp_path / "mods"
     out.mkdir()

@@ -372,17 +372,23 @@ ART_LOCATION = "bm_1066_hastings_bookmark_hastings_scotland.dds"
 
 
 def art(b: Bookmark, out: Path, game_dir: Path | None) -> dict[Path, Path]:
-    """mod path -> the player's game file to copy: the bookmark background and the character's location picture,
-    named as the game looks for them (``bm_<key>.dds``, ``bm_<key>_<character key>.dds``). Empty without the game's
-    files, or when either picture is not in the install."""
+    """mod path -> the player's game file to copy: the bookmark background, the character's location picture, and
+    the button picture the bookmark list on the left draws (``Bookmark.GetButtonIcon`` in frontend_bookmarks.gui,
+    gfx/interface/icons/bookmark_buttons/<key>.dds; djdarcy 2026-11-17: the list had nothing for ours). Named as the
+    game looks for them. Empty without the game's files; the button is left out when the install has none."""
     if game_dir is None:
         return {}
     src = Path(game_dir) / "gfx" / "interface" / "bookmarks"
     if not (src / ART_BACKGROUND).is_file() or not (src / ART_LOCATION).is_file():
         return {}
     dst = Path(out) / b.folder / "gfx" / "interface" / "bookmarks"
-    return {dst / f"{b.bookmark_key}.dds": src / ART_BACKGROUND,
-            dst / f"{b.bookmark_key}_{b.character_key}.dds": src / ART_LOCATION}
+    out_map = {dst / f"{b.bookmark_key}.dds": src / ART_BACKGROUND,
+               dst / f"{b.bookmark_key}_{b.character_key}.dds": src / ART_LOCATION}
+    button = Path(game_dir) / "gfx" / "interface" / "icons" / "bookmark_buttons" / ART_BACKGROUND
+    if button.is_file():
+        out_map[Path(out) / b.folder / "gfx" / "interface" / "icons" / "bookmark_buttons" /
+                f"{b.bookmark_key}.dds"] = button
+    return out_map
 
 
 _OURS = re.compile(r'(?m)^name="[^"\n]*\(ck3update\)"\s*$')     # every name this module has written ends so
