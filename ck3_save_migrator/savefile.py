@@ -36,6 +36,11 @@ KIND_UNIFIED_BINARY = 3
 KIND_NAMES = {0: "Text", 1: "Binary", 2: "UnifiedText", 3: "UnifiedBinary", 4: "SplitText", 5: "SplitBinary"}
 
 SUPPORTED_KINDS = {KIND_UNIFIED_TEXT}
+# Kinds read but never written. A kind 00 (Text) save is the header, then the whole gamestate as plain text (its first
+# block is meta_data, header meta_len bytes long), with no zip: the game writes it when compression is off, as for
+# its own re-save MIGRATE_TEST__s0a_control_resaved.ck3 (measured 2026-11-17). Read for lint, census and inspect;
+# the director's ruling 2026-11-17__03-48-44 keeps writing to kind 02.
+READ_ONLY_KINDS = {KIND_TEXT}
 
 GAMESTATE = "gamestate"
 ZIP_MAGIC = b"PK\x03\x04"
@@ -153,12 +158,16 @@ class CK3Save:
         return not self.changed and not recompress and self.meta == self.derived_meta()
 
     def to_bytes(self, recompress: bool = False) -> bytes:
-        """Serialise. Unchanged and not ``recompress``: the input bytes, verbatim.
+        """Serialise (kind 02 only: a read-only kind, such as 00, is refused). Unchanged and not ``recompress``: the
+        input bytes, verbatim.
 
         Otherwise the meta block is re-derived from the gamestate, the length field
         recomputed, and every member re-deflated (zlib level 6), keeping member
         order, names, date_time and external_attr.
         """
+        if self.header.kind in READ_ONLY_KINDS:
+            raise UnsupportedKindError(f"save header kind {self.header.kind:02x} ({KIND_NAMES[self.header.kind]}) "
+                                       "is read only; the tool writes only kind 02 saves")
         if self.can_reuse_input(recompress):
             return self.header.raw + self.meta + self.raw_zip
         meta = self.derived_meta()
@@ -230,6 +239,16 @@ def parse_header(data: bytes) -> Header:
 
 def parse_save(data: bytes, source: Path | None = None) -> CK3Save:
     header = parse_header(data)
+    if header.kind in READ_ONLY_KINDS:
+        hlen = len(header.raw)
+        gamestate = data[hlen:]
+        save = CK3Save(header=header, meta=data[hlen:hlen + header.meta_len],
+                       members=[Member(GAMESTATE, gamestate, (1980, 1, 1, 0, 0, 0), 0, zipfile.ZIP_STORED)],
+                       raw_zip=b"", source=source,
+                       warnings=[f"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is read only: "
+                                 "it can be inspected and linted, never written"])
+        save._original_gamestate_sha = sha256(gamestate)
+        return save
     if header.kind not in SUPPORTED_KINDS:
         raise UnsupportedKindError(
             f"save header kind {header.kind:02x} ({KIND_NAMES.get(header.kind, 'unknown')}) is not supported; "

@@ -785,7 +785,10 @@ def _contract_allow_list() -> dict:
 
 FIELDS_ABSENT_ON_PURPOSE = _contract_allow_list()
 # Measured 2026-11-16: flagged on an update's output (MIGRATE_TEST__play14) and gone from the game's own re-save of it
-# (MIGRATE_TEST__s0a_control_resaved), against the 1.20.1.2 baseline.
+# (MIGRATE_TEST__s0a_control_resaved), against the 1.20.1.2 baseline. Re-derived 2026-11-17 through the kind-00 reader
+# (the re-save is a Text save): each field missing on the counts below in the v16 golden, on none of the re-save's
+# entries (living 44,553, dead 38,925, titles 18,427, faiths 104, companies 640); none of the ten after-goal rows nor
+# an empty doctrine group is filled by that re-save (after-goal-pass goal, S1; tests/one-offs/after_goal_rows_measure.py).
 _ON_LOAD = "the game fills it in on load: missing on {} in an update's output, on none in the game's re-save of it"
 FIELDS_FILLED_ON_LOAD = {
     ("living", "ethnicity"): _ON_LOAD.format("36,700 of 44,553 living"),

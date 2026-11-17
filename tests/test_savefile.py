@@ -69,7 +69,7 @@ class TestRead:
         with pytest.raises(sf.SaveFormatError, match="SAV"):
             sf.read_save(write(tmp_path, b"PK\x03\x04 not a save"))
 
-    @pytest.mark.parametrize("kind", [0, 1, 3, 5])
+    @pytest.mark.parametrize("kind", [1, 3, 5])   # kind 0 (Text) is read since 0.5.34, read only (tests below)
     def test_unsupported_kinds_refused(self, tmp_path, kind):
         with pytest.raises(sf.UnsupportedKindError, match=f"{kind:02x}"):
             sf.read_save(write(tmp_path, build_ck3(kind=kind)))
@@ -381,3 +381,29 @@ class TestReferenceSave:
         assert back.gamestate == original
         assert back.meta == back.gamestate[: back.header.meta_len]
         assert back.warnings == [] and not r.verbatim
+
+
+# ---- kind 00 (Text): read only (the after-goal-pass goal, S1; the director's ruling 2026-11-17__03-48-44) ----
+# The game's own re-save of an update's output, MIGRATE_TEST__s0a_control_resaved.ck3, is kind 00: the header, then
+# the whole gamestate as plain text (meta_data first, meta_len bytes), no zip. Measured 2026-11-17.
+TEXT_META = b'meta_data={\n\tversion="1.20.1.2"\n\tmeta_date=987.10.27\n}\n'
+TEXT_BODY = TEXT_META + b"date=987.10.27\nliving={\n}\n"
+TEXT_SAVE = b"SAV0100abcd1234" + f"{len(TEXT_META):08x}".encode() + b"\n" + TEXT_BODY
+
+
+def test_a_kind_00_save_reads_as_its_plain_gamestate():
+    save = sf.parse_save(TEXT_SAVE)
+    assert save.header.kind == sf.KIND_TEXT
+    assert save.gamestate == TEXT_BODY and save.meta == TEXT_META
+    assert "read only" in save.warnings[0]
+
+
+def test_a_kind_00_save_is_never_written():
+    save = sf.parse_save(TEXT_SAVE)
+    with pytest.raises(sf.UnsupportedKindError, match="read only"):
+        save.to_bytes()
+
+
+def test_the_binary_kinds_are_still_refused_on_read():
+    with pytest.raises(sf.UnsupportedKindError, match="kind 01"):
+        sf.parse_save(TEXT_SAVE.replace(b"SAV0100", b"SAV0101", 1))

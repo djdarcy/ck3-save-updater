@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.34] - 2026-11-17
+
+### Added
+- A save the game wrote with compression turned off can now be read. Lint, the census and inspect take it. The tool still writes only the normal compressed save, and refuses to write this kind. The game's own re-save of an updated campaign is one of these, and reading it confirmed which fields the game fills in by itself on load (ethnicity, nomad name types, a faith's religious head, a mercenary company's county). The game fills in none of the other fields lint still reports, so those stay for the tool to settle.
+
 ## [0.5.33] - 2026-11-17
 
 ### Changed
@@ -895,7 +900,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...HEAD
+[0.5.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...v0.5.34
 [0.5.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...v0.5.33
 [0.5.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...v0.5.32
 [0.5.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...v0.5.31

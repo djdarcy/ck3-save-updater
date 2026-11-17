@@ -55,6 +55,12 @@ SLICES = {
         "h lookups fold accents": (LOOKUP, '    return norm(s or "")',
                                    '    return re.sub(r"[^a-z0-9]", "", (s or "").lower())'),
     }),
+    "u0": ("tests/test_savefile.py", {    # the after-goal-pass goal, S1: the kind-00 reader
+        "a kind 00 is read": ("ck3_save_migrator/savefile.py", "READ_ONLY_KINDS = {KIND_TEXT}", "READ_ONLY_KINDS = set()"),
+        "b a read-only kind is never written": (
+            "ck3_save_migrator/savefile.py", "        if self.header.kind in READ_ONLY_KINDS:\n            raise UnsupportedKindError",
+            "        if False:\n            raise UnsupportedKindError"),
+    }),
     "s5": ("tests/test_edit_eminent.py tests/test_edit_set_faith.py tests/test_edit_doctrines.py "
            "tests/test_characters.py tests/test_cli_output_encoding.py", {
         "a eminent: the faith's own sites settle a shared name": (
