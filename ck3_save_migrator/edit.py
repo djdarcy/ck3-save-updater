@@ -93,7 +93,8 @@ class EditContext:
     def characters(self):
         """The character index (:class:`~ck3_save_migrator.characters.CharacterIndex`); seconds on a real save."""
         from .characters import CharacterIndex
-        return CharacterIndex(self.gamestate)
+        from .names import book
+        return CharacterIndex(self.gamestate, book=book(self.game_dir))     # the names the game shows, when found
 
     @cached_property
     def events(self) -> list:

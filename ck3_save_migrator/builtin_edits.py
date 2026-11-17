@@ -418,14 +418,17 @@ def set_eminent_holy_sites(ctx, params: dict):
     """A faith's eminent holy sites: 1 to 3 of its own holy sites, as the head of faith may choose in play. Only the
     faith's ``eminent_holy_sites={}`` changes; the sites' own faith lists do not record eminence."""
     from . import faith_lookup as FL
-    g = ctx.gamestate
+    from .names import book, parse_list
+    g, bk = ctx.gamestate, book(ctx.game_dir)
     try:
-        faith = FL.find_faith(g, str(params["faith"]))
+        faith = FL.find_faith(g, str(params["faith"]), book=bk)
         table = FL.holy_sites(g)
-        want = [FL.find_holy_site(g, s, table) for s in re.split(r"[,\s]+", str(params["sites"]).strip()) if s]
+        # "Bodh Gaya, Jerusalem, Iona" or "jerusalem rome iona"; a name two sites share is settled by the faith's own
+        want = [it.value for it in parse_list(str(params["sites"]), resolve=lambda s: FL.find_holy_site(
+            g, s, table, book=bk, prefer=faith.holy_sites))]
     except LookupError as e:
         raise EditError(f"set-eminent-holy-sites: {e}") from None
-    label = lambda ids: ", ".join(f"{table.get(i, '?')} ({i})" for i in ids) or "none"
+    label = lambda ids: ", ".join(f"{FL.holy_site_name(table.get(i, '?'), bk)} ({i})" for i in ids) or "none"
     problems = []
     if len(set(want)) != len(want):
         problems.append("a site is named twice")
@@ -463,10 +466,12 @@ def set_eminent_holy_sites(ctx, params: dict):
 _RITE_LINE = re.compile(rb"(?m)^\trite=(\d+)\r?$")
 
 
-def _rite_label(r, faiths: dict) -> str:
-    """A rite as a player knows it. A base rite has a rite_type (shafii); a custom faith's own rite (source=fallback,
-    rite 152 of Way of Scarcity in v16) has no name, type or tag, and is known by its faith."""
-    own = r.name or r.rite_type or r.tag
+def _rite_label(r, faiths: dict, bk=None) -> str:
+    """A rite as a player knows it: the name the game shows (Shafi'i) with a game folder, else its type (shafii); a
+    custom faith's own rite (source=fallback, rite 152 of Way of Scarcity in v16) has no name, type or tag, and is
+    known by its faith."""
+    from .faith_lookup import rite_name
+    own = rite_name(r, bk)
     if own:
         return f"{own} ({r.id})"
     f = faiths.get(r.faith)
@@ -489,22 +494,23 @@ def set_faith(ctx, params: dict):
     dead = False
     try:
         c = resolve_character(g, who, ix)
-        cid, entry, first = c.id, ix.living[c.id], c.first_name
+        cid, entry, first = c.id, ix.living[c.id], ix.shown(c.first_name)
     except CharacterError as exc:
         if not (who.isdigit() and int(who) in ix.dead):
             raise EditError(f"set-faith: {exc}") from None
-        cid, entry, first, dead = int(who), ix.dead[int(who)], ix.first_names.get(int(who), "?"), True
+        cid, entry, dead = int(who), ix.dead[int(who)], True
+        first = ix.shown(ix.first_names.get(cid, "")) or "?"
         if not ctx.dangerous:
             raise EditError(f"set-faith: {cid} {first} is dead; the game converts only the living "
                             "(--dangerous changes the dead character's record anyway)")
-    rites, faiths = FL.rites(g), FL.faiths(g)
+    rites, faiths, bk = FL.rites(g), FL.faiths(g), ix.book
     target = str(params["target"]).strip()
     try:
-        rite = FL.find_rite(g, target, rites)
+        rite = FL.find_rite(g, target, rites, book=bk)
         how = ""
     except LookupError as rite_err:
         try:
-            faith = FL.find_faith(g, target, faiths)
+            faith = FL.find_faith(g, target, faiths, book=bk)
         except LookupError as faith_err:
             raise EditError(f"set-faith: {target!r} is neither a rite nor a faith ({rite_err}; {faith_err})") from None
         if faith.main_rite not in rites:
@@ -515,9 +521,9 @@ def set_faith(ctx, params: dict):
     if m is None:
         raise EditError(f"set-faith: {cid} {first} has no rite= line to change")
     old = rites.get(m.group(1).decode())
-    old_text = _rite_label(old, faiths) if old else m.group(1).decode()
+    old_text = _rite_label(old, faiths, bk) if old else m.group(1).decode()
     if m.group(1).decode() == rite.id:
-        return [], f"{cid} {first} already follows {_rite_label(rite, faiths)}"
+        return [], f"{cid} {first} already follows {_rite_label(rite, faiths, bk)}"
     notes = []
     if old is None or old.faith != rite.faith:
         notes.append(f"faith {_faith_label(faiths, old.faith if old else None)} -> {_faith_label(faiths, rite.faith)}: "
@@ -525,7 +531,7 @@ def set_faith(ctx, params: dict):
     notes.append("titles, holy orders and faith heads are unchanged")
     if dead:
         notes.append("dead: forced")
-    what = f"{cid} {first}: rite {old_text} -> {_rite_label(rite, faiths)}{how}; " + "; ".join(notes)
+    what = f"{cid} {first}: rite {old_text} -> {_rite_label(rite, faiths, bk)}{how}; " + "; ".join(notes)
     return [Change(entry.open + m.start(1), m.group(1), rite.id.encode())], what
 
 
@@ -592,13 +598,27 @@ def set_doctrines(ctx, params: dict):
         raise EditError("set-doctrines: the game's own files are needed to know its rules; set CK3_GAME_DIR to the "
                         "game's 'game' folder")
     rules = faith_rules.load(str(ctx.game_dir))
+    from .names import book, parse_list
+    bk = book(ctx.game_dir)
     try:
-        faith = FL.find_faith(g, str(params["faith"]))
+        faith = FL.find_faith(g, str(params["faith"]), book=bk)
     except LookupError as e:
         raise EditError(f"set-doctrines: {e}") from None
+    nm = lambda k: (bk.display(f"{k}_name") if bk else None) or k        # "Christian Syncretism", else the key
+    gn = lambda grp: (bk.display(f"{grp}_name") if bk else None) or grp  # "Pilgrimage Attitude", else the key
     adds, removes = [], []
-    for t in str(params["changes"]).split():
-        (removes if t.startswith("-") else adds).append(t.lstrip("+-"))
+    try:   # "+doctrine_x -tenet_y", "-Jewish Syncretism, +Christian Syncretism", "+Pilgrimage Attitude: Encouraged"
+        items = parse_list(str(params["changes"]), modifiers=True)
+    except LookupError as e:
+        raise EditError(f"set-doctrines: {e}") from None
+    for it in items:
+        try:
+            key = faith_rules.find_belief(rules, it.text, bk)
+        except LookupError as e:
+            if not re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)+", it.text):   # a game key has an underscore; a name
+                raise EditError(f"set-doctrines: {e}") from None          # ("Encouraged") keeps its refusal
+            key = it.text            # a key the game does not define: refused below as such, or forced
+        (removes if it.sign == "-" else adds).append(key)
     if not adds and not removes:
         raise EditError("set-doctrines: name a change: +key adds a tenet or doctrine, -key removes one")
     fe = _faith_entry(g, faith.id)
@@ -627,19 +647,19 @@ def set_doctrines(ctx, params: dict):
             current = [h for h in have if h in rules.doctrines and rules.doctrines[h].group == grp]
             for c in current:
                 replaced[c] = k
-            done.append(f"{grp}: {', '.join(current) or 'empty'} -> {k}")
+            done.append(f"{gn(grp)}: {', '.join(nm(c) for c in current) or 'empty'} -> {nm(k)}")
     gone_tenets = [k for k in removes if is_tenet(k)]
     new_tenets = [k for k in adds if is_tenet(k)]
     for old, new in zip(gone_tenets, new_tenets):
         replaced[old] = new
-        done.append(f"tenet {old} -> {new}")
-    done += [f"tenet {k} removed" for k in gone_tenets[len(new_tenets):]]
-    done += [f"tenet {k} added" for k in new_tenets[len(gone_tenets):]]
+        done.append(f"tenet {nm(old)} -> {nm(new)}")
+    done += [f"tenet {nm(k)} removed" for k in gone_tenets[len(new_tenets):]]
+    done += [f"tenet {nm(k)} added" for k in new_tenets[len(gone_tenets):]]
     removed = set(removes) | set(replaced)
     for k in removes:
         if k in rules.doctrines and k not in replaced:
             grp = rules.doctrines[k].group
-            done.append(f"{grp}: {k} removed")
+            done.append(f"{gn(grp)}: {nm(k)} removed")
             if rules.group_must_be_filled(grp):
                 first = rules.group_members(grp)[0].key
                 problems.append(f"removing {k} leaves {grp} ({rules.group_category.get(grp)}) with no doctrine, which a "

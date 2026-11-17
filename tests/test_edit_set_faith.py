@@ -99,6 +99,19 @@ def test_the_rite_they_already_follow_writes_nothing(tmp_path, capsys):
     assert not p.with_name(OUT).exists()
 
 
+def test_with_the_game_s_names_the_rite_and_the_character_read_as_the_game_shows_them(tmp_path, capsys, monkeypatch):
+    from ck3_save_migrator import edit as E
+    loc = tmp_path / "game" / "localization" / "english"
+    loc.mkdir(parents=True)
+    (loc / "l_english.yml").write_text('l_english:\n shafii: "Shafi\'i"\n hanafi: "Hanafi"\n GabrA_n: "Gabrán"\n',
+                                       encoding="utf-8")
+    monkeypatch.setattr(E.EditContext, "game_dir", property(lambda self: tmp_path / "game"))
+    p = tmp_path / "Camp.ck3"
+    p.write_bytes(build_ck3(body=BODY.replace(b'"Gabran"', b'"GabrA_n"')))     # the save stores the key
+    assert run(p, "Gabrán", "Shafi'i") == 0
+    assert "10 Gabrán: rite Way of Scarcity's own rite (152) -> Shafi'i (16)" in capsys.readouterr().out
+
+
 def test_a_name_nobody_answers_to_is_refused(tmp_path, capsys):
     p = save(tmp_path)
     assert run(p, "Nobody", "shafii") != 0

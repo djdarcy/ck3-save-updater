@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from functools import cached_property
 
 from . import translate as T
+from .names import norm
 
 # Words in a name that narrow nothing: patronymic and locative particles ("Conchenn nic Bruide", "Ragnar of Uppland").
 PARTICLES = frozenset({"nic", "mac", "ni", "ua", "ap", "ferch", "verch", "of", "de", "di", "da", "du", "von", "van",
@@ -62,10 +63,46 @@ class Character:
 
 
 class CharacterIndex:
-    """Lazy lookups over one gamestate: the living by id, everyone's first name, parents, houses, title holders."""
+    """Lazy lookups over one gamestate: the living by id, everyone's first name, parents, houses, title holders.
 
-    def __init__(self, gamestate: bytes):
+    A first name, a house name and a title in a save are localisation keys (Gabrán is stored as ``GabrA_n``; 1,919
+    of the founding save's 21,544 distinct first names carry that escape). With a ``book`` (names.NameBook) a query
+    may use the names the game shows ("Gabrán", "Gabran") and descriptions print them; without one, the keys still
+    match, folded the same way (``GabrA_n`` and "Gabran" both fold to "gabran"). Measured 2026-11-17: 21,487 of
+    21,544 first names, 16,979 of 17,302 house names and 10,997 of 11,647 held titles have an English name.
+    """
+
+    def __init__(self, gamestate: bytes, book=None):
         self.g = gamestate
+        self.book = book
+
+    def shown(self, key: str) -> str:
+        """The name the game shows for a key (a first name, a house name, a title), or the key itself."""
+        return (self.book.display(key) if self.book and key else None) or key
+
+    def _forms(self, key: str, prefixed: bool = False) -> set:
+        """The folded forms a key answers to: itself, the name the game shows, and for a house or a title the key
+        without its prefix ("dynn_Orsini" and "c_tara" answer to "Orsini" and "tara")."""
+        if not key:
+            return set()
+        out = {norm(key), norm(self.shown(key))}
+        if prefixed:
+            out.add(norm(key.split("_", 1)[-1]))
+        out.discard("")
+        return out
+
+    @cached_property
+    def first_name_index(self) -> dict:
+        """folded first-name form -> ids of the living with that first name."""
+        out: dict = {}
+        forms: dict = {}
+        for cid, e in self.living.items():
+            fn = _field(self.g[e.open:e.close], b"first_name")
+            if fn not in forms:
+                forms[fn] = self._forms(fn)
+            for f in forms[fn]:
+                out.setdefault(f, []).append(cid)
+        return out
 
     @cached_property
     def date(self) -> tuple[int, int, int] | None:
@@ -139,41 +176,53 @@ class CharacterIndex:
     def describe(self, c: Character) -> str:
         """One candidate line: id, sex, age, house, parents, titles."""
         def parent(p):
-            return f"{p} {self.first_names.get(p, '?')}" if p is not None else "-"
-        house = f"{c.house_id} {c.house}".strip() if c.house_id else "-"
-        titles = ", ".join(c.titles) or "-"
+            return f"{p} {self.shown(self.first_names.get(p, '')) or '?'}" if p is not None else "-"
+        house = f"{c.house_id} {self.shown(c.house)}".strip() if c.house_id else "-"
+        titles = ", ".join(self.shown(t) for t in c.titles) or "-"
         age = f"age {c.age}" if c.age is not None else "age ?"
-        return (f"{c.id:>10}  {c.first_name} ({'F' if c.female else 'M'}, {age}, born {c.birth or '?'})  "
+        return (f"{c.id:>10}  {self.shown(c.first_name)} ({'F' if c.female else 'M'}, {age}, born {c.birth or '?'})  "
                 f"house {house}  father {parent(c.father)}  mother {parent(c.mother)}  titles {titles}")
 
-    def _matches(self, c: Character, piece: str) -> bool:
-        p = piece.lower()
-        names = {self.first_names.get(c.father, "").lower() if c.father is not None else "",
-                 self.first_names.get(c.mother, "").lower() if c.mother is not None else ""}
-        for key in (c.house, *c.titles):          # "dynn_Orsini" and "c_tara" answer to "Orsini" and "tara" too
-            names.add(key.lower())
-            names.add(key.split("_", 1)[-1].lower())
-        names.discard("")
-        return p in names
+    def _narrowers(self, c: Character) -> set:
+        """The folded names that narrow a query to `c`: a parent's first name, the house, a title."""
+        out: set = set()
+        for p in (c.father, c.mother):
+            if p is not None:
+                out |= self._forms(self.first_names.get(p, ""))
+        for key in (c.house, *c.titles):
+            out |= self._forms(key, prefixed=True)
+        return out
+
+    @staticmethod
+    def _covered(words: list[str], forms: set) -> bool:
+        """Whether `words` can be cut into runs that each name something in `forms` ("Ui Neill" is one run for the
+        house "Uí Néill"): the grouping of the generic parser's longest-match, where any covering reading counts."""
+        n = len(words)
+        ok = [False] * n + [True]
+        for i in range(n - 1, -1, -1):
+            ok[i] = any(ok[j] and norm(" ".join(words[i:j])) in forms for j in range(i + 1, n + 1))
+        return ok[0]
 
     def find(self, text: str) -> list[Character]:
-        """The living characters answering to ``text``: an id, or a first name and narrowing pieces."""
+        """The living characters answering to ``text``: an id, or a first name and narrowing words. The first name
+        is one word or more ("Iomaíocht Máel-Mórda"), the narrowing words a parent's first name, the house or a title,
+        each one word or more; particles ("nic", "of") are skipped; accents and case never matter."""
         pieces = text.split()
         if not pieces:
             return []
         if len(pieces) == 1 and pieces[0].isdigit():
             c = self.character(int(pieces[0]))
             return [c] if c else []
-        first = pieces[0].lower()
-        rest = [p for p in pieces[1:] if p.lower() not in PARTICLES]
-        out = []
-        for cid, e in self.living.items():
-            if _field(self.g[e.open:e.close], b"first_name").lower() != first:
-                continue
-            c = self.character(cid)
-            if all(self._matches(c, p) for p in rest):
-                out.append(c)
-        return out
+        found: dict = {}
+        for k in range(1, len(pieces) + 1):
+            rest = [p for p in pieces[k:] if p.lower() not in PARTICLES]
+            for cid in self.first_name_index.get(norm(" ".join(pieces[:k])), ()):
+                if cid in found:
+                    continue
+                c = self.character(cid)
+                if self._covered(rest, self._narrowers(c)):
+                    found[cid] = c
+        return list(found.values())
 
 
 def resolve_character(gamestate: bytes, text: str, index: CharacterIndex | None = None) -> Character:

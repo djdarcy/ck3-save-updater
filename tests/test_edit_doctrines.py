@@ -159,6 +159,38 @@ def test_removing_what_the_faith_does_not_have_is_refused(tmp_path, game, capsys
     assert "faith 103 does not have doctrine_pilgrimage_encouraged" in capsys.readouterr().err
 
 
+@pytest.fixture()
+def shown(game):
+    """The fake game folder, plus the names the game shows for these tenets, doctrines and groups."""
+    loc = game / "localization" / "english"
+    loc.mkdir(parents=True)
+    (loc / "doctrines_l_english.yml").write_text(
+        'l_english:\n tenet_christian_syncretism_name: "Christian Syncretism"\n'
+        ' tenet_jewish_syncretism_name: "Jewish Syncretism"\n doctrine_pilgrimage_encouraged_name: "Encouraged"\n'
+        ' doctrine_funeral_sky_burial_name: "Encouraged"\n doctrine_pilgrimage_name: "Pilgrimage Attitude"\n'
+        ' doctrine_funeral_name: "Funeral"\n', encoding="utf-8")
+    return game
+
+
+def test_changes_by_the_names_the_game_shows_with_signs_and_commas(tmp_path, shown, capsys):
+    p = save(tmp_path)
+    assert run(p, "103", "-Jewish Syncretism, +Christian Syncretism", "--dangerous") == 0
+    assert out(p) == both("tenet=tenet_jewish_syncretism", "tenet=tenet_christian_syncretism")
+    assert "tenet Jewish Syncretism -> Christian Syncretism" in capsys.readouterr().out
+
+
+def test_a_qualified_doctrine_fills_its_group_and_a_shared_name_is_refused(tmp_path, shown, capsys):
+    p = save(tmp_path)
+    assert run(p, "103", "+Pilgrimage Attitude: Encouraged") == 0
+    assert "Pilgrimage Attitude: empty -> Encouraged" in capsys.readouterr().out
+    q = tmp_path / "again"
+    q.mkdir()
+    r = save(q)
+    assert run(r, "103", "+Encouraged") != 0
+    assert ("'Encouraged' names 2: Funeral: Encouraged (doctrine_funeral_sky_burial), Pilgrimage Attitude: Encouraged "
+            "(doctrine_pilgrimage_encouraged)") in capsys.readouterr().err
+
+
 def test_without_the_game_s_files_the_edit_is_refused(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(E.EditContext, "game_dir", property(lambda self: None))
     p = save(tmp_path)

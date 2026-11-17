@@ -12,6 +12,9 @@ import sys
 CLI = "ck3_save_migrator/cli.py"
 NAMES = "ck3_save_migrator/names.py"
 LOOKUP = "ck3_save_migrator/faith_lookup.py"
+EDITS = "ck3_save_migrator/builtin_edits.py"
+CHARS = "ck3_save_migrator/characters.py"
+EDIT = "ck3_save_migrator/edit.py"
 RULES = "ck3_save_migrator/faith_rules.py"
 SLICES = {
     "s1": ("tests/test_cli_output_encoding.py", {
@@ -51,6 +54,47 @@ SLICES = {
                                                           'else (lambda k: None)', "    shown = lambda k: None"),
         "h lookups fold accents": (LOOKUP, '    return norm(s or "")',
                                    '    return re.sub(r"[^a-z0-9]", "", (s or "").lower())'),
+    }),
+    "s5": ("tests/test_edit_eminent.py tests/test_edit_set_faith.py tests/test_edit_doctrines.py "
+           "tests/test_characters.py tests/test_cli_output_encoding.py", {
+        "a eminent: the faith's own sites settle a shared name": (
+            EDITS, "            g, s, table, book=bk, prefer=faith.holy_sites))]",
+            "            g, s, table, book=bk, prefer=None))]"),
+        "b eminent: labels in display names": (
+            EDITS, """    label = lambda ids: ", ".join(f"{FL.holy_site_name(table.get(i, '?'), bk)} ({i})" for i in ids) or "none\"""",
+            """    label = lambda ids: ", ".join(f"{table.get(i, '?')} ({i})" for i in ids) or "none\""""),
+        "c eminent: the game's names read": (EDITS, "    g, bk = ctx.gamestate, book(ctx.game_dir)",
+                                             "    g, bk = ctx.gamestate, None"),
+        "d set-faith: the game's names read": (EDITS, "    rites, faiths, bk = FL.rites(g), FL.faiths(g), ix.book",
+                                               "    rites, faiths, bk = FL.rites(g), FL.faiths(g), None"),
+        "e set-faith: the character shown": (EDITS, "        cid, entry, first = c.id, ix.living[c.id], ix.shown(c.first_name)",
+                                             "        cid, entry, first = c.id, ix.living[c.id], c.first_name"),
+        "f doctrines: signs read": (EDITS, '        items = parse_list(str(params["changes"]), modifiers=True)',
+                                    '        items = parse_list(str(params["changes"]), modifiers=False)'),
+        "g doctrines: display names resolved": (EDITS, "            key = faith_rules.find_belief(rules, it.text, bk)",
+                                                "            key = faith_rules.find_belief(rules, it.text, None)"),
+        "h doctrines: only a game key passes unresolved": (
+            EDITS, '            if not re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)+", it.text):   # a game key has an underscore; a name',
+            '            if not re.fullmatch(r"[\\w.\\-]+", it.text):'),
+        "i doctrines: labels in display names": (
+            EDITS, '    nm = lambda k: (bk.display(f"{k}_name") if bk else None) or k        # "Christian Syncretism", else the key',
+            "    nm = lambda k: k"),
+        "j characters: first names by display name": (CHARS, "        out = {norm(key), norm(self.shown(key))}",
+                                                      "        out = {norm(key)}"),
+        "k characters: multi-word narrowing": (
+            CHARS, '            ok[i] = any(ok[j] and norm(" ".join(words[i:j])) in forms for j in range(i + 1, n + 1))',
+            '            ok[i] = any(ok[j] and norm(" ".join(words[i:j])) in forms for j in range(i + 1, min(i + 2, n + 1)))'),
+        "l characters: multi-word first names": (CHARS, "        for k in range(1, len(pieces) + 1):",
+                                                 "        for k in range(1, 2):"),
+        "m characters: described by display name": (
+            CHARS, """        return (f"{c.id:>10}  {self.shown(c.first_name)} ({'F' if c.female else 'M'}, {age}, born {c.birth or '?'})  \"""",
+            """        return (f"{c.id:>10}  {c.first_name} ({'F' if c.female else 'M'}, {age}, born {c.birth or '?'})  \""""),
+        "n the editor passes the game's names": (
+            EDIT, "        return CharacterIndex(self.gamestate, book=book(self.game_dir))     # the names the game shows, when found",
+            "        return CharacterIndex(self.gamestate)"),
+        "o ligatures fold": (
+            NAMES, '    return "".join(c for c in unicodedata.normalize("NFKD", text.translate(_LIGATURES)) if not unicodedata.combining(c))',
+            '    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))'),
     }),
 }
 TESTS, REVERTS = SLICES[sys.argv[1] if len(sys.argv) > 1 else "s1"]

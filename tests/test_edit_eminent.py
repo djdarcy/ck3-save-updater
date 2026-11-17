@@ -85,6 +85,37 @@ def test_choosing_the_sites_it_already_has_writes_nothing(tmp_path, capsys):
     assert not p.with_name("Camp__set-eminent-holy-sites.ck3").exists()
 
 
+@pytest.fixture
+def shown(tmp_path, monkeypatch):
+    """A game folder whose localisation names the sites; Constantinople is also called "Rome" here, so a name two
+    sites share must be settled by the faith's own holy sites."""
+    from ck3_save_migrator import edit as E
+    loc = tmp_path / "game" / "localization" / "english"
+    loc.mkdir(parents=True)
+    (loc / "religion_l_english.yml").write_text(
+        'l_english:\n holy_site_jerusalem_name: "Jerusalem"\n holy_site_rome_name: "Rome"\n holy_site_iona_name: "Iona"\n'
+        ' holy_site_kent_name: "Saint Augustine\'s Abbey"\n holy_site_constantinople_name: "Rome"\n', encoding="utf-8")
+    monkeypatch.setattr(E.EditContext, "game_dir", property(lambda self: tmp_path / "game"))
+
+
+def test_commas_take_multi_word_names_the_game_shows_and_labels_use_them(tmp_path, capsys, shown):
+    p = save(tmp_path)
+    assert run(p, "Way of Scarcity", "Jerusalem, Saint Augustine's Abbey") == 0
+    assert b"\t\t\teminent_holy_sites={ 0 4 }\n" in out(p)
+    assert "Jerusalem (0), Rome (1) -> Jerusalem (0), Saint Augustine's Abbey (4)" in capsys.readouterr().out
+
+
+def test_a_name_two_sites_share_is_settled_by_the_faith_s_own_sites(tmp_path, capsys, shown):
+    p = save(tmp_path)
+    assert run(p, "Way of Scarcity", "Iona, Rome") == 0                     # 103 holds rome (1), not constantinople
+    assert b"\t\t\teminent_holy_sites={ 15 1 }\n" in out(p)
+    p2 = tmp_path / "other"
+    p2.mkdir()
+    q = save(p2)
+    assert run(q, "catholic", "Rome") != 0                                  # 12 holds both: refused, both listed
+    assert "names 2: Rome (rome, 1), Rome (constantinople, 5)" in capsys.readouterr().err
+
+
 def test_an_unknown_faith_is_refused_with_the_nearest_name(tmp_path, capsys):
     p = save(tmp_path)
     assert run(p, "Way of Scarsity", "jerusalem") != 0

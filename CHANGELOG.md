@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.32] - 2026-11-17
+
+### Changed
+- The edits now take names the way the game shows them.
+  - **Characters.** A save stores a character's first name, house and titles as the game's internal keys; Gabrán is stored as `GabrA_n`. Typing "Gabran" or "Gabrán" now finds him, with or without the accents. With the game folder found, a query can also narrow by the names on screen, such as a house like "Uí Néill" or a mother like "Ælfweard" (typed "Aelfweard" works too). Lists of candidates print the names the game shows.
+  - **set-eminent-holy-sites.** It takes names separated by commas, such as `"Bodh Gaya, Jerusalem, Iona"`. When two sites share a name, the faith's own holy sites settle which one is meant.
+  - **set-faith.** A rite can be named as the game shows it ("Shafi'i", "Ásatrú"), and the report shows that name.
+  - **set-doctrines.** It takes the names the game shows, with `+` and `-`, as in `"-Jewish Syncretism, +Christian Syncretism"`. A doctrine is named with its group, as in `"+Pilgrimage Attitude: Encouraged"`. A name several doctrines share is refused, with each listed. The game's keys keep working everywhere.
+- Accents are taken off letters such as Æ, Ł, Ø and Þ as well, so "Aelfweard" matches "Ælfweard" and "Swietopelk" matches "Świętopełk".
+
 ## [0.5.31] - 2026-11-17
 
 ### Added
@@ -879,7 +889,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.32...HEAD
+[0.5.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.31...v0.5.32
 [0.5.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.30...v0.5.31
 [0.5.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.29...v0.5.30
 [0.5.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.28...v0.5.29

@@ -21,7 +21,8 @@ REPO = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize("text, want", [
     ("Ise Jingū", "Ise Jingu"), ("Ásatrú", "Asatru"), ("Jórvík", "Jorvik"), ("Toruń", "Torun"),
-    ("Shafi'i", "Shafi'i"), ("伊勢", "伊勢"),
+    ("Shafi'i", "Shafi'i"), ("伊勢", "伊勢"), ("Ælfweard", "Aelfweard"), ("Świętopełk", "Swietopelk"),
+    ("Þórr", "Thorr"),
 ])
 def test_fold_accents_takes_accents_off_and_keeps_the_rest(text, want):
     assert names.fold_accents(text) == want

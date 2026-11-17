@@ -131,10 +131,16 @@ def parse_list(text: str, *, resolve=None, longest: bool = False, modifiers: boo
     return items
 
 
+# Letters Unicode does not decompose, written the way English writes them: the game's Norse, Old English and Slavic
+# names carry them ("Ælfweard", "Świętopełk"); found 2026-11-17 when "Aelfweard" did not find Gabrán's mother.
+_LIGATURES = str.maketrans({"Æ": "Ae", "æ": "ae", "Œ": "Oe", "œ": "oe", "ß": "ss", "Ø": "O", "ø": "o", "Ł": "L",
+                            "ł": "l", "Đ": "D", "đ": "d", "Ð": "D", "ð": "d", "Þ": "Th", "þ": "th", "ı": "i"})
+
+
 def fold_accents(text: str) -> str:
-    """The same text with accents taken off the letters: "Ise Jingū" -> "Ise Jingu", "Ásatrú" -> "Asatru".
-    Letters with no plain form (伊勢, ß) are kept as they are."""
-    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    """The same text with accents taken off the letters: "Ise Jingū" -> "Ise Jingu", "Ásatrú" -> "Asatru",
+    "Ælfweard" -> "Aelfweard", "Świętopełk" -> "Swietopelk". Letters with no plain form (伊勢) are kept."""
+    return "".join(c for c in unicodedata.normalize("NFKD", text.translate(_LIGATURES)) if not unicodedata.combining(c))
 
 
 def _fold_handler(err: UnicodeEncodeError):

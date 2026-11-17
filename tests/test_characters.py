@@ -103,3 +103,58 @@ def test_a_number_param_must_be_whole():
     assert E.resolve_params(d, {"amount": "5000"}, b"")["amount"] == 5000
     with pytest.raises(E.EditError, match="whole number"):
         E.resolve_params(d, {"amount": "lots"}, b"")
+
+
+# ---- names as the game shows them (the multi-word-names goal, S5/U4; the 01-57-40 DWP) ----
+# A save stores a first name, a house name and a title as localisation keys: Gabrán is "GabrA_n" (measured 2026-11-17).
+NAMED = (
+    b"date=987.10.27\n"
+    b"living={\n"
+    b"40={\n\tfirst_name=\"GabrA_n\"\n\tbirth=976.7.13\n\tdynasty_house=7\n}\n"
+    b"41={\n\tfirst_name=\"GabrA_n\"\n\tbirth=925.3.30\n\tdynasty_house=8\n}\n"
+    b"42={\n\tfirst_name=\"E_lfweard\"\n\tbirth=954.9.27\n\tfemale=yes\n"
+    b"\tfamily_data={\n\t\tchild={ 40 }\n\t}\n}\n"
+    b"43={\n\tfirst_name=\"@MULTI@\"\n\tbirth=960.1.1\n}\n"
+    b"}\n"
+    b"dynasties={\n\tdynasty_house={\n7={\n\tname=\"dynn_Ui_Neill\"\n}\n8={\n\tkey=\"house_osraige\"\n}\n\t}\n}\n"
+)
+NAMED_LOC = ('l_english:\n GabrA_n:0 "Gabrán"\n E_lfweard:0 "Ælfweard"\n dynn_Ui_Neill: "Uí Néill"\n'
+             ' house_osraige: "Osraige"\n')
+
+
+@pytest.fixture
+def named(tmp_path):
+    from ck3_save_migrator.names import NameBook
+    loc = tmp_path / "game" / "localization" / "english" / "names"
+    loc.mkdir(parents=True)
+    (loc / "names_l_english.yml").write_text(NAMED_LOC, encoding="utf-8")
+    g = DEFAULT_META + NAMED.replace(b"@MULTI@", "Iomaíocht Máel-Mórda".encode())   # a literal name, stored as text
+    return g, NameBook(tmp_path / "game")
+
+
+@pytest.mark.parametrize("typed", ["Gabran", "Gabrán", "GABRAN", "GabrA_n"])
+def test_a_first_name_stored_as_a_key_is_found_as_typed_even_without_the_game(named, typed):
+    g, _ = named
+    with pytest.raises(CharacterError, match="matches 2"):
+        resolve_character(g, typed, CharacterIndex(g))
+
+
+def test_the_game_s_names_narrow_and_are_printed(named):
+    g, book = named
+    ix = CharacterIndex(g, book=book)
+    assert resolve_character(g, "Gabrán Uí Néill", ix).id == 40          # a multi-word house, as the game shows it
+    assert resolve_character(g, "Gabran ui neill", ix).id == 40
+    assert resolve_character(g, "Gabran Aelfweard", ix).id == 40          # the mother, Æ written as Ae
+    line = " ".join(ix.describe(ix.character(40)).split())
+    assert "40 Gabrán (M" in line and "house 7 Uí Néill" in line and "mother 42 Ælfweard" in line
+
+
+def test_a_multi_word_first_name_is_found_without_its_accents(named):
+    g, _ = named
+    assert resolve_character(g, "Iomaiocht Mael-Morda", CharacterIndex(g)).id == 43
+
+
+def test_without_the_game_a_description_keeps_the_keys(named):
+    g, _ = named
+    ix = CharacterIndex(g)
+    assert "40  GabrA_n (M" in ix.describe(ix.character(40))
