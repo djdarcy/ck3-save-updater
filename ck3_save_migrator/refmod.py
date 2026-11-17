@@ -252,6 +252,77 @@ def pick_ruler(game_dir: Path, date: str, character: str | None = None) -> Pick:
     return Pick(cid, t, **f, why=why)
 
 
+# --------------------------------------------------------------------------- the names the game shows
+NAMED_FLAGS = ("culture", "religion", "house", "title")
+_TITLE_KEY = re.compile(r"^[ekdcb]_")
+
+
+def name_tables(game_dir: Path) -> dict[str, dict[str, tuple]]:
+    """For each named flag, game key -> (the key, the names the game shows for it), from ``<game_dir>/common`` and
+    its localization (names.NameBook): cultures (common/culture/cultures), faiths as rites (common/religion/
+    rite_types: 1.20's history files and bookmarks name the rite, insular_celtic, roman_rite), dynasty houses (their
+    ``name``, alone and after their ``prefix``: "Briúin Seóla", "ua Briúin Seóla") and titles (every e_/k_/d_/c_/b_
+    block of common/landed_titles)."""
+    from . import history as H
+    from .names import book
+    bk = book(game_dir)
+    shown = (lambda k: bk.display(k.strip('"'))) if bk else (lambda k: None)
+    common = Path(game_dir) / "common"
+    tables: dict[str, dict[str, tuple]] = {k: {} for k in NAMED_FLAGS}
+    for key, body in H.read_folder(common / "culture" / "cultures"):
+        if key and isinstance(body, list):
+            tables["culture"][key] = (key, shown(key))
+    for key, body in H.read_folder(common / "religion" / "rite_types"):
+        if key and isinstance(body, list):
+            tables["religion"][key] = (key, shown(key))
+    for key, body in H.read_folder(common / "dynasty_houses"):
+        if key and isinstance(body, list):
+            f = {k: v for k, v in body if isinstance(v, str)}
+            name = shown(f["name"]) if "name" in f else None
+            pre = shown(f["prefix"]) if "prefix" in f else None
+            tables["house"][key] = (key, name, f"{pre.strip()} {name}" if pre and name else None)
+
+    def titles(pairs):
+        for k, v in pairs:
+            if k and isinstance(v, list) and _TITLE_KEY.match(k):
+                tables["title"][k] = (k, shown(k))
+                titles(v)
+    titles(H.read_folder(common / "landed_titles"))
+    return tables
+
+
+def resolve_names(game_dir: Path | None, given: dict) -> tuple[dict, list[str]]:
+    """``given`` with each of --culture/--religion/--house/--title turned into its game key: a key stays as it is, a
+    name the game shows ("Insular Celtic", "Ireland") becomes its key, case, accents and punctuation ignored
+    (names.norm). A name shared by several keys is refused with the candidates; an unknown one with the nearest
+    names. Without the game's files only keys can be given. Returns (the flags, one line per name resolved)."""
+    from .faith_lookup import LookupError_, _find
+    named = {k: v for k, v in given.items() if k in NAMED_FLAGS}
+    if not named:
+        return dict(given), []
+    if game_dir is None:
+        bad = [f"--{k} {v!r}" for k, v in named.items() if not _KEY.match(v)]
+        if bad:
+            raise RefModError(f"{', '.join(bad)} is not a game key, and a name the game shows needs the game's files: "
+                              "give --game-dir")
+        return dict(given), []
+    tables = name_tables(game_dir)
+    out, notes = dict(given), []
+    for k, v in named.items():
+        t = tables[k]
+        if not t:                                    # the folder is not there: leave the key as given
+            continue
+        try:
+            key = _find({"religion": "faith"}.get(k, k), v, t, lambda it: it, hint=False,
+                        label=lambda i, t=t: f"{next((n for n in t[i][1:] if n), i)} ({i})")
+        except LookupError_ as exc:
+            raise RefModError(f"--{k}: {exc}") from None
+        if key != v:
+            out[k] = key
+            notes.append(f"--{k} {v!r} is {key}")
+    return out, notes
+
+
 def meta_date(meta: bytes) -> str:
     """The in-game date a save was made on, ``meta_date`` in its metadata."""
     m = re.search(rb"(?m)^\s*meta_date=\"?(-?\d+\.\d+\.\d+)\"?", meta)

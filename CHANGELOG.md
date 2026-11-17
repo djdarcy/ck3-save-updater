@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.37] - 2026-11-17
+
+### Added
+- `reference-mod` now takes the names the game shows for the ruler's culture, faith, house and title, as well as game keys. `--culture Irish` is the culture `irish`, and `--title Ireland` is `k_ireland`. Case and accents don't matter. A house is found by its name alone or with its prefix. The faith is a rite, as 1.20's history files name it, so Catholicism's is "Roman Rite". A name that several keys share is refused, and the tool lists them. A name it does not know is refused with the nearest ones it does know. Names need the game folder, and keys work without it as before.
+
 ## [0.5.36] - 2026-11-17
 
 ### Added
@@ -914,7 +919,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.37...HEAD
+[0.5.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.36...v0.5.37
 [0.5.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.35...v0.5.36
 [0.5.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.34...v0.5.35
 [0.5.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.5.33...v0.5.34

@@ -38,7 +38,7 @@ from .discover import GameInstall, compare_versions, discover_games, find_save, 
 from .patches import PatchError, read_pack, rules_from_pack, verdict
 from .patches.model import tomllib
 from .patches.pack import run_verdict
-from .refmod import make_bookmark, meta_date, pick_ruler, write_mod
+from .refmod import NAMED_FLAGS, make_bookmark, meta_date, pick_ruler, resolve_names, write_mod
 from .rules import REGISTRY, RuleContext, missing_prerequisites, run_rules, select
 from .rules.religion_1_20 import custom_faith_names
 from .savefile import (
@@ -1479,10 +1479,16 @@ def cmd_reference_mod(args) -> int:
     if args.save is not None:
         say(DEFAULT, f"date: {date} (meta_date of {args.save})", "io")
     given = {k: getattr(args, k) for k in RULER_FLAGS if getattr(args, k) is not None}
+    game = None
+    if any(k in given for k in NAMED_FLAGS) or len(given) < len(RULER_FLAGS):
+        game = find_game_dir(args.game_dir)
+    # --culture/--religion/--house/--title take the names the game shows as well as keys (after-goal-pass goal, S4)
+    given, resolved = resolve_names(game, given)
+    for line in resolved:
+        say(DEFAULT, f"  {line}", "io")
     fields = dict(given, female=args.female, name=args.name or "", government=args.government or "feudal_government")
     if len(given) < len(RULER_FLAGS):
         # the missing fields come from the game's history files: the ruler given with --character, else one picked
-        game = find_game_dir(args.game_dir)
         if game is None:
             raise ValueError("no game folder to pick the ruler from: give --game-dir, or every one of "
                              + ", ".join(f"--{k}" for k in RULER_FLAGS))
