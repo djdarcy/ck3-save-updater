@@ -55,6 +55,19 @@ def test_what_no_rule_decides_stays_empty_and_is_reported(ref):
     assert sorted(r.unknown) == ["d_few_9", "x_mc_8", "x_q_9"]
 
 
+def test_empty_key_cooldowns_are_dropped_and_named_ones_kept():
+    g = (b"living={\n\t1={\n\t\tlanded_data={\n\t\t\tdecision_cooldowns={\n\t\t\t\t=978.3.5\n"
+         b"\t\t\t\thold_court_decision=986.3.5\n\t\t\t\t=1000.9.11\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    out, n = C.drop_empty_cooldowns(g)
+    assert n == 2
+    assert out == (b"living={\n\t1={\n\t\tlanded_data={\n\t\t\tdecision_cooldowns={\n"
+                   b"\t\t\t\thold_court_decision=986.3.5\n\t\t\t}\n\t\t}\n\t}\n}\n")
+    assert C.drop_empty_cooldowns(out) == (out, 0)
+    # an empty-key date outside decision_cooldowns is not this rule's business
+    other = b"history={\n\t=867.1.1\n}\n"
+    assert C.drop_empty_cooldowns(other) == (other, 0)
+
+
 def test_a_second_run_changes_nothing(ref):
     once = C.type_titles(save(title(1, "c_nf_yamato", '""')), ref).gamestate
     assert C.type_titles(once, ref).gamestate == once

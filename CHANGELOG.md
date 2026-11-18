@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.20] - 2026-11-18
+
+### Fixed
+- Clears another fault the game leaves when it converts a save to 1.21. For each decision 1.21 removed, such as going on pilgrimage or a hunt, the game keeps the old cooldown but loses the decision's name. It then logs an error for it on every load.
+- These empty cooldowns are dropped, since they belong to decisions that no longer exist. Cooldowns that still name a decision are kept, including those of mods not active at the time. Tested in 1.21: 2,187 dropped, and the error log lost exactly 2,187 lines. This runs together with the title-type repair, when a 1.21 reference save is given.
+
 ## [0.6.19] - 2026-11-18
 
 ### Fixed
@@ -1051,7 +1057,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.19...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.20...HEAD
+[0.6.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.19...v0.6.20
 [0.6.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.18...v0.6.19
 [0.6.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.17...v0.6.18
 [0.6.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.16...v0.6.17

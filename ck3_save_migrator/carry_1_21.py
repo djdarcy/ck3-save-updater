@@ -408,6 +408,23 @@ def type_titles(g: bytes, ref: bytes) -> TypesResult:
     return res
 
 
+def drop_empty_cooldowns(g: bytes) -> tuple[bytes, int]:
+    """Remove the decision cooldowns the game's 1.21 conversion writes with an empty key (S8, a neutral nothing).
+
+    In djdarcy's re-save of v17 the game wrote 2,187 entries like ``decision_cooldowns={ =978.3.5 }``. Each came from
+    a cooldown v17 held for a decision 1.21 no longer defines (all 2,182 matched by date: go_on_pilgrimage_decision
+    833, start_hunt_decision 389, playdate_decision 244, ...), and each logs "Trying to set date from an empty
+    string" on every load. A cooldown for a decision that does not exist does nothing, so dropping it changes no play.
+    """
+    p, n = gs.EditPass(), 0
+    for m in re.finditer(rb"\bdecision_cooldowns=\{", g):
+        end = gs.match_brace(g, m.end() - 1)
+        for e in re.finditer(rb"\n[ \t]*=\d+\.\d+\.\d+(?=\s)", g[m.end():end]):
+            p.add(gs.Edit(m.end() + e.start(), m.end() + e.end(), b"", "cooldowns", "empty-key cooldown"))
+            n += 1
+    return (p.apply(g) if n else g), n
+
+
 def gov_of_landed(g: bytes, e: gs.Block) -> str:
     """The government= inside a character's landed_data (where 1.21 keeps it), or "none"."""
     body = g[e.open:e.close]
