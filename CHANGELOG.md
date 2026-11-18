@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.25] - 2026-11-18
+
+### Added
+- `update` now takes a save older than 1.20 into a 1.21 game in one plan. Before, it refused. The save goes through the 1.20 step, still stamped 1.20, then the 1.21 preparation. You load it once in 1.21 and save, then run `update` on that save with `--witness` to repair what the game's conversion dropped. `status` names this route.
+- A save already on 1.20 takes only the 1.21 step, as before.
+- Tested on a 1.8.1 campaign in 1.21: it loaded with no duplicate titles, every character counted, and phase two matched the result of the 1.20 route.
+
 ## [0.6.24] - 2026-11-18
 
 ### Added
@@ -1090,7 +1097,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.24...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.25...HEAD
+[0.6.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.24...v0.6.25
 [0.6.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.23...v0.6.24
 [0.6.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.22...v0.6.23
 [0.6.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.21...v0.6.22

@@ -62,7 +62,7 @@ Then copy the updated save into the save games folder (if it is not there alread
 A REFUSED plan ends with each reason, and a `fix:` line under it:
 
 ```
-REFUSED: the gap 1.8.1 -> 1.21.0: no selected pack declares it covers it (a pack's [applies] span); nothing would bring
+REFUSED: the gap 1.8.1 -> 1.22.0: no selected pack declares it covers it (a pack's [applies] span); nothing would bring
          the save to the game's version
   fix: a pack in your packs folder whose [applies] declares this span (docs/writing-a-patch.md), or `ck3update migrate`
        with the rules you choose

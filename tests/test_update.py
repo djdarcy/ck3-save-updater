@@ -382,6 +382,23 @@ def test_a_same_date_1_21_re_save_is_offered_phase_two_and_a_later_one_is_not(tm
     assert not any("apply to it" in n for n in late)
 
 
+def test_a_save_older_than_1_20_takes_to_1_20_then_to_1_21_into_a_1_21_game(tmp_path, saves):
+    # the route with only the current game installed (K7, goal F6): to_1_20 writes for 1.20.1.2, to_1_21 carries on
+    s = ref_save(saves, "Old18.ck3", version=b"1.8.1")
+    p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
+    assert {r.id: r.selected for r in p.packs}.get("to_1_20") and {r.id: r.selected for r in p.packs}.get("to_1_21")
+    assert not p.refusals and p.uncovered is None
+    assert any(n.startswith("route: this save is older than 1.20") for n in p.notes)
+
+
+def test_a_1_20_save_takes_to_1_21_alone_and_names_no_chain(tmp_path, saves):
+    s = ref_save(saves, "Twenty.ck3", version=b"1.20.1.2")
+    p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
+    sel = {r.id: r.selected for r in p.packs}
+    assert sel.get("to_1_21") and not sel.get("to_1_20")
+    assert not any(n.startswith("route:") for n in p.notes)
+
+
 def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
     # repair_1_21 (phase two): a 1.21 save in a 1.21 game is already current unless a witness is named
     s = ref_save(saves, "Converted.ck3", version=b"1.21.0")

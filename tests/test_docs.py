@@ -48,7 +48,8 @@ def status_outputs(tmp_path, saves, capsys) -> dict[str, str]:
         "READY": ["status", str(old), "--game-dir", str(g), "--reference", "none"],
         "ALREADY CURRENT": ["status", str(cur), "--game-dir", str(g)],
         "NOTHING TO DO": ["status", str(old), "--game-dir", str(g), "--reference", "none", "--rules", "R8"],
-        "REFUSED": ["status", str(old), "--game-dir", str(game(tmp_path, "1.21.0", "Newer"))],
+        # a game no pack reaches (a 1.8 save into 1.21 is now a route: to_1_20 then to_1_21, goal F6)
+        "REFUSED": ["status", str(old), "--game-dir", str(game(tmp_path, "1.22.0", "Newer"))],
         "no save": ["status", "--game-dir", str(g)],
     }
     out = {}

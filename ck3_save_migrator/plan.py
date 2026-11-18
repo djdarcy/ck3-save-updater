@@ -610,6 +610,7 @@ def _dangerous(ok: bool, why: str, skip_why: str, pack: str, dangerous: bool, no
 
 
 REWORK = "1.13"                       # the map rework: a save below it needs the new-map rules to load in 1.20
+CHAIN_STAMP = "1.20.1.2"              # what to_1_20 writes for, on the route from an older save into 1.21+ (F6)
 TRANSPLANT = ("R14", "R15", "R16")    # rules.select adds R17, which writes what they plan
 CONTEXT_PRESENT = {"target_version", "target_save_game_version", "wos_shape", "expansion_orders", "mod_dirs"}
 
@@ -829,6 +830,17 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # ---- the built-in pack, and the rules --rules selects from it
     shipped = read_pack()
     ok, why, covers, skip_why = _span_why(shipped.applies, sv["version"], gv, seed)
+    # the route for a save older than 1.20 into a 1.21+ game (K7, goal F6, 2026-11-18): to_1_20 writes for 1.20
+    # (its output stays stamped 1.20.1.2, RuleContext.target_version, with rows from a 1.21 reference shaped to
+    # 1.20 by downshape.py), and the later packs carry it on to the game as for any 1.20 save. Measured: the founding
+    # 1.8.1 save through this route loaded in 1.21 with 0 duplicate titles and every character counted
+    chain = None
+    if not ok and gv and sv["version"] and compare_versions(gv, "1.21") != -1:
+        c_ok, c_why, _c_covers, c_skip = _span_why(shipped.applies, sv["version"], CHAIN_STAMP, seed)
+        if c_ok:
+            chain = CHAIN_STAMP
+            ok, why, covers, skip_why = True, (f"{c_why}; it writes for {CHAIN_STAMP}, and the later built-in packs "
+                                               f"carry the save on to {gv}"), False, c_skip
     ok, why = _dangerous(ok, why, skip_why, f"the built-in pack {shipped.id}", dangerous, notes)
     pack_rows = [PackChoice(shipped.id, "built in", "(inside the package)", ok, why)]
     covered = covers
@@ -838,7 +850,8 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     later_built: list[tuple[object, bool, str]] = []     # (pack, selected, skip reason): their steps follow to_1_20's
     for name in SHIPPED_AFTER:
         later = read_pack(name)
-        l_ok, l_why, l_covers, l_skip = _span_why(later.applies, sv["version"], gv, seed)
+        # on the chain the later packs see to_1_20's output, a 1.20.1.2 save, not the save as it came in
+        l_ok, l_why, l_covers, l_skip = _span_why(later.applies, chain or sv["version"], gv, seed)
         if not later.order:
             if l_ok:
                 frames.append(later.id)
@@ -847,8 +860,14 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
             covered = covered or (l_ok and l_covers)
             later_built.append((later, l_ok, l_skip))
             if l_ok:
-                notes.append(f"{later.id} prepares the save and leaves it stamped {sv['version']}: load it once in "
-                             f"{gv} and save, and the game finishes the conversion, keeping what {later.id} wrote")
+                notes.append(f"{later.id} prepares the save and leaves it stamped {chain or sv['version']}: load it "
+                             f"once in {gv} and save, and the game finishes the conversion, keeping what "
+                             f"{later.id} wrote")
+                if chain:
+                    notes.append(f"route: this save is older than 1.20, so it goes through {shipped.id} (stamped "
+                                 f"{chain}) and then {later.id}; after that one load in {gv}, run update on the "
+                                 f"game's save with --witness <this output> to repair what the game's conversion "
+                                 f"dropped. A 1.20 save takes {later.id} alone")
         pack_rows.append(PackChoice(later.id, "built in", "(inside the package)", l_ok, l_why))
     steps: list[Step] = []
     rules: dict[str, object] = {}
