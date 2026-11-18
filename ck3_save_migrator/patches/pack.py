@@ -24,7 +24,7 @@ from .run import context_values, run_patch
 SHIPPED = "to_1_20"
 # the built-in packs after SHIPPED, in chain order (patch day 2026-11-17). Each is read for the plan's pack rows; one
 # with no patches yet is a frame, which declares its span and never counts as covering a gap
-SHIPPED_AFTER = ("to_1_21",)
+SHIPPED_AFTER = ("to_1_21", "repair_1_21")    # repair_1_21: phase two, on a 1.21 save the game converted
 CONTEXT_FIELDS = {f.name for f in dataclasses.fields(RuleContext) if f.name != "state"}
 
 

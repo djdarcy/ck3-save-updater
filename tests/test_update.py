@@ -382,6 +382,31 @@ def test_a_same_date_1_21_re_save_is_offered_phase_two_and_a_later_one_is_not(tm
     assert not any("apply to it" in n for n in late)
 
 
+def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
+    # repair_1_21 (phase two): a 1.21 save in a 1.21 game is already current unless a witness is named
+    s = ref_save(saves, "Converted.ck3", version=b"1.21.0")
+    g = str(game(tmp_path, "1.21.0"))
+    plain = PL.plan_update(s, game_dir=g)
+    assert {x.id: x.reason for x in plain.steps if x.pack == "repair_1_21"} == {
+        "R35": "needs --witness (your last save from before 1.21; phase two)",
+        "R36": "needs --witness (your last save from before 1.21; phase two)"}
+    w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")
+    steps = {x.id: x for x in PL.plan_update(s, game_dir=g, witness=str(w)).steps if x.pack == "repair_1_21"}
+    assert steps["R35"].will_run                                         # the wonders need only the witness
+    assert not steps["R36"].will_run and "reference" in steps["R36"].reason   # the roads need the reference too
+
+
+def test_a_witness_of_another_date_is_refused_by_the_rules(tmp_path, saves):
+    # the Director's correction 1, enforced in the rules themselves: a save played on since is never overwritten
+    from ck3_save_migrator.rules.repair_1_21 import _same_date
+    s = sf.read_save(ref_save(saves, "Converted.ck3", version=b"1.21.0", date=b"990.3.1"))
+    ctx = RuleContext(witness=ref_save(saves, "Old.ck3", date=b"987.10.27"))
+    assert "played on since" in _same_date(s, ctx)
+    assert _same_date(s, RuleContext()).startswith("needs --witness")
+    ctx_same = RuleContext(witness=ref_save(saves, "Old2.ck3", date=b"990.3.1"))
+    assert _same_date(s, ctx_same) is None
+
+
 def test_a_frame_pack_outside_its_span_changes_nothing(tmp_path, saves):
     # the old save in the 1.20 game: to_1_20 covers it as before; to_1_21 is listed, not selected, and not named
     p = PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)))
@@ -586,6 +611,7 @@ def test_the_rules_the_plan_says_need_a_reference_do_nothing_without_one(tmp_pat
     # and the later built-in packs' rules (to_1_21's R34 needs the 1.21 reference)
     from ck3_save_migrator.patches.pack import rules_from_pack
     res.update({r.id: r for r in run_rules(save, rules_from_pack("to_1_21"), RuleContext(reference=None))})
+    res.update({r.id: r for r in run_rules(save, rules_from_pack("repair_1_21"), RuleContext(reference=None))})
     for rid in PL.NEEDS_REFERENCE + PL.NEEDS_OLD_GAME:
         assert res[rid].edited == 0 and res[rid].extra.get("skipped"), rid
 

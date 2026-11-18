@@ -1,0 +1,9 @@
+format = 1
+id = "R36"
+name = "roads-after-conversion"
+title = "bring in the 1.21 reference's roads, which the game's conversion did not make (with --witness)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r36_roads"

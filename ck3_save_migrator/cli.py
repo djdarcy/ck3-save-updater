@@ -407,7 +407,7 @@ def make_plan(args, *, writes: bool = False, display_checks: bool = True):
                            face_changes=face_changes_arg(args),
                            use_record=not args.no_record, in_place=getattr(args, "in_place", False),
                            detect=not args.no_detect, progress=sp.update, display_checks=display_checks,
-                           dangerous=getattr(args, "dangerous", False))
+                           dangerous=getattr(args, "dangerous", False), witness=getattr(args, "witness", None))
 
 
 # this run's settings the output helpers read: --plain, and when main() started (the verdict's wall time)
@@ -725,7 +725,8 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
     ctx = RuleContext(game_dir=installs[0].path if installs else None,
                       reference=reference, wos_shape=shapes[0],
                       old_game_dir=Path(args.old_game_dir) if args.old_game_dir else None,
-                      expansion_orders=not args.no_expansion_orders)
+                      expansion_orders=not args.no_expansion_orders,
+                      witness=Path(args.witness) if getattr(args, "witness", None) else None)
     ctx.mod_dirs = workshop_mod_dirs(save.meta, ctx.game_dir)     # R23 reads their localization
     ctx.state["portrait_mods"] = portrait_mods_arg(args)            # R19's target layout (None: dlc_load.json)
     ctx.state["old_portrait_mods"] = portrait_mods_arg(args, "old_portrait_mods")   # its source (None: the save's)
@@ -1669,6 +1670,8 @@ def build_parser() -> argparse.ArgumentParser:
                                            "none)")
         p.add_argument("--game-dir", help=GAME_DIR_HELP)
         p.add_argument("--old-game-dir", help="the 'game' folder of the version the save was made with (R15)")
+        p.add_argument("--witness", help="for a save the game already converted to 1.21: your last save from "
+                                         "before 1.21, of the same date; what the game dropped is read from it")
         p.add_argument("--rules", help="as for migrate: 'all' (the default), ids or names, '-R21' leaves one out")
         p.add_argument("-o", "--output", help="the output (default: <name>__updated__<game version>.ck3 beside the "
                                               "save)")

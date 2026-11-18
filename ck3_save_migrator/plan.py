@@ -48,7 +48,8 @@ _MOD = re.compile(rb'"(mod/[^"]+\.mod)"')
 # The built-in rules that do nothing without a reference save, and the one that needs the old game's map (the old
 # game folder, or the built-in table for the save's version line: deadtitles.old_map). Each
 # says so itself when it runs (its "skipped" note); the plan says so beforehand. A test checks the two agree.
-NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17", "R34")    # R34: to_1_21's roads come from it
+NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17", "R34", "R36")    # R34, R36: the roads come from it
+NEEDS_WITNESS = ("R35", "R36")      # repair_1_21 (phase two): only with the player's last 1.20 save, --witness
 NEEDS_OLD_GAME = ("R15",)
 NOT_KNOWABLE = "not knowable before running (update --dry-run runs the patches in memory and counts)"
 REFERENCE_STEPS = (
@@ -668,7 +669,7 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
                 detect: bool = False, progress=None, no_dna: bool = False,
                 portrait_mods: list[str] | None = None, old_portrait_mods: list[str] | None = None,
                 face_changes: list[str] | None = None, display_checks: bool = True,
-                dangerous: bool = False) -> UpdatePlan:
+                dangerous: bool = False, witness: str | None = None) -> UpdatePlan:
     """The plan for updating ``save`` (see the module docstring). Refusals are collected in ``refusals`` (the
     caller exits 1); a bad option (an unknown rule, a broken pack) raises ValueError as ``migrate`` does.
 
@@ -906,7 +907,9 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
         for p in pk.ordered():
             reason = skip if not sel else ("default = false" if not p.default else
                                            "turned off in your config (`ck3update enable` turns it back on)"
-                                           if p.id in off else "runs")
+                                           if p.id in off else
+                                           "needs --witness (your last save from before 1.21; phase two)"
+                                           if p.id in NEEDS_WITNESS and not witness else "runs")
             own.append(Step(p.id, p.name, pk.id, reason == "runs", reason))
             info[p.id] = {"needs_ref": p.id in NEEDS_REFERENCE, "patch": None, "requires": tuple(p.requires)}
             if p.id in built:

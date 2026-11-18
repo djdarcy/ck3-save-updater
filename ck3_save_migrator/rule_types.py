@@ -23,6 +23,8 @@ class RuleContext:
     reference: Path | None = None           # a save written by the target game version (R8-R12 copy from it)
     wos_shape: str = "faith"                # R10: custom faiths become a 'faith' or a 'rite'
     old_game_dir: Path | None = None        # R15: the save's own version's 'game' folder (its map, for successors)
+    witness: Path | None = None             # repair_1_21: the player's last 1.20 save, read for what the game's own
+    #                                         1.21 conversion dropped (phase two, DWP 2026-11-18__02-48-50)
     expansion_orders: bool = True           # R14: add the target's new holy orders even where they lease the
                                             # save's own land (expansion content the engine does not add itself)
     # the installed folders of the mods the save lists, in its order (R23 reads their localization; a later one wins)
