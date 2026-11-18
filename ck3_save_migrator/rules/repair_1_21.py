@@ -104,6 +104,24 @@ def r39_empty_cooldowns(save: CK3Save, ctx, rule):
     return rule.result(matched=n, edited=n, extra={"dropped": n})
 
 
+def r40_province_size(save: CK3Save, ctx, rule):
+    """Province sizes the game's conversion left at the smallest, raised to a fresh 1.21 game's (S6).
+
+    Needs the 1.21 reference (history at the campaign's date). The conversion put every province of v17 at level 1;
+    the reference has 547 above it. Never lowers a size.
+    """
+    from ..carry_1_21 import carry_province_size
+    if ctx.reference is None:
+        return rule.result(extra={"skipped": "needs a 1.21 reference save (the sizes come from it)"})
+    ref = ctx.state.get("reference_gamestate") or read_save(ctx.reference).gamestate
+    g, raised = carry_province_size(save.gamestate, ref)
+    if raised:
+        save.set_gamestate(g)
+    return rule.result(matched=len(raised), edited=len(raised),
+                       extra={"raised": len(raised), "to levels": dict(sorted(
+                           __import__("collections").Counter(n for _, _, n in raised).items()))})
+
+
 def r36_roads(save: CK3Save, ctx, rule):
     """The 1.21 reference's roads, into a converted save that has none (the game's conversion makes none)."""
     from .to_1_21 import r34_roads

@@ -1,0 +1,9 @@
+format = 1
+id = "R40"
+name = "province-size"
+title = "raise the province sizes the game's 1.21 conversion left at the smallest to a fresh 1.21 game's (history)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r40_province_size"

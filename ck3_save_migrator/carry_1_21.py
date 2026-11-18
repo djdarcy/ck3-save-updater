@@ -408,6 +408,39 @@ def type_titles(g: bytes, ref: bytes) -> TypesResult:
     return res
 
 
+def carry_province_size(g: bytes, ref: bytes) -> tuple[bytes, list]:
+    """Raise each province's size to the 1.21 reference's where the game's conversion left it lower (S6, unit 2).
+
+    1.21 replaced the county's development with a province size (province_size_value = 100 x province_size_level),
+    set from history (game/history/provinces) and read by buildings. The game's conversion of v17 put all 13,474
+    provinces at level 1; a fresh 1.21 game on the same date has 547 above it (Rome, Constantinople and the like, up
+    to level 9). Those 547 are raised to the reference's; a size is never lowered. Returns the edited gamestate and
+    (province, old level, new level) for each raise.
+    """
+    def sizes(gg):
+        out = {}
+        for e in gs.iter_entries(gg, *gs.locate(gg, "provinces").body):
+            if not (e.key and e.key.isdigit()):
+                continue
+            b = gg[e.open:e.close]
+            v, lv = re.search(rb"\bprovince_size_value=([\d.]+)", b), re.search(rb"\bprovince_size_level=(\d+)", b)
+            if v and lv:
+                out[e.key.decode()] = (e, v, lv)
+        return out
+    mine, theirs = sizes(g), sizes(ref)
+    p, raised = gs.EditPass(), []
+    for k, (e, v, lv) in mine.items():
+        if k not in theirs:
+            continue
+        _, rv, rlv = theirs[k]
+        if int(rlv.group(1)) <= int(lv.group(1)):
+            continue
+        p.add(gs.Edit(e.open + v.start(1), e.open + v.end(1), rv.group(1), "size", f"{k} value"))
+        p.add(gs.Edit(e.open + lv.start(1), e.open + lv.end(1), rlv.group(1), "size", f"{k} level"))
+        raised.append((k, int(lv.group(1)), int(rlv.group(1))))
+    return (p.apply(g) if raised else g), raised
+
+
 def drop_empty_cooldowns(g: bytes) -> tuple[bytes, int]:
     """Remove the decision cooldowns the game's 1.21 conversion writes with an empty key (S8, a neutral nothing).
 

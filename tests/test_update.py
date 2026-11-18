@@ -392,7 +392,8 @@ def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
         "R36": "needs --witness (your last save from before 1.21; phase two)",
         "R37": "needs --witness (your last save from before 1.21; phase two)",
         "R38": "needs a reference save, and there is none",    # title types: the reference, not the witness
-        "R39": PL.skipped_needs(["R38"])}                       # the cooldown clean-up runs with R38
+        "R39": PL.skipped_needs(["R38"]),                       # the cooldown clean-up runs with R38
+        "R40": "needs a reference save, and there is none"}    # province sizes come from the reference
     w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")
     steps = {x.id: x for x in PL.plan_update(s, game_dir=g, witness=str(w)).steps if x.pack == "repair_1_21"}
     assert steps["R35"].will_run                                         # the wonders need only the witness

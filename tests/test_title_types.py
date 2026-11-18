@@ -68,6 +68,19 @@ def test_empty_key_cooldowns_are_dropped_and_named_ones_kept():
     assert C.drop_empty_cooldowns(other) == (other, 0)
 
 
+def prov(i, value, level):
+    return f"\t{i}={{\n\t\tprovince_size_value={value}\n\t\tprovince_size_level={level}\n\t}}\n"
+
+
+def test_a_province_size_is_raised_to_the_references_and_never_lowered():
+    g = f"provinces={{\n{prov(28, 100, 1)}{prov(29, 500, 5)}{prov(30, 100, 1)}}}\n".encode()
+    ref = f"provinces={{\n{prov(28, 300, 3)}{prov(29, 200, 2)}{prov(30, 100, 1)}}}\n".encode()
+    out, raised = C.carry_province_size(g, ref)
+    assert raised == [("28", 1, 3)]
+    assert out == f"provinces={{\n{prov(28, 300, 3)}{prov(29, 500, 5)}{prov(30, 100, 1)}}}\n".encode()
+    assert C.carry_province_size(out, ref) == (out, [])
+
+
 def test_a_second_run_changes_nothing(ref):
     once = C.type_titles(save(title(1, "c_nf_yamato", '""')), ref).gamestate
     assert C.type_titles(once, ref).gamestate == once
