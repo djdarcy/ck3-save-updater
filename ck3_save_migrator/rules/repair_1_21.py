@@ -5,8 +5,9 @@ the game's conversion dropped the wonders and made no roads. The player's last 1
 loop game run (2026-11-18__02-54-25__s6-phase2-resave): djdarcy's 1.21 re-save of v17, with 134 wonders from v17 and
 the reference's 4,201 roads written in, came through the game's next save with all of them.
 
-Both rules run only with ``--witness`` and only when the witness has the save's own game date (correction 1): a 1.21
-save played on since would have what happened in between overwritten.
+The witness rules (R35-R37) run only with ``--witness`` and only when the witness has the save's own game date
+(correction 1): a 1.21 save played on since would have what happened in between overwritten. R38 needs no witness:
+it reads only the save and the 1.21 reference, and fills only what the conversion left empty.
 """
 from __future__ import annotations
 
@@ -66,6 +67,27 @@ def r37_baronies_from_witness(save: CK3Save, ctx, rule):
     return rule.result(matched=len(r.carried) + len(r.skipped), edited=len(r.carried),
                        extra={"carried": len(r.carried),
                               "left alone": sorted({f"{k}: {why}" for k, _, why in r.skipped})})
+
+
+def r38_title_types(save: CK3Save, ctx, rule):
+    """The title types the game's conversion leaves empty, from what decides them in a fresh 1.21 game (S8).
+
+    No witness needed: the rule reads only the save and the 1.21 reference. In djdarcy's re-save of v17 the game
+    wrote type="" on 2,016 titles and failed to read each back on load ("Failed to read key reference"); typed from
+    the reference's rules, the game's next save kept all 1,974 and the error log lost exactly 1,974 lines (run
+    2026-11-18__13-29-58__s8-types-resave). 42 no rule decides (39 unheld old mercenary companies, 3 holy orders) are
+    left empty and reported.
+    """
+    from ..carry_1_21 import type_titles
+    if ctx.reference is None:
+        return rule.result(extra={"skipped": "needs a 1.21 reference save (what decides a title's type is read there)"})
+    ref = ctx.state.get("reference_gamestate") or read_save(ctx.reference).gamestate
+    r = type_titles(save.gamestate, ref)
+    if r.typed:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.typed) + len(r.unknown), edited=len(r.typed),
+                       extra={"typed": dict(__import__("collections").Counter(t for _, t, _ in r.typed)),
+                              "left empty": len(r.unknown)})
 
 
 def r36_roads(save: CK3Save, ctx, rule):

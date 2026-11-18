@@ -1,0 +1,9 @@
+format = 1
+id = "R38"
+name = "title-types"
+title = "fill the title types the game's 1.21 conversion leaves empty (noble families, adventurers, cardinals, mercenaries)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r38_title_types"

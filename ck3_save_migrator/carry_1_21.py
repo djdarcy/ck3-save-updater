@@ -340,6 +340,74 @@ def carry_baronies(g: bytes, witness: bytes, counties: dict[str, str],
     return res
 
 
+@dataclass
+class TypesResult:
+    gamestate: bytes
+    typed: list = field(default_factory=list)         # (title key, type, why)
+    unknown: list = field(default_factory=list)       # title keys left empty: no rule decides them
+
+
+def _title_rows(g: bytes):
+    """(title block, key, type or None, holder government) for every title of a 1.21 save."""
+    L = _entries(g, "living")
+    for e in gs.iter_entries(g, *gs.locate(g, "landed_titles/landed_titles").body):
+        if not e.key:
+            continue
+        head = g[e.open:min(e.close, e.open + 400)]
+        k, t = re.search(rb'\bkey="?([\w-]+)', head), re.search(rb'\btype="?(\w*)"?', head)
+        h = (_field(g[e.open:e.close], "holder") or [None, b""])[1].decode()
+        yield e, (k.group(1).decode() if k else ""), (t.group(1).decode() if t else None), \
+            (gov_of_landed(g, L[h]) if h in L else "")
+
+
+def _pattern(key: str) -> str:
+    return "_".join(key.split("_")[:2]) + "_"
+
+
+def title_type_rules(ref: bytes, floor: int = 10) -> tuple[dict, dict]:
+    """What decides a title's type in a game the game started itself (the 1.21 reference): a key pattern whose
+    titles all share one type (c_nf_ -> noble family, 1,242 of 1,242), and a government whose titles all share one
+    type other than the default (mercenary_government -> mercenary company, 553 of 553). Each needs ``floor`` cases."""
+    by_pat, by_gov = {}, {}
+    for _, k, t, gv in _title_rows(ref):
+        if not t:
+            continue
+        by_pat.setdefault(_pattern(k), set()).add(t)
+        by_pat.setdefault(("n", _pattern(k)), []).append(t)
+        if gv:
+            by_gov.setdefault(gv, []).append(t)
+    pats = {p: next(iter(ts)) for p, ts in by_pat.items() if isinstance(p, str) and len(ts) == 1
+            and len(by_pat[("n", p)]) >= floor}
+    govs = {gv: ts[0] for gv, ts in by_gov.items() if len(set(ts)) == 1 and len(ts) >= floor
+            and ts[0] != "title_type_default_static"}
+    return pats, govs
+
+
+def type_titles(g: bytes, ref: bytes) -> TypesResult:
+    """Fill the title types the game's 1.21 conversion leaves empty (S8). In djdarcy's re-save of v17, 2,016 titles
+    carry type="" that a fresh 1.21 game types: 1,138 Japanese noble families (c_nf_), 78 ecclesiastical (d_et_),
+    64 landless adventurers (d_laamp_), 54 cardinals (d_cd_), and 679 old mercenary companies (x_mc_, typed by their
+    holder's government). Only an empty type is filled; a title no rule decides is reported, never guessed."""
+    res = TypesResult(g)
+    pats, govs = title_type_rules(ref)
+    p = gs.EditPass()
+    for e, k, t, gv in _title_rows(g):
+        if t != "":
+            continue
+        new, why = pats.get(_pattern(k)), f"key pattern {_pattern(k)}"
+        if new is None and gv in govs:
+            new, why = govs[gv], f"holder's government {gv}"
+        if new is None:
+            res.unknown.append(k)
+            continue
+        m = re.search(rb'\btype=(""|)(?=\s)', g[e.open:min(e.close, e.open + 400)])
+        p.add(gs.Edit(e.open + m.start(1), e.open + m.end(1), new.encode(), "type", f"{k} -> {new}"))
+        res.typed.append((k, new, why))
+    if res.typed:
+        res.gamestate = p.apply(g)
+    return res
+
+
 def gov_of_landed(g: bytes, e: gs.Block) -> str:
     """The government= inside a character's landed_data (where 1.21 keeps it), or "none"."""
     body = g[e.open:e.close]

@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.19] - 2026-11-18
+
+### Fixed
+- Repairs a fault the game itself leaves in a converted 1.21 save. Converting an old save, the game leaves some titles' type blank, then cannot read it on every later load. This hits Japanese noble families, landless adventurers, cardinals, ecclesiastical titles and older mercenary companies.
+- `update` now fills each blank type from what decides it in a new 1.21 game. It needs a 1.21 reference save, but not `--witness`. Tested in 1.21: 1,974 titles fixed and kept, and the game's error log lost exactly 1,974 lines. Titles no rule decides keep their blank type and are reported.
+
 ## [0.6.18] - 2026-11-18
 
 ### Changed
@@ -1045,7 +1051,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.18...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.19...HEAD
+[0.6.19]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.18...v0.6.19
 [0.6.18]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.17...v0.6.18
 [0.6.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.16...v0.6.17
 [0.6.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.15...v0.6.16
