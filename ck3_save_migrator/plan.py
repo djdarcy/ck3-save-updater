@@ -205,9 +205,12 @@ class UpdatePlan:
         out = []
         runs, skips = sum(s.will_run for s in self.steps), sum(not s.will_run for s in self.steps)
         if self.already_current:
-            at = (f"the save is on the game's version line ({_line_text(self.gap[1])}); no pack is selected for it; "
+            at = (f"the save is on the game's version line ({_line_text(self.gap[1])}); no patch runs on it; "
                   "nothing to do") if self.gap[0] != self.gap[1] else \
-                "the save is at the game's version and no pack is selected for it; nothing to do"
+                "the save is at the game's version and no patch runs on it; nothing to do"
+            if any(s.reason.startswith("needs --witness") for s in self.steps):
+                # repair_1_21 is selected and waiting: say the one thing that would make it run (phase two)
+                at += " (if the game converted it from an older save, --witness <your last save from before> repairs it)"
             out.append(("ALREADY CURRENT", "info", at + (" (the re-check's findings are in the notes)"
                                                if any(n.startswith("needed: ") for n in self.notes) else "")))
         elif not self.refusals:

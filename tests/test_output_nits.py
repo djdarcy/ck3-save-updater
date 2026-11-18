@@ -39,11 +39,11 @@ def test_a_save_one_hotfix_behind_is_on_the_games_version_line(tmp_path, saves, 
     s = current_save(saves)
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path, "1.20.1.3")), "--plain")
     assert code == 0
-    assert out.splitlines()[0].startswith("ALREADY CURRENT  the save is on the game's version line (1.20); no pack is "
-                                          "selected for it; nothing to do")
+    assert out.splitlines()[0].startswith("ALREADY CURRENT  the save is on the game's version line (1.20); no patch "
+                                          "runs on it; nothing to do")
     code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path, "1.20.1.2", "Same")), "--plain")
-    assert out.splitlines()[0].startswith("ALREADY CURRENT  the save is at the game's version and no pack is "
-                                          "selected for it; nothing to do")
+    assert out.splitlines()[0].startswith("ALREADY CURRENT  the save is at the game's version and no patch "
+                                          "runs on it; nothing to do")
 
 
 # --------------------------------------------------------------------------- 2. verbs that agree with their list
