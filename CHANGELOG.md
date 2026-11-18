@@ -4,6 +4,18 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.23] - 2026-11-18
+
+### Fixed
+- Saves and reference saves written by 1.21 are now read correctly. 1.21 puts a title's name on the same line as its type, and the tool expected it on a line of its own. With a 1.21 reference, the tool read almost none of the reference's titles. It then copied the whole map in as new titles, leaving every title twice, and the game crashed on load. This was the cause of the crash when bringing a 1.8 save forward with a 1.21 reference.
+- The check that every title name is unique now sees 1.21 titles too. It had missed those duplicates for the same reason.
+
+### Added
+- The tool refuses a reference save whose titles it cannot match to the campaign's, instead of copying them in. It names how many it could read and match.
+
+### Changed
+- The check that every held county has a county record no longer counts 1.21's family titles (noble and merchant families), which are not land.
+
 ## [0.6.22] - 2026-11-18
 
 ### Fixed
@@ -1068,7 +1080,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.22...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.23...HEAD
+[0.6.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.22...v0.6.23
 [0.6.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.21...v0.6.22
 [0.6.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.20...v0.6.21
 [0.6.20]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.19...v0.6.20

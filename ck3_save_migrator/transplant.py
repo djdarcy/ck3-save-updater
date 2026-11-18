@@ -85,7 +85,8 @@ NAME_MAP = "coat_of_arms/coat_of_arms_manager_name_map"
 DYNAMIC_TEMPLATES = "landed_titles/dynamic_templates"           # the registry of runtime (x_) title keys
 _TEMPLATE = re.compile(rb'\{\s*key="?([^"\s}]+)"?([^{}]*)\}')   # one entry: { key="x_mc_0" tier=duchy dyn=yes }
 REPARENTED = frozenset({"unheld barony", "same holder", "baron only"})   # the 1c cases that are re-parented
-_RUNTIME_KEY = re.compile(rb"^(x_(?:[a-z]+_)?)(\d+)$")      # x_mc_6 -> (x_mc_, 6); x_12 -> (x_, 12)
+# x_mc_6 -> (x_mc_, 6); x_12 -> (x_, 12); 1.21's families have two parts: x_d_mc_0 -> (x_d_mc_, 0), x_c_nomad_553
+_RUNTIME_KEY = re.compile(rb"^(x_(?:[a-z]+_)*)(\d+)$")
 _PAIR = re.compile(rb"(?m)^[ \t]*([^\s={}]+)=(\d+)[ \t]*$")    # a whole-line key=number pair (name map)
 
 
@@ -248,7 +249,7 @@ def _set_title_field(text: bytes, key: bytes, value: int | None) -> bytes:
             text[m.end():]
     if value is None:
         return text
-    k = re.search(rb"\n\tkey=[^\n]*", text)
+    k = re.search(rb"\n\t" + gs.TITLE_KEY_PREFIX + rb"key=[^\n]*", text)
     at = k.end() if k else text.find(b"\n")
     return text[:at] + b"\n\t" + key + b"=" + str(value).encode() + text[at:]
 
@@ -495,7 +496,7 @@ class Transplant:
         head = {}
         for i, e in T.entries(self.save, TITLES):
             b = self.save[e.open:min(e.close, e.open + 4096)]
-            k = re.search(rb"\n\tkey=\"?([\w\-']+)", b)
+            k = re.search(rb"\n\t" + gs.TITLE_KEY_PREFIX + rb"key=\"?([\w\-']+)", b)
             h = re.search(rb"\n\tholder=(\d+)", b)
             dj = re.search(rb"\n\tde_jure_liege=(\d+)", b)
             head[i] = (k.group(1).decode() if k else "", int(h.group(1)) if h else None,

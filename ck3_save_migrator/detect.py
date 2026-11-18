@@ -210,7 +210,8 @@ def _dead_titles(g, env):
     except gs.GamestateError:
         return Detection("done")
     # lint's "is not a valid title template": a key the game no longer defines, nor converts itself
-    dead = [k.decode() for k in re.findall(rb'(?m)^\tkey="?([\w\-\']+)"?', g[lt.open:lt.close])
+    dead = [k.decode() for k in re.findall(rb'(?m)^\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w\-\']+)"?',
+                                           g[lt.open:lt.close])
             if not k.startswith(b"x_") and k.decode() not in defined and k.decode() not in conv]
     return _found(len(dead), dead, "titles the game no longer defines (\"is not a valid title template\")")
 

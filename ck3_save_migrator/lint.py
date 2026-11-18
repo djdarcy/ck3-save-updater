@@ -197,7 +197,10 @@ def check_ids(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> Non
                   "cannot hold both")
 
 
-_T_FIELD = {k: re.compile(rb"\n\t" + k + rb"=\"?([\w\-']+)\"?") for k in
+# a title's own field may follow `type=...\t` on the type line in 1.21 (the key in a fresh game; de_facto_liege or
+# date in the game's own conversion). Without the prefix the duplicate-key check below read no 1.21 key and let
+# the S10 chain's 12,086 duplicated titles pass, while the game logged 12,879 "Duplicate landed title name"
+_T_FIELD = {k: re.compile(rb"\n\t" + gs.TITLE_KEY_PREFIX + k + rb"=\"?([\w\-']+)\"?") for k in
             (b"key", b"de_jure_liege", b"de_facto_liege", b"capital_barony", b"holder")}
 
 
@@ -299,8 +302,12 @@ def check_titles(g: bytes, rep: LintReport, idx: SectionIndex | None = None) -> 
     if cm is not None:
         # any indent (inserted records sit at column 0); keys have hyphens (c_al-arid)
         records = set(re.findall(rb"(?m)^[ \t]*(c_[^\s={}]+)=\{", g[cm.open:cm.close]))
+        # 1.21's family titles (c_nf_ noble families, c_merchant_ merchant families) are c_ keys but not land: no
+        # family title has a county record in any save, and a fresh 1.21 game holds 8 noble ones without one
+        family = (b"c_nf_", b"c_merchant_")
         no_record = sorted(f[b"key"].decode() for f in titles.values()
-                           if f[b"key"] and f[b"key"].startswith(b"c_") and f[b"holder"] and f[b"key"] not in records)
+                           if f[b"key"] and f[b"key"].startswith(b"c_") and not f[b"key"].startswith(family)
+                           and f[b"holder"] and f[b"key"] not in records)
         rep.add("held counties have a county record", "error", no_record,
                 gloss="A held county with no county_manager record has no culture, faith or development; the game "
                       "then fails every script that asks for them (seen as 'culture trigger [Failed context switch]')")
@@ -768,7 +775,7 @@ def check_reference_titles(g: bytes, rep: LintReport, reference: bytes, idx: Sec
         return
     if lt is None:
         return
-    key = re.compile(rb'\n\tkey="?([^"\s]+)"?')
+    key = re.compile(rb'\n\t' + gs.TITLE_KEY_PREFIX + rb'key="?([^"\s]+)"?')
     have = set(key.findall(g, lt.open, lt.close))
     want = {k for k in key.findall(reference, rlt.open, rlt.close) if not k.startswith(b"x_")}
     missing = sorted(k.decode() for k in want - have)
@@ -1335,7 +1342,8 @@ def check_families(g: bytes, rep: LintReport, data: GameData, idx: SectionIndex)
     if lt is not None and data.title_keys:
         # a title whose key the game no longer defines loads nameless ("not a valid title template"), and every
         # nameless title after the first is then a "Duplicate landed title name" (96 and 95 on the 987 save)
-        dead = [k.decode() for k in re.findall(rb'(?m)^\tkey="?([\w\-\']+)"?', g[lt.open:lt.close])
+        dead = [k.decode() for k in re.findall(rb'(?m)^\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w\-\']+)"?',
+                                               g[lt.open:lt.close])
                 if not k.startswith(b"x_") and k.decode() not in data.title_keys
                 and k.decode() not in data.title_conversion]
         rep.add("is not a valid title template", "reject", dead, limit=12,

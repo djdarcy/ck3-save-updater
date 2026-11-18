@@ -289,7 +289,7 @@ _UNIT_MOVE = re.compile(rb"\n\t+(?:path=\{[^}]*\}|total_cost=[\d.]+|movement_pro
 
 _POOL_REF = re.compile(rb"\n\t+(?:levy|garrison)=(\d+)")
 _TASK_TARGET = re.compile(rb"\n\t+target=\{\s*type=prov\s+identity=(\d+)")
-_TITLE_KEY_LINE = re.compile(rb"(?m)^(\d+)=\{\n\tkey=\"?([\w\-']+)")
+_TITLE_KEY_LINE = re.compile(rb"(?m)^(\d+)=\{\n\t" + gs.TITLE_KEY_PREFIX + rb"key=\"?([\w\-']+)")
 _CHUNK_POOL = re.compile(rb"[\n\t ]regiment=(\d+)")
 
 
@@ -1451,7 +1451,7 @@ def r31_found(d: bytes) -> list[tuple[int, str, str, int]]:
         if not (e.key and e.key.isdigit()):
             continue
         b = d[e.open:min(e.close, e.open + 4096)]
-        k = re.search(rb'\n\tkey="?([\w-]+)', b)
+        k = re.search(rb'\n\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w-]+)', b)
         h, l = re.search(rb"\n\tholder=(\d+)", b), re.search(rb"\n\tde_facto_liege=(\d+)", b)
         titles[int(e.key)] = (k.group(1).decode() if k else "?", int(h.group(1)) if h else None,
                               int(l.group(1)) if l else None)

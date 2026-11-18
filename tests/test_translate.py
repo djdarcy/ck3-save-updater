@@ -139,6 +139,25 @@ def test_quoted_and_bare_keys_join():
     assert T.Translator.build(save, ref).id("title", 0) == 3
 
 
+def test_a_1_21_title_with_its_key_on_the_type_line_joins():
+    # 1.21 writes `type=title_type_x\tkey=c_y` on one line; reading only `\n\tkey=` joined 19 of a 1.21 reference's
+    # 20,499 titles, and the transplant copied the whole title database (S10, 2026-11-18)
+    save = gamestate(titles=title(3, "d_x") + title(4, "c_y"))
+    ref = gamestate(titles="0={\n\ttype=title_type_default_static\tkey=d_x\n}\n"
+                           "1={\n\ttype=title_type_noble_family\tkey=c_y\n\tholder=5\n}\n")
+    tr = T.Translator.build(save, ref)
+    assert (tr.id("title", 0), tr.id("title", 1)) == (3, 4)
+
+
+def test_the_module_level_key_patterns_read_the_1_21_layout():
+    # the nine sites share gs.TITLE_KEY_PREFIX; these two are module-level and importable, the other seven are inline
+    # (covered by the transplant's own tests and the chain re-run of 2026-11-18)
+    from ck3_save_migrator.rules import to_1_20 as R
+    body = b"7={\n\ttype=title_type_default_static\tkey=b_palo\n\tholder=1\n}\n"
+    assert T._KEY.search(body).group(1) == b"b_palo"
+    assert R._TITLE_KEY_LINE.search(body).groups() == (b"7", b"b_palo")
+
+
 def test_an_ambiguous_key_is_refused():
     save = gamestate(titles=title(1, "k_a") + title(2, "k_a"))
     with pytest.raises(T.TranslationError, match="names both"):

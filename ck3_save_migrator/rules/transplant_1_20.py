@@ -45,6 +45,32 @@ def transplant_of(save: CK3Save, ctx) -> Transplant:
     return ctx.state["transplant"]
 
 
+def transplant_refusal(save: CK3Save, ctx) -> str | None:
+    """Why this run's transplant must not happen (computed once, read by R14-R17, which each skip with it)."""
+    if "transplant_refused" not in ctx.state:
+        t = transplant_of(save, ctx)
+        ctx.state["transplant_refused"] = unread_reference(set(T.keyed(save.gamestate, TITLES)), t.title_keys())
+    return ctx.state["transplant_refused"]
+
+
+def unread_reference(save_keys: set, ref_keys: dict, floor: float = 0.5, read_floor: float = 0.99) -> str | None:
+    """Why a reference may not be transplanted from, or None. A reference made at the campaign's date shares most of
+    its title keys with the save (v17 against the 1.20 reference: 17,680 of 18,486). When almost none join, its
+    titles are not being read, and R14 would add every one as new: the S10 chain (2026-11-18) read 19 of a 1.21
+    reference's 20,499 keys and copied the whole title database, 12,086 keys twice. Refuse instead of copying."""
+    keys = [k for k in ref_keys.values() if k and k != "?"]
+    if not ref_keys:
+        return None
+    joined = sum(1 for k in keys if k.encode() in save_keys)
+    # every key should read (a fresh game's titles all carry one: 20,499 of 20,499); a 40% shortfall would still
+    # copy thousands of duplicates, so the read floor is near 1 (the collab, round 3). Half must join the save
+    if len(keys) < read_floor * len(ref_keys) or joined < floor * min(len(keys) or 1, len(save_keys) or 1):
+        return (f"the reference's titles do not join the save's: {len(keys):,} of {len(ref_keys):,} keys read, "
+                f"{joined:,} shared with the save. Is the reference from a game version this tool reads, and "
+                f"made at the campaign's date? Nothing was transplanted")
+    return None
+
+
 def _skip(rule, why: str):
     return rule.result(extra={"skipped": why})
 
@@ -54,6 +80,8 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     province entry whose id the save lacks. Writes nothing; R17 does."""
     if ctx.reference is None:
         return _skip(rule, "no reference save (--reference): the new titles come from a 1.20 save")
+    if why := transplant_refusal(save, ctx):
+        return _skip(rule, why)
     t = transplant_of(save, ctx)
     t.r15_kept = ctx.state.get("r15_kept", [])        # held titles R15 removed: their successors go to the holder
     save_keys = set(T.keyed(save.gamestate, TITLES))
@@ -189,6 +217,8 @@ def r16_people(save: CK3Save, ctx, rule):
     the reference's references to them are redirected, nothing of the reference is written into them)."""
     if ctx.reference is None:
         return _skip(rule, "no reference save (--reference): the people come from a 1.20 save")
+    if why := transplant_refusal(save, ctx):
+        return _skip(rule, why)
     t = transplant_of(save, ctx)
     holders = t.title_holders(t.carry["title"])
     rulers = set(holders.values())
@@ -249,6 +279,8 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     """Write the transplant plan in one pass: carried objects closed, entries rewritten with the edge policy and
     inserted at column 0, seams stitched, the coat counter raised, lookups extended."""
     t = ctx.state.get("transplant")
+    if ctx.state.get("transplant_refused"):
+        return _skip(rule, ctx.state["transplant_refused"])
     if t is None:
         # S2: name only the rules that plan a write; R15 renames titles in place and plans nothing for R17
         return _skip(rule, "nothing planned: R14 (titles, provinces) and R16 (people) plan what this rule writes")
@@ -309,7 +341,7 @@ def _lock_step(save: CK3Save, ctx, characters: set[int] | None = None, only: set
         b = g[e.open:min(e.close, e.open + 4096)]
         titles[i] = tuple(int(m.group(1)) if (m := re.search(rb"\n\t" + f + rb"=(\d+)", b)) else None
                           for f in (b"holder", b"de_facto_liege")) + (
-            (m.group(1) if (m := re.search(rb'\n\tkey="?([\w-]+)', b)) else b""),)
+            (m.group(1) if (m := re.search(rb'\n\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w-]+)', b)) else b""),)
     chars = dict(T.entries(g, "living"))
     path = None
     for p in ("vassal_contracts/active", "vassal_contracts/database"):

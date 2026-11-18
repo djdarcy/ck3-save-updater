@@ -82,7 +82,7 @@ def space_ids(g: bytes, space: str) -> set[int]:
     return out
 
 
-_KEY = re.compile(rb'\n\t+key="?([^"\s]+)"?')
+_KEY = re.compile(rb'\n\t+' + gs.TITLE_KEY_PREFIX + rb'key="?([^"\s]+)"?')   # 1.20 and 1.21 title layouts
 _TEMPLATE = re.compile(rb'\n\t+culture_template="?([^"\s]+)"?')
 
 

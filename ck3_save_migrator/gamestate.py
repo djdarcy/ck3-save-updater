@@ -33,6 +33,11 @@ _TOKEN = re.compile(rb'"(?:[^"\\]|\\.)*"|[{}=]|[^\s{}="]+')
 # bare words that prefix a block value: color=rgb { 1 2 3 }
 _VALUE_PREFIXES = {b"rgb", b"hsv", b"hsv360", b"LIST"}
 _WS = b" \t\r\n"
+# what may stand before a title's `key=` on its line: 1.21 writes `type=title_type_x\tkey=c_y` on ONE line, where 1.20
+# wrote `key=` alone. Every title-key pattern puts this between its indentation and `key=`, so it reads both layouts.
+# Missing it, the transplant read 19 of a 1.21 reference's 20,499 keys and copied the whole title database (S10,
+# 2026-11-18: 12,086 keys held twice in the chain save).
+TITLE_KEY_PREFIX = rb"(?:type=[^\s=]*\t)?"
 
 
 class GamestateError(ValueError):
