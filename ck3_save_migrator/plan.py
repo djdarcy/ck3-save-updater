@@ -787,6 +787,26 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if dangerous:                       # the record marks a run made outside a pack's span (ruling 11-09 02:32)
         inputs["dangerous"] = True
 
+    # ---- the two phases around the game's own 1.21 conversion (DWP 2026-11-18__02-48-50, unit 3; the Director's
+    # correction 1): a to_1_21 row in the record is phase one. Phase two may repair only a re-save of the same game
+    # date, or it would overwrite what the player did since
+    if rec is not None:
+        p1 = next((r for r in reversed(rec.get("update", []))
+                   if any(isinstance(x, dict) and x.get("pack") == "to_1_21" for x in r.get("patches", []))), None)
+        if p1 is not None:
+            when, line, gline = p1.get("save_date"), _line(sv["version"]), _line(gv)   # tuples, e.g. (1, 20)
+            if line and gline and line < gline:
+                if str(Path(save).resolve()) == str(p1.get("output", "")):
+                    notes.append(f"this save was prepared for 1.21 on {str(p1.get('date', '?'))[:10]}: load it once "
+                                 "in 1.21 and save, and the game finishes the conversion")
+            elif line and line == gline:
+                if when and date == when:
+                    notes.append(f"a 1.21 re-save of the campaign prepared on its date {when}: the repairs after the "
+                                 "game's conversion (phase two) apply to it")
+                elif when:
+                    notes.append(f"this save is dated {date}, the one prepared for 1.21 was {when}: it was played on "
+                                 "since, so repairs from the old save would overwrite that play, and they will not run")
+
     # ---- the new-map transplant: R14-R16 (and R17) by need, when the switch is on
     mode = transplant or transplant_mode()
     crosses = bool(sv["version"] and gv and compare_versions(sv["version"], REWORK) == -1

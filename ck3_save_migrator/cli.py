@@ -677,6 +677,7 @@ def write_record(args, plan, written: list) -> None:
            "output": str(Path(first[0]).resolve()), "output_sha256": first[1],
            "other_outputs": [{"path": str(Path(w).resolve()), "sha256": h} for w, h in others] or None,
            "tool": f"{__app_name__} {get_display_version()}", "game_version": plan.gap[1],
+           "save_date": plan.save_date,      # the game date: phase two runs only on a re-save of this date (DWP 02:48)
            "patches": [{"id": r.id, "pack": by_id.get(r.id, "")} for r in getattr(args, "results", [])],
            "inputs": {k: v for k, v in {**plan.inputs, "wos_shape": args.wos_shape}.items() if v not in (None, {})},
            "prefilled": [f"{given}{value}" for given, value in plan.prefilled]}

@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.14] - 2026-11-18
+
+### Added
+- The save game's record now keeps each update's in-game date.
+- `status` uses it to recognise a save prepared for 1.21. It says to load the save once in 1.21 and save it.
+- `status` also recognises a 1.21 re-save from the same date, which the later repairs will apply to.
+- A 1.21 save from a later date was played on since. `status` says those repairs will not run on it, so they never overwrite your play.
+
 ## [0.6.13] - 2026-11-18
 
 ### Added
@@ -1013,7 +1021,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.13...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.14...HEAD
+[0.6.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.13...v0.6.14
 [0.6.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.12...v0.6.13
 [0.6.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.11...v0.6.12
 [0.6.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...v0.6.11

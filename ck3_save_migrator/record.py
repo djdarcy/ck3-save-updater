@@ -15,6 +15,7 @@ atomically, and holds:
     output = "..."                      # and output_sha256 (other_outputs when a custom faith gave two)
     tool = "ck3-save-updater 0.3.17"
     game_version = "1.20.1.2"
+    save_date = "987.10.27"             # the save's game date (since 0.6.14): phase two runs only on a re-save of it
     patches = [{ id = "R1", pack = "to_1_20" }, ...]
     inputs = { vars = { "G1.witness" = "..." }, old_game_dir = "...", transplant = "auto", wos_shape = "faith" }
     prefilled = ["--var G1.witness"]    # which of the inputs came from the record, not the command line

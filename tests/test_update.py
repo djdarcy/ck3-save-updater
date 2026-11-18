@@ -355,6 +355,33 @@ def test_to_1_21_runs_its_pre_load_pass_and_says_the_first_load_finishes_it(tmp_
     assert any("load it once in 1.21.0 and save" in n for n in p.notes)
 
 
+def _phase_one_row(output: Path, save_date: str = "987.10.27") -> None:
+    from ck3_save_migrator import record
+    record.append_update("222", "Florin", {"date": "2026-11-18T03:00:00", "output": str(output.resolve()),
+                                          "output_sha256": "x", "game_version": "1.21.0", "save_date": save_date,
+                                          "patches": [{"id": "R33", "pack": "to_1_21"}], "inputs": {}})
+
+
+def test_the_plan_knows_a_save_prepared_for_1_21_and_says_load_it_once(tmp_path, saves):
+    # unit 3 of the two-phase DWP (2026-11-18): the prepared save itself, still stamped 1.20
+    s = ref_save(saves, "Florin.ck3")
+    _phase_one_row(s)
+    p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
+    assert any("prepared for 1.21" in n and "load it once" in n for n in p.notes)
+
+
+def test_a_same_date_1_21_re_save_is_offered_phase_two_and_a_later_one_is_not(tmp_path, saves):
+    # the Director's correction 1: repairs from the old save only on a re-save of the same date
+    _phase_one_row(saves / "Florin.ck3")
+    same = ref_save(saves, "Same.ck3", version=b"1.21.0", date=b"987.10.27")
+    later = ref_save(saves, "Later.ck3", version=b"1.21.0", date=b"990.3.1")
+    g = str(game(tmp_path, "1.21.0"))
+    assert any("phase two" in n and "apply" in n for n in PL.plan_update(same, game_dir=g).notes)
+    late = PL.plan_update(later, game_dir=g).notes
+    assert any("played on since" in n and "will not run" in n for n in late)
+    assert not any("apply to it" in n for n in late)
+
+
 def test_a_frame_pack_outside_its_span_changes_nothing(tmp_path, saves):
     # the old save in the 1.20 game: to_1_20 covers it as before; to_1_21 is listed, not selected, and not named
     p = PL.plan_update(old_save(saves), game_dir=str(game(tmp_path)))
