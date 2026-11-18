@@ -6,6 +6,7 @@ ck3-save-updater does two things. It brings an old Crusader Kings III save up to
 
 - [Updating a save](updating-a-save.md): the whole process, from `status` to `update`, and how to do it by hand.
 - [The reference save](reference-save.md): how to make a new game on your campaign's date, with `reference-mod`.
+- [Old game files](old-game-files.md): what the tool carries from older versions, and how to fetch an older build's files when you need them.
 - [Glossary](glossary.md): every term the tool uses, and every header `status` prints.
 
 ## Editing a save
