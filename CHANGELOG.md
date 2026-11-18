@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.17] - 2026-11-18
+
+### Added
+- `update --witness` now also gives back baronies the game's 1.21 conversion took away. 1.21 moved some baronies into a different county. When the game converts an old save, it gives each of those baronies to the new county's ruler, and the old holder ends up landless. The repair gives each barony back to the character who held it in your last save from before 1.21. They become a vassal of the new county's ruler and keep their government.
+- Tested in 1.21 on a real campaign: 60 of 63 baronies came back and stayed through the game's next save. The game gave the other 3 to someone else. A holder who still has other land, and a barony 1.21 removed, are reported rather than changed.
+
 ## [0.6.16] - 2026-11-18
 
 ### Changed
@@ -1033,7 +1039,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.16...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.17...HEAD
+[0.6.17]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.16...v0.6.17
 [0.6.16]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.15...v0.6.16
 [0.6.15]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.14...v0.6.15
 [0.6.14]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.13...v0.6.14

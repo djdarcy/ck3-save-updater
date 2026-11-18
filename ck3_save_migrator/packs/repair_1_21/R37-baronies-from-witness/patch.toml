@@ -1,0 +1,9 @@
+format = 1
+id = "R37"
+name = "baronies-from-witness"
+title = "give back the baronies the game's conversion moved to a new county's holder, from your last 1.20 save (--witness)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r37_baronies_from_witness"

@@ -51,6 +51,20 @@ def _max_id(g: bytes, path: str) -> int:
     return max((int(e.key) for e in gs.iter_entries(g, *b.body) if e.key and e.key.isdigit()), default=0)
 
 
+def _next_index(g: bytes, path: str) -> int:
+    """The first free id for a new row of a 1.21 database whose ids carry a generation in the high byte and the
+    row's index in the low 24 bits (vassal_contracts: 117440512 = 0x07000000). The index is what must be unique: all
+    3,529 contracts of djdarcy's re-save have distinct low-24 indexes, and a new contract given max+1 of the whole id
+    (0x0F0006BB) reused an index for 56 of 63 rows, every one of which the game dropped on its next load (run
+    2026-11-18__12-08-54; the 7 kept were exactly the 7 without a clash)."""
+    try:
+        b = gs.locate(g, path)
+    except gs.GamestateError:
+        return 1
+    return 1 + max((int(e.key) & 0xFFFFFF for e in gs.iter_entries(g, *b.body) if e.key and e.key.isdigit()),
+                   default=0)
+
+
 def _holdings(g: bytes):
     """(province entry, offset just past ``holding={``, holding body) for every province with a holding."""
     for e in gs.iter_entries(g, *gs.locate(g, "provinces").body):
@@ -135,6 +149,201 @@ def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> Wo
     out = _append(out, "districts/database", "districts", "".join(dtext))
     res.gamestate = out
     return res
+
+
+@dataclass
+class BaroniesResult:
+    gamestate: bytes
+    carried: list = field(default_factory=list)       # (barony key, old holder, county holder, liege changed?)
+    skipped: list = field(default_factory=list)       # (barony key, old holder, why)
+
+
+def _common(game_dir):
+    """The game's common/ folder, given the install folder or its game/ folder (the rules get the latter)."""
+    from pathlib import Path
+    d = Path(game_dir)
+    return d / "common" if (d / "common").is_dir() else d / "game" / "common"
+
+
+def barony_counties(game_dir) -> dict[str, str]:
+    """barony key -> its county key, from the game's own title files (a barony nests in its county)."""
+    out = {}
+    for f in sorted((_common(game_dir) / "landed_titles").rglob("*.txt")):
+        county = None
+        text = re.sub(r"#[^\n]*", "", f.read_text(encoding="utf-8-sig", errors="replace"))
+        for m in re.finditer(r"\b([cb]_[\w-]+)\s*=\s*\{", text):
+            k = m.group(1)
+            if k.startswith("c_"):
+                county = k
+            elif county:
+                out[k] = county
+    return out
+
+
+def _entries(g: bytes, path: str) -> dict[str, gs.Block]:
+    return {e.key.decode(): e for e in gs.iter_entries(g, *gs.locate(g, path).body) if e.key}
+
+
+def _field(body: bytes, key: str) -> re.Match | None:
+    """The first ``key=value`` line of ``body`` at its own top level (the indentation of its first line)."""
+    first = re.search(rb"\n(\s*)\S", body)
+    ind = first.group(1) if first else b"\t"
+    return re.search(rb"\n" + re.escape(ind) + re.escape(key.encode()) + rb'="?([^\s"]+)', body)
+
+
+def defined_governments(game_dir) -> set[str]:
+    """The government keys the game defines (common/governments)."""
+    out = set()
+    for f in sorted((_common(game_dir) / "governments").glob("*.txt")):
+        out |= set(re.findall(r"(?m)^(\w+_government)\s*=", f.read_text(encoding="utf-8-sig", errors="replace")))
+    return out
+
+
+def carry_baronies(g: bytes, witness: bytes, counties: dict[str, str],
+                   governments: set[str] | None = None) -> BaroniesResult:
+    """Phase two (the Director's two-phase DWP, unit 5): give back the baronies the game's conversion took from their
+    holders. 1.21 moved some baronies to another county, and the conversion hands such a barony to its new county's
+    holder (measured on djdarcy's re-save of v17, 2026-11-18: all 63 of the 66 stripped one-barony vassals; the 2,070
+    kept were untouched). ``g`` is the 1.21 re-save; ``witness`` the 1.20 save it came from, the same date (the rule
+    guards that). A barony is carried when its witness holder is alive in ``g``, lost it, and its holder in ``g`` holds
+    its 1.21 county, the conversion's signature; anything else is left alone. The old holder becomes the county
+    holder's vassal, with the contract levels the game writes for that pair of governments."""
+    res = BaroniesResult(g)
+    tw, tg = _entries(witness, "landed_titles/landed_titles"), _entries(g, "landed_titles/landed_titles")
+    # a title's own key is its first key= (1.21 writes it on the type= line: "type=title_type_default_static\tkey=b_x")
+    tkey = lambda gg, e: re.search(rb'\bkey="?([\w-]+)', gg[e.open:min(e.close, e.open + 400)])
+    key_w = {i: tkey(witness, e) for i, e in tw.items()}
+    by_key = {}
+    for i, e in tg.items():
+        k = tkey(g, e)
+        if k:
+            by_key[k.group(1).decode()] = i
+    hold = lambda gg, e: (_field(gg[e.open:e.close], "holder") or [None, b""])[1].decode()
+    lg, lw = _entries(g, "living"), _entries(witness, "living")
+    gov_of = lambda gg, L, i: (re.search(rb'\bgovernment="?(\w+)', gg[L[i].open:L[i].close])
+                               or [None, b"none"])[1].decode() if i in L else "none"
+    gov = lambda i: gov_of(g, lg, i)
+    # 1.21 keeps government= inside landed_data, and the conversion drops it from a holder it left landless (measured
+    # 2026-11-18: without it the game's next load dropped 56 of 63 restored contracts). It is written back from the
+    # witness, only when the game still defines it
+    back = {}
+    # the levels the game itself writes in g, per (vassal government, liege government): 1.21 renumbered contract types
+    levels, cdb = {}, gs.locate(g, "vassal_contracts/database")
+    for e in gs.iter_entries(g, *cdb.body):
+        c = g[e.open:e.close]
+        v, li = re.search(rb"\bvassal=(\d+)", c), re.search(rb"\bliege=(\d+)", c)
+        lv = re.search(rb"\blevels=\{[^}]*\}", c)
+        if v and li and lv and v.group(1).decode() in lg and li.group(1).decode() in lg:
+            levels.setdefault((gov(v.group(1).decode()), gov(li.group(1).decode())), []).append(lv.group(0).decode())
+    wanted = {}                                       # old holder -> [(barony key, title id, county holder)]
+    for i, e in tw.items():
+        k = key_w[i]
+        if not (k and k.group(1).startswith(b"b_")):
+            continue
+        key, h = k.group(1).decode(), hold(witness, e)
+        gi = by_key.get(key)
+        if not h or gi is None:
+            if h and gi is None:
+                res.skipped.append((key, h, "the barony is not in 1.21"))
+            continue
+        now = hold(g, tg[gi])
+        if now == h or not now:
+            continue
+        ci = by_key.get(counties.get(key, ""))
+        if ci is None or hold(g, tg[ci]) != now:
+            continue                                  # not the conversion's signature: left alone
+        if h not in lg:
+            res.skipped.append((key, h, "the old holder is not alive in the 1.21 save"))
+            continue
+        wanted.setdefault(h, []).append((key, gi, now))
+    p, rows, nc = gs.EditPass(), [], _next_index(g, "vassal_contracts/database") - 1   # a fresh low-24 index each
+    lists, gives = {}, {}                             # liege -> new contract ids; liege -> title ids leaving its domain
+    lieges = {liege for items in wanted.values() for _, _, liege in items}
+    for h in [h for h in wanted if h in lieges]:      # one character both regaining and giving: never guessed
+        for key, _, _ in wanted.pop(h):
+            res.skipped.append((key, h, "the old holder is also a county holder losing a barony here"))
+    for h, items in wanted.items():
+        hb = g[lg[h].open:lg[h].close]
+        ld = re.search(rb"\n([ \t]*)landed_data=\{", hb)
+        if not ld or re.search(rb"\bdomain=\{", hb):
+            for key, _, _ in items:
+                res.skipped.append((key, h, "the old holder has no empty landed_data to write into"))
+            continue
+        wg = gov_of(witness, lw, h)
+        if not re.search(rb"\bgovernment=", hb) and (wg == "none" or (governments is not None and wg not in governments)):
+            for key, _, _ in items:
+                res.skipped.append((key, h, f"the witness government {wg} is not defined in 1.21"))
+            continue
+        ids = " ".join(gi for _, gi, _ in items)
+        at = lg[h].open + ld.end()
+        inner = ld.group(1) + b"\t"
+        add = b"\n" + inner + f"domain={{ {ids} }}".encode()
+        if not re.search(rb"\bgovernment=", hb):
+            add += b"\n" + inner + f"government={wg}".encode()
+            back[h] = wg
+        if not re.search(rb"\brealm_capital=", hb):
+            rc = re.search(rb"\brealm_capital=(\d+)", witness[lw[h].open:lw[h].close]) if h in lw else None
+            cap = rc.group(1).decode() if rc and rc.group(1).decode() in ids.split() else items[0][1]
+            add += b"\n" + inner + f"realm_capital={cap}".encode()
+        p.add(gs.Edit(at, at, add, "carry", f"{h} domain {ids}"))
+        for key, gi, liege in items:
+            gives.setdefault(liege, []).append(gi.encode())
+            # the holder line of the title
+            t = tg[gi]
+            hm = _field(g[t.open:t.close], "holder")
+            p.add(gs.Edit(t.open + hm.start(1), t.open + hm.end(1), h.encode(), "carry", f"{key} -> {h}"))
+            pair = (back.get(h) or gov(h), gov(liege))
+            lv = max(set(levels.get(pair, [])), key=levels.get(pair, []).count) if levels.get(pair) else None
+            if lv is None:
+                res.carried.append((key, h, liege, "no contract: the game writes none for " + "/".join(pair)))
+                continue
+            nc += 1
+            rows.append(f"\t\t{nc}={{\n\t\t\tvassal={h}\n\t\t\tliege={liege}\n\t\t\tdate={_date(g)}\n"
+                        f"\t\t\tliege_dynasty_date=1.1.1\n\t\t\t{lv}\n\t\t}}\n")
+            lists.setdefault(liege, []).append(str(nc))
+            res.carried.append((key, h, liege, lv))
+    if not res.carried:
+        return res
+    for liege, gone in gives.items():                 # out of the county holder's domain, one edit per liege
+        lb = g[lg[liege].open:lg[liege].close]
+        d = re.search(rb"\bdomain=\{([^}]*)\}", lb)
+        if d:
+            rest = b" ".join(x for x in d.group(1).split() if x not in gone)
+            p.add(gs.Edit(lg[liege].open + d.start(1), lg[liege].open + d.end(1), b" " + rest + b" ", "carry",
+                          f"{liege} gives {len(gone)}"))
+    for liege, cids in lists.items():
+        lb = g[lg[liege].open:lg[liege].close]
+        vl = re.search(rb"\n(\s*)vassal_contracts=\{", lb)
+        if vl:
+            at = lg[liege].open + vl.end()
+            p.add(gs.Edit(at, at, (" " + " ".join(cids)).encode(), "carry", f"{liege} contracts"))
+        else:
+            first = re.search(rb"\n(\s*)\S", lb)
+            at = lg[liege].open + 1
+            p.add(gs.Edit(at, at, b"\n" + first.group(1) + f"vassal_contracts={{ {' '.join(cids)} }}".encode(),
+                          "carry", f"{liege} contracts (new list)"))
+    out = p.apply(g)
+    if rows:
+        b = gs.locate(out, "vassal_contracts/database")
+        out = out[:b.close] + "".join(rows).encode() + b"\t" + out[b.close:]
+    res.gamestate = out
+    return res
+
+
+def gov_of_landed(g: bytes, e: gs.Block) -> str:
+    """The government= inside a character's landed_data (where 1.21 keeps it), or "none"."""
+    body = g[e.open:e.close]
+    ld = re.search(rb"\blanded_data=\{", body)
+    if not ld:
+        return "none"
+    inner = body[ld.end():gs.match_brace(body, ld.end() - 1)]
+    m = re.search(rb'\bgovernment="?(\w+)', inner)
+    return m.group(1).decode() if m else "none"
+
+
+def _date(g: bytes) -> str:
+    m = re.search(rb"\bdate=(\d+\.\d+\.\d+)", g[:4096])
+    return m.group(1).decode() if m else "1.1.1"
 
 
 def _append(g: bytes, path: str, top: str, rows: str) -> bytes:

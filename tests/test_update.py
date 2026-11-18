@@ -389,7 +389,8 @@ def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
     plain = PL.plan_update(s, game_dir=g)
     assert {x.id: x.reason for x in plain.steps if x.pack == "repair_1_21"} == {
         "R35": "needs --witness (your last save from before 1.21; phase two)",
-        "R36": "needs --witness (your last save from before 1.21; phase two)"}
+        "R36": "needs --witness (your last save from before 1.21; phase two)",
+        "R37": "needs --witness (your last save from before 1.21; phase two)"}
     w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")
     steps = {x.id: x for x in PL.plan_update(s, game_dir=g, witness=str(w)).steps if x.pack == "repair_1_21"}
     assert steps["R35"].will_run                                         # the wonders need only the witness
