@@ -26,8 +26,10 @@ TITLE = re.compile(rb"\n\t+trade_market=\d+")
 # 1.20 rows never carry (scorecard v17 vs S1: titles and domiciles), blocks included
 # depths measured in the chain save (2026-11-18): the transplant writes a title's own fields at one tab, a domicile's at
 # three; a first try at two tabs matched nothing and its run tested nothing
+# a transplanted 1.21 title writes `type=title_type_merchant_family\tkey=...` on ONE line, so `type` is matched as its
+# own token (never to the end of the line, which would take the key with it)
 TITLE_ALL = re.compile(rb"\n\t(?:trade_market|company_progression|noble_family|nomad|ruler_uses_title_name|"
-                       rb"voting_session_ended|type|confederation)=[^\n{]*(?:\{[^{}]*\})?")
+                       rb"voting_session_ended|confederation)=[^\s{]*(?:\{[^{}]*\})?|(?<=\n\t)type=title_type_\w+\t?")
 DOMICILE_ALL = re.compile(rb"\n\t\t\t(?:acumen|culture|move_cooldown|rite)=[^\n{]*(?:\{[^{}]*\})?")
 
 
@@ -57,4 +59,4 @@ def main(src, dst, *flags):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:3])
+    main(*sys.argv[1:])     # [1:3] dropped --all-121 (2026-11-18): two of three crash runs were the same test
