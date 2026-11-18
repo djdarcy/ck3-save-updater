@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.10] - 2026-11-17
+
+### Added
+- Groundwork for carrying wonders into 1.21. When the game converts an old save, it drops every wonder, great wall and duchy-capital building. The tool can now write each built one into the save as the 1.21 district the game uses for it, before the game converts the rest. A wonder with no matching district in 1.21 is reported by name and never guessed. In our test save, 134 of 164 carry over. 10 have no district in 1.21, and 20 are great-wall tiers that 1.21's district does not take. `update` does not use it yet.
+
 ## [0.6.9] - 2026-11-17
 
 ### Added
@@ -989,7 +994,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...HEAD
+[0.6.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...v0.6.10
 [0.6.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...v0.6.7
