@@ -412,9 +412,13 @@ def drop_empty_cooldowns(g: bytes) -> tuple[bytes, int]:
     """Remove the decision cooldowns the game's 1.21 conversion writes with an empty key (S8, a neutral nothing).
 
     In djdarcy's re-save of v17 the game wrote 2,187 entries like ``decision_cooldowns={ =978.3.5 }``. Each came from
-    a cooldown v17 held for a decision 1.21 no longer defines (all 2,182 matched by date: go_on_pilgrimage_decision
-    833, start_hunt_decision 389, playdate_decision 244, ...), and each logs "Trying to set date from an empty
-    string" on every load. A cooldown for a decision that does not exist does nothing, so dropping it changes no play.
+    a cooldown v17 held for a decision that neither 1.20 nor 1.21 defines (all 2,182 matched by date:
+    go_on_pilgrimage_decision 833, start_hunt_decision 389, playdate_decision 244, ...): 1.8-era decisions the game
+    replaced with activities (1.21 has hunt, feast, pilgrimage and playdate activity types), carried in the founding
+    save. 1.20 kept such cooldowns by name and ignored them; 1.21's conversion blanks the name, and each logs "Trying
+    to set date from an empty string" on every load. A cooldown whose decision is gone does nothing, so dropping it
+    changes no play. (Checked 2026-11-18 after djdarcy doubted "1.21 removed them": it did not. 1.21 defines 587
+    decisions to 1.20's 501 and dropped only four development ones.)
     """
     p, n = gs.EditPass(), 0
     for m in re.finditer(rb"\bdecision_cooldowns=\{", g):

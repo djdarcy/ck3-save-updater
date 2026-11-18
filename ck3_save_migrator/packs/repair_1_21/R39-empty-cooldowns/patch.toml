@@ -1,7 +1,7 @@
 format = 1
 id = "R39"
 name = "empty-cooldowns"
-title = "drop the decision cooldowns the game's 1.21 conversion writes with no decision (each for a decision 1.21 removed)"
+title = "drop the decision cooldowns the game's 1.21 conversion leaves nameless (old decisions long replaced by activities)"
 since = "1.21<=v<1.22"
 default = true
 # runs with R38, the other clean-up of the game's conversion, so a plain 1.21 save without a reference stays

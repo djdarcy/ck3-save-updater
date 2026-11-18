@@ -91,7 +91,8 @@ def r38_title_types(save: CK3Save, ctx, rule):
 
 
 def r39_empty_cooldowns(save: CK3Save, ctx, rule):
-    """The decision cooldowns the game's conversion writes with an empty key, each for a decision 1.21 removed (S8).
+    """The decision cooldowns the game's conversion writes with an empty key: each for a decision neither 1.20 nor 1.21
+    defines, 1.8-era decisions replaced by activities and carried in old saves (S8).
 
     No witness or reference needed. In djdarcy's re-save of v17: 2,187, each logging "Trying to set date from an
     empty string" on every load; a cooldown for a decision that no longer exists does nothing, so it is dropped.
