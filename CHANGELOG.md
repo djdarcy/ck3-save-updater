@@ -4,6 +4,16 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.24] - 2026-11-18
+
+### Added
+- A save older than 1.20 can now be brought forward with a reference save made in 1.21, the only kind a player can still make. Entries copied from that reference are reshaped into the 1.20 layout the output keeps, so the game converts them on its first load like everything else.
+  - Fields only 1.21 has are removed.
+  - Each county gets back the development that 1.21 calls prosperity; the game's own conversion maps them one to one.
+  - Each holding gets a 1.20 list of building slots. The slot counts come from a small table shipped with the tool, so no older game is needed.
+- 1.21's merchant-family titles, and noble families that already have a ruler, are left out for now. They are new to old campaigns and wait on a decision.
+- Faces are unaffected: checked on 36,700 characters.
+
 ## [0.6.23] - 2026-11-18
 
 ### Fixed
@@ -1080,7 +1090,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.23...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.24...HEAD
+[0.6.24]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.23...v0.6.24
 [0.6.23]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.22...v0.6.23
 [0.6.22]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.21...v0.6.22
 [0.6.21]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.20...v0.6.21

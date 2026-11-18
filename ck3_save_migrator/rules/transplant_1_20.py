@@ -40,8 +40,16 @@ ENGINE_CREATED = frozenset({"d_knights_hospitaller"})
 def transplant_of(save: CK3Save, ctx) -> Transplant:
     """The context's shared transplant plan (built on first use, against the save as the earlier rules left it)."""
     if "transplant" not in ctx.state:
-        ctx.state["transplant"] = Transplant(save.gamestate, reference_gamestate(ctx))
+        ref = reference_gamestate(ctx)
+        ctx.state["transplant"] = Transplant(save.gamestate, ref)
         ctx.state["transplant"].game_dir = ctx.game_dir   # attach_plan reads common/governments from it
+        # to_1_20 writes a 1.20-stamped save; a reference from 1.21 on gives 1.21-shaped rows, shaped back to 1.20 as
+        # they are rendered so the game's 1.20 conversion meets the rows it expects (K7, goal F2, 2026-11-18)
+        rv = gamestate_version(ref)
+        if rv is not None and rv[:2] >= (1, 21):
+            from .. import downshape as D
+            ctx.state["transplant"].down = D.Provinces(ref, D.load_slots("1.20.1.2"))
+            ctx.state["transplant"].shaped = D.Shaped()
     return ctx.state["transplant"]
 
 
@@ -87,6 +95,16 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     save_keys = set(T.keyed(save.gamestate, TITLES))
     ref_keys = t.title_keys()
     new = {i for i, k in ref_keys.items() if k.encode() not in save_keys and not k.startswith("x_")}
+    if t.down is not None:
+        # a 1.21 reference brings 1.21's family content: 1,749 merchant-family titles and noble-family heads with
+        # their courts. No 1.20 save held a family title (0 of 1,227), so the game's 1.20 conversion has never met
+        # one; they stay out until djdarcy decides (the collab's round 3; goal F2). Unheld noble families stay:
+        # 1.20 had 1,227 of them
+        merchants = {i for i in new if ref_keys[i].startswith("c_merchant_")}
+        nobles = {i for i in new if ref_keys[i].startswith("c_nf_")}
+        held_nobles = set(t.title_holders(nobles))
+        new -= merchants | held_nobles
+        ctx.state["family_titles_left_out"] = {"merchant_family": len(merchants), "held_noble_family": len(held_nobles)}
     # every title a fresh 1.20 game has is carried, held or not: an unheld titular title (h_roman_empire, the
     # monastic orders, e_carthage ...) is how "not yet created, can be earned" is written, and the game's scripts
     # name them (2026-10-27: 252 of 323 named 845 times; the engine created 1 of them in 16 years of play). Only the
@@ -149,14 +167,19 @@ def _version_tuple(v: str) -> tuple[int, ...]:
 
 def save_version(save: CK3Save) -> tuple[int, ...] | None:
     """The game version a save says it was written by (meta_data ``version="1.8.1"``), as numbers."""
+    return gamestate_version(save.gamestate)
+
+
+def gamestate_version(g: bytes) -> tuple[int, ...] | None:
+    """The same, for a gamestate's bytes (a reference read once per context)."""
     from .. import gamestate as gs
     try:
-        meta = gs.find_section(save.gamestate, "meta_data")
+        meta = gs.find_section(g, "meta_data")
     except gs.GamestateError:
         return None
-    for c in gs.iter_children(save.gamestate, *meta.body):
+    for c in gs.iter_children(g, *meta.body):
         if c.key == b"version" and c.value_start is not None:
-            return _version_tuple(save.gamestate[c.value_start:c.value_end].decode("ascii", "replace")) or None
+            return _version_tuple(g[c.value_start:c.value_end].decode("ascii", "replace")) or None
     return None
 
 
@@ -295,6 +318,8 @@ def r17_transplant_write(save: CK3Save, ctx, rule):
     # R8 reported these as lost before the transplant existed; the report moves them to "recovered" (#6)
     rep["recovered"] = [{"what": "holy_site_barony", "index": i} for i in rep["holy_sites"].pop("reattached_indices")]
     rep["lock_step"] = _lock_step(save, ctx)
+    if t.shaped is not None:                    # a 1.21 reference: what the down-shaper did to the copied rows (F2)
+        rep["shaped_to_1_20"] = dict(sorted(t.shaped.counts.items()))
     return rule.result(matched=sum(t.report.inserted.values()), edited=len(ep.edits), extra=rep)
 
 

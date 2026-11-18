@@ -263,6 +263,10 @@ class Transplant:
         self.carry: dict[str, set[int]] = defaultdict(set)     # space -> reference ids to copy
         self.employer: dict[int, int] = {}       # reference character -> SAVE character whose court they join
         self.expansion_orders = False             # carry holy orders that lease campaign land (R14's flag)
+        # set when the reference is newer than the shape the output is stamped with (a 1.21 reference into a 1.20
+        # save, goal F2): every copied row is shaped to 1.20 as it is rendered (downshape.py)
+        self.down = None                          # a downshape.Provinces, or None
+        self.shaped = None                        # its downshape.Shaped counts
         # step 1c ruling B (R14's plan): campaign provinces with no holding whose 1.20 barony is carried; their
         # entry is replaced by the reference's (holding, buildings, levy, garrison)
         self.fill_provinces: set[int] = set()
@@ -1320,7 +1324,20 @@ class Transplant:
         payload: dict[str, list[bytes]] = defaultdict(list)
 
         def rewrite(kind, e):
-            return T.rewrite_entry(self.ref, e, kind, self.tr, rep.rewrite, self.keep)
+            text = T.rewrite_entry(self.ref, e, kind, self.tr, rep.rewrite, self.keep)
+            if self.down is not None:                   # a 1.21 reference into a 1.20 save: shape the row (F2)
+                from . import downshape as D
+                if kind == TITLES:
+                    text = D.title(text, self.shaped)
+                elif kind == COUNTIES:
+                    text = D.county_record(text, self.shaped)
+                elif kind in CHARACTER_KINDS:
+                    text = D.character(text, self.shaped)
+                elif kind == "domiciles/database":
+                    text = D.domicile(text, self.shaped)
+                elif kind == "provinces":
+                    text = self.down.province(e.key.decode() if e.key else "", text, self.shaped)
+            return text
 
         cm = self.tr.spaces["character"]
         tmap, kmap = self.tr.spaces["title"], self.tr.spaces["vassal_contract"]
@@ -1411,7 +1428,16 @@ class Transplant:
                 text = _set_title_field(text, b"de_facto_liege", hp["repoint"][t])
             k = self.title_keys().get(t, "").encode()
             m = _RUNTIME_KEY.match(k)
-            if m and k in used:
+            if self.down is not None and m and m.group(1) == b"x_d_mc_":
+                # 1.21 names mercenary companies x_d_mc_N; a 1.20-stamped save takes the campaign's own family,
+                # the shape the game's 1.20 conversion keeps (v17: 679 x_mc_N, 167 of them carried in 1.20)
+                new = b"x_mc_" + str(nxt.get(b"x_mc_", 1)).encode()
+                nxt[b"x_mc_"] = nxt.get(b"x_mc_", 1) + 1
+                text = re.sub(rb'([\n\t]key=)"?' + re.escape(k) + rb'"?(?=\s)', lambda x: x.group(1) + new, text, count=1)
+                rep.runtime_keys_renamed[k.decode()] = new.decode()
+                self.shaped.add("company titles renamed")
+                k = new
+            elif m and k in used:
                 new = m.group(1) + str(nxt.get(m.group(1), 1)).encode()
                 nxt[m.group(1)] = nxt.get(m.group(1), 1) + 1
                 text = re.sub(rb'([\n\t]key=)"?' + re.escape(k) + rb'"?(?=\s)', lambda x: x.group(1) + new, text, count=1)

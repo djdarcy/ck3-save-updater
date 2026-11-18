@@ -71,7 +71,10 @@ include = ["ck3_save_migrator", "ck3_save_migrator.*"]
                        # per game version, which fields each kind of entry carries (names and shares, no values),
                        # so lint's field check works without a reference save (baselines.py;
                        # scripts/make_field_baseline.py writes it)
-                       "baselines/*/fields.json"]
+                       "baselines/*/fields.json",
+                       # 1.20's building slots per province (counts only), so a row copied from a 1.21 reference
+                       # gets a 1.20 holding without the old game (downshape.py; tests/one-offs/make_slot_table.py)
+                       "known_slots/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
