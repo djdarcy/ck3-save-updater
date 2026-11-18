@@ -18,7 +18,7 @@ def game(tmp_path):
     (c / "landed_titles").mkdir(parents=True)
     (c / "governments").mkdir(parents=True)
     (c / "landed_titles" / "00_titles.txt").write_text(
-        "d_x = {\n\tc_new = {\n\t\tb_capital = { }\n\t\tb_moved = { }\n\t}\n\tc_far = {\n\t\tb_far = { }\n\t}\n"
+        "d_x = {\n\tc_new = {\n\t\tb_capital = { }\n\t\tb_moved = { }\n\t\tb_second = { }\n\t}\n\tc_far = {\n\t\tb_far = { }\n\t}\n"
         "\tc_home = {\n\t\tb_stay = { }\n\t}\n}\n", encoding="utf-8")
     (c / "governments" / "00_government_types.txt").write_text(
         "feudal_government = {\n}\nrepublic_government = {\n}\n", encoding="utf-8")
@@ -33,15 +33,16 @@ def char(i, landed, extra=""):
     return f"\t{i}={{\n\t\tfirst_name=\"x\"\n\t\tlanded_data={{\n{landed}\t\t}}\n{extra}\t}}\n"
 
 
-def resave(contracts=None, far_holder=500):
+def resave(contracts=None, far_holder=500, second=False):
     contracts = contracts or {0x07000005: (300, 200, "levels={ 6 }"), 0x01000006: (200, 900, "levels={ 1 }")}
     return ("meta_data={\n\tdate=987.10.27\n}\nlanded_titles={\n\tlanded_titles={\n"
             + title(10, "c_new", 200) + title(11, "b_moved", 200) + title(12, "b_stay", 300)
             + title(13, "c_far", far_holder) + title(14, "b_far", 200) + title(15, "c_home", 300)
+            + (title(16, "b_second", 200) if second else "")
             + "\t}\n}\nliving={\n"
             + char(100, "\t\t\tlaws={ x }\n")                                    # stripped: no domain, no government
             + char(101, "\t\t\tlaws={ x }\n")
-            + char(200, "\t\t\tdomain={ 10 11 14 }\n\t\t\tgovernment=feudal_government\n",
+            + char(200, f"\t\t\tdomain={{ 10 11 14{' 16' if second else ''} }}\n\t\t\tgovernment=feudal_government\n",
                    "\t\tvassal_contracts={ 117440517 }\n")
             + char(300, "\t\t\tdomain={ 12 15 }\n\t\t\tgovernment=republic_government\n")
             + char(500, "\t\t\tdomain={ 13 }\n\t\t\tgovernment=feudal_government\n")
@@ -52,9 +53,10 @@ def resave(contracts=None, far_holder=500):
             + "\t}\n}\n").encode()
 
 
-def witness(gov100="republic_government"):
+def witness(gov100="republic_government", second=False):
     return ("meta_data={\n\tdate=987.10.27\n}\nlanded_titles={\n\tlanded_titles={\n"
             + title(11, "b_moved", 100) + title(12, "b_stay", 300) + title(14, "b_far", 101)
+            + (title(16, "b_second", 300) if second else "")
             + "\t}\n}\nliving={\n"
             + char(100, f"\t\t\tdomain={{ 11 }}\n\t\t\tgovernment={gov100}\n\t\t\trealm_capital=11\n")
             + char(101, "\t\t\tdomain={ 14 }\n\t\t\tgovernment=republic_government\n")
@@ -118,6 +120,17 @@ def test_a_government_1_21_does_not_define_is_reported_not_written(game):
     assert not r.carried and r.gamestate == resave()
     assert r.skipped == [("b_moved", "100", "the witness government merchant_republic_government is not defined "
                                             "in 1.21")]
+
+
+def test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have(game):
+    # 16 such holders in djdarcy's re-save of v17: 300 still holds b_stay and c_home, and lost b_second to 200
+    r = run(game, g=resave(second=True), w=witness(second=True))
+    g = r.gamestate
+    assert ("b_second", "300", "200", "kept their own liege: holds other land") in r.carried
+    assert holder(g, "b_second") == "300"
+    assert re.search(rb"domain=\{ 12 15 16 \}", living(g, 300))
+    assert re.search(rb"domain=\{ 10 14 \}", living(g, 200))      # gave b_moved and b_second, in one edit
+    assert len(re.findall(rb"\bgovernment=", living(g, 300))) == 1
 
 
 def test_a_second_run_changes_nothing(game):

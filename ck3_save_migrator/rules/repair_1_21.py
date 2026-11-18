@@ -48,9 +48,10 @@ def r37_baronies_from_witness(save: CK3Save, ctx, rule):
     """The baronies the game's conversion took from their holders, given back from the witness.
 
     1.21 moved some baronies to another county, and the conversion hands each to its new county's holder (63 of the
-    66 one-barony vassals it stripped in djdarcy's re-save of v17). Measured by a loop game run
-    (2026-11-18__12-18-28__s6-baronies4-resave): 60 of the 63 came through the game's next save with their holder,
-    contract and government; the game gave the other 3 (b_avignon, b_vienne, b_jiuyuan) to someone else, cause unread.
+    66 one-barony vassals it stripped in djdarcy's re-save of v17; the 61 who took them were all alive in v17, not
+    new characters). Measured by loop game runs (2026-11-18__12-18-28, then 13-02-23 with holders who kept other
+    land): 75 of 83 came through the game's next save with their holder (60 of 63 landless ones with contract and
+    government, 15 of 20 who kept other land); the game gave 8 to someone else, cause unread. --rules -R37 leaves it out.
     """
     from ..carry_1_21 import barony_counties, carry_baronies, defined_governments
     why = _same_date(save, ctx)

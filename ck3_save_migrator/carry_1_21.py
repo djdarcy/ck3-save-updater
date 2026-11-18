@@ -257,17 +257,25 @@ def carry_baronies(g: bytes, witness: bytes, counties: dict[str, str],
             continue
         wanted.setdefault(h, []).append((key, gi, now))
     p, rows, nc = gs.EditPass(), [], _next_index(g, "vassal_contracts/database") - 1   # a fresh low-24 index each
-    lists, gives = {}, {}                             # liege -> new contract ids; liege -> title ids leaving its domain
-    lieges = {liege for items in wanted.values() for _, _, liege in items}
-    for h in [h for h in wanted if h in lieges]:      # one character both regaining and giving: never guessed
-        for key, _, _ in wanted.pop(h):
-            res.skipped.append((key, h, "the old holder is also a county holder losing a barony here"))
+    lists, gives, adds = {}, {}, {}   # liege -> new contract ids; character -> title ids leaving / joining its domain
     for h, items in wanted.items():
         hb = g[lg[h].open:lg[h].close]
         ld = re.search(rb"\n([ \t]*)landed_data=\{", hb)
-        if not ld or re.search(rb"\bdomain=\{", hb):
+        if not ld:
             for key, _, _ in items:
-                res.skipped.append((key, h, "the old holder has no empty landed_data to write into"))
+                res.skipped.append((key, h, "the old holder has no landed_data to write into"))
+            continue
+        dm = re.search(rb"\bdomain=\{([^}]*)\}", hb)
+        if dm:
+            # a holder who kept other land (16 in djdarcy's re-save of v17): the barony joins the domain they have;
+            # their government and capital are still in place
+            for key, gi, liege in items:
+                adds.setdefault(h, []).append(gi.encode())
+                gives.setdefault(liege, []).append(gi.encode())
+                t = tg[gi]
+                hm = _field(g[t.open:t.close], "holder")
+                p.add(gs.Edit(t.open + hm.start(1), t.open + hm.end(1), h.encode(), "carry", f"{key} -> {h}"))
+                res.carried.append((key, h, liege, "kept their own liege: holds other land"))
             continue
         wg = gov_of(witness, lw, h)
         if not re.search(rb"\bgovernment=", hb) and (wg == "none" or (governments is not None and wg not in governments)):
@@ -304,13 +312,15 @@ def carry_baronies(g: bytes, witness: bytes, counties: dict[str, str],
             res.carried.append((key, h, liege, lv))
     if not res.carried:
         return res
-    for liege, gone in gives.items():                 # out of the county holder's domain, one edit per liege
-        lb = g[lg[liege].open:lg[liege].close]
-        d = re.search(rb"\bdomain=\{([^}]*)\}", lb)
+    for c in set(gives) | set(adds):                  # one edit per domain: what leaves and what joins
+        cb = g[lg[c].open:lg[c].close]
+        d = re.search(rb"\bdomain=\{([^}]*)\}", cb)
         if d:
-            rest = b" ".join(x for x in d.group(1).split() if x not in gone)
-            p.add(gs.Edit(lg[liege].open + d.start(1), lg[liege].open + d.end(1), b" " + rest + b" ", "carry",
-                          f"{liege} gives {len(gone)}"))
+            gone = set(gives.get(c, []))
+            now = [x for x in d.group(1).split() if x not in gone]
+            now += [x for x in adds.get(c, []) if x not in now]
+            p.add(gs.Edit(lg[c].open + d.start(1), lg[c].open + d.end(1), b" " + b" ".join(now) + b" ", "carry",
+                          f"{c} domain -{len(gone)} +{len(adds.get(c, []))}"))
     for liege, cids in lists.items():
         lb = g[lg[liege].open:lg[liege].close]
         vl = re.search(rb"\n(\s*)vassal_contracts=\{", lb)
