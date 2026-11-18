@@ -403,5 +403,5 @@ def test_a_refused_plan_is_the_same_plan_for_status_and_update(tmp_path, saves, 
 def test_a_gap_nothing_covers_refuses_before_the_full_read(tmp_path, saves, capsys, monkeypatch):
     s = ref_save(saves, "Current.ck3", seed=b"random_seed=444\n")
     monkeypatch.setattr(sf, "read_save", lambda *a, **k: pytest.fail("a full read of a refused plan"))
-    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path, "1.21.0")))
-    assert code == 1 and "NOT COVERED: the gap 1.20.1.2 -> 1.21.0" in out
+    code, out, _ = run(capsys, "status", str(s), "--game-dir", str(game(tmp_path, "1.22.0")))   # past to_1_21's line
+    assert code == 1 and "NOT COVERED: the gap 1.20.1.2 -> 1.22.0" in out

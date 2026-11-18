@@ -263,22 +263,23 @@ def test_a_save_at_the_games_version_is_already_current(tmp_path, saves, capsys)
 
 
 def test_a_gap_no_pack_covers_is_named_and_nothing_is_written(tmp_path, saves, capsys):
+    # 1.20 -> 1.21 is the built-in to_1_21's now (decision C, 2026-11-17): the test uses a line one further on
     s = ref_save(saves, "Current.ck3")
-    g = game(tmp_path, "1.21.0")
+    g = game(tmp_path, "1.22.0")
     code, out, err = run(capsys, "update", str(s), "--game-dir", str(g))
-    assert code == 1 and "NOT COVERED: the gap 1.20.1.2 -> 1.21.0" in out and "the gap 1.20.1.2 -> 1.21.0" in err
+    assert code == 1 and "NOT COVERED: the gap 1.20.1.2 -> 1.22.0" in out and "the gap 1.20.1.2 -> 1.22.0" in err
     assert sorted(p.name for p in saves.iterdir()) == ["Current.ck3"]
-    # a pack of yours that declares it covers 1.20 -> 1.21 is selected, and the update runs
-    folder = U.packs_dir() / "to_1_21"
+    # a pack of yours that declares it covers 1.20 -> 1.22 is selected, and the update runs
+    folder = U.packs_dir() / "to_1_22"
     (folder / "N1-flag").mkdir(parents=True)
-    (folder / "pack.toml").write_text('format = 1\nid = "to_1_21"\ntitle = "t"\norder = ["N1"]\n\n[applies]\n'
-                                      'save = ">=1.20, <1.21"\ngame = ">=1.21, <1.22"\n', encoding="utf-8")
+    (folder / "pack.toml").write_text('format = 1\nid = "to_1_22"\ntitle = "t"\norder = ["N1"]\n\n[applies]\n'
+                                      'save = ">=1.20, <1.21"\ngame = ">=1.22, <1.23"\n', encoding="utf-8")
     (folder / "N1-flag" / "patch.toml").write_text(
-        'format = 1\nid = "N1"\nname = "flag"\ntitle = "t"\nsince = "1.21"\ndone = { path = "meta_data", key = "n1" }'
+        'format = 1\nid = "N1"\nname = "flag"\ntitle = "t"\nsince = "1.22"\ndone = { path = "meta_data", key = "n1" }'
         '\n\n[[edit]]\npath = "meta_data"\nop = "insert"\nposition = "end"\npayload = "\\tn1=yes\\n"\n', encoding="utf-8")
     code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint")
     assert code == 0, err
-    assert cli.LAST_PLAN["ran"] == ["N1"] and (saves / "Current__updated__1.21.0.ck3").is_file()
+    assert cli.LAST_PLAN["ran"] == ["N1"] and (saves / "Current__updated__1.22.0.ck3").is_file()
 
 
 def test_a_save_newer_than_the_game_is_refused(tmp_path, saves, capsys):
@@ -316,15 +317,42 @@ def test_a_pack_without_a_span_says_so(tmp_path, saves):
 
 
 # --------------------------------------------------------------------------- to_1_21, a frame (patch day 2026-11-17)
-def test_a_frame_pack_is_shown_and_never_covers_the_gap(tmp_path, saves):
+def _frame_to_1_21(tmp_path, monkeypatch):
+    """to_1_21 as it was before its first patch: a frame (to_1_21 has R33 and R34 since decision C)."""
+    from ck3_save_migrator.patches import load_pack
+    folder = tmp_path / "to_1_21"
+    folder.mkdir()
+    (folder / "pack.toml").write_text('format = 1\nid = "to_1_21"\ntitle = "t"\norder = []\n\n[applies]\n'
+                                      'save = ">=1.20, <1.21"\ngame = ">=1.21, <1.22"\n', encoding="utf-8")
+    real = PL.read_pack
+    monkeypatch.setattr(PL, "read_pack", lambda src=None: load_pack(folder, from_disk=True, context_fields=set())
+                        if src == "to_1_21" else real(src))
+
+
+def test_a_frame_pack_is_shown_and_never_covers_the_gap(tmp_path, saves, monkeypatch):
     # a 1.20.1.2 save in a 1.21.0 game: to_1_21's span takes it, but a pack with no patches would write the save
     # unchanged, so the gap stays refused and the refusal says what loading it in the game would do
+    _frame_to_1_21(tmp_path, monkeypatch)
     s = ref_save(saves, "Florin.ck3")
     p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
     row = next(x for x in p.packs if x.id == "to_1_21")
     assert (row.kind, row.selected) == ("built in", True) and "a frame" in row.why
     assert p.uncovered and "to_1_21 declares this span but carries nothing yet" in p.uncovered
     assert p.uncovered in p.refusals
+
+
+def test_to_1_21_runs_its_pre_load_pass_and_says_the_first_load_finishes_it(tmp_path, saves):
+    # decision C (Q261117-04): a 1.20 save in a 1.21 game is covered by to_1_21, whose R33 (wonders) and R34 (roads)
+    # run after to_1_20's steps; the save stays stamped 1.20 and the plan says the player's first load finishes it
+    s = ref_save(saves, "Florin.ck3")
+    p = PL.plan_update(s, game_dir=str(game(tmp_path, "1.21.0")))
+    row = next(x for x in p.packs if x.id == "to_1_21")
+    assert row.selected is True and "a frame" not in row.why and p.uncovered is None
+    later = [(x.id, x.pack) for x in p.steps if x.pack == "to_1_21"]
+    assert later == [("R33", "to_1_21"), ("R34", "to_1_21")]
+    assert [x.id for x in p.steps].index("R33") > max((i for i, x in enumerate(p.steps) if x.pack == "to_1_20"),
+                                                     default=-1)
+    assert any("load it once in 1.21.0 and save" in n for n in p.notes)
 
 
 def test_a_frame_pack_outside_its_span_changes_nothing(tmp_path, saves):
@@ -528,6 +556,9 @@ def test_the_rules_the_plan_says_need_a_reference_do_nothing_without_one(tmp_pat
     from tests.fixtures.make_ck3 import RULES_BODY, RULES_META
     save = sf.parse_save(build_ck3(meta=RULES_META, body=RULES_BODY))
     res = {r.id: r for r in run_rules(save, select("all,R14,R15,R16"), RuleContext(reference=None))}
+    # and the later built-in packs' rules (to_1_21's R34 needs the 1.21 reference)
+    from ck3_save_migrator.patches.pack import rules_from_pack
+    res.update({r.id: r for r in run_rules(save, rules_from_pack("to_1_21"), RuleContext(reference=None))})
     for rid in PL.NEEDS_REFERENCE + PL.NEEDS_OLD_GAME:
         assert res[rid].edited == 0 and res[rid].extra.get("skipped"), rid
 

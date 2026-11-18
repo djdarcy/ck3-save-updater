@@ -104,7 +104,8 @@ def test_a_hotfix_of_the_same_line_is_already_current(tmp_path, saves, capsys):
 
 
 def test_another_line_with_no_pack_is_still_not_covered(tmp_path, saves, capsys):
-    code, out, _ = run(capsys, "status", str(ref_save(saves, "C.ck3")), "--game-dir", str(game(tmp_path, "1.21.0")))
+    # 1.20 -> 1.21 is to_1_21's now (decision C, 2026-11-17); a line one further on still has no pack
+    code, out, _ = run(capsys, "status", str(ref_save(saves, "C.ck3")), "--game-dir", str(game(tmp_path, "1.22.0")))
     assert code == 1 and "NOT COVERED" in out
 
 

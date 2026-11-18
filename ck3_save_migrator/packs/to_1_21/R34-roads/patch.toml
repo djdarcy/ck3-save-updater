@@ -1,0 +1,9 @@
+format = 1
+id = "R34"
+name = "roads"
+title = "bring in the 1.21 reference's roads, which the game's own conversion does not make"
+since = "1.20<=v<1.21"
+default = true
+requires = []
+tested = { origin = ["1.20.1.2"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.to_1_21:r34_roads"

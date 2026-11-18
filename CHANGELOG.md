@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.11] - 2026-11-17
+
+### Added
+- `update` now prepares a 1.20 save for 1.21 (Silk & Silver). It writes your wonders, great works and duchy-capital buildings as the districts 1.21 uses, and adds 1.21's roads from a 1.21 reference save. The save stays a 1.20 save. Load it once in 1.21 and save, and the game finishes the conversion while keeping what the tool wrote. Tested in 1.21: 133 of 134 wonders and all 4,201 roads came through. The plan says this in its notes.
+- Your other buildings (farms, walls and so on) are not carried yet. The game keeps only each holding's main building, so a converted holding earns much less until that work lands.
+
+### Changed
+- A 1.20 save in a 1.21 game is no longer refused. The built-in `to_1_21` pack covers it.
+
 ## [0.6.10] - 2026-11-17
 
 ### Added
@@ -994,7 +1003,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.11...HEAD
+[0.6.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...v0.6.11
 [0.6.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...v0.6.10
 [0.6.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...v0.6.8

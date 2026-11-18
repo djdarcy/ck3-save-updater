@@ -48,7 +48,7 @@ _MOD = re.compile(rb'"(mod/[^"]+\.mod)"')
 # The built-in rules that do nothing without a reference save, and the one that needs the old game's map (the old
 # game folder, or the built-in table for the save's version line: deadtitles.old_map). Each
 # says so itself when it runs (its "skipped" note); the plan says so beforehand. A test checks the two agree.
-NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17")
+NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17", "R34")    # R34: to_1_21's roads come from it
 NEEDS_OLD_GAME = ("R15",)
 NOT_KNOWABLE = "not knowable before running (update --dry-run runs the patches in memory and counts)"
 REFERENCE_STEPS = (
@@ -811,13 +811,20 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     # the later built-in packs: a frame (no patches yet) is shown for its span and never covers the gap, since an
     # update through it would write the save unchanged (patch day 2026-11-17: to_1_21 before its first patch)
     frames: list[str] = []
+    later_built: list[tuple[object, bool, str]] = []     # (pack, selected, skip reason): their steps follow to_1_20's
     for name in SHIPPED_AFTER:
         later = read_pack(name)
-        l_ok, l_why, l_covers, _ = _span_why(later.applies, sv["version"], gv, seed)
+        l_ok, l_why, l_covers, l_skip = _span_why(later.applies, sv["version"], gv, seed)
         if not later.order:
             if l_ok:
                 frames.append(later.id)
             l_why += "; a frame: it declares this span and carries nothing yet"
+        else:
+            covered = covered or (l_ok and l_covers)
+            later_built.append((later, l_ok, l_skip))
+            if l_ok:
+                notes.append(f"{later.id} prepares the save and leaves it stamped {sv['version']}: load it once in "
+                             f"{gv} and save, and the game finishes the conversion, keeping what {later.id} wrote")
         pack_rows.append(PackChoice(later.id, "built in", "(inside the package)", l_ok, l_why))
     steps: list[Step] = []
     rules: dict[str, object] = {}
@@ -871,6 +878,20 @@ def plan_update(save: str | Path, *, game_dir: str | None = None, reference: str
     if create_packs_dir:
         ensure_packs_dir()
     extra: list[tuple[object, list[Step]]] = []
+    # the later built-in packs first, right after to_1_20's steps (decision C: to_1_21's pre-load pass). Built in, so
+    # their code patches run without --allow-run; a pack not selected for this save lists its patches as skipped
+    for pk, sel, skip in later_built:
+        built = {r.id: r for r in rules_from_pack(pk)} if sel else {}
+        own = []
+        for p in pk.ordered():
+            reason = skip if not sel else ("default = false" if not p.default else
+                                           "turned off in your config (`ck3update enable` turns it back on)"
+                                           if p.id in off else "runs")
+            own.append(Step(p.id, p.name, pk.id, reason == "runs", reason))
+            info[p.id] = {"needs_ref": p.id in NEEDS_REFERENCE, "patch": None, "requires": tuple(p.requires)}
+            if p.id in built:
+                rules[p.id] = built[p.id]
+        extra.append((pk, own))
     found = find_user_packs().packs
     for up in found:
         ok, why, covers, skip_why = _span_why(up.pack.applies, sv["version"], gv, seed)
