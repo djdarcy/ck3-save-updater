@@ -19,7 +19,7 @@ ck3update lint "My_Old_Campaign.migrated.ck3" --json "My_Old_Campaign.lint.json"
 |---|---|
 | `--reference` | a save written by the target game version, for the key-name check and the portrait data length; `none` to skip |
 | `--game-dir` | the game's `game` folder (default: `$CK3_GAME_DIR` or the usual Steam paths) |
-| `--no-keys` | skip the checks that need game data: key names and what 1.20 will log |
+| `--no-keys` | skip the checks that need game data: key names and what the game will log (the installed game, whichever version it is) |
 | `--mods save` / `--mods none` | assume the save's own Workshop mods are active (the default, those installed), or none |
 | `--json` | write the findings to this JSON file |
 

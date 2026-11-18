@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.12] - 2026-11-18
+
+### Fixed
+- `lint`'s summary said "family(ies) 1.20 will log". It now says "the game will log". The check judges against the game you have installed, which is 1.21 now, so the old wording misled.
+
 ## [0.6.11] - 2026-11-17
 
 ### Added
@@ -1003,7 +1008,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.11...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.12...HEAD
+[0.6.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.11...v0.6.12
 [0.6.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...v0.6.11
 [0.6.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...v0.6.10
 [0.6.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...v0.6.9

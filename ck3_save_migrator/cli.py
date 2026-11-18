@@ -839,7 +839,7 @@ def print_lint(rep, indent: str = "  ", level: int = DEFAULT) -> None:
     command, where they are the result; the finding details stay at the same level for now (they may move to
     EXTRA once the plain output has been seen, director 2026-10-25)."""
     say(level, f"{indent}lint          : {rep.errors} error(s), {rep.count('warn')} warning(s), "
-               f"{rep.count('reject')} family(ies) 1.20 will log, {rep.count('info')} info", "lint")
+               f"{rep.count('reject')} family(ies) the game will log, {rep.count('info')} info", "lint")
     missing = rep.stats.get("mods_not_installed")
     if missing:
         say(DEFAULT, f"{indent}  {len(missing)} mod(s) the save lists are not installed, so these checks leave "
@@ -1743,7 +1743,7 @@ def build_parser() -> argparse.ArgumentParser:
                    "(default: $CK3_REFERENCE_SAVE, else the project's 987 reference; 'none' to skip)")
     p.add_argument("--game-dir", help=GAME_DIR_HELP)
     p.add_argument("--no-keys", action="store_true",
-                   help="skip the checks that need game data: key names and what 1.20 will log")
+                   help="skip the checks that need game data: key names and what the game will log")
     p.add_argument("--mods", choices=("save", "none"), default="save",
                    help="which mods to assume active when the save loads: the Workshop mods the save lists "
                         "(default; those installed), or none (a vanilla load)")
