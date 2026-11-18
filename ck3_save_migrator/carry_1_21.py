@@ -51,20 +51,21 @@ def _max_id(g: bytes, path: str) -> int:
     return max((int(e.key) for e in gs.iter_entries(g, *b.body) if e.key and e.key.isdigit()), default=0)
 
 
-def carry_wonders(g: bytes, host: HostRules) -> WondersResult:
-    """``g`` (a 1.20-shaped gamestate) with each holding's wonder written as its 1.21 district."""
-    res = WondersResult(g)
-    nb, nd = _max_id(g, "buildings/database"), _max_id(g, "districts/database")
-    btext, dtext, p = [], [], gs.EditPass()
+def _holdings(g: bytes):
+    """(province entry, offset just past ``holding={``, holding body) for every province with a holding."""
     for e in gs.iter_entries(g, *gs.locate(g, "provinces").body):
         if not (e.key and e.key.isdigit()):
             continue
-        body = g[e.open:e.close]
-        h = re.search(rb"\n\t\tholding=\{", body)
-        if not h:
-            continue
-        hb_end = gs.match_brace(g, e.open + h.end() - 1)
-        hb = g[e.open + h.end():hb_end]
+        h = re.search(rb"\n\t\tholding=\{", g[e.open:e.close])
+        if h:
+            at = e.open + h.end()
+            yield e, at, g[at:gs.match_brace(g, at - 1)]
+
+
+def _built_wonders(g: bytes, host: HostRules) -> dict[str, list[str]]:
+    """province id -> the built wonders a 1.20 save holds there."""
+    out = {}
+    for e, at, hb in _holdings(g):
         # 1.20 keeps a holding's BUILT wonder in its own block, special_building={ type="danevirke_01" } (and the
         # duchy building in duchy_capital_building={ type=... }); special_building_type= alone is only the province's
         # slot (365 in v17, 115 built, plus 11 duchy buildings). A fresh 1.21 game writes districts for built ones
@@ -77,16 +78,30 @@ def carry_wonders(g: bytes, host: HostRules) -> WondersResult:
         # with a special district of its own in 1.21 (the first, accidental run carried 18 great_district from here)
         bl = re.search(rb"\n\t\t\tbuildings=\{", hb)
         if bl:
-            start = e.open + h.end() + bl.end() - 1
-            inner = g[start + 1:gs.match_brace(g, start)]
-            for k in re.findall(rb'\{\s*type="?([^\s"}]+)', inner):
+            start = at + bl.end() - 1
+            for k in re.findall(rb'\{\s*type="?([^\s"}]+)', g[start + 1:gs.match_brace(g, start)]):
                 k = k.decode()
                 d, _ = host.wonder_district(k)
                 if d is not None and host.districts[d].kind == "special" and k not in built:
                     built.append(k)
+        if built:
+            out[e.key.decode()] = built
+    return out
+
+
+def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> WondersResult:
+    """``g`` with each holding's built wonder written as its 1.21 district. Phase one (decision C): ``g`` is the 1.20
+    save itself. Phase two for a player who already re-saved in 1.21 (the Director, 2026-11-18): ``g`` is that 1.21
+    re-save and ``witness`` the last 1.20 save, whose wonders are read and written into ``g`` by province."""
+    res = WondersResult(g)
+    nb, nd = _max_id(g, "buildings/database"), _max_id(g, "districts/database")
+    btext, dtext, p = [], [], gs.EditPass()
+    wonders = _built_wonders(witness if witness is not None else g, host)
+    for e, h_at, hb in _holdings(g):
+        pid = e.key.decode()
+        built = wonders.get(pid)
         if not built:
             continue
-        pid = e.key.decode()
         for key in built:
             district, how = host.wonder_district(key)
             if district is None:
@@ -110,7 +125,7 @@ def carry_wonders(g: bytes, host: HostRules) -> WondersResult:
             dtext.append(f"\t\t{nd}={{\n\t\t\tbuildings={{ {nb} }}\n\t\t\ttype={district}\n\t\t\towner={pid}\n\t\t}}\n")
             line = f"\n\t\t\t{slot}={nd}" + (f"\n\t\t\t{slot}_type={district}" if typed else "")
             t = re.search(rb'\n\t\t\ttype="?\w+"?', hb)
-            at = e.open + h.end() + (t.end() if t else 0)
+            at = h_at + (t.end() if t else 0)
             p.add(gs.Edit(at, at, line.encode(), "carry", f"{pid} {key} -> {district}"))
             res.carried.append((pid, key, district, slot))
     if not res.carried:

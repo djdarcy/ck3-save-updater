@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.13] - 2026-11-18
+
+### Added
+- Groundwork for players who already loaded their old save in 1.21 and lost their wonders. The tool can now read the wonders from your last 1.20 save and write them into the 1.21 one. Tested in the game: all 134 wonders and 4,201 roads came through the next save. `update` does not offer this yet.
+
 ## [0.6.12] - 2026-11-18
 
 ### Fixed
@@ -1008,7 +1013,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.12...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.13...HEAD
+[0.6.13]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.12...v0.6.13
 [0.6.12]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.11...v0.6.12
 [0.6.11]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.10...v0.6.11
 [0.6.10]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...v0.6.10

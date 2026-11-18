@@ -95,6 +95,17 @@ def test_a_second_run_changes_nothing(host):
     assert again.carried == [] and again.gamestate == once
 
 
+def test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted(host):
+    # phase two without phase one (the Director, 2026-11-18): the player's 1.21 re-save has lost its wonders; the
+    # last 1.20 save is the witness. Measured in the game: the next re-save kept all 134 (and 4,201 roads)
+    converted = re.sub(rb"\n\t\t\t(?:special_building|great_building|duchy_capital_building)=\{[^{}]*\}", b"", SAVE)
+    assert C.carry_wonders(converted, host).carried == []               # nothing left in the save itself
+    r = C.carry_wonders(converted, host, witness=SAVE)
+    assert sorted((p, s) for p, _, _, s in r.carried) == [
+        ("10061", "great_district"), ("496", "duchy_capital_district"), ("62", "special_district")]
+    assert "special_district_type=danevirke_01_district" in holding(r.gamestate, 62)
+
+
 def test_rows_go_after_the_existing_ones_when_the_databases_exist(host):
     pre = SAVE + b"districts={\n\tdatabase={\n\t\t7={\n\t\t\ttype=x\n\t\t}\n\t}\n}\n" \
                  b"buildings={\n\tdatabase={\n\t\t9={\n\t\t\ttype=y\n\t\t}\n\t}\n}\n"
