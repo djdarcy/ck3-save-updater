@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9] - 2026-11-17
+
+### Added
+- Groundwork for carrying buildings into 1.21. The tool can now read from the game's own files where a 1.21 building may stand: which holding's districts host it, which resource or wonder district it belongs to, and when the game decides by a condition of its own. It also finds the 1.21 district for a wonder (157 of the 188 in our test save, by name). `update` does not use it yet: it is for the building carry still to come.
+
 ## [0.6.8] - 2026-11-17
 
 ### Added
@@ -984,7 +989,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.9...HEAD
+[0.6.9]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.8...v0.6.9
 [0.6.8]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.7...v0.6.8
 [0.6.7]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.6...v0.6.7
 [0.6.6]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.5...v0.6.6
