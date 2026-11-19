@@ -4,6 +4,13 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.33] - 2026-11-18
+
+### Changed
+- The tests now check the tool's reasoning about saves against more of what the game actually writes. Every reader of title names and title files is tested against every form the game uses, including 1.21's layout and names with an apostrophe. The reshaping of entries copied from a 1.21 game, and the repairs to a save the game converted, are tested on the real 1.21 shapes. The tool's behaviour is unchanged.
+- Measurement scripts under `tests/one-offs/thinking/` show what the game's own 1.21 conversion keeps of a save's buildings, and how closely an update made with only the current game matches one made with the previous version.
+- The roadmap is refreshed: it is now the plan itself, mirrored by the pinned first issue. 0.4.x and 0.5.x are listed as done, and 0.6.x, patch day for the trade update, is next. The README's reference-save steps are clearer about when to save.
+
 ## [0.6.32] - 2026-11-18
 
 ### Fixed
@@ -1133,7 +1140,12 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.32...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.33...HEAD
+[0.6.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.36...v0.6.37
+[0.6.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.35...v0.6.36
+[0.6.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...v0.6.35
+[0.6.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.33...v0.6.34
+[0.6.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.32...v0.6.33
 [0.6.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...v0.6.32
 [0.6.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.30...v0.6.31
 [0.6.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.29...v0.6.30
@@ -1238,27 +1250,27 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 [0.4.3]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/djdarcy/ck3-save-updater/compare/v0.4.0...v0.4.1
-[0.4.0]: https://github.com/djdarcy/ck3-save-updater/compare/129a17e...v0.4.0
-[0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/72ca601...129a17e
-[0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/c596844...72ca601
-[0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/1a6a7a5...c596844
-[0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/4f0f998...1a6a7a5
-[0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/db54e04...4f0f998
-[0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/12e2d4e...db54e04
-[0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/ad77aaf...12e2d4e
-[0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/39da8d0...ad77aaf
-[0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/159560b...39da8d0
-[0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/45391ee...159560b
-[0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/014e275...45391ee
-[0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/a87f1ac...014e275
-[0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/a6c23f0...a87f1ac
-[0.3.17]: https://github.com/djdarcy/ck3-save-updater/compare/3e0ecc4...a6c23f0
-[0.3.16]: https://github.com/djdarcy/ck3-save-updater/compare/ea04cea...3e0ecc4
-[0.3.15]: https://github.com/djdarcy/ck3-save-updater/compare/c3ad245...ea04cea
-[0.3.14]: https://github.com/djdarcy/ck3-save-updater/compare/dd2e901...c3ad245
-[0.3.13]: https://github.com/djdarcy/ck3-save-updater/compare/08dd941...dd2e901
-[0.3.12]: https://github.com/djdarcy/ck3-save-updater/compare/1a7a626...08dd941
-[0.3.11]: https://github.com/djdarcy/ck3-save-updater/compare/1c8eda4...1a7a626
+[0.4.0]: https://github.com/djdarcy/ck3-save-updater/compare/ea2e46d...v0.4.0
+[0.3.30]: https://github.com/djdarcy/ck3-save-updater/compare/afb4b6a...ea2e46d
+[0.3.29]: https://github.com/djdarcy/ck3-save-updater/compare/880fbda...afb4b6a
+[0.3.28]: https://github.com/djdarcy/ck3-save-updater/compare/f8198d0...880fbda
+[0.3.27]: https://github.com/djdarcy/ck3-save-updater/compare/15da91b...f8198d0
+[0.3.26]: https://github.com/djdarcy/ck3-save-updater/compare/b064135...15da91b
+[0.3.25]: https://github.com/djdarcy/ck3-save-updater/compare/76f37e9...b064135
+[0.3.24]: https://github.com/djdarcy/ck3-save-updater/compare/1c67a79...76f37e9
+[0.3.23]: https://github.com/djdarcy/ck3-save-updater/compare/c0ac08d...1c67a79
+[0.3.22]: https://github.com/djdarcy/ck3-save-updater/compare/24e8b5b...c0ac08d
+[0.3.21]: https://github.com/djdarcy/ck3-save-updater/compare/8447307...24e8b5b
+[0.3.20]: https://github.com/djdarcy/ck3-save-updater/compare/237b951...8447307
+[0.3.19]: https://github.com/djdarcy/ck3-save-updater/compare/85933a0...237b951
+[0.3.18]: https://github.com/djdarcy/ck3-save-updater/compare/8aade30...85933a0
+[0.3.17]: https://github.com/djdarcy/ck3-save-updater/compare/1162aef...8aade30
+[0.3.16]: https://github.com/djdarcy/ck3-save-updater/compare/26c4cdb...1162aef
+[0.3.15]: https://github.com/djdarcy/ck3-save-updater/compare/3672944...26c4cdb
+[0.3.14]: https://github.com/djdarcy/ck3-save-updater/compare/4160b9d...3672944
+[0.3.13]: https://github.com/djdarcy/ck3-save-updater/compare/47051b7...4160b9d
+[0.3.12]: https://github.com/djdarcy/ck3-save-updater/compare/60e67ea...47051b7
+[0.3.11]: https://github.com/djdarcy/ck3-save-updater/compare/1c8eda4...60e67ea
 [0.3.10]: https://github.com/djdarcy/ck3-save-updater/compare/8af64dd...1c8eda4
 [0.3.9]: https://github.com/djdarcy/ck3-save-updater/compare/174e82f...8af64dd
 [0.3.8]: https://github.com/djdarcy/ck3-save-updater/compare/b8fa75b...174e82f

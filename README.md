@@ -80,7 +80,7 @@ This installs the `ck3update` command (its old name, `ck3-save-migrator`, still 
 Have these ready:
 
 - **The game folder.** The tool finds your installed game by itself through Steam's records, on any drive. If it does not, give `--game-dir "<...>\Crusader Kings III\game"` (or set `CK3_GAME_DIR`). `status` shows which install it used in its GAME block.
-- **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3"` writes a small mod into the game's mod folder that adds a bookmark on your date (its ruler flags, such as `--culture Irish`, take the names the game shows); enable it, start a new game from that bookmark, and save as soon as it loads, before you unpause. [The reference save](docs/reference-save.md) walks through it. Without one, `status` lists the rules that will skip and these same steps.
+- **A [reference save](docs/glossary.md#reference-save)**, for most old saves: a save written by the game you have now, on your campaign's date. Religion is rebuilt from it, and the new-map regions are copied from it. The game only starts new games on its own bookmark dates, so `ck3update reference-mod --save "My_Old_Campaign.ck3"` writes a small mod into the game's mod folder that adds a bookmark on your date (its ruler flags, such as `--culture Irish`, take the names the game shows); enable it, start a new game from that bookmark, and as soon as it loads do a save (don't unpause). [The reference save](docs/reference-save.md) doc walks through it. Without one, `status` lists the rules that will skip and these same steps.
 - **The launcher's playset**, set to the mods you will play with: the faces are carried into that playset's [gene layout](docs/glossary.md#gene-layout) (its portrait mods, read from the launcher's `dlc_load.json`). `--portrait-mods` names them instead. The faces are read in the layout the save was made with. For the old game and the 2022-2023 builds of Community Flavor Pack and Ethnicities and Portraits Expanded, the update knows it already. For other portrait mods that have updated or gone since, give the builds the save used with `--old-portrait-mods`.
 - **Your [packs folder](docs/glossary.md#packs-folder)**, only if you have fixes of your own: `packs` beside the config file (`%APPDATA%\ck3-save-migrator\packs` on Windows, `~/.config/ck3-save-migrator/packs` elsewhere). The tool creates it the first time it loads rules, with `_example-pack`, a complete pack to copy when you write your own; the example itself never runs. You can ignore it to update a save.
 
@@ -117,7 +117,7 @@ This prints the plan `status` would print, asks "Run the update now? [y/N]", and
 
 ## An advanced example
 
-The command we use for our own long campaign, with its portrait mods and a pack of our own fixes:
+The command I use for my own long campaign, with its portrait mods and a pack of specialized fixes:
 
 ```
 ck3update update "My_Old_Campaign.ck3" --reference "ref_1_20_987_10_27.ck3" --old-game-dir "C:\...\Crusader Kings III 1.8\game" --portrait-mods "2220098919,2507209632,2996881191" --pack "my_pack" --vars "my_pack\vars.toml" --allow-run --custom-faith-as faith --no-ask -o "My_Old_Campaign__updated.ck3"

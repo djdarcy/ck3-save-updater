@@ -1,0 +1,105 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_readers.py"
+    ],
+    "timestamp": "2026-11-18T21:42:26-05:00"
+  },
+  "results": [
+    {
+      "id": "G-M1",
+      "file": "ck3_save_migrator/rules/to_1_20.py",
+      "note": "the old value class, cut at an apostrophe (F7)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "ytest.mark.parametrize(\"reader\", READERS, ids=list(READERS))\n    @pytest.mark.parametrize(\"shape\", SHAPES, ids=list(SHAPES))\n    def test_every_title_key_reader_reads_every_shape_whole(reader, shape):\n        line, key = SHAPES[shape]\n>       assert READERS[reader](entry(line)) == key\nE       assert 'b_ka' == \"b_ka'abir\"\nE         \nE         - b_ka'abir\nE         + b_ka\n\ntests\\test_readers.py:67: AssertionError\n_ test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-to_1_20 key line] _\n\nreader = 'to_1_20 key line', shape = '1.21 type line with apostrophe'\n\n    @pytest.mark.parametrize(\"reader\", READERS, ids=list(READERS))\n    @pytest.mark.parametrize(\"shape\", SHAPES, ids=list(SHAPES))\n    def test_every_title_key_reader_reads_every_shape_whole(reader, shape):\n        line, key = SHAPES[shape]\n>       assert READERS[reader](entry(line)) == key\nE       assert 'b_mansa' == \"b_mansa'l-kharaz\"\nE         \nE         - b_mansa'l-kharaz\nE         + b_mansa\n\ntests\\test_readers.py:67: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[apostrophe-to_1_20 key line]\nFAILED tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-to_1_20 key line]\n2 failed, 19 passed in 0.38s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-to_1_20 key line]",
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[apostrophe-to_1_20 key line]"
+      ]
+    },
+    {
+      "id": "G-M2",
+      "file": "ck3_save_migrator/translate.py",
+      "note": "the 1.21 type-line prefix dropped (S10)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\\n\\ttype=title_type_default_static\\tkey=c_dublin\\n\\tholder=7\\n}\\n' = entry(b'type=title_type_default_static\\tkey=c_dublin')\n\ntests\\test_readers.py:67: AssertionError\n_ test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-translate._KEY] _\n\nreader = 'translate._KEY', shape = '1.21 type line with apostrophe'\n\n    @pytest.mark.parametrize(\"reader\", READERS, ids=list(READERS))\n    @pytest.mark.parametrize(\"shape\", SHAPES, ids=list(SHAPES))\n    def test_every_title_key_reader_reads_every_shape_whole(reader, shape):\n        line, key = SHAPES[shape]\n>       assert READERS[reader](entry(line)) == key\nE       assert None == \"b_mansa'l-kharaz\"\nE        +  where None = <function via_translate at 0x00000220B0D98360>(b\"5={\\n\\ttype=title_type_default_static\\tkey=b_mansa'l-kharaz\\n\\tholder=7\\n}\\n\")\nE        +    where b\"5={\\n\\ttype=title_type_default_static\\tkey=b_mansa'l-kharaz\\n\\tholder=7\\n}\\n\" = entry(b\"type=title_type_default_static\\tkey=b_mansa'l-kharaz\")\n\ntests\\test_readers.py:67: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line-translate._KEY]\nFAILED tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-translate._KEY]\n2 failed, 19 passed in 0.43s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-translate._KEY]",
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line-translate._KEY]"
+      ]
+    },
+    {
+      "id": "G-M3",
+      "file": "ck3_save_migrator/mapdata.py",
+      "note": "back to the regex that assumed no block before province (F7, the 14 baronies)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "....................F                                                    [100%]\n================================== FAILURES ===================================\n_________ test_every_landed_titles_reader_gives_the_tokenizers_answer _________\n\ngame = WindowsPath('C:/Users/Extreme/AppData/Local/Temp/pytest-of-Extreme/pytest-20613/test_every_landed_titles_reade0/game')\n\n    def test_every_landed_titles_reader_gives_the_tokenizers_answer(game):\n        parent, provinces = DT.title_tree(Path(game) / \"common\" / \"landed_titles\")\n        assert provinces == {\"b_asmat\": 77, \"b_ka'abir\": 78, \"b_plain\": 79}\n>       assert M.barony_provinces(Path(game)) == provinces\nE       assert {\"b_ka'abir\":...'b_plain': 79} == {'b_asmat': 7...'b_plain': 79}\nE         \nE         Omitting 2 identical items, use -vv to show\nE         Right contains 1 more item:\nE         {'b_asmat': 77}\nE         Use -v to get more diff\n\ntests\\test_readers.py:97: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_readers.py::test_every_landed_titles_reader_gives_the_tokenizers_answer\n1 failed, 20 passed in 0.34s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_readers.py::test_every_landed_titles_reader_gives_the_tokenizers_answer"
+      ]
+    },
+    {
+      "id": "G-M4",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "barony_counties cut at an apostrophe (F7)",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "....................F                                                    [100%]\n================================== FAILURES ===================================\n_________ test_every_landed_titles_reader_gives_the_tokenizers_answer _________\n\ngame = WindowsPath('C:/Users/Extreme/AppData/Local/Temp/pytest-of-Extreme/pytest-20616/test_every_landed_titles_reade0/game')\n\n    def test_every_landed_titles_reader_gives_the_tokenizers_answer(game):\n        parent, provinces = DT.title_tree(Path(game) / \"common\" / \"landed_titles\")\n        assert provinces == {\"b_asmat\": 77, \"b_ka'abir\": 78, \"b_plain\": 79}\n        assert M.barony_provinces(Path(game)) == provinces\n>       assert C.barony_counties(game) == {b: parent[b] for b in provinces}\nE       assert {'b_asmat': '...n': 'c_other'} == {'b_asmat': '...n': 'c_other'}\nE         \nE         Omitting 2 identical items, use -vv to show\nE         Right contains 1 more item:\nE         {\"b_ka'abir\": 'c_county'}\nE         Use -v to get more diff\n\ntests\\test_readers.py:98: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_readers.py::test_every_landed_titles_reader_gives_the_tokenizers_answer\n1 failed, 20 passed in 0.37s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_readers.py::test_every_landed_titles_reader_gives_the_tokenizers_answer"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 4
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_readers.py::test_every_landed_titles_reader_gives_the_tokenizers_answer": [
+        "G-M3",
+        "G-M4"
+      ],
+      "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-to_1_20 key line]": [
+        "G-M1"
+      ],
+      "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-translate._KEY]": [
+        "G-M2"
+      ],
+      "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line-translate._KEY]": [
+        "G-M2"
+      ],
+      "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[apostrophe-to_1_20 key line]": [
+        "G-M1"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-to_1_20 key line]",
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[apostrophe-to_1_20 key line]"
+      ],
+      [
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line with apostrophe-translate._KEY]",
+        "tests/test_readers.py::test_every_title_key_reader_reads_every_shape_whole[1.21 type line-translate._KEY]"
+      ]
+    ],
+    "contained": [],
+    "killed_without_names": []
+  }
+}

@@ -1,9 +1,9 @@
 """Write the expected outputs of the declarative patches' test cases, from the Python rules they replaced.
 
 The Python rules R1, R4, R5, R7 and R11 were removed after v0.3.11, so this runs the rules of another checkout:
-v0.3.11 (commit 1a7a626), where ``REGISTRY`` still held them. From the project folder:
+v0.3.11 (commit 60e67ea), where ``REGISTRY`` still held them. From the project folder:
 
-    git worktree add ../ck3sm-v0.3.11 1a7a626
+    git worktree add ../ck3sm-v0.3.11 60e67ea
     python tests/fixtures/patches/make_expected.py --code ../ck3sm-v0.3.11
 
 It refuses to run against code whose rules come from the pack (that would compare the patches with themselves).
@@ -26,7 +26,7 @@ PROJECT = HERE.parents[2]
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--code", required=True, help="a checkout of v0.3.11 (commit 1a7a626), whose rules are run")
+    ap.add_argument("--code", required=True, help="a checkout of v0.3.11 (commit 60e67ea), whose rules are run")
     args = ap.parse_args()
     code = Path(args.code).resolve()
     sys.path.insert(0, str(code))                   # its ck3_save_migrator ...

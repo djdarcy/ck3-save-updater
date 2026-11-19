@@ -1,0 +1,163 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_downshape.py",
+      "tests/test_carry_1_21.py",
+      "tests/test_carry_baronies.py",
+      "tests/test_title_types.py",
+      "tests/test_id_allocation.py",
+      "tests/test_reference_1_21.py",
+      "tests/test_update.py"
+    ],
+    "timestamp": "2026-11-18T21:18:40-05:00"
+  },
+  "results": [
+    {
+      "id": "R2M1",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes a quoted value ends before its closing quote.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M2",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes a county record that already carries development still needs one derived.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M3",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes 1.21's assembly fields live in landed_data rather than playable_data.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M4",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes the holding type's usual slot count beats the measured per-province 1.20 slot table.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M5",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a holding never already holds a wonder district in the target slot.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "xt:11'})\n\n    def test_a_second_run_changes_nothing(host):\n        once = C.carry_wonders(SAVE, host).gamestate\n        again = C.carry_wonders(once, host)\n>       assert again.carried == [] and again.gamestate == once\nE       AssertionError: assert ([('62', 'dane...al_district')] == []\nE         \nE         Left contains 3 more items, first extra item: ('62', 'danevirke_01', 'danevirke_01_district', 'special_district')\nE         Use -v to get more diff)\n\ntests\\test_carry_1_21.py:95: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_1_21.py::test_a_second_run_changes_nothing - Assertio...\n1 failed, 88 passed, 1 skipped, 2 warnings in 3.86s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_1_21.py::test_a_second_run_changes_nothing"
+      ]
+    },
+    {
+      "id": "R2M6",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes the 1.21 re-save still holds the 1.20 wonder blocks.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "itself\n        r = C.carry_wonders(converted, host, witness=SAVE)\n>       assert sorted((p, s) for p, _, _, s in r.carried) == [\n            (\"10061\", \"great_district\"), (\"496\", \"duchy_capital_district\"), (\"62\", \"special_district\")]\nE       AssertionError: assert [] == [('10061', 'g...al_district')]\nE         \nE         Right contains 3 more items, first extra item: ('10061', 'great_district')\nE         Use -v to get more diff\n\ntests\\test_carry_1_21.py:104: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted\n1 failed, 88 passed, 1 skipped, 2 warnings in 3.52s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted"
+      ]
+    },
+    {
+      "id": "R2M7",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes any barony that changed holder in a known county was taken by the conversion.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "={ 6 }\\n\\t\\t}\\n\\t}\\n}\\n', 200)\n\ntests\\test_carry_baronies.py:132: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_baronies.py::test_a_moved_barony_goes_back_to_its_witness_holder_as_the_county_holders_vassal\nFAILED tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index\nFAILED tests/test_carry_baronies.py::test_only_the_conversions_signature_is_carried\nFAILED tests/test_carry_baronies.py::test_a_government_1_21_does_not_define_is_reported_not_written\nFAILED tests/test_carry_baronies.py::test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have\n5 failed, 84 passed, 1 skipped, 2 warnings in 3.81s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_baronies.py::test_a_government_1_21_does_not_define_is_reported_not_written",
+        "tests/test_carry_baronies.py::test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have",
+        "tests/test_carry_baronies.py::test_a_moved_barony_goes_back_to_its_witness_holder_as_the_county_holders_vassal",
+        "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index",
+        "tests/test_carry_baronies.py::test_only_the_conversions_signature_is_carried"
+      ]
+    },
+    {
+      "id": "R2M8",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes the old holder's 1.20 realm_capital is always one of the baronies being carried back.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M9",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a government whose titles are all default-static should type empty titles by government.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "R2M10",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a title with no type= line is the same as one with type=\"\".",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    }
+  ],
+  "summary": {
+    "survived": 7,
+    "killed": 3
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_carry_1_21.py::test_a_second_run_changes_nothing": [
+        "R2M5"
+      ],
+      "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted": [
+        "R2M6"
+      ],
+      "tests/test_carry_baronies.py::test_a_government_1_21_does_not_define_is_reported_not_written": [
+        "R2M7"
+      ],
+      "tests/test_carry_baronies.py::test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have": [
+        "R2M7"
+      ],
+      "tests/test_carry_baronies.py::test_a_moved_barony_goes_back_to_its_witness_holder_as_the_county_holders_vassal": [
+        "R2M7"
+      ],
+      "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index": [
+        "R2M7"
+      ],
+      "tests/test_carry_baronies.py::test_only_the_conversions_signature_is_carried": [
+        "R2M7"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_carry_baronies.py::test_a_government_1_21_does_not_define_is_reported_not_written",
+        "tests/test_carry_baronies.py::test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have",
+        "tests/test_carry_baronies.py::test_a_moved_barony_goes_back_to_its_witness_holder_as_the_county_holders_vassal",
+        "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index",
+        "tests/test_carry_baronies.py::test_only_the_conversions_signature_is_carried"
+      ]
+    ],
+    "contained": [],
+    "killed_without_names": []
+  }
+}

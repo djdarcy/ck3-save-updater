@@ -144,6 +144,24 @@ def test_a_barony_key_with_an_apostrophe_is_read_whole(tmp_path):
     assert "b_mo'ved" in rows
 
 
+def test_a_holder_who_died_in_the_conversion_is_skipped_and_named(game):
+    # the old holder must be alive in the 1.21 save the barony goes back into, not only in the witness
+    # (mutation sweep v0.6.32, M11: checking the witness instead would reach for him in the 1.21 save and fail)
+    g = resave().replace(b"\t100={\n\t\tfirst_name=\"x\"\n\t\tlanded_data={\n\t\t\tlaws={ x }\n\t\t}\n\t}\n", b"", 1)
+    r = run(game, g=g)
+    assert ("b_moved", "100", "the old holder is not alive in the 1.21 save") in r.skipped
+    assert holder(r.gamestate, "b_moved") == "200"
+
+
+def test_a_capital_the_old_holder_no_longer_holds_is_not_written_back(game):
+    # his 1.20 realm_capital (b_stay, 12) is not among the baronies carried back to him, so the first carried one
+    # becomes his capital: a capital must be a title he holds (mutation sweep v0.6.32 round 2, R2M8)
+    w = witness().replace(b"realm_capital=11", b"realm_capital=12")
+    r = run(game, w=w)
+    assert re.search(rb"\brealm_capital=11\b", living(r.gamestate, 100))
+    assert not re.search(rb"\brealm_capital=12\b", living(r.gamestate, 100))
+
+
 def test_a_second_run_changes_nothing(game):
     once = run(game).gamestate
     assert run(game, g=once).gamestate == once

@@ -1,0 +1,264 @@
+{
+  "harness": {
+    "name": "mutation_sweep.py",
+    "version": "0.2.0"
+  },
+  "environment": {
+    "python": "3.12.0",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "root": ".",
+    "test_command": [
+      "python",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/test_downshape.py",
+      "tests/test_carry_1_21.py",
+      "tests/test_carry_baronies.py",
+      "tests/test_title_types.py",
+      "tests/test_id_allocation.py",
+      "tests/test_reference_1_21.py",
+      "tests/test_update.py"
+    ],
+    "timestamp": "2026-11-18T21:10:27-05:00"
+  },
+  "results": [
+    {
+      "id": "M1",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes the enclosing block named by `inside` sits at the same brace depth as the fields it holds, rather than one level shallower.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\"7={\\n\\tfirst_name=\\\"A\\\"\\n\\tlanded_data={\\n\\t\\tdomain={ 5 }\\n\\t\\ttrade_routes={ 1 2 }\\n\"\n             b\"\\t\\tgold_expenses=3\\n\\t}\\n}\\n\")\n        s = D.character(c, out)\n>       assert s == b\"7={\\n\\tfirst_name=\\\"A\\\"\\n\\tlanded_data={\\n\\t\\tdomain={ 5 }\\n\\t}\\n}\\n\"\nE       AssertionError: assert b'7={\\n\\tfirs...s=3\\n\\t}\\n}\\n' == b'7={\\n\\tfirs...5 }\\n\\t}\\n}\\n'\nE         \nE         At index 51 diff: b'\\t' != b'}'\nE         Use -v to get more diff\n\ntests\\test_downshape.py:42: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_downshape.py::test_a_character_loses_1_21_trade_fields_inside_landed_data_only\n1 failed, 86 passed, 1 skipped, 2 warnings in 1.26s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_downshape.py::test_a_character_loses_1_21_trade_fields_inside_landed_data_only"
+      ]
+    },
+    {
+      "id": "M2",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes a field name seen deeper in nested blocks is the same field as the top-level one, so same-named nested fields get stripped too.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "d by stripping `nomad=` but not its block; here the block goes with it,\n        # and a field of the same name one level down is not this depth's business\n        t = b\"1={\\n\\tkey=x\\n\\tnoble_family={\\n\\t\\tmembers={ 1 2 }\\n\\t}\\n\\tlaws={\\n\\t\\ttrade_market=3\\n\\t}\\n}\\n\"\n        s, n = D.drop_fields(t, (b\"noble_family\", b\"trade_market\"), 1)\n>       assert n == 1 and s == b\"1={\\n\\tkey=x\\n\\tlaws={\\n\\t\\ttrade_market=3\\n\\t}\\n}\\n\"\nE       assert (2 == 1)\n\ntests\\test_downshape.py:23: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_downshape.py::test_a_nested_block_goes_whole_and_a_deeper_namesake_stays\n1 failed, 86 passed, 1 skipped, 2 warnings in 3.90s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_downshape.py::test_a_nested_block_goes_whole_and_a_deeper_namesake_stays"
+      ]
+    },
+    {
+      "id": "M3",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes a county record's prosperity and opinion fields sit one block deeper than the record's own top level.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "n\\t\\t}\\n\")\n        s = D.county_record(r, out)\n        assert b\"development=10\" in s and b\"development_progress=22.975\" in s\n>       assert b\"prosperity\" not in s and b\"opinion_of_liege\" not in s and b\"culture=176\" in s\nE       AssertionError: assert (b'prosperity' not in b'c_dublin={\\n\\t\\t\\tdevelopment=10\\n\\t\\t\\tdevelopment_progress=22.975\\n\\t\\t\\tprosperity=10\\n\\t\\t\\tprosperity_progress=22.975\\n\\t\\t\\topinion_of_liege=0\\n\\t\\t\\tculture=176\\n\\t\\t}\\n')\n\ntests\\test_downshape.py:34: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_downshape.py::test_a_county_record_gets_development_from_prosperity\n1 failed, 86 passed, 1 skipped, 2 warnings in 3.95s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_downshape.py::test_a_county_record_gets_development_from_prosperity"
+      ]
+    },
+    {
+      "id": "M4",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes the newline and indentation before `type=` belong to the type token, so key= gets glued onto the previous line when type is removed.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "       out = D.Shaped()\n        t = (b\"5={\\n\\ttype=title_type_default_static\\tkey=c_y\\n\\ttrade_market=126\\n\\tconfederation=4294967295\\n\"\n             b\"\\tholder=7\\n\\tvoting_session_ended=-5000.1.1\\n}\\n\")\n>       assert D.title(t, out) == b\"5={\\n\\tkey=c_y\\n\\tholder=7\\n}\\n\"\nE       AssertionError: assert b'5={key=c_y\\n\\tholder=7\\n}\\n' == b'5={\\n\\tkey=...holder=7\\n}\\n'\nE         \nE         At index 3 diff: b'k' != b'\\n'\nE         Use -v to get more diff\n\ntests\\test_downshape.py:14: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_downshape.py::test_a_title_loses_its_type_line_and_the_1_21_fields\n1 failed, 86 passed, 1 skipped, 2 warnings in 4.07s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_downshape.py::test_a_title_loses_its_type_line_and_the_1_21_fields"
+      ]
+    },
+    {
+      "id": "M5",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes no copied holding ever already has a 1.20 buildings list, so one gets derived again.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M6",
+      "file": "ck3_save_migrator/downshape.py",
+      "note": "Believes a holding district's main building is the last entry of its buildings list rather than the first.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M7",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes 1.21 row ids are plain sequential integers, ignoring the generation byte.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": " low_indexes(r.gamestate, path)\n>           assert len(idx) == len(set(idx)), (path, sorted(idx))\nE           AssertionError: ('buildings/database', [5, 6, 6, 7, 8])\nE           assert 5 == 4\nE            +  where 5 = len([5, 6, 6, 7, 8])\nE            +  and   4 = len({5, 6, 7, 8})\nE            +    where {5, 6, 7, 8} = set([5, 6, 6, 7, 8])\n\ntests\\test_id_allocation.py:51: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index\nFAILED tests/test_id_allocation.py::test_carry_wonders_gives_each_new_building_and_district_a_free_index\n2 failed, 85 passed, 1 skipped, 2 warnings in 4.15s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index",
+        "tests/test_id_allocation.py::test_carry_wonders_gives_each_new_building_and_district_a_free_index"
+      ]
+    },
+    {
+      "id": "M8",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes the buildings and districts databases share one id space.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "n}\\n\" \\\n                     b\"buildings={\\n\\tdatabase={\\n\\t\\t9={\\n\\t\\t\\ttype=y\\n\\t\\t}\\n\\t}\\n}\\n\"\n        g = C.carry_wonders(pre, host).gamestate\n>       assert [e.key for e in gs.iter_entries(g, *gs.locate(g, \"districts/database\").body)] == [b\"7\", b\"8\", b\"9\", b\"10\"]\nE       AssertionError: assert [b'7', b'10', b'11', b'12'] == [b'7', b'8', b'9', b'10']\nE         \nE         At index 1 diff: b'10' != b'8'\nE         Use -v to get more diff\n\ntests\\test_carry_1_21.py:113: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist\n1 failed, 86 passed, 1 skipped, 2 warnings in 4.32s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist"
+      ]
+    },
+    {
+      "id": "M9",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a duchy-capital slot is written with a `_type=` line like special and great slots.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\\tlevy=1\\n\\t\\t}\\n\\t')\nE        +    where <function search at 0x0000018D98E66520> = re.search\nE         \nE         'duchy_capital_district_type' is contained here:\nE           rict=3\nE           \t\t\tduchy_capital_district_type=theodosian_walls_01_district\nE           \t\t\tduchy_capital_building={\nE           \t\t\t\ttype=\"theodosian_walls_01\"\nE           \t\t\t}...\nE         \nE         ...Full output truncated (3 lines hidden), use '-vv' to show)\n\ntests\\test_carry_1_21.py:61: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines\n1 failed, 86 passed, 1 skipped, 2 warnings in 4.55s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines"
+      ]
+    },
+    {
+      "id": "M10",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes 1.20 keeps built great wonders only in the ordinary buildings list, never in their own great_building block.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "      Use -v to get more diff\n\ntests\\test_carry_1_21.py:113: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines\nFAILED tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other\nFAILED tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported\nFAILED tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted\nFAILED tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist\n5 failed, 82 passed, 1 skipped, 2 warnings in 4.14s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported",
+        "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted",
+        "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines",
+        "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist",
+        "tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other"
+      ]
+    },
+    {
+      "id": "M11",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes the old holder only has to be alive in the 1.20 witness, not in the 1.21 save.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M12",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a government rule needs strictly more than `floor` titles.",
+      "verdict": "survived",
+      "restore_ok": true,
+      "output_tail": ""
+    },
+    {
+      "id": "M13",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes a province at the same size level as the reference still needs raising.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "\\n{prov(28, 100, 1)}{prov(29, 500, 5)}{prov(30, 100, 1)}}}\\n\".encode()\n        ref = f\"provinces={{\\n{prov(28, 300, 3)}{prov(29, 200, 2)}{prov(30, 100, 1)}}}\\n\".encode()\n        out, raised = C.carry_province_size(g, ref)\n>       assert raised == [(\"28\", 1, 3)]\nE       AssertionError: assert [('28', 1, 3), ('30', 1, 1)] == [('28', 1, 3)]\nE         \nE         Left contains one more item: ('30', 1, 1)\nE         Use -v to get more diff\n\ntests\\test_title_types.py:79: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_title_types.py::test_a_province_size_is_raised_to_the_references_and_never_lowered\n1 failed, 86 passed, 1 skipped, 2 warnings in 4.35s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_title_types.py::test_a_province_size_is_raised_to_the_references_and_never_lowered"
+      ]
+    },
+    {
+      "id": "M14",
+      "file": "ck3_save_migrator/carry_1_21.py",
+      "note": "Believes every decision cooldown dated like this is dead, so named cooldowns get dropped too.",
+      "verdict": "killed",
+      "restore_ok": true,
+      "output_tail": "============\n__________ test_empty_key_cooldowns_are_dropped_and_named_ones_kept ___________\n\n    def test_empty_key_cooldowns_are_dropped_and_named_ones_kept():\n        g = (b\"living={\\n\\t1={\\n\\t\\tlanded_data={\\n\\t\\t\\tdecision_cooldowns={\\n\\t\\t\\t\\t=978.3.5\\n\"\n             b\"\\t\\t\\t\\thold_court_decision=986.3.5\\n\\t\\t\\t\\t=1000.9.11\\n\\t\\t\\t}\\n\\t\\t}\\n\\t}\\n}\\n\")\n        out, n = C.drop_empty_cooldowns(g)\n>       assert n == 2\nE       assert 3 == 2\n\ntests\\test_title_types.py:62: AssertionError\n============================== warnings summary ===============================\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:83: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"An absolute path taken apart. ``token`` is the key's root part(s)\n\ntests/test_update.py::test_update_asks_by_default_at_a_terminal_and_runs_on_a_yes\n  C:\\code\\filetoolkit\\github\\dazzle_filekit\\portable.py:130: SyntaxWarning: invalid escape sequence '\\`'\n    \"\"\"True for a component Windows accepts only under ``\\\\?\\``.\"\"\"\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n=========================== short test summary info ===========================\nFAILED tests/test_title_types.py::test_empty_key_cooldowns_are_dropped_and_named_ones_kept\n1 failed, 86 passed, 1 skipped, 2 warnings in 4.52s\nC:\\Python312\\Lib\\site-packages\\pytest_asyncio\\plugin.py:211: PytestDeprecationWarning: The configuration option \"asyncio_default_fixture_loop_scope\" is unset.\nThe event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: \"function\", \"class\", \"module\", \"package\", \"session\"\n\n  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))\n",
+      "killed_by": [
+        "tests/test_title_types.py::test_empty_key_cooldowns_are_dropped_and_named_ones_kept"
+      ]
+    }
+  ],
+  "summary": {
+    "killed": 10,
+    "survived": 4
+  },
+  "anomalies": [],
+  "overlap": {
+    "kills": {
+      "tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported": [
+        "M10"
+      ],
+      "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted": [
+        "M10"
+      ],
+      "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines": [
+        "M10",
+        "M9"
+      ],
+      "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist": [
+        "M10",
+        "M8"
+      ],
+      "tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other": [
+        "M10"
+      ],
+      "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index": [
+        "M7"
+      ],
+      "tests/test_downshape.py::test_a_character_loses_1_21_trade_fields_inside_landed_data_only": [
+        "M1"
+      ],
+      "tests/test_downshape.py::test_a_county_record_gets_development_from_prosperity": [
+        "M3"
+      ],
+      "tests/test_downshape.py::test_a_nested_block_goes_whole_and_a_deeper_namesake_stays": [
+        "M2"
+      ],
+      "tests/test_downshape.py::test_a_title_loses_its_type_line_and_the_1_21_fields": [
+        "M4"
+      ],
+      "tests/test_id_allocation.py::test_carry_wonders_gives_each_new_building_and_district_a_free_index": [
+        "M7"
+      ],
+      "tests/test_title_types.py::test_a_province_size_is_raised_to_the_references_and_never_lowered": [
+        "M13"
+      ],
+      "tests/test_title_types.py::test_empty_key_cooldowns_are_dropped_and_named_ones_kept": [
+        "M14"
+      ]
+    },
+    "identical": [
+      [
+        "tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported",
+        "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted",
+        "tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other"
+      ],
+      [
+        "tests/test_carry_baronies.py::test_a_new_contract_takes_a_fresh_low_24_bit_index",
+        "tests/test_id_allocation.py::test_carry_wonders_gives_each_new_building_and_district_a_free_index"
+      ]
+    ],
+    "contained": [
+      [
+        "tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported",
+        "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines"
+      ],
+      [
+        "tests/test_carry_1_21.py::test_a_tier_the_district_does_not_list_is_refused_and_reported",
+        "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist"
+      ],
+      [
+        "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted",
+        "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines"
+      ],
+      [
+        "tests/test_carry_1_21.py::test_a_witness_supplies_the_wonders_for_a_save_the_game_already_converted",
+        "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist"
+      ],
+      [
+        "tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other",
+        "tests/test_carry_1_21.py::test_each_built_wonder_goes_to_its_slot_with_the_games_own_lines"
+      ],
+      [
+        "tests/test_carry_1_21.py::test_the_districts_and_buildings_databases_are_created_and_point_at_each_other",
+        "tests/test_carry_1_21.py::test_rows_go_after_the_existing_ones_when_the_databases_exist"
+      ]
+    ],
+    "killed_without_names": []
+  }
+}

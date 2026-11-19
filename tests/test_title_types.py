@@ -48,6 +48,17 @@ def test_a_type_already_set_is_kept_even_where_a_rule_would_give_another(ref):
     assert r.typed == [] and r.unknown == [] and r.gamestate == g
 
 
+def test_only_a_deciding_rule_fills_a_type_and_only_an_empty_one():
+    # a government whose reference titles are all the default decides nothing: typing by it would be a guess
+    # ("reported, never guessed"); and a title with no type= line at all is not the conversion's empty mark
+    # (mutation sweep v0.6.32 round 2: R2M9 dropped the default exclusion, R2M10 read a missing type as empty)
+    ref = save("".join(title(400 + i, f"d_k{i}_x", "title_type_default_static", 950 + i) for i in range(12)),
+               "".join(char(950 + i, "feudal_government") for i in range(12)))
+    g = save(title(1, "c_plain", '""', 60) + "\t\t2={\n\t\t\tkey=c_old\n\t\t}\n", char(60, "feudal_government"))
+    r = C.type_titles(g, ref)
+    assert r.typed == [] and r.unknown == ["c_plain"] and r.gamestate == g
+
+
 def test_what_no_rule_decides_stays_empty_and_is_reported(ref):
     g = save(title(1, "x_q_9", '""') + title(2, "d_few_9", '""') + title(3, "x_mc_8", '""'))   # x_mc_8: unheld
     r = C.type_titles(g, ref)

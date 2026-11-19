@@ -1,0 +1,15 @@
+{"test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_downshape.py", "tests/test_carry_1_21.py", "tests/test_carry_baronies.py", "tests/test_title_types.py", "tests/test_id_allocation.py", "tests/test_reference_1_21.py", "tests/test_update.py"],
+ "generation_mode": 1,
+ "generation_note": "round 2; fresh opus subagent; read access to the two target files only; round 1's mutants and its don't-care fed forward",
+ "mutations": [
+  {"id": "R2M1", "file": "ck3_save_migrator/downshape.py", "original": "return text.index(b'\"', at + 1) + 1", "mutated": "return text.index(b'\"', at + 1)", "note": "Believes a quoted value ends before its closing quote."},
+  {"id": "R2M2", "file": "ck3_save_migrator/downshape.py", "original": "if re.search(rb\"\\bdevelopment=\", text):", "mutated": "if False and re.search(rb\"\\bdevelopment=\", text):", "note": "Believes a county record that already carries development still needs one derived."},
+  {"id": "R2M3", "file": "ck3_save_migrator/downshape.py", "original": "inside=b\"playable_data\"", "mutated": "inside=b\"landed_data\"", "note": "Believes 1.21's assembly fields live in landed_data rather than playable_data."},
+  {"id": "R2M4", "file": "ck3_save_migrator/downshape.py", "original": "count = self.slots.get(pid) or USUAL_SLOTS.get(htype, 3)", "mutated": "count = USUAL_SLOTS.get(htype) or self.slots.get(pid) or 3", "note": "Believes the holding type's usual slot count beats the measured per-province 1.20 slot table."},
+  {"id": "R2M5", "file": "ck3_save_migrator/carry_1_21.py", "original": "if re.search(rb\"\\b\" + slot.encode() + rb\"=\\d\", hb):", "mutated": "if re.search(rb\"\\b\" + slot.encode() + rb\"=x\\d\", hb):", "note": "Believes a holding never already holds a wonder district in the target slot."},
+  {"id": "R2M6", "file": "ck3_save_migrator/carry_1_21.py", "original": "wonders = _built_wonders(witness if witness is not None else g, host)", "mutated": "wonders = _built_wonders(g, host)", "note": "Believes the 1.21 re-save still holds the 1.20 wonder blocks."},
+  {"id": "R2M7", "file": "ck3_save_migrator/carry_1_21.py", "original": "if ci is None or hold(g, tg[ci]) != now:", "mutated": "if ci is None:", "note": "Believes any barony that changed holder in a known county was taken by the conversion."},
+  {"id": "R2M8", "file": "ck3_save_migrator/carry_1_21.py", "original": "rc.group(1).decode() if rc and rc.group(1).decode() in ids.split() else items[0][1]", "mutated": "rc.group(1).decode() if rc else items[0][1]", "note": "Believes the old holder's 1.20 realm_capital is always one of the baronies being carried back."},
+  {"id": "R2M9", "file": "ck3_save_migrator/carry_1_21.py", "original": "and ts[0] != \"title_type_default_static\"", "mutated": "and True", "note": "Believes a government whose titles are all default-static should type empty titles by government."},
+  {"id": "R2M10", "file": "ck3_save_migrator/carry_1_21.py", "original": "if t != \"\":", "mutated": "if t:", "note": "Believes a title with no type= line is the same as one with type=\"\"."}
+ ]}

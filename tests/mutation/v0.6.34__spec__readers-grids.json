@@ -1,0 +1,9 @@
+{"test_command": ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests/test_readers.py"],
+ "generation_mode": 3,
+ "generation_note": "self-check: four hand-picked mutants, each one of the K7 arc's real reader mistakes, to show the new grids can fail; not a mutation score",
+ "mutations": [
+  {"id": "G-M1", "file": "ck3_save_migrator/rules/to_1_20.py", "original": "_TITLE_KEY_LINE = re.compile(rb\"(?m)^(\\d+)=\\{\\n\\t\" + gs.TITLE_KEY_PREFIX + rb\"key=\\\"?([\\w\\-']+)\")", "mutated": "_TITLE_KEY_LINE = re.compile(rb\"(?m)^(\\d+)=\\{\\n\\t\" + gs.TITLE_KEY_PREFIX + rb\"key=\\\"?([\\w-]+)\")", "note": "the old value class, cut at an apostrophe (F7)"},
+  {"id": "G-M2", "file": "ck3_save_migrator/translate.py", "original": "_KEY = re.compile(rb'\\n\\t+' + gs.TITLE_KEY_PREFIX + rb'key=\"?([^\"\\s]+)\"?')", "mutated": "_KEY = re.compile(rb'\\n\\t+' + rb'key=\"?([^\"\\s]+)\"?')", "note": "the 1.21 type-line prefix dropped (S10)"},
+  {"id": "G-M3", "file": "ck3_save_migrator/mapdata.py", "original": "return dict(title_tree(d)[1]) if d.exists() else {}", "mutated": "return {m.group(1): int(m.group(2)) for f in sorted(d.glob('*.txt')) for m in _BARONY.finditer(re.sub(r'#[^\\n]*', '', f.read_text(encoding='utf-8-sig', errors='replace')))} if d.exists() else {}", "note": "back to the regex that assumed no block before province (F7, the 14 baronies)"},
+  {"id": "G-M4", "file": "ck3_save_migrator/carry_1_21.py", "original": "r\"\\b([cb]_[\\w\\-']+)\\s*=\\s*\\{\"", "mutated": "r\"\\b([cb]_[\\w-]+)\\s*=\\s*\\{\"", "note": "barony_counties cut at an apostrophe (F7)"}
+ ]}

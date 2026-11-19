@@ -4,6 +4,8 @@ Each case is a measured lesson: 1.21's type line, the fields that point into dat
 fields every 1.20 row has that a 1.21 row lacks (county development, holdings' buildings), and the stray brace a
 pattern-based strip left on 2026-11-18 (a nested block must go whole, or not at all).
 """
+import pytest
+
 from ck3_save_migrator import downshape as D
 
 
@@ -24,6 +26,15 @@ def test_a_nested_block_goes_whole_and_a_deeper_namesake_stays():
     assert s.count(b"{") == s.count(b"}")
 
 
+@pytest.mark.parametrize("value", [b"3", b'"two words"', b"-5000.1.1", b"{ 1 2 }", b"{\n\t\tx=1\n\t}"])
+def test_a_dropped_field_goes_whole_whatever_its_value(value):
+    # a word, a quoted string, a date, an inline block, a block over lines: the field and all of its value go, and
+    # nothing around them moves (mutation sweep v0.6.32 round 2, R2M1: a quoted value cut before its closing quote)
+    t = b"1={\n\tkey=x\n\ttrade_market=" + value + b"\n\tholder=7\n}\n"
+    s, n = D.drop_fields(t, (b"trade_market",), 1)
+    assert n == 1 and s == b"1={\n\tkey=x\n\tholder=7\n}\n"
+
+
 def test_a_county_record_gets_development_from_prosperity():
     # the game's own conversion sets prosperity = development (all 3,469 counties of v17)
     out = D.Shaped()
@@ -42,9 +53,34 @@ def test_a_character_loses_1_21_trade_fields_inside_landed_data_only():
     assert s == b"7={\n\tfirst_name=\"A\"\n\tlanded_data={\n\t\tdomain={ 5 }\n\t}\n}\n"
 
 
+def test_a_character_loses_1_21_assembly_fields_inside_playable_data():
+    # the 1.21 reference keeps assembly and major_assembly_member in playable_data (3 characters, measured
+    # 2026-11-18 for mutation sweep v0.6.32 round 2, R2M3); a landed_data namesake is not this strip's business
+    c = (b"8={\n\tlanded_data={\n\t\tdomain={ 6 }\n\t}\n\tplayable_data={\n\t\tassembly=12\n"
+         b"\t\tmajor_assembly_member=yes\n\t\tprestige=4\n\t}\n}\n")
+    s = D.character(c, D.Shaped())
+    assert s == b"8={\n\tlanded_data={\n\t\tdomain={ 6 }\n\t}\n\tplayable_data={\n\t\tprestige=4\n\t}\n}\n"
+
+
 REF = (b"districts={\n\tdatabase={\n\t\t6310={\n\t\t\tbuildings={ 900 }\n\t\t}\n\t\t6311={\n\t\t\tbuildings={ 901 }\n"
        b"\t\t}\n\t}\n}\nbuildings={\n\tdatabase={\n\t\t900={\n\t\t\ttype=tribe_01\n\t\t}\n\t\t901={\n"
        b"\t\t\ttype=the_great_wall_01\n\t\t}\n\t}\n}\n")
+
+
+def test_a_holding_district_in_its_real_shape_gives_its_primary_and_a_second_pass_changes_nothing():
+    # the 1.21 reference's 6,732 holding districts list the primary building first in every case, then any other
+    # buildings, then empty slots as 4294967295 (measured 2026-11-18 for mutation sweep v0.6.32, M6 "the last entry",
+    # and M5: a shaped holding already has its buildings list, so shaping it again must change nothing)
+    ref = (b"districts={\n\tdatabase={\n\t\t6400={\n\t\t\tbuildings={ 910 911 4294967295 }\n\t\t}\n\t}\n}\n"
+           b"buildings={\n\tdatabase={\n\t\t910={\n\t\t\ttype=temple_02\n\t\t}\n\t\t911={\n"
+           b"\t\t\ttype=temple_reliquary_2\n\t\t}\n\t}\n}\n")
+    p = D.Provinces(ref, {"77": 3})
+    prov = (b"77={\n\tholding={\n\t\ttype=church_holding\n\t\tdistricts={ 6400 }\n\t\tholding_district=6400\n"
+            b"\t\tregular_district_slot_limit=2\n\t}\n}\n")
+    s = p.province("77", prov, D.Shaped())
+    bl = s[s.index(b"buildings={"):]
+    assert bl.count(b"type=temple_02") == 1 and b"temple_reliquary_2" not in s
+    assert p.province("77", s, D.Shaped()) == s
 
 
 def test_a_holding_gets_a_1_20_buildings_list_from_its_districts():
@@ -78,6 +114,16 @@ def test_a_built_duchy_capital_wonder_comes_back_as_its_1_20_block():
     s = p.province("496", b"496={\n\tholding={\n\t\ttype=castle_holding\n\t\tholding_district=6310\n"
                           b"\t\tduchy_capital_district=6311\n\t}\n}\n", D.Shaped())
     assert b"duchy_capital_building={\n\t\t\t\ttype=theodosian_walls_01" in s and b"duchy_capital_district" not in s
+
+
+def test_the_measured_slot_table_beats_the_holding_types_usual_count():
+    # a castle usually has 4 slots in 1.20, but the table measured from the 1.20 reference says this province has 2
+    # (mutation sweep v0.6.32 round 2, R2M4: the only other fixture's table value equalled the usual count)
+    p = D.Provinces(REF, {"501": 2})
+    prov = b"501={\n\tholding={\n\t\ttype=castle_holding\n\t\tholding_district=6310\n\t}\n}\n"
+    s = p.province("501", prov, D.Shaped())
+    bl = s[s.index(b"buildings={"):s.index(b"\n\t\t\t}", s.index(b"buildings={")) + 5]
+    assert bl.count(b"type=tribe_01") == 1 and bl.count(b"{\n\t\t\t\t}") == 1      # 2 slots, the main one filled
 
 
 def test_a_province_the_table_lacks_takes_its_holding_types_usual_slots():

@@ -13,3 +13,11 @@ Guarded authority, not an allowlist (see the test-mutation skill): entries are g
 - `continue` -> `break` (the zero-entry skip in `build_baseline`) -- **don't-care** -- the same case as `if not n`: reached only when every entry of a database fails to parse. 2026-11-16, generation mode 1, round 2.
 - `save_versions(g[:65536])` -> `save_versions(g[:256])` -- **don't-care** -- the game writes `version=` among the first fields of `meta_data` (byte 40 or so in the 1.20.1.2 reference save); the wide window is a margin, not a behaviour a save exercises. 2026-11-16, generation mode 1, round 2.
 - `_ROUND = 4` -> `_ROUND = 3` -- **don't-care** -- the shares' fourth decimal place feeds no decision: the check's thresholds are 0.9 and 0.97, and a 1.20.1.2 share sits at most 0.0005 from its four-place value. 2026-11-16, generation mode 1.
+
+## ck3_save_migrator/downshape.py @ 514a1ea530f7
+
+- `if re.search(rb"\bdevelopment=", text):` -> `if False and ...` (in `county_record`) -- **don't-care** -- differs only on a county record holding both development and prosperity: a 1.21 record has no development (the reference: 0), and a 1.20 record has none of the 1.21 county fields, so either branch leaves it as it was. 2026-11-18, generation mode 1, round 2 (read access limited to the two target files).
+
+## ck3_save_migrator/carry_1_21.py @ 283ed2748730
+
+- `len(ts) >= floor` -> `len(ts) > floor` (in `title_type_rules`, the government rule) -- **don't-care** -- the floor of 10 is an arbitrary minimum, not a belief about saves: the rules that decide types in the 1.21 reference rest on hundreds of titles (mercenary_government 553 of 553, c_nf_ 1,242 of 1,242), so no real rule sits at exactly 10. 2026-11-18, generation mode 1 (read access limited to the two target files).
