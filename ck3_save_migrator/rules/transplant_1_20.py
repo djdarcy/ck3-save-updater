@@ -366,7 +366,7 @@ def _lock_step(save: CK3Save, ctx, characters: set[int] | None = None, only: set
         b = g[e.open:min(e.close, e.open + 4096)]
         titles[i] = tuple(int(m.group(1)) if (m := re.search(rb"\n\t" + f + rb"=(\d+)", b)) else None
                           for f in (b"holder", b"de_facto_liege")) + (
-            (m.group(1) if (m := re.search(rb'\n\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w-]+)', b)) else b""),)
+            (m.group(1) if (m := re.search(rb'\n\t' + gs.TITLE_KEY_PREFIX + rb'key="?([\w\-\']+)', b)) else b""),)
     chars = dict(T.entries(g, "living"))
     path = None
     for p in ("vassal_contracts/active", "vassal_contracts/database"):

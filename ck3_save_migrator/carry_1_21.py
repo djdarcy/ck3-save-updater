@@ -171,7 +171,7 @@ def barony_counties(game_dir) -> dict[str, str]:
     for f in sorted((_common(game_dir) / "landed_titles").rglob("*.txt")):
         county = None
         text = re.sub(r"#[^\n]*", "", f.read_text(encoding="utf-8-sig", errors="replace"))
-        for m in re.finditer(r"\b([cb]_[\w-]+)\s*=\s*\{", text):
+        for m in re.finditer(r"\b([cb]_[\w\-']+)\s*=\s*\{", text):
             k = m.group(1)
             if k.startswith("c_"):
                 county = k
@@ -211,7 +211,8 @@ def carry_baronies(g: bytes, witness: bytes, counties: dict[str, str],
     res = BaroniesResult(g)
     tw, tg = _entries(witness, "landed_titles/landed_titles"), _entries(g, "landed_titles/landed_titles")
     # a title's own key is its first key= (1.21 writes it on the type= line: "type=title_type_default_static\tkey=b_x")
-    tkey = lambda gg, e: re.search(rb'\bkey="?([\w-]+)', gg[e.open:min(e.close, e.open + 400)])
+    # an apostrophe belongs to a key (1.21: b_mansa'l-kharaz, b_ka'abir; F7 audit 2026-11-18)
+    tkey = lambda gg, e: re.search(rb'\bkey="?([\w\-\']+)', gg[e.open:min(e.close, e.open + 400)])
     key_w = {i: tkey(witness, e) for i, e in tw.items()}
     by_key = {}
     for i, e in tg.items():
@@ -354,7 +355,7 @@ def _title_rows(g: bytes):
         if not e.key:
             continue
         head = g[e.open:min(e.close, e.open + 400)]
-        k, t = re.search(rb'\bkey="?([\w-]+)', head), re.search(rb'\btype="?(\w*)"?', head)
+        k, t = re.search(rb'\bkey="?([\w\-\']+)', head), re.search(rb'\btype="?(\w*)"?', head)
         h = (_field(g[e.open:e.close], "holder") or [None, b""])[1].decode()
         yield e, (k.group(1).decode() if k else ""), (t.group(1).decode() if t else None), \
             (gov_of_landed(g, L[h]) if h in L else "")

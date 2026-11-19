@@ -133,6 +133,17 @@ def test_a_holder_who_kept_other_land_gets_the_barony_into_the_domain_they_have(
     assert len(re.findall(rb"\bgovernment=", living(g, 300))) == 1
 
 
+def test_a_barony_key_with_an_apostrophe_is_read_whole(tmp_path):
+    # 1.21 has b_mansa'l-kharaz and b_ka'abir; `[\w-]+` read them as b_mansa and b_ka, so R37 skipped them (F7)
+    c = tmp_path / "game" / "common" / "landed_titles"
+    c.mkdir(parents=True)
+    (c / "t.txt").write_text("c_x = {\n\tb_ka'abir = { }\n}\n", encoding="utf-8")
+    assert C.barony_counties(tmp_path) == {"b_ka'abir": "c_x"}
+    g = resave().replace(b"key=b_moved", b"key=b_mo'ved")
+    rows = {k for _, k, _, _ in C._title_rows(g)}
+    assert "b_mo'ved" in rows
+
+
 def test_a_second_run_changes_nothing(game):
     once = run(game).gamestate
     assert run(game, g=once).gamestate == once
