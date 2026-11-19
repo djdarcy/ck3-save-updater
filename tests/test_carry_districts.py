@@ -137,6 +137,18 @@ def test_a_dependent_district_goes_when_its_prerequisite_loses_every_building(ho
     assert ("7", "outposts_01", "manor_houses_district needs villages_district") in r.dropped
 
 
+def test_phase_one_inserts_the_districts_line_into_a_1_20_holding(host):
+    # R41: a 1.20 holding has no districts line; the carry writes one, two slots wide (the conversion's), after type=
+    save = WITNESS.replace(b"1.20.1.2", b"1.20.1.2")                # the 1.20 save is its own witness
+    r = C.carry_districts(save, host, save, FACTS, TABLE, insert=True)
+    assert by_province(r.written)["1"][0][1] == "villages_district"
+    g = r.gamestate
+    prov = next(e for e in gs.iter_entries(g, *gs.locate(g, "provinces").body) if e.key == b"1")
+    body = g[prov.open:prov.close].decode()
+    assert re.search(r'type="castle_holding"\n\t\t\tdistricts=\{ \d+ ' + E + r' \}', body)
+    assert C.carry_districts(save, host, save, FACTS, TABLE).written == []      # without insert: nothing to fill
+
+
 def test_a_holding_that_already_has_a_district_is_never_touched(host):
     r = C.carry_districts(SAVE, host, WITNESS, FACTS, TABLE)
     assert "6" not in by_province(r.written) and "6" not in by_province(r.refused)

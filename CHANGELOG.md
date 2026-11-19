@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.35] - 2026-11-19
+
+### Added
+- `update` on a 1.20 save now writes your regular buildings into 1.21's districts before you first load it, by the same rules as `update --witness`. The game keeps them when it converts the save.
+
+### Fixed
+- The district check read county capitals wrongly from a 1.20 save, and could count a duchy capital as a county capital. It now uses 1.21's own county capitals where they matter.
+
 ## [0.6.34] - 2026-11-19
 
 ### Added
@@ -1148,7 +1156,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.35...HEAD
+[0.6.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...v0.6.35
 [0.6.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.33...v0.6.34
 [0.6.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.32...v0.6.33
 [0.6.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...v0.6.32

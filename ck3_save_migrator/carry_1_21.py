@@ -237,7 +237,7 @@ def _lvl(k: str) -> int:
 
 
 def carry_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, table: dict,
-                    tier_policy: str = "raise") -> DistrictsResult:
+                    tier_policy: str = "raise", insert: bool = False) -> DistrictsResult:
     """Phase two of the built-state carry: each holding's 1.20 regular buildings (from ``witness``) written into the
     regular districts the game's conversion left empty (``g``), legal by the game's own gates.
 
@@ -264,9 +264,12 @@ def carry_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, tabl
         pid = e.key.decode()
         f = facts.get(pid)
         m = re.search(rb"\bdistricts=\{([^{}]*)\}", hb)
-        if f is None or pid not in mains or not m:
+        if f is None or pid not in mains or (not m and not insert):
             continue
-        slots = m.group(1).split()
+        # phase one (insert=True, R41): a 1.20 holding has no districts line; the game's conversion gives every held
+        # holding two regular slots, so the carry writes into two (R33 showed the game keeps districts written into a
+        # 1.20 save)
+        slots = m.group(1).split() if m else [EMPTY, EMPTY]
         if any(s != EMPTY for s in slots):
             continue                                     # the player has districts already: never replaced
         plan = {}                                        # district -> [(old key, new key)]
@@ -342,9 +345,14 @@ def carry_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, tabl
             res.written.append((pid, d, keep, primary))
         if new_ids:
             filled = new_ids + [s.decode() for s in slots[len(new_ids):]]
-            at = h_at + m.start()
-            p.add(gs.Edit(at, at + len(m.group(0)), f"districts={{ {' '.join(filled)} }}".encode(), "districts",
-                          f"{pid}: {len(new_ids)} districts"))
+            line = f"districts={{ {' '.join(filled)} }}".encode()
+            if m:
+                at = h_at + m.start()
+                p.add(gs.Edit(at, at + len(m.group(0)), line, "districts", f"{pid}: {len(new_ids)} districts"))
+            else:
+                t = re.search(rb'\n\t\t\ttype="?\w+"?', hb)
+                at = h_at + (t.end() if t else 0)
+                p.add(gs.Edit(at, at, b"\n\t\t\t" + line, "districts", f"{pid}: {len(new_ids)} districts (inserted)"))
     if not res.written:
         return res
     out = p.apply(g)

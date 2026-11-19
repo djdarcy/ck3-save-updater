@@ -31,6 +31,33 @@ def r33_wonders(save: CK3Save, ctx, rule):
                               "refused": sorted({b for _, b, _ in r.skipped})})
 
 
+def r41_districts(save: CK3Save, ctx, rule):
+    """The save's own regular buildings, written as 1.21 regular districts before the game converts it (phase one of
+    the built-state carry; the same rule body as R42, which works from the witness after the conversion)."""
+    import collections
+    import re
+    from ..carry_1_21 import carry_districts, load_successors
+    from ..district_lint import Facts, province_facts
+    from ..host_rules import load
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    host = load(str(ctx.game_dir))
+    g = save.gamestate
+    # a 1.20 save has no province sizes yet; the conversion sets every province to size 1, two regular slots (R40
+    # raises sizes after the load, in phase two)
+    # and its county capitals are 1.21's (the map moved some: province 3204 lost its capital, and its walls with it)
+    facts = {k: Facts(v.place, 1) for k, v in province_facts(g, str(ctx.game_dir), capitals="game").items()}
+    r = carry_districts(g, host, g, facts, load_successors(), tier_policy="raise", insert=True)
+    if r.written:
+        save.set_gamestate(r.gamestate)
+    fam = lambda k: re.sub(r"_\d+$", "", k)   # noqa: E731
+    return rule.result(matched=len(r.written) + len(r.open) + len(r.refused) + len(r.dropped), edited=len(r.written),
+                       extra={"districts": len(r.written), "buildings": sum(len(k) for _, _, k, _ in r.written),
+                              "open": dict(collections.Counter(fam(k) for _, k, _ in r.open).most_common()),
+                              "refused": dict(collections.Counter(fam(k) for _, k, _ in r.refused).most_common()),
+                              "dropped": dict(collections.Counter(w for _, _, w in r.dropped).most_common())})
+
+
 def r34_roads(save: CK3Save, ctx, rule):
     """The 1.21 reference's roads, into a save that has none (a 1.20 save gets an empty roads database first)."""
     from ..roads import defined_road_types, transplant_roads

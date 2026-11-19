@@ -42,6 +42,23 @@ def test_a_fresh_1_21_game_is_nearly_clean():
     assert "over the slot limit" not in k                          # the size formula held for every holding
 
 
+@pytest.mark.skipif(not REAL, reason="set CK3_REAL_SAVES=1 with the game and the 1.21 reference on disk")
+def test_the_games_county_capitals_are_each_countys_first_barony():
+    # phase one judges a 1.20 save by 1.21's capitals (the map moved some: province 3204's walls were disabled after
+    # the conversion, 2026-11-19 15:3x); the rule "first-listed barony" must equal what a fresh 1.21 game marks
+    import re
+    from ck3_save_migrator import district_lint as L
+    from ck3_save_migrator import gamestate as gs
+    from ck3_save_migrator.savefile import read_save
+    g = read_save(REF_121).gamestate
+    marked = set()
+    for e in gs.iter_entries(g, *gs.locate(g, "landed_titles/landed_titles").body):
+        b = g[e.open:e.close]
+        if re.search(rb"(?<!\w)capital_barony=yes", b):
+            marked.add(re.search(rb'\bkey="?([^\s"]+)', b).group(1).decode())
+    assert L.county_capital_baronies(str(GAME)) == marked and len(marked) > 3000
+
+
 @pytest.mark.skipif(not (REAL and ROME.exists()), reason="the S2 Rome proof of concept's re-save is not on disk")
 def test_the_rome_proof_of_concept_is_flagged_for_its_tiers():
     r = _lint(ROME)

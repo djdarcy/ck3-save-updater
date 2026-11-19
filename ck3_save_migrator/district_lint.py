@@ -57,7 +57,21 @@ def county_potential_goods(game_dir) -> dict[str, frozenset]:
     return {c: frozenset(v) for c, v in out.items()}
 
 
-def province_facts(g: bytes, game_dir) -> dict[str, Facts]:
+def county_capital_baronies(game_dir) -> set[str]:
+    """The game's county capitals: each county's first-listed barony in common/landed_titles. On the fresh 1.21 game
+    this matched the save's capital_barony=yes for all 3,549 counties (2026-11-19 15:3x). Phase one needs it: a 1.20 save
+    holds 1.20's capitals, and the 1.21 map moved some (province 3204: walls written as a capital, disabled after the
+    conversion)."""
+    from .deadtitles import title_tree
+    parent, _ = title_tree(Path(game_dir) / "common" / "landed_titles")
+    first = {}
+    for k, p in parent.items():
+        if k.startswith("b_") and p and p.startswith("c_") and p not in first:
+            first[p] = k
+    return set(first.values())
+
+
+def province_facts(g: bytes, game_dir, capitals: str = "save") -> dict[str, Facts]:
     """province id -> what the gates ask: county capital, holding type, the county's goods, the size level. The county
     capital is the barony title with capital_barony=yes (the save), placed by common/landed_titles; the county's goods
     come from the game's county potential list (county_potential_goods)."""
@@ -66,12 +80,15 @@ def province_facts(g: bytes, game_dir) -> dict[str, Facts]:
     bprov = barony_provinces(Path(game_dir))           # the install's game/ folder, as the rules get it
     bcounty = barony_counties(game_dir)
     capital_prov = set()
-    for e in gs.iter_entries(g, *gs.locate(g, "landed_titles/landed_titles").body):
-        b = g[e.open:e.close]
-        if b"capital_barony=yes" in b:
-            k = re.search(rb"\bkey=(\S+)", b)
-            if k and k.group(1).decode() in bprov:
-                capital_prov.add(str(bprov[k.group(1).decode()]))
+    if capitals == "game":                             # phase one: the target game's capitals, not the 1.20 save's
+        capital_prov = {str(bprov[b]) for b in county_capital_baronies(game_dir) if b in bprov}
+    else:
+        for e in gs.iter_entries(g, *gs.locate(g, "landed_titles/landed_titles").body):
+            b = g[e.open:e.close]
+            if re.search(rb"(?<!\w)capital_barony=yes", b):   # not duchy_capital_barony
+                k = re.search(rb'\bkey="?([^\s"]+)', b)       # 1.20 quotes title keys, 1.21 does not
+                if k and k.group(1).decode() in bprov:
+                    capital_prov.add(str(bprov[k.group(1).decode()]))
     prov_county = {str(p): bcounty.get(b) for b, p in bprov.items()}
     potential = county_potential_goods(game_dir)
     holding, size = {}, {}

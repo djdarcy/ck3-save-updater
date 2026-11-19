@@ -1,0 +1,9 @@
+format = 1
+id = "R41"
+name = "districts"
+title = "write the save's regular buildings as 1.21 regular districts, where the game's rules allow them, before the game converts the rest"
+since = "1.20<=v<1.21"
+default = true
+requires = []
+tested = { origin = ["1.20.1.2"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.to_1_21:r41_districts"
