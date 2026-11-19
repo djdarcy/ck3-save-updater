@@ -40,7 +40,11 @@ SUPPORTED_KINDS = {KIND_UNIFIED_TEXT}
 # block is meta_data, header meta_len bytes long), with no zip: the game writes it when compression is off, as for
 # its own re-save MIGRATE_TEST__s0a_control_resaved.ck3 (measured 2026-11-17). Read for lint, census and inspect;
 # the director's ruling 2026-11-17__03-48-44 keeps writing to kind 02.
-READ_ONLY_KINDS = {KIND_TEXT}
+# 2026-11-19 16:4x (the Director, on the built-state carry's S4): a kind 00 input is WRITTEN AS KIND 02 -- the same text
+# gamestate, zipped behind a kind-02 header -- since the output is always a new file in the kind the writer produces.
+# Needed because the game's console save in debug mode writes kind 00, and phase two must read the game's re-save.
+TEXT_KINDS = {KIND_TEXT}          # read as plain text; written as kind 02
+READ_ONLY_KINDS: set = set()      # kinds read but never written: none now (refuse_read_only stays for a future one)
 
 GAMESTATE = "gamestate"
 ZIP_MAGIC = b"PK\x03\x04"
@@ -165,6 +169,8 @@ class CK3Save:
         recomputed, and every member re-deflated (zlib level 6), keeping member
         order, names, date_time and external_attr.
         """
+        if self.header.kind in TEXT_KINDS:
+            return self._text_as_kind_02()
         if self.header.kind in READ_ONLY_KINDS:
             raise UnsupportedKindError(f"save header kind {self.header.kind:02x} ({KIND_NAMES[self.header.kind]}) "
                                        "is read only; the tool writes only kind 02 saves")
@@ -179,6 +185,19 @@ class CK3Save:
                 zi.external_attr = m.external_attr
                 z.writestr(zi, m.data, compress_type=zipfile.ZIP_DEFLATED, compresslevel=DEFLATE_LEVEL)
         return self.header.render(len(meta)) + meta + buf.getvalue()
+
+    def _text_as_kind_02(self) -> bytes:
+        """A kind 00 save written as kind 02: the header with kind 02, the meta block re-derived from the gamestate,
+        and the gamestate as the zip's one deflated member, as the game's own kind 02 saves have it (measured
+        2026-11-19 on v19: one member 'gamestate', deflated, date_time (1980, 0, 0, 0, 0, 0))."""
+        from dataclasses import replace
+        meta = self.derived_meta()
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=DEFLATE_LEVEL) as z:
+            zi = zipfile.ZipInfo(filename=GAMESTATE, date_time=(1980, 0, 0, 0, 0, 0))
+            zi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(zi, self.gamestate, compress_type=zipfile.ZIP_DEFLATED, compresslevel=DEFLATE_LEVEL)
+        return replace(self.header, kind=KIND_UNIFIED_TEXT).render(len(meta)) + meta + buf.getvalue()
 
 
 # --------------------------------------------------------------------------- #
@@ -239,14 +258,14 @@ def parse_header(data: bytes) -> Header:
 
 def parse_save(data: bytes, source: Path | None = None) -> CK3Save:
     header = parse_header(data)
-    if header.kind in READ_ONLY_KINDS:
+    if header.kind in TEXT_KINDS:
         hlen = len(header.raw)
         gamestate = data[hlen:]
         save = CK3Save(header=header, meta=data[hlen:hlen + header.meta_len],
                        members=[Member(GAMESTATE, gamestate, (1980, 1, 1, 0, 0, 0), 0, zipfile.ZIP_STORED)],
                        raw_zip=b"", source=source,
-                       warnings=[f"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is read only: "
-                                 "it can be inspected and linted, never written"])
+                       warnings=[f"save header kind {header.kind:02x} ({KIND_NAMES[header.kind]}) is plain text "
+                                 "(the game wrote it uncompressed): an output from it is written as kind 02"])
         save._original_gamestate_sha = sha256(gamestate)
         return save
     if header.kind not in SUPPORTED_KINDS:

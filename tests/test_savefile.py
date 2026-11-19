@@ -395,32 +395,25 @@ def test_a_kind_00_save_reads_as_its_plain_gamestate():
     save = sf.parse_save(TEXT_SAVE)
     assert save.header.kind == sf.KIND_TEXT
     assert save.gamestate == TEXT_BODY and save.meta == TEXT_META
-    assert "read only" in save.warnings[0]
+    assert "plain text" in save.warnings[0]
 
 
-def test_a_kind_00_save_is_never_written():
-    save = sf.parse_save(TEXT_SAVE)
-    with pytest.raises(sf.UnsupportedKindError, match="read only"):
-        save.to_bytes()
+def test_a_kind_00_save_is_written_as_kind_02_with_the_same_gamestate():
+    # 2026-11-19 (the Director, the built-state carry's S4): the game's console save in debug mode writes kind 00, and
+    # phase two must read the game's re-save; its output is a new file in the kind the writer produces
+    out = sf.parse_save(sf.parse_save(TEXT_SAVE).to_bytes())
+    assert out.header.kind == sf.KIND_UNIFIED_TEXT
+    assert out.gamestate == TEXT_BODY and out.meta == TEXT_META
+    assert [m.name for m in out.members] == ["gamestate"]
+    assert out.header.random == sf.parse_save(TEXT_SAVE).header.random       # the header's other fields kept
 
 
-def test_a_read_only_save_is_refused_from_its_header_before_any_work(tmp_path):
-    p = tmp_path / "plain.ck3"
-    p.write_bytes(TEXT_SAVE)
-    with pytest.raises(sf.UnsupportedKindError, match="read only"):
+def test_no_kind_is_refused_before_work_now(tmp_path):
+    # refuse_read_only stays for a future kind the writer cannot produce; kind 00 and kind 02 both pass
+    for name, data in (("plain.ck3", TEXT_SAVE), ("normal.ck3", build_ck3())):
+        p = tmp_path / name
+        p.write_bytes(data)
         sf.refuse_read_only(p)
-    q = tmp_path / "normal.ck3"
-    q.write_bytes(build_ck3())
-    sf.refuse_read_only(q)                                   # kind 02: nothing to say
-
-
-def test_the_writing_commands_refuse_a_read_only_save_at_once(tmp_path, monkeypatch, capsys):
-    from ck3_save_migrator import cli
-    p = tmp_path / "plain.ck3"
-    p.write_bytes(TEXT_SAVE)
-    monkeypatch.setattr(cli, "make_plan", lambda *a, **k: pytest.fail("planned a save it can never write"))
-    assert cli.main(["update", str(p), "-o", str(tmp_path / "out.ck3"), "--no-ask"]) == 1
-    assert "read only" in capsys.readouterr().err and not (tmp_path / "out.ck3").exists()
 
 
 def test_the_binary_kinds_are_still_refused_on_read():
