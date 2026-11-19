@@ -43,14 +43,6 @@ class WondersResult:
     skipped: list = field(default_factory=list)       # (province, building, why): slot already filled, or refused
 
 
-def _max_id(g: bytes, path: str) -> int:
-    try:
-        b = gs.locate(g, path)
-    except gs.GamestateError:
-        return 0
-    return max((int(e.key) for e in gs.iter_entries(g, *b.body) if e.key and e.key.isdigit()), default=0)
-
-
 def _next_index(g: bytes, path: str) -> int:
     """The first free id for a new row of a 1.21 database whose ids carry a generation in the high byte and the
     row's index in the low 24 bits (vassal_contracts: 117440512 = 0x07000000). The index is what must be unique: all
@@ -108,7 +100,10 @@ def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> Wo
     save itself. Phase two for a player who already re-saved in 1.21 (the Director, 2026-11-18): ``g`` is that 1.21
     re-save and ``witness`` the last 1.20 save, whose wonders are read and written into ``g`` by province."""
     res = WondersResult(g)
-    nb, nd = _max_id(g, "buildings/database"), _max_id(g, "districts/database")
+    # a fresh low-24 index for each new building and district, as for contracts: 1.21's ids carry a generation in the
+    # high byte (the 1.21 reference: generations 0-2 in both databases), and the largest whole id + 1 lands on an index
+    # already in use there (measured 2026-11-18, the test plan's C4)
+    nb, nd = _next_index(g, "buildings/database") - 1, _next_index(g, "districts/database") - 1
     btext, dtext, p = [], [], gs.EditPass()
     wonders = _built_wonders(witness if witness is not None else g, host)
     for e, h_at, hb in _holdings(g):

@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.32] - 2026-11-18
+
+### Fixed
+- The wonders written into a 1.21 save now get building and district numbers the game isn't already using. Before, a save whose buildings had been rebuilt in 1.21 could get a new wonder on a number already taken, and the game would drop it. A save the game has only just converted wasn't affected.
+
 ## [0.6.31] - 2026-11-18
 
 ### Changed
@@ -1128,7 +1133,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.32...HEAD
+[0.6.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...v0.6.32
 [0.6.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.30...v0.6.31
 [0.6.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.29...v0.6.30
 [0.6.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.28...v0.6.29
