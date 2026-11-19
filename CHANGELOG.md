@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.31] - 2026-11-18
+
+### Changed
+- The fields 1.21 added to titles, provinces and domiciles are now read from the two field baselines that ship with the tool, not from lists written by hand. The result is the same. A later game version's changes can then come from a new baseline.
+
 ## [0.6.30] - 2026-11-18
 
 ### Changed
@@ -1123,7 +1128,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.30...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...HEAD
+[0.6.31]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.30...v0.6.31
 [0.6.30]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.29...v0.6.30
 [0.6.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.28...v0.6.29
 [0.6.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.27...v0.6.28

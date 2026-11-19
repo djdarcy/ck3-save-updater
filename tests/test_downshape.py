@@ -62,6 +62,16 @@ def test_a_holding_gets_a_1_20_buildings_list_from_its_districts():
     assert out.counts["holding buildings derived"] == 1
 
 
+def test_the_field_lists_from_the_baselines_equal_the_measured_ones():
+    # the collab's round 3 measured these by hand; the shipped baselines now give them (F7, refactor row 5)
+    assert set(D.TITLE_FIELDS) == {b"trade_market", b"confederation", b"voting_session_ended", b"noble_family",
+                                   b"company_progression", b"ruler_uses_title_name"}
+    assert set(D.PROVINCE_FIELDS) == {b"province_size_value", b"province_size_level"}
+    assert set(D.DOMICILE_FIELDS) == {b"move_cooldown", b"acumen"}
+    from ck3_save_migrator.baselines import added_fields
+    assert added_fields("1.20.1.2", "0.0.0", "provinces") == ()          # a missing baseline gives nothing
+
+
 def test_a_built_duchy_capital_wonder_comes_back_as_its_1_20_block():
     ref = REF.replace(b"type=the_great_wall_01", b"type=theodosian_walls_01")
     p = D.Provinces(ref, {"496": 4})

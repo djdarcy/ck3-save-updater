@@ -65,6 +65,16 @@ def load_baseline(version: str | None) -> dict | None:
         return None
 
 
+def added_fields(old: str, new: str, path: str) -> tuple[bytes, ...]:
+    """The fields ``new``'s baseline has at ``path`` (``"provinces"``) that ``old``'s lacks, sorted; () when either
+    baseline or the database is missing. A version's shape change, computed from two shipped baselines instead of
+    written by hand (the F7 audit, refactor-advisor's row 5, 2026-11-18)."""
+    a, b = load_baseline(old), load_baseline(new)
+    if not a or not b or path not in a["databases"] or path not in b["databases"]:
+        return ()
+    return tuple(sorted(k.encode() for k in set(b["databases"][path]["fields"]) - set(a["databases"][path]["fields"])))
+
+
 def shipped_versions() -> list[str]:
     """The game versions a baseline ships for."""
     try:

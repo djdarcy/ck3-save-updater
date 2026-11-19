@@ -25,14 +25,21 @@ import re
 from dataclasses import dataclass, field
 
 from . import gamestate as gs
+from .baselines import added_fields
 
-TITLE_FIELDS = (b"trade_market", b"confederation", b"voting_session_ended", b"noble_family", b"company_progression",
-                b"ruler_uses_title_name")
-PROVINCE_FIELDS = (b"province_size_value", b"province_size_level")
+# The top-level fields 1.21 added, from the two shipped baselines (refactor-advisor's row 5, the F7 audit): a later
+# version's shape change is then a new baseline, not new literals. They equal the collab's measured lists exactly (the
+# test pins that). A title's `type` sits on its key line and is handled there, not dropped as a field.
+_ADDED = lambda path: added_fields(SHAPE_FROM, SHAPE_TO, path)          # noqa: E731
+SHAPE_FROM, SHAPE_TO = "1.20.1.2", "1.21.0"
+TITLE_FIELDS = tuple(f for f in _ADDED("landed_titles/landed_titles") if f != b"type")
+PROVINCE_FIELDS = _ADDED("provinces")
+DOMICILE_FIELDS = _ADDED("domiciles/database")
+# nested paths the baselines do not cover (holdings inside provinces, landed_data and playable_data inside titles,
+# county_manager's records): measured by hand in the collab's round 3
 HOLDING_FIELDS = (b"districts", b"regular_district_slot_limit", b"holding_district")      # plus every *_district*
 LANDED_FIELDS = (b"trade_routes", b"trade_competitiveness", b"law_proposal_date", b"gold_expenses")
 PLAYABLE_FIELDS = (b"assembly", b"major_assembly_member")
-DOMICILE_FIELDS = (b"move_cooldown", b"acumen")
 COUNTY_FIELDS = (b"prosperity", b"prosperity_progress", b"opinion_of_liege", b"popular_opinion_level",
                  b"county_control_level")
 # 1.20's usual building slots by holding type, the mode in the 1.20 reference at 987 (castle 4: 1,487+410+110 of
