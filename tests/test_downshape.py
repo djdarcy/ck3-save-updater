@@ -62,6 +62,14 @@ def test_a_holding_gets_a_1_20_buildings_list_from_its_districts():
     assert out.counts["holding buildings derived"] == 1
 
 
+def test_a_built_duchy_capital_wonder_comes_back_as_its_1_20_block():
+    ref = REF.replace(b"type=the_great_wall_01", b"type=theodosian_walls_01")
+    p = D.Provinces(ref, {"496": 4})
+    s = p.province("496", b"496={\n\tholding={\n\t\ttype=castle_holding\n\t\tholding_district=6310\n"
+                          b"\t\tduchy_capital_district=6311\n\t}\n}\n", D.Shaped())
+    assert b"duchy_capital_building={\n\t\t\t\ttype=theodosian_walls_01" in s and b"duchy_capital_district" not in s
+
+
 def test_a_province_the_table_lacks_takes_its_holding_types_usual_slots():
     p = D.Provinces(REF, {})
     s = p.province("99999", b"99999={\n\tholding={\n\t\ttype=city_holding\n\t\tholding_district=6310\n\t}\n}\n",

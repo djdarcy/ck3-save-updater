@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.29] - 2026-11-18
+
+### Fixed
+- When a 1.8 save takes entries from a 1.21 reference, a built duchy-capital wonder in a copied province, such as the Theodosian Walls, now comes through. Before, it was dropped while the entry was reshaped for 1.20.
+
 ## [0.6.28] - 2026-11-18
 
 ### Fixed
@@ -1113,7 +1118,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.28...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.29...HEAD
+[0.6.29]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.28...v0.6.29
 [0.6.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.27...v0.6.28
 [0.6.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.26...v0.6.27
 [0.6.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.25...v0.6.26

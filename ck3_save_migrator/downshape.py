@@ -198,7 +198,9 @@ class Provinces:
         if hd and dist.get(hd.group(1)):
             main = btype.get(dist[hd.group(1)][0])
         wonders = []
-        for kind in (b"special", b"great"):
+        # duchy-capital wonders too (11 in the 1.21 reference; 1.21 writes duchy_capital_district=<id> with no type
+        # line, 1.20 a built duchy_capital_building={ type=... }; refactor-advisor's row 6, the F7 audit)
+        for kind in (b"special", b"great", b"duchy_capital"):
             built = re.search(rb"\b" + kind + rb"_district=(\d+)", hb)
             slot = re.search(rb"\b" + kind + rb'_district_type="?([\w-]+?)_district\b', hb)
             if slot:
