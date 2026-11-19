@@ -161,6 +161,9 @@ class Provinces:
 
     def __init__(self, ref: bytes, slots: dict[str, int] | None = None):
         self.ref, self.slots = ref, slots or {}
+        # the provinces copied from the reference this run: their 1.21 districts are stripped here, so phase one's
+        # carry writes the reference's own districts back for them (R41; the built-state review's finding 6, 2026-11-19)
+        self.copied: list[str] = []
         self._dist: dict[bytes, list[bytes]] | None = None
         self._btype: dict[bytes, bytes] | None = None
 
@@ -186,6 +189,7 @@ class Provinces:
         return self._dist, self._btype
 
     def province(self, pid: str, text: bytes, out: Shaped) -> bytes:
+        self.copied.append(str(pid))
         text, n = drop_fields(text, PROVINCE_FIELDS, 1)
         out.add("province size fields", n)
         h = None

@@ -149,6 +149,25 @@ def test_phase_one_inserts_the_districts_line_into_a_1_20_holding(host):
     assert C.carry_districts(save, host, save, FACTS, TABLE).written == []      # without insert: nothing to fill
 
 
+REF = ("meta_data={ version=\"1.21.0\" }\nprovinces={\n"
+       + p121(1, f"501 {E}") + p121(5, f"502 503") + "}\n"
+       "buildings={\n\tdatabase={\n\t\t601={\n\t\t\ttype=pb_villages_02\n\t\t}\n\t\t602={\n\t\t\ttype=farming_fields_2\n"
+       "\t\t}\n\t\t603={\n\t\t\ttype=pb_manor_houses_01\n\t\t}\n\t}\n}\n"
+       "districts={\n\tdatabase={\n\t\t501={\n\t\t\tbuildings={ 601 602 }\n\t\t\ttype=villages_district\n\t\t\towner=1\n"
+       "\t\t}\n\t\t502={\n\t\t\tbuildings={ 603 }\n\t\t\ttype=manor_houses_district\n\t\t\towner=5\n\t\t}\n\t}\n}\n").encode()
+
+
+def test_a_copied_province_gets_the_references_own_districts_and_no_other(host):
+    # the K7 route: the transplant copied provinces 1 and 5 from the reference and stripped their districts
+    r = C.carry_reference_districts(WITNESS, REF, host, FACTS, ["1", "5", "6"])
+    assert by_province(r.written)["1"] == [("1", "villages_district", ["farming_fields_2"], "pb_villages_02")]
+    assert ("5", "manor_houses_district", "manor_houses_district needs villages_district") in r.dropped   # 503: absent
+    assert "2" not in by_province(r.written)                                     # not copied: untouched
+    g = r.gamestate
+    prov = next(e for e in gs.iter_entries(g, *gs.locate(g, "provinces").body) if e.key == b"1")
+    assert re.search(r"districts=\{ \d+ " + E + r" \}", g[prov.open:prov.close].decode())
+
+
 def test_a_holding_that_already_has_a_district_is_never_touched(host):
     r = C.carry_districts(SAVE, host, WITNESS, FACTS, TABLE)
     assert "6" not in by_province(r.written) and "6" not in by_province(r.refused)

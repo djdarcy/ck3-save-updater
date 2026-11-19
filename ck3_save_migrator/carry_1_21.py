@@ -362,6 +362,79 @@ def carry_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, tabl
     return res
 
 
+def carry_reference_districts(g: bytes, ref: bytes, host: HostRules, facts: dict, pids) -> DistrictsResult:
+    """Phase one on the route from an old save fed a 1.21 reference: a province the transplant copied from the reference
+    has the reference's state, and the down-shaper stripped its 1.21 districts (downshape.py). Here those districts come
+    back, the reference's own types and buildings, through the same gates as the carry (enabled here, legal at the
+    district's level), into the conversion's two slots. On v17's K7 route the transplant copied 3,814 holdings in 1,001
+    counties (the K7 results note, 2026-11-18 19:46). A province that already has districts is never touched."""
+    from .district_lint import EMPTY
+    res = DistrictsResult(g)
+    rdist = _entries(ref, "districts/database")
+    rbld = _entries(ref, "buildings/database")
+    rprov = {e.key.decode(): ref[e.open:e.close] for e in gs.iter_entries(ref, *gs.locate(ref, "provinces").body)
+             if e.key}
+    want = set(pids)
+    nb, nd = _next_index(g, "buildings/database") - 1, _next_index(g, "districts/database") - 1
+    btext, dtext, p = [], [], gs.EditPass()
+    for e, h_at, hb in _holdings(g):
+        pid = e.key.decode()
+        f = facts.get(pid)
+        if pid not in want or f is None or re.search(rb"\bdistricts=\{", hb) or pid not in rprov:
+            continue
+        rh = re.search(rb"\n\t\tholding=\{(.*?)\n\t\t\}", rprov[pid], re.S)
+        m = re.search(rb"\bdistricts=\{([^{}]*)\}", rh.group(1)) if rh else None
+        cands = []
+        for did in (m.group(1).split() if m else []):
+            if did == EMPTY or did.decode() not in rdist:
+                continue
+            body = ref[rdist[did.decode()].open:rdist[did.decode()].close]
+            dtype = re.search(rb"\btype=(\w+)", body).group(1).decode()
+            bl = re.search(rb"buildings=\{([^{}]*)\}", body)
+            keys = [re.search(rb"\btype=(\S+)", ref[rbld[b.decode()].open:rbld[b.decode()].close]).group(1).decode()
+                    for b in (bl.group(1).split() if bl else []) if b != EMPTY and b.decode() in rbld]
+            if not keys:
+                continue
+            if host.district_enabled(dtype, f.place).ok is not True:
+                res.refused.append((pid, dtype, "district not enabled here"))
+                continue
+            primary, extra = keys[0], []
+            for k in keys[1:]:
+                v = host.building_legal(k, dtype, primary, f.place)
+                (extra.append(k) if v.ok is True else res.refused.append((pid, k, v.why)))
+            cands.append((dtype, primary, extra))
+        kept = cands[:2]                                 # the conversion's two slots, in the reference's order
+        types = {c[0] for c in kept}
+        for c in list(kept):                             # a dependent district only with its prerequisite
+            need = host.districts[c[0]].unlocked_by if c[0] in host.districts else None
+            if need and need not in types:
+                kept.remove(c)
+                res.dropped.append((pid, c[0], f"{c[0]} needs {need}"))
+        new_ids = []
+        for dtype, primary, extra in kept:
+            ids = []
+            for k in [primary] + extra:
+                nb += 1
+                ids.append(str(nb))
+                btext.append(f"\t\t{nb}={{\n\t\t\ttype={k}\n\t\t}}\n")
+            nd += 1
+            dtext.append(f"\t\t{nd}={{\n\t\t\tbuildings={{ {' '.join(ids)} }}\n\t\t\ttype={dtype}\n\t\t\towner={pid}\n\t\t}}\n")
+            new_ids.append(str(nd))
+            res.written.append((pid, dtype, extra, primary))
+        if new_ids:
+            line = f"districts={{ {' '.join(new_ids + [EMPTY.decode()] * (2 - len(new_ids)))} }}".encode()
+            t = re.search(rb'\n\t\t\ttype="?\w+"?', hb)
+            at = h_at + (t.end() if t else 0)
+            p.add(gs.Edit(at, at, b"\n\t\t\t" + line, "districts", f"{pid}: the reference's districts"))
+    if not res.written:
+        return res
+    out = p.apply(g)
+    out = _append(out, "buildings/database", "buildings", "".join(btext))
+    out = _append(out, "districts/database", "districts", "".join(dtext))
+    res.gamestate = out
+    return res
+
+
 @dataclass
 class BaroniesResult:
     gamestate: bytes

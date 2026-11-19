@@ -50,9 +50,25 @@ def r41_districts(save: CK3Save, ctx, rule):
     r = carry_districts(g, host, g, facts, load_successors(), tier_policy="raise", insert=True)
     if r.written:
         save.set_gamestate(r.gamestate)
+    # the route from an old save fed a 1.21 reference: provinces the transplant copied keep the reference's own
+    # districts, which the down-shaper stripped (R41 on the K7 route; 3,814 holdings on v17's chain)
+    from ..carry_1_21 import carry_reference_districts
+    t = ctx.state.get("transplant")
+    down = getattr(t, "down", None)
+    copied = []
+    if down is not None and getattr(down, "copied", None):
+        g = save.gamestate
+        rc = carry_reference_districts(g, getattr(down, "ref", None) or t.ref, host, facts, down.copied)
+        copied = rc.written
+        if rc.written:
+            save.set_gamestate(rc.gamestate)
+        r.refused.extend(rc.refused)
+        r.dropped.extend(rc.dropped)
     fam = lambda k: re.sub(r"_\d+$", "", k)   # noqa: E731
-    return rule.result(matched=len(r.written) + len(r.open) + len(r.refused) + len(r.dropped), edited=len(r.written),
+    return rule.result(matched=len(r.written) + len(copied) + len(r.open) + len(r.refused) + len(r.dropped),
+                       edited=len(r.written) + len(copied),
                        extra={"districts": len(r.written), "buildings": sum(len(k) for _, _, k, _ in r.written),
+                              "copied_provinces_districts": len(copied),
                               "open": dict(collections.Counter(fam(k) for _, k, _ in r.open).most_common()),
                               "refused": dict(collections.Counter(fam(k) for _, k, _ in r.refused).most_common()),
                               "dropped": dict(collections.Counter(w for _, _, w in r.dropped).most_common())})
