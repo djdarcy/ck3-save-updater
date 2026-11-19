@@ -55,6 +55,17 @@ def test_lint_does_not_ask_a_county_record_of_a_family_title():
     assert f["held counties have a county record"].examples == ["c_land"]
 
 
+def test_a_barony_with_a_nested_block_before_its_province_is_read(tmp_path):
+    # 14 baronies of 1.21's title files carry a block before `province =`; the old regex missed them (F7 audit)
+    from ck3_save_migrator import mapdata as M
+    d = tmp_path / "common" / "landed_titles"
+    d.mkdir(parents=True)
+    (d / "t.txt").write_text("c_x = {\n\tb_asmat = {\n\t\tcolor = { 1 2 3 }\n\t\tprovince = 77\n\t}\n"
+                             "\tb_plain = {\n\t\tprovince = 78\n\t}\n}\n", encoding="utf-8")
+    M.barony_provinces.cache_clear()
+    assert M.barony_provinces(tmp_path) == {"b_asmat": 77, "b_plain": 78}
+
+
 def test_1_21_runtime_keys_split_into_family_and_number():
     assert TP._RUNTIME_KEY.match(b"x_d_mc_0").groups() == (b"x_d_mc_", b"0")
     assert TP._RUNTIME_KEY.match(b"x_c_nomad_553").groups() == (b"x_c_nomad_", b"553")

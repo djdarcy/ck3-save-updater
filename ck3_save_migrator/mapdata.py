@@ -31,12 +31,11 @@ _BARONY = re.compile(r"(?<![\w.])(b_[\w\-']+)\s*=\s*\{[^{}]*?\bprovince\s*=\s*(\
 @lru_cache(maxsize=4)
 def barony_provinces(game_dir: Path) -> dict[str, int]:
     """Barony key -> its province, from the game's ``common/landed_titles``: a barony is ``b_x = { province = N }``."""
-    out: dict[str, int] = {}
+    # read through the tokenizing title tree: the old regex assumed no nested block comes before `province =`, and
+    # missed 14 baronies of 1.21's files (b_leeds, b_pockington, b_riau, b_timika...; the F7 audit, 2026-11-18)
+    from .deadtitles import title_tree
     d = Path(game_dir) / "common" / "landed_titles"
-    for f in sorted(d.glob("*.txt")) if d.exists() else []:
-        text = re.sub(r"#[^\n]*", "", f.read_text(encoding="utf-8-sig", errors="replace"))
-        out.update((m.group(1), int(m.group(2))) for m in _BARONY.finditer(text))
-    return out
+    return dict(title_tree(d)[1]) if d.exists() else {}
 
 
 @lru_cache(maxsize=4)

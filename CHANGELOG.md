@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.28] - 2026-11-18
+
+### Fixed
+- Every barony's province is now found in the game's title files. 14 baronies in 1.21's files (Asmat, Bintuni, Dolok, Kaimana and others) were missed before, because the reader expected nothing to come before a barony's province.
+
 ## [0.6.27] - 2026-11-18
 
 ### Fixed
@@ -1108,7 +1113,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.27...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.28...HEAD
+[0.6.28]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.27...v0.6.28
 [0.6.27]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.26...v0.6.27
 [0.6.26]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.25...v0.6.26
 [0.6.25]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.24...v0.6.25
