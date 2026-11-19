@@ -11,6 +11,8 @@ it reads only the save and the 1.21 reference, and fills only what the conversio
 """
 from __future__ import annotations
 
+import collections
+import re
 from pathlib import Path
 
 from ..savefile import CK3Save, read_save
@@ -51,6 +53,51 @@ def r35_wonders_from_witness(save: CK3Save, ctx, rule):
     return rule.result(matched=len(r.carried) + len(r.unmapped) + len(r.skipped), edited=len(r.carried),
                        extra={"carried": len(r.carried), "unmapped": sorted({b for _, b, _ in r.unmapped}),
                               "refused": sorted({b for _, b, _ in r.skipped})})
+
+
+def r44_holding_tiers_from_witness(save: CK3Save, ctx, rule):
+    """Each holding's main building back at the witness's tier (the conversion resets every one above tier 1)."""
+    from ..carry_1_21 import carry_holding_tiers
+    from ..host_rules import load
+    why = _same_date(save, ctx)
+    if why:
+        return rule.result(extra={"skipped": why})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    r = carry_holding_tiers(save.gamestate, load(str(ctx.game_dir)), _witness(ctx).gamestate)
+    if r.restored:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.restored) + len(r.skipped), edited=len(r.restored),
+                       extra={"restored": len(r.restored),
+                              "by_tier": dict(collections.Counter(new for _, _, new in r.restored)),
+                              "refused": sorted({f"{k}: {w}" for _, k, w in r.skipped})})
+
+
+def r42_districts_from_witness(save: CK3Save, ctx, rule):
+    """The witness's regular buildings, written into the regular districts the conversion left empty, legal by the
+    game's own gates; every building not written is named (open, refused, dropped)."""
+    from ..carry_1_21 import carry_districts, load_successors
+    from ..district_lint import province_facts
+    from ..host_rules import load
+    why = _same_date(save, ctx)
+    if why:
+        return rule.result(extra={"skipped": why})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    host = load(str(ctx.game_dir))
+    g = save.gamestate
+    # "raise": the district's primary goes to the level its buildings need (the recommended answer; djdarcy's choice
+    # between raise and cap is pending, HOLD 2026-11-19 13:49)
+    r = carry_districts(g, host, _witness(ctx).gamestate, province_facts(g, str(ctx.game_dir)), load_successors(),
+                        tier_policy="raise")
+    if r.written:
+        save.set_gamestate(r.gamestate)
+    fam = lambda k: re.sub(r"_\d+$", "", k)   # noqa: E731
+    return rule.result(matched=len(r.written) + len(r.open) + len(r.refused) + len(r.dropped), edited=len(r.written),
+                       extra={"districts": len(r.written), "buildings": sum(len(k) for _, _, k, _ in r.written),
+                              "open": dict(collections.Counter(fam(k) for _, k, _ in r.open).most_common()),
+                              "refused": dict(collections.Counter(fam(k) for _, k, _ in r.refused).most_common()),
+                              "dropped": dict(collections.Counter(w for _, _, w in r.dropped).most_common())})
 
 
 def r37_baronies_from_witness(save: CK3Save, ctx, rule):

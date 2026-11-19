@@ -1,0 +1,9 @@
+format = 1
+id = "R42"
+name = "districts-from-witness"
+title = "write the last 1.20 save's regular buildings into the districts the 1.21 conversion left empty, where the game's rules allow them"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r42_districts_from_witness"

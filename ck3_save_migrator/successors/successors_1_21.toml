@@ -1,0 +1,306 @@
+# What each 1.20 regular building becomes in 1.21: the built-state carry's successor table.
+# Maintained by hand. First generated 2026-11-19 by tests/one-offs/thinking/make_successor_table.py from the
+# S1 table (private vault: notes/testing/2026-11-19__03-10-00__s1-successor-table.json).
+#
+# successors: an ORDERED list of alternatives; the carry takes the first that host_rules finds legal on the
+#   holding (district enabled there, prerequisite present, tier within the district's level, the county's
+#   trade-good potential). An empty list, or `open`, means the family is not carried and is named in the report.
+# source: same (the key survives), icon (a 1.21 building drawn with the old icon), djdarcy (his answer, dated).
+
+[families.barracks]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 845   # instances in the founding campaign (v17)
+
+[families.blacksmiths]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 1   # instances in the founding campaign (v17)
+
+[families.breweries]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.camel_farms]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 227   # instances in the founding campaign (v17)
+
+[families.caravanserai]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.cereal_fields]
+successors = [{ building = "farming_fields", district = "villages_district", source = "icon" }]
+seen = 861   # instances in the founding campaign (v17)
+
+[families.citadel_shrine]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 26   # instances in the founding campaign (v17)
+
+[families.common_tradeport]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 302   # instances in the founding campaign (v17)
+
+[families.curtain_walls]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 589   # instances in the founding campaign (v17)
+
+[families.elephant_pens]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 25   # instances in the founding campaign (v17)
+
+[families.farm_estates]
+successors = [{ building = "burgage_plots", district = "urban_housing_district", source = "icon" }]
+seen = 79   # instances in the founding campaign (v17)
+
+[families.great_project_cathedral]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.guild_halls]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 1139   # instances in the founding campaign (v17)
+
+[families.hill_farms]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 478   # instances in the founding campaign (v17)
+
+[families.hill_forts]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 588   # instances in the founding campaign (v17)
+
+[families.hillside_grazing]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.horse_pastures]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.hospices]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.hunting_grounds]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 1130   # instances in the founding campaign (v17)
+
+[families.idjang_forts]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 10   # instances in the founding campaign (v17)
+
+[families.jousting_lists]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 1   # instances in the founding campaign (v17)
+
+[families.kora_kora_yards]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 10   # instances in the founding campaign (v17)
+
+[families.logging_camps]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 262   # instances in the founding campaign (v17)
+
+[families.longhouses]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 572   # instances in the founding campaign (v17)
+
+[families.march]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 2   # instances in the founding campaign (v17)
+
+[families.market_villages]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 566   # instances in the founding campaign (v17)
+
+[families.megalith]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.military_camps]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 322   # instances in the founding campaign (v17)
+
+[families.monastic_schools]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 954   # instances in the founding campaign (v17)
+
+[families.murex_farm]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.orchards]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 65   # instances in the founding campaign (v17)
+
+[families.outposts]
+successors = [{ building = "manor_tower", district = "manor_houses_district", source = "icon" }]
+seen = 99   # instances in the founding campaign (v17)
+
+[families.paddy_fields]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.palisades]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 570   # instances in the founding campaign (v17)
+
+[families.pam_abbey_of_st_gall]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.pam_lateran_basilica]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.pam_palais_de_papes]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.pam_reims_cathedral]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.pastures]
+successors = [{ building = "meadowlands_pastures", district = "villages_district", source = "icon" }]
+seen = 1361   # instances in the founding campaign (v17)
+
+[families.peat_quarries]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 29   # instances in the founding campaign (v17)
+
+[families.plantations]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 88   # instances in the founding campaign (v17)
+
+[families.powder_magazine]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.qanats]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.quarries]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 565   # instances in the founding campaign (v17)
+
+[families.ramparts]
+successors = [{ building = "ramparts", district = "walls_district", source = "same" }]
+seen = 190   # instances in the founding campaign (v17)
+
+[families.regimental_grounds]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 58   # instances in the founding campaign (v17)
+
+[families.royal_forest]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 3   # instances in the founding campaign (v17)
+
+[families.sacred_pool]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.scriptorium]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.smiths]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.spice_plantation]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.stables]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.stilted_granaries]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 8   # instances in the founding campaign (v17)
+
+[families.tax_assessor]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 2   # instances in the founding campaign (v17)
+
+[families.temple_in_jerusalem]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 1   # instances in the founding campaign (v17)
+
+[families.vihara_halls]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.wantilan]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 8   # instances in the founding campaign (v17)
+
+[families.war_camps]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 576   # instances in the founding campaign (v17)
+
+[families.warrior_lodges]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.watchtowers]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 316   # instances in the founding campaign (v17)
+
+[families.water_temples]
+successors = []
+open = "open: djdarcy's answer pending (HOLD 2026-11-19, the S1 list)"
+seen = 10   # instances in the founding campaign (v17)
+
+[families.watermills]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.waterworks]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.wind_furnace]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.windmills]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"
+
+[families.workshops]
+successors = []
+open = "open: not held in the founding campaign; no successor chosen yet"

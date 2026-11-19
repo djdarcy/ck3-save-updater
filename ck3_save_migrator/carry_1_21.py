@@ -147,6 +147,214 @@ def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> Wo
 
 
 @dataclass
+class TiersResult:
+    gamestate: bytes
+    restored: list = field(default_factory=list)      # (province, conversion's key, witness's key)
+    skipped: list = field(default_factory=list)       # (province, witness's key, why)
+
+
+def _witness_mains(w: bytes) -> dict[str, list[str]]:
+    """province id -> the building keys of the 1.20 witness's holding (its own line is among them: castle_02)."""
+    out = {}
+    for e, at, hb in _holdings(w):
+        bl = re.search(rb"\n\t\t\tbuildings=\{", hb)
+        if bl:
+            start = at + bl.end() - 1
+            out[e.key.decode()] = [k.decode() for k in
+                                   re.findall(rb'\{\s*type="?([^\s"}]+)', w[start + 1:gs.match_brace(w, start)])]
+    return out
+
+
+def carry_holding_tiers(g: bytes, host: HostRules, witness: bytes) -> TiersResult:
+    """Each holding's main building back at the witness's tier. The game's 1.21 conversion resets every main building
+    above tier 1 (275 of 275 on the founding campaign: 165 tribe_02, 56 city_02, 51 temple_02, 3 castle_02; the
+    built-state review, 2026-11-19 13:35); djdarcy, 01:3x: restore from the witness ("We can try that sure"). Only a
+    raise, only to a key 1.21 defines in the holding district's own line, and only where the witness holds the same line.
+    Runs before the district carry: the holding's tier is where 1.21's tier chain starts."""
+    res = TiersResult(g)
+    mains = _witness_mains(witness)
+    dist = _entries(g, "districts/database")
+    blds = _entries(g, "buildings/database")
+    p = gs.EditPass()
+    for e, _, hb in _holdings(g):
+        pid = e.key.decode()
+        hd = re.search(rb"\bholding_district=(\d+)", hb)
+        if not hd or hd.group(1).decode() not in dist or pid not in mains:
+            continue
+        db = dist[hd.group(1).decode()]
+        dbody = g[db.open:db.close]
+        dtype = re.search(rb"\btype=(\w+)", dbody).group(1).decode()
+        first = re.search(rb"buildings=\{\s*(\d+)", dbody)
+        if not first or first.group(1).decode() not in blds:
+            continue
+        bb = blds[first.group(1).decode()]
+        tm = re.search(rb"\btype=(\S+)", g[bb.open:bb.close])
+        now = tm.group(1).decode()
+        fam = re.sub(r"_\d+$", "", now)
+        old = next((k for k in mains[pid] if re.sub(r"_\d+$", "", k) == fam), None)
+        if old is None:
+            continue
+        lvl = lambda k: int(k.rsplit("_", 1)[1]) if k.rsplit("_", 1)[-1].isdigit() else 0  # noqa: E731
+        if lvl(old) <= lvl(now):
+            continue
+        v = host.building_in(old, dtype)
+        if v.ok is not True:
+            res.skipped.append((pid, old, v.why))
+            continue
+        at = bb.open + tm.start(1)
+        p.add(gs.Edit(at, at + len(now), old.encode(), "tiers", f"{pid} {now} -> {old}"))
+        res.restored.append((pid, now, old))
+    if res.restored:
+        res.gamestate = p.apply(g)
+    return res
+
+
+@dataclass
+class DistrictsResult:
+    gamestate: bytes
+    written: list = field(default_factory=list)       # (province, district, [building keys], primary)
+    open: list = field(default_factory=list)          # (province, old key, why): no successor chosen yet
+    refused: list = field(default_factory=list)       # (province, old key, why): illegal or not evaluable here
+    dropped: list = field(default_factory=list)       # (province, old key, why): over the slots, by the keep-order
+
+
+def load_successors(path=None) -> dict:
+    """The hand-maintained successor table (ck3_save_migrator/successors/successors_1_21.toml): family -> row."""
+    import tomllib
+    from pathlib import Path
+    p = Path(path) if path else Path(__file__).with_name("successors") / "successors_1_21.toml"
+    return tomllib.loads(p.read_text(encoding="utf-8"))["families"]
+
+
+def _chain(host: HostRules, family: str) -> list[str]:
+    return sorted((b for b in host.buildings if re.fullmatch(re.escape(family) + r"_\d+", b)),
+                  key=lambda k: int(k.rsplit("_", 1)[1]))
+
+
+def _lvl(k: str) -> int:
+    t = k.rsplit("_", 1)[-1]
+    return int(t) if t.isdigit() else 1
+
+
+def carry_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, table: dict,
+                    tier_policy: str = "raise") -> DistrictsResult:
+    """Phase two of the built-state carry: each holding's 1.20 regular buildings (from ``witness``) written into the
+    regular districts the game's conversion left empty (``g``), legal by the game's own gates.
+
+    The design of record: the collabN-local 1 final assessment, 2026-11-19 13:49. Per holding:
+    - each old building -> the first of its family's successors (``table``) whose district is enabled here, at the old
+      tier capped at the successor line's top; a family with no successor is named (``open``), never guessed;
+    - ``tier_policy``: "raise" sets each district's primary to the level its buildings need (keeps the player's tiers;
+      djdarcy's recommended answer, pending, HOLD 13:49), "cap" keeps primaries at tier 1 and caps the buildings there;
+    - each building checked by host.building_legal at that primary: refused when illegal, and refused when a trigger
+      cannot be evaluated (the game keeps illegal states silently, so nothing is written blind);
+    - districts kept by: a prerequisite present (unlocked_by), never villages and urban housing together, then the sum of
+      old tiers, then the count, then the table's order; at most the size's slot limit; buildings at most the
+      primary's slots, lowest tiers dropped first. Every building not written is named with its reason.
+    ``facts``: province id -> district_lint.Facts (county capital, holding type, county goods, size level)."""
+    from .district_lint import EMPTY
+    res = DistrictsResult(g)
+    mains = _witness_mains(witness)
+    holding_lines = {re.sub(r"_\d+$", "", d.primary) for d in host.districts.values()
+                     if d.kind == "holding" and d.primary}
+    order = {f: i for i, f in enumerate(table)}
+    nb, nd = _next_index(g, "buildings/database") - 1, _next_index(g, "districts/database") - 1
+    btext, dtext, p = [], [], gs.EditPass()
+    for e, h_at, hb in _holdings(g):
+        pid = e.key.decode()
+        f = facts.get(pid)
+        m = re.search(rb"\bdistricts=\{([^{}]*)\}", hb)
+        if f is None or pid not in mains or not m:
+            continue
+        slots = m.group(1).split()
+        if any(s != EMPTY for s in slots):
+            continue                                     # the player has districts already: never replaced
+        plan = {}                                        # district -> [(old key, new key)]
+        for old in mains[pid]:
+            fam = re.sub(r"_\d+$", "", old)
+            if fam in holding_lines or host.wonder_district(old)[0]:
+                continue                                 # the holding's own line (R44), wonders (R35)
+            row = table.get(fam)
+            if row is None or not row["successors"]:
+                res.open.append((pid, old, (row or {}).get("open", "not in the successor table")))
+                continue
+            for s in row["successors"]:
+                if host.district_enabled(s["district"], f.place).ok is not True:
+                    continue
+                chain = _chain(host, s["building"])
+                if not chain:
+                    continue
+                want = min(_lvl(old), _lvl(chain[-1])) if tier_policy == "raise" else 1
+                plan.setdefault(s["district"], []).append((old, next(k for k in chain if _lvl(k) >= want)))
+                break
+            else:
+                res.refused.append((pid, old, "no successor's district is enabled here"))
+        # prerequisites, and never villages with urban housing
+        for d in list(plan):
+            need = host.districts[d].unlocked_by
+            if need and need not in plan:
+                res.dropped.extend((pid, o, f"{d} needs {need}") for o, _ in plan.pop(d))
+        if "villages_district" in plan and "urban_housing_district" in plan:
+            lose = min(("villages_district", "urban_housing_district"),
+                       key=lambda d: (sum(_lvl(o) for o, _ in plan[d]), len(plan[d])))
+            res.dropped.extend((pid, o, "villages and urban housing are not built together") for o, _ in plan.pop(lose))
+        ranked = sorted(plan.items(), key=lambda kv: (-sum(_lvl(o) for o, _ in kv[1]), -len(kv[1]),
+                                                       min(order.get(re.sub(r"_\d+$", "", o), 9999) for o, _ in kv[1])))
+        limit = min(host.regular_slot_limit(f.size_level), len(slots))
+        decided = []                                     # (district, primary, [kept keys], [(old, key)] kept)
+        for d, pairs in ranked:
+            line = _chain(host, re.sub(r"_\d+$", "", host.districts[d].primary))
+            need = max(host.level_req.get(k, 1) for _, k in pairs) if tier_policy == "raise" else 1
+            primary = next((k for k in line if host.level(k) >= need), line[-1])
+            keep, kept_pairs = [], []
+            for o, k in sorted(pairs, key=lambda x: -_lvl(x[0])):
+                v = host.building_legal(k, d, primary, f.place)
+                if v.ok is not True:
+                    res.refused.append((pid, o, f"{k}: {v.why}"))
+                elif len(keep) >= host.building_slots(primary):
+                    res.dropped.append((pid, o, f"{d} has {host.building_slots(primary)} building slots"))
+                else:
+                    keep.append(k)
+                    kept_pairs.append((o, k))
+            if keep:
+                decided.append((d, primary, keep, kept_pairs))
+        # the slot limit, then prerequisites again: a dependent district whose prerequisite was refused or cut is
+        # dropped too (the lint caught one: a manor district whose villages district had lost its buildings)
+        for d, _, _, kp in decided[limit:]:
+            res.dropped.extend((pid, o, f"over the {limit} district slots of this province") for o, _ in kp)
+        decided = decided[:limit]
+        kept_types = {d for d, *_ in decided}
+        for item in list(decided):
+            need = host.districts[item[0]].unlocked_by
+            if need and need not in kept_types:
+                decided.remove(item)
+                res.dropped.extend((pid, o, f"{item[0]} needs {need}") for o, _ in item[3])
+        new_ids = []
+        for d, primary, keep, _ in decided:
+            ids = []
+            for k in [primary] + keep:
+                nb += 1
+                ids.append(str(nb))
+                btext.append(f"\t\t{nb}={{\n\t\t\ttype={k}\n\t\t}}\n")
+            nd += 1
+            dtext.append(f"\t\t{nd}={{\n\t\t\tbuildings={{ {' '.join(ids)} }}\n\t\t\ttype={d}\n\t\t\towner={pid}\n\t\t}}\n")
+            new_ids.append(str(nd))
+            res.written.append((pid, d, keep, primary))
+        if new_ids:
+            filled = new_ids + [s.decode() for s in slots[len(new_ids):]]
+            at = h_at + m.start()
+            p.add(gs.Edit(at, at + len(m.group(0)), f"districts={{ {' '.join(filled)} }}".encode(), "districts",
+                          f"{pid}: {len(new_ids)} districts"))
+    if not res.written:
+        return res
+    out = p.apply(g)
+    out = _append(out, "buildings/database", "buildings", "".join(btext))
+    out = _append(out, "districts/database", "districts", "".join(dtext))
+    res.gamestate = out
+    return res
+
+
+@dataclass
 class BaroniesResult:
     gamestate: bytes
     carried: list = field(default_factory=list)       # (barony key, old holder, county holder, liege changed?)

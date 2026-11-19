@@ -85,6 +85,80 @@ def test_resource_and_special_districts_belong_to_the_province(rules):
     assert rules.building_in("castle_01", "wool_district").ok is False
 
 
+@pytest.fixture
+def gates(tmp_path):
+    """1.21's gates beyond the district line, as the 2026-11-19 review found them in the real files: a building's tier
+    needs the district's level (its primary's tier), a district may be enabled only in a county capital (walls) or a
+    county capital or city (a scripted trigger), a district may need another first (unlocked_by), and a building may need
+    the county's trade-good potential."""
+    c = tmp_path / "common"
+    for d in ("holdings", "districts", "buildings", "scripted_triggers"):
+        (c / d).mkdir(parents=True)
+    (c / "holdings" / "h.txt").write_text(
+        "castle_holding = {\n\tdistricts = { villages_district walls_district urban_district manor_district }\n}\n",
+        encoding="utf-8")
+    (c / "scripted_triggers" / "t.txt").write_text(
+        BOM + "metropolitan_trigger = {\n\tOR = {\n\t\tis_county_capital = yes\n\t\tcustom_tooltip = {\n"
+        "\t\t\ttext = x\n\t\t\tholding_is_city = yes\n\t\t}\n\t}\n}\n", encoding="utf-8")
+    (c / "districts" / "regular_districts.txt").write_text(
+        "villages_district = {\n\tprimary_building = pb_villages_01\n\tbuildings = { farming_fields_1 }\n}\n"
+        "walls_district = {\n\tprimary_building = pb_walls_01\n\tis_enabled = {\n\t\tis_county_capital = yes\n\t}\n"
+        "\tbuildings = { ramparts_1 }\n}\n"
+        "urban_district = {\n\tprimary_building = pb_urban_01\n\tis_enabled = {\n\t\tmetropolitan_trigger = yes\n\t}\n}\n"
+        "manor_district = {\n\tprimary_building = pb_manor_01\n\tunlocked_by = villages_district\n}\n"
+        "tribal_district = {\n\tprimary_building = pb_tribal_01\n\tis_enabled = {\n"
+        "\t\tscope:holder = { government_has_flag = government_is_tribal }\n\t}\n}\n", encoding="utf-8")
+    (c / "buildings" / "b.txt").write_text(
+        "pb_villages_01 = {\n\tnext_building = pb_villages_02\n\tbuilding_slots_for_host_district = 2\n}\n"
+        "pb_villages_02 = {\n\tnext_building = pb_villages_03\n\tbuilding_slots_for_host_district = 3\n}\n"
+        "pb_villages_03 = {\n\tbuilding_slots_for_host_district = 4\n}\n"
+        "farming_fields_1 = {\n\tnext_building = farming_fields_2\n\tcan_construct_potential = {\n\t\tOR = {\n"
+        "\t\t\tcounty = { has_potential_for_trade_good = trade_good_type:trade_good_grain }\n"
+        "\t\t\tcounty = { has_potential_for_trade_good = trade_good_type:trade_good_rice }\n\t\t}\n\t}\n}\n"
+        "farming_fields_2 = {\n\tnext_building = farming_fields_3\n\tdistrict_level_requirement = 2\n"
+        "\tcan_construct_potential = {\n\t\tcounty = { has_potential_for_trade_good = trade_good_type:trade_good_grain }\n\t}\n}\n"
+        "farming_fields_3 = {\n\tdistrict_level_requirement = 3\n}\n"
+        "pb_walls_01 = {\n}\npb_urban_01 = {\n}\npb_manor_01 = {\n}\npb_tribal_01 = {\n}\n"
+        "ramparts_1 = {\n\tcan_construct_potential = {\n\t\tculture = { has_cultural_parameter = x }\n\t}\n}\n",
+        encoding="utf-8")
+    H.load.cache_clear()
+    return H.load(str(tmp_path))
+
+
+CAPITAL, BARONY, CITY = H.Place(True, "castle_holding"), H.Place(False, "castle_holding"), H.Place(False, "city_holding")
+
+
+def test_a_district_gives_nothing_where_its_enable_condition_fails(gates):
+    # walls only in a county capital; urban housing in a county capital or a city, through a scripted trigger
+    assert gates.district_enabled("walls_district", CAPITAL).ok is True
+    assert gates.district_enabled("walls_district", BARONY).ok is False
+    assert [gates.district_enabled("urban_district", p).ok for p in (CAPITAL, BARONY, CITY)] == [True, False, True]
+    assert gates.district_enabled("villages_district", BARONY).ok is True          # no condition: always
+    assert gates.district_enabled("tribal_district", CAPITAL).ok is None           # a government flag: not evaluated
+    assert gates.districts["manor_district"].unlocked_by == "villages_district"
+    assert gates.districts["villages_district"].primary == "pb_villages_01"
+
+
+def test_a_buildings_tier_needs_the_districts_level_and_its_county_the_good(gates):
+    grain = H.Place(True, "castle_holding", frozenset({"grain"}))
+    wool = H.Place(True, "castle_holding", frozenset({"wool"}))
+    assert gates.building_legal("farming_fields_3", "villages_district", "pb_villages_01", grain).ok is False
+    assert "needs district level 3" in gates.building_legal("farming_fields_3", "villages_district", "pb_villages_01",
+                                                             grain).why
+    assert gates.building_legal("farming_fields_3", "villages_district", "pb_villages_03", grain).ok is True
+    assert gates.building_legal("farming_fields_2", "villages_district", "pb_villages_02", grain).ok is True
+    assert gates.building_legal("farming_fields_2", "villages_district", "pb_villages_02", wool).ok is False
+    assert gates.building_legal("farming_fields_1", "villages_district", "pb_villages_01", CAPITAL).ok is None  # goods unknown
+    # a trigger this reader does not evaluate (a culture parameter) is never answered True
+    assert gates.building_legal("ramparts_1", "walls_district", "pb_walls_01", CAPITAL).ok is None
+
+
+def test_slots_come_from_province_size_and_the_primarys_tier(gates):
+    assert [gates.regular_slot_limit(s) for s in range(0, 7)] == [1, 2, 2, 3, 3, 4, 4]
+    assert [gates.building_slots(f"pb_villages_0{i}") for i in (1, 2, 3)] == [2, 3, 4]
+    assert gates.level("pb_villages_03") == 3
+
+
 def test_a_wonder_finds_its_district_exactly_by_family_or_not_at_all(rules):
     assert rules.wonder_district("alhambra_01") == ("alhambra_01_district", "exact")
     assert rules.wonder_district("the_great_wall_02") == ("the_great_wall_01_district", "family")

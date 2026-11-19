@@ -3,8 +3,9 @@ id = "repair_1_21"
 title = "Repairs on a save the game already converted to 1.21 (phase two)"
 # phase two (DWP 2026-11-18__02-48-50; the Director's correction 5): for a 1.21 save the game converted, with the
 # player's last 1.20 save as the witness (--witness). R35-R37 run only with a witness of the same game date;
-# R38 (title types) needs only the 1.21 reference
-order = ["R35", "R36", "R37", "R38", "R39", "R40"]
+# R38 (title types) needs only the 1.21 reference. R44 (holding tiers, witness) runs before the district carry that
+# will follow it: the holding's tier is where 1.21's tier chain starts (the built-state review, 2026-11-19)
+order = ["R35", "R36", "R37", "R38", "R39", "R40", "R44", "R42"]
 
 [applies]
 save = ">=1.21, <1.22"

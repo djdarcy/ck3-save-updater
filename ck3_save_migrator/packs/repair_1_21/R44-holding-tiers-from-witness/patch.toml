@@ -1,0 +1,9 @@
+format = 1
+id = "R44"
+name = "holding-tiers-from-witness"
+title = "put each holding's main building back at the tier the last 1.20 save had (the conversion resets every one above tier 1)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r44_holding_tiers_from_witness"

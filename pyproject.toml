@@ -74,7 +74,9 @@ include = ["ck3_save_migrator", "ck3_save_migrator.*"]
                        "baselines/*/fields.json",
                        # 1.20's building slots per province (counts only), so a row copied from a 1.21 reference
                        # gets a 1.20 holding without the old game (downshape.py; tests/one-offs/make_slot_table.py)
-                       "known_slots/*.json"]
+                       "known_slots/*.json",
+                       # what each 1.20 regular building becomes in 1.21 (hand-maintained; the built-state carry)
+                       "successors/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

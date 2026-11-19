@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.34] - 2026-11-19
+
+### Added
+- `update --witness` brings back more of what the game's 1.21 conversion drops. Each holding's main building returns to the tier your last 1.20 save had. The conversion had put every one back to tier 1.
+- Your buildings return to the regular districts the conversion left empty, where 1.21's rules allow them. Walls go only in a county capital, each building's tier fits its district's level, and a building that needs a trade good is placed only where the county has it.
+- Every building that can't be placed yet is named in the report, with the reason. Many old buildings have no decided 1.21 successor yet, and stay listed until one is chosen.
+- A check that a save's districts follow 1.21's rules. Tested against a fresh 1.21 game and an updated campaign.
+
 ## [0.6.33] - 2026-11-18
 
 ### Changed
@@ -1140,10 +1148,7 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.33...HEAD
-[0.6.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.36...v0.6.37
-[0.6.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.35...v0.6.36
-[0.6.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...v0.6.35
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...HEAD
 [0.6.34]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.33...v0.6.34
 [0.6.33]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.32...v0.6.33
 [0.6.32]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.31...v0.6.32

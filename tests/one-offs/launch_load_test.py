@@ -181,6 +181,9 @@ def main(run_name: str, args: list[str]) -> int:
     exit_console = next((a.split("=", 1)[1] for a in args if a.startswith("--h-exit-console=")), None)
     # --h-key=NAME: keys posted once, in order, after the console commands (space, plus, 1-5, ...)
     keys = [a.split("=", 1)[1] for a in args if a.startswith("--h-key=")]
+    late_console = next(((int(a.split("=", 1)[1].split(":", 1)[0]), a.split("=", 1)[1].split(":", 1)[1])
+                         for a in args if a.startswith("--h-late-console=")), None)
+    keys_sent_at = None
     # --h-max=SECONDS: run length cap (default 15 min); --h-guard-autosave: back up the user's autosave*.ck3 first
     # and restore any that changed when the run ends (a long run writes the yearly autosave)
     global MAX_SECONDS, EXE
@@ -194,6 +197,8 @@ def main(run_name: str, args: list[str]) -> int:
     # an event, as the 2026-10-26 soaks found) and one space is posted to unpause it. Every press is noted, so a
     # run that keeps pressing has hung rather than paused.
     keepalive = "--h-keepalive" in args
+    # (2026-11-19, tried and removed: escape on a stall opens the game menu and leaves 1.21's Situation window behind
+    # it, run 2026-11-19__14-03-12__s2-rome-played-esc. A Situation needs its own button clicked)
     # --h-mem-capture=GB: when the game's private memory passes GB, run ck3_split_capture.py once (the AI army
     # planner's endless split, 2026-10-27: 130 GB in ten minutes), then stop the run; the machine is protected
     # from a runaway whether or not the capture finds the loop
@@ -309,6 +314,15 @@ def main(run_name: str, args: list[str]) -> int:
                     post_key(hwnd, k)
                 note(f"keys (posted, no focus): {' '.join(keys)}")
                 keys_sent = True
+                keys_sent_at = time.time()
+            # --h-late-console=SECONDS:CMD (2026-11-19, S0 markets): SECONDS after the keys, post one space (pause;
+            # a console save while the game runs crashed twice, #42) and type CMD -- e.g. play a month, then save
+            if late_console and keys_sent and keys_sent_at and time.time() - keys_sent_at > late_console[0]:
+                post_key(hwnd, "space")
+                time.sleep(3)
+                post_console(hwnd, late_console[1])
+                note(f"late console: space, then '{late_console[1]}' typed {late_console[0]}s after the keys")
+                late_console = None
             ready = in_game_at and hwnd and not consoles and (keys_sent or not keys)
             if exit_after is not None and exit_posted_at is None and ready and time.time() - in_game_at > exit_after:
                 import ctypes
@@ -355,9 +369,10 @@ def main(run_name: str, args: list[str]) -> int:
                         note("exit: still running; the game window is not in front, so no real click")
                     exit_clicks = 4
                 elif exit_clicks == 4 and waited > 60:
-                    r = subprocess.run(["taskkill", "/PID", str(proc.pid), "/F"], capture_output=True, text=True)
-                    note(f"exit: normal close failed for 60 s; taskkill /PID {proc.pid} /F -> "
-                         f"{(r.stdout or r.stderr).strip()}")
+                    # 2026-11-19: djdarcy rejected a forced kill after a failed close ("I closed it for you"); the
+                    # 2026-11-03 permission is withdrawn, so the run asks him instead of killing
+                    note(f"exit: normal close failed for 60 s; NOT killed -- ask djdarcy to close ck3.exe "
+                         f"(pid {proc.pid})")
                     exit_clicks = 5
             if exit_posted_at is not None and time.time() - exit_posted_at > 120:
                 stop_reason = "exit posted but the game was still running 120 s later"
