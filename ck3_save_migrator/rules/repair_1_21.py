@@ -16,12 +16,20 @@ from pathlib import Path
 from ..savefile import CK3Save, read_save
 
 
+def _witness(ctx) -> CK3Save:
+    """The witness save, read once per run (R35 and R37 read it, and the date guard reads its meta: five reads of a
+    200 MB save before this cache; refactor-advisor's row 1, the F7 audit)."""
+    if "witness_save" not in ctx.state:
+        ctx.state["witness_save"] = read_save(ctx.witness)
+    return ctx.state["witness_save"]
+
+
 def _same_date(save: CK3Save, ctx) -> str | None:
     """None when the witness may be used; otherwise the reason it may not."""
     from ..plan import meta_date
     if ctx.witness is None:
         return "needs --witness (your last save from before 1.21)"
-    w, s = meta_date(read_save(ctx.witness).meta), meta_date(save.meta)
+    w, s = meta_date(_witness(ctx).meta), meta_date(save.meta)
     if not w or w != s:
         return (f"the witness is dated {w}, this save {s}: it was played on since, and repairs from the witness would "
                 "overwrite that play")
@@ -37,7 +45,7 @@ def r35_wonders_from_witness(save: CK3Save, ctx, rule):
         return rule.result(extra={"skipped": why})
     if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
         return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
-    r = carry_wonders(save.gamestate, load(str(ctx.game_dir)), witness=read_save(ctx.witness).gamestate)
+    r = carry_wonders(save.gamestate, load(str(ctx.game_dir)), witness=_witness(ctx).gamestate)
     if r.carried:
         save.set_gamestate(r.gamestate)
     return rule.result(matched=len(r.carried) + len(r.unmapped) + len(r.skipped), edited=len(r.carried),
@@ -60,7 +68,7 @@ def r37_baronies_from_witness(save: CK3Save, ctx, rule):
         return rule.result(extra={"skipped": why})
     if ctx.game_dir is None or not barony_counties(ctx.game_dir):
         return rule.result(extra={"skipped": f"no 1.21 title files at {ctx.game_dir}"})
-    r = carry_baronies(save.gamestate, read_save(ctx.witness).gamestate, barony_counties(ctx.game_dir),
+    r = carry_baronies(save.gamestate, _witness(ctx).gamestate, barony_counties(ctx.game_dir),
                        defined_governments(ctx.game_dir))
     if r.carried:
         save.set_gamestate(r.gamestate)
@@ -81,7 +89,8 @@ def r38_title_types(save: CK3Save, ctx, rule):
     from ..carry_1_21 import type_titles
     if ctx.reference is None:
         return rule.result(extra={"skipped": "needs a 1.21 reference save (what decides a title's type is read there)"})
-    ref = ctx.state.get("reference_gamestate") or read_save(ctx.reference).gamestate
+    from .religion_1_20 import reference_gamestate
+    ref = reference_gamestate(ctx)                  # read once per run, cached in ctx.state
     r = type_titles(save.gamestate, ref)
     if r.typed:
         save.set_gamestate(r.gamestate)
@@ -113,7 +122,8 @@ def r40_province_size(save: CK3Save, ctx, rule):
     from ..carry_1_21 import carry_province_size
     if ctx.reference is None:
         return rule.result(extra={"skipped": "needs a 1.21 reference save (the sizes come from it)"})
-    ref = ctx.state.get("reference_gamestate") or read_save(ctx.reference).gamestate
+    from .religion_1_20 import reference_gamestate
+    ref = reference_gamestate(ctx)                  # read once per run, cached in ctx.state
     g, raised = carry_province_size(save.gamestate, ref)
     if raised:
         save.set_gamestate(g)

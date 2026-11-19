@@ -66,6 +66,16 @@ def test_a_barony_with_a_nested_block_before_its_province_is_read(tmp_path):
     assert M.barony_provinces(tmp_path) == {"b_asmat": 77, "b_plain": 78}
 
 
+def test_the_witness_is_read_once_per_run(monkeypatch, tmp_path):
+    # R35, R37 and the date guard each read it; five reads of a 200 MB save before the cache (F7, refactor row 1)
+    from ck3_save_migrator.rule_types import RuleContext
+    from ck3_save_migrator.rules import repair_1_21 as RP
+    calls = []
+    monkeypatch.setattr(RP, "read_save", lambda p: calls.append(p) or object())
+    ctx = RuleContext(witness=tmp_path / "w.ck3")
+    assert RP._witness(ctx) is RP._witness(ctx) and len(calls) == 1
+
+
 def test_1_21_runtime_keys_split_into_family_and_number():
     assert TP._RUNTIME_KEY.match(b"x_d_mc_0").groups() == (b"x_d_mc_", b"0")
     assert TP._RUNTIME_KEY.match(b"x_c_nomad_553").groups() == (b"x_c_nomad_", b"553")

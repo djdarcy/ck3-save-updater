@@ -38,7 +38,8 @@ def r34_roads(save: CK3Save, ctx, rule):
         return rule.result(extra={"skipped": "needs a 1.21 reference save (the roads come from it)"})
     if ctx.game_dir is None:
         return rule.result(extra={"skipped": "needs the game folder (the road types it defines)"})
-    ref = ctx.state.get("reference_gamestate") or read_save(ctx.reference).gamestate
+    from .religion_1_20 import reference_gamestate
+    ref = reference_gamestate(ctx)                  # read once per run, cached in ctx.state
     g = save.gamestate
     if b"\nroads={" not in g and not g.startswith(b"roads={"):
         g = g + _EMPTY_ROADS
