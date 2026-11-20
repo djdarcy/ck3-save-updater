@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.38] - 2026-11-19
+
+### Fixed
+- Python 3.10 works again. Since 0.6.34 the 1.21 building carry loaded its table with a module that only exists from Python 3.11, so `update` on a 1.21 save stopped with an import error on 3.10. The same problem stopped the 3.10 test run in CI. A new test keeps every module on the shared TOML reader.
+
 ## [0.6.37] - 2026-11-19
 
 ### Changed
@@ -1166,7 +1171,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.37...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...HEAD
+[0.6.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.37...v0.6.38
 [0.6.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.36...v0.6.37
 [0.6.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.35...v0.6.36
 [0.6.35]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.34...v0.6.35

@@ -220,8 +220,9 @@ class DistrictsResult:
 
 def load_successors(path=None) -> dict:
     """The hand-maintained successor table (ck3_save_migrator/successors/successors_1_21.toml): family -> row."""
-    import tomllib
     from pathlib import Path
+
+    from .patches.model import tomllib   # the shared reader: tomllib, or tomli on Python 3.10 (CI run 44663465967)
     p = Path(path) if path else Path(__file__).with_name("successors") / "successors_1_21.toml"
     return tomllib.loads(p.read_text(encoding="utf-8"))["families"]
 

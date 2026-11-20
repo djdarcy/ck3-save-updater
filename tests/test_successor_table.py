@@ -9,10 +9,11 @@ and, with the game installed, every named successor is a line 1.21 defines in th
 """
 import os
 import re
-import tomllib
 from pathlib import Path
 
 import pytest
+
+from ck3_save_migrator.patches.model import tomllib   # tomli on Python 3.10, as the package reads it
 
 TABLE = Path(__file__).resolve().parents[1] / "ck3_save_migrator" / "successors" / "successors_1_21.toml"
 GAME = Path(r"E:\SteamLibrary\steamapps\common\Crusader Kings III\game")
