@@ -4,6 +4,15 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.48] - 2026-11-20
+
+### Fixed
+- The innovations repair for 1.21 now also adds the two Legacy of Persia innovations, fritware and the mural sextant. Their names carry a DLC prefix, and the repair didn't recognize them, so converted cultures still couldn't research them. On the founding campaign the repair now adds 27 innovations (6,302 entries), not 25.
+
+### Changed
+- The glossary explains the words the guides use: the game and save folders, playset, witness, the same-date rule, phase one and phase two, the save names used when comparing routes, 1.21's districts, settlement size and prosperity, the update's questions, and game words such as rite and men-at-arms.
+- The guide no longer says a 1.20 save is refused in a 1.21 game; it hasn't been since 0.6.11. The page on what the updater adds for a 1.8 save now says that both routes still leave three innovations added after 1.8 off most cultures on 1.20.
+
 ## [0.6.47] - 2026-11-20
 
 ### Added
@@ -1221,7 +1230,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.47...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.48...HEAD
+[0.6.48]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.47...v0.6.48
 [0.6.47]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...v0.6.47
 [0.6.46]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...v0.6.46
 [0.6.45]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...v0.6.45

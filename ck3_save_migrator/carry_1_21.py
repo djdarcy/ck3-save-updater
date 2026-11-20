@@ -1023,7 +1023,10 @@ def _cultures(g: bytes):
         ci = re.search(rb"culture_innovation=\{", b)
         if ci:
             close = gs.match_brace(b, ci.end() - 1)
-            for m in re.finditer(rb'\{\s*type="?(innovation_[a-z_0-9]+)"?\s*(?:progress=([\d.]+))?', b[ci.end():close]):
+            # DLC innovations carry a prefix (fp3_innovation_fritware, fp3_innovation_mural_sextant): the pattern must
+            # take any key ending in an innovation_ name, or those stay invisible (missed by R47 until 2026-11-20)
+            for m in re.finditer(rb'\{\s*type="?([a-z0-9_]*innovation_[a-z_0-9]+)"?\s*(?:progress=([\d.]+))?',
+                                 b[ci.end():close]):
                 inn[m.group(1).decode()] = float(m.group(2)) if m.group(2) else None
             span = (e.open + ci.end(), e.open + close)
         yield e, (t.group(1).decode() if t else None), era, inn, span

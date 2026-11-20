@@ -60,7 +60,7 @@ Neither layer is the final word. A designer's aim and what ships can differ, and
 ## 9. Innovations
 
 - **Said.** New innovations were added in every era for the new economy, and districts unlock from many of them. Innovations no longer add building slots, and holding levels unlock by era instead.
-- **Seen.** A converted campaign's cultures never list 25 innovations a new game has. Most are on the patch notes' list, such as heavy plow, coppicing, prospecting and monasticism. Five are not named there: Public Works, Communal Government, Urbanization, Renaissance Thought and Pole Vault. A culture can't research what it doesn't list, so some district levels can never be reached.
+- **Seen.** A converted campaign's cultures never list 27 innovations a new game has. Most are on the patch notes' list, such as heavy plow, coppicing, prospecting and monasticism. Seven are not named there: Public Works, Communal Government, Urbanization, Renaissance Thought, Pole Vault, and two from Legacy of Persia, fritware and the mural sextant. A culture can't research what it doesn't list, so some district levels can never be reached.
 - **Compare.** Spreading unlocks across many innovations only works if every culture can reach them. A new game lists them all; the conversion doesn't add them, and nothing says old saves should differ. It has happened before: the game's own conversion has left new innovations unlisted twice, gunpowder in 1.20 and these 25 in 1.21. **Kind:** a recurring omission in the converter. We think it is worth reporting to Paradox. The updater adds them ([R47](rules.md)).
 
 ## Three things Paradox changed on purpose

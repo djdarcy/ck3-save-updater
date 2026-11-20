@@ -44,6 +44,46 @@ The step from the save's version to the game's, shown in GAP as `versions: 1.8.1
 
 A gap is covered when a selected [pack](#pack) declares that it brings saves of the save's version to the game's version. When none does, GAP says `NOT COVERED`, the plan is REFUSED, and nothing is written: nothing would bring the save to the game's version.
 
+### game folder
+
+The folder that holds the installed Crusader Kings III, the `game` folder inside it. The tool reads the game's own files there: what the current version defines, so it knows what a save may still name. It finds the folder by itself, through Steam's records and the usual install places. `--game-dir` chooses one when there are several. `status` shows the one it used under GAME.
+
+### save games folder
+
+The folder where the game keeps your saves: `save games`, under `Documents\Paradox Interactive\Crusader Kings III` on Windows. Give the tool a save's name and it looks there. Updated saves are written beside the save you gave. Copy one into this folder to load it in the game.
+
+### playset
+
+The list of mods the game's launcher has turned on. The tool reads it from the launcher's own file, `dlc_load.json`, in the game's documents folder. It matters for faces: they are carried into the gene layout of the mods you will play with. So set the launcher's playset before you run `update`.
+
+### re-save
+
+A save the game wrote after loading an older save. When a new version loads an old save, it converts it, and the re-save is the converted result. The tool reads re-saves to see what the game kept and what it dropped.
+
+### witness
+
+Your last save from before a version change, given with `--witness`. After the game has converted your campaign and you have saved it, the witness is the only place where what the conversion dropped still exists: your buildings, tiers and wonders, for example. `update --witness` reads them from it and writes them back. You never need to name it if you run the update on the save itself before your first load in the new version.
+
+### same-date rule
+
+`update --witness` writes nothing unless the witness has the same in-game date as the save it repairs. A witness from a later date would be fine. A witness from an earlier date means you played on since, and writing its buildings back would undo that play. So the tool refuses, and says so.
+
+### phase one and phase two
+
+The two passes of an update to 1.21, around the game's own conversion. **Phase one** runs on your 1.20 save, before you load it in 1.21: it writes what the conversion would otherwise lose. **Phase two** runs on the game's own 1.21 re-save, with your last 1.20 save as the [witness](#witness): it repairs what the conversion got wrong. [Updating a save](updating-a-save.md) shows both.
+
+### uncompressed save
+
+A save the game wrote with save compression turned off, or from its debug console. The tool reads it and updates it like any other. The updated file is written compressed, as the game writes saves by default.
+
+### ironman save
+
+A save from an ironman campaign. It is in a binary format the tool cannot read, so the tool says so and stops. [Editing a save](editing-a-save.md) covers `ironman-off`, which works on an ordinary save that has ironman turned on.
+
+### golden
+
+A save we keep as a known-good result: a real campaign, updated by a given version of the tool, then loaded in the game. A later version must reproduce it, or explain each difference. You meet the word in the changelog.
+
 ## Fixes: packs, patches and rules
 
 ### pack
@@ -199,3 +239,85 @@ Anything else worth knowing before you run it: a save that crosses the [map rewo
 ### SAVES
 
 What `ck3update status` prints with no save named: the save folder it found and how many saves are in it. Name one of them to see its plan.
+
+## The save names used when comparing routes
+
+Some pages compare what the game does alone with what the tool does. They name the saves this way:
+
+- **original-1.8**: the campaign as the 1.8 game saved it, untouched.
+- **chain-1.20**: the game alone, stepping that save through 1.18.4 and 1.19.0 to 1.20, each version saving the last one's save. Opening the original directly in 1.19 or 1.20 crashes, so these stepping stones are the only way without the tool.
+- **ref-1.20**: a new 1.20 game, started on the campaign's date. It is the [reference save](#reference-save) for 1.20.
+- **ours-1.20**: the tool's update of the original to 1.20.
+- **conv-1.21**: 1.21's own conversion of ours-1.20, as the game saved it after its first load.
+- **ref-1.21**: a new 1.21 game on the campaign's date, the reference for 1.21.
+- **ours-1.21**: the tool's update to 1.21 (phase one, the game's load, then phase two).
+
+## 1.21's economy, in brief
+
+### district
+
+In 1.21, a holding is built from districts, and buildings sit inside them. A district is the long-term choice; its buildings are cheaper to change. The game's own conversion of an older save leaves them empty, and the tool fills them from your old buildings where 1.21 allows it.
+
+### holding district
+
+The district that is the holding itself: its castle, city or temple line. Its main building sets the holding's type and tier.
+
+### regular district
+
+The districts a holding builds by choice: villages, markets, guilds, walls and others. How many fit depends on the province's [settlement size](#settlement-size): two at the smallest, six at the largest.
+
+### resource district
+
+The one district in a county's capital that makes the county's trade good: stone, timber, fruit, ivory and others. A county can only build one for a good it has the potential for, and the patch notes put that at 3 to 5 goods per county.
+
+### duchy-capital district
+
+A district only the capital barony of a duchy may build, and only while the county's holder holds that duchy. It replaced 1.20's duchy-capital buildings: marches, jousting lists, blacksmiths, royal forests and the like.
+
+### settlement size
+
+How many people live in a barony, from 1 to 10. It decides how many districts fit, and big settlements need more food and are harder to control. The game's conversion sets every province to size 1. The tool raises each one to the size a new game gives it.
+
+### prosperity
+
+How rich a county is. It took over the economic part of 1.20's development: it raises taxes, supply, innovation and prices. An updated save's development becomes its prosperity exactly.
+
+### trade good
+
+One of 44 goods 1.21 trades through markets, 16 of them basic (cereals and meat among them). Buildings may need goods, and when a need isn't met, the building's bonus doesn't apply.
+
+### successor
+
+The 1.21 building or district that took an old one's place. The tool keeps a table of them. Where an old building has no chosen successor yet, it is not carried, and [what is not carried over](not-carried-over.md) names it.
+
+### innovation
+
+An advance a culture researches, which unlocks buildings, districts and units. A culture can only research the innovations it lists. When the game converts an older save, it doesn't add the innovations new in that version, so the tool adds them.
+
+## Questions during an update
+
+### the resources question
+
+The one question an update asks today: what to do where your old save had a quarry, logging camp, orchard or elephant pen, and the game already placed a different resource district in that province. The answers are `m`, `k` and `r` ([Updating a save](updating-a-save.md#questions-during-the-update-and---auto)).
+
+### --auto
+
+Answers an update's questions in advance, so it can run without asking. `all=mygame` prefers your old save everywhere; `all=newgame` prefers what the new game placed. The report records every answer and how it was reached.
+
+## Game words the docs use
+
+### rite
+
+Since 1.20, each faith is divided into rites, and every character and county follows one. Older saves have no rites, so the update gives each character the rite their faith now belongs to.
+
+### custom faith
+
+A faith a player founded or reformed in their own campaign, such as one made from a mod. The update carries it with its doctrines and holy sites, as its own faith or as a rite.
+
+### men-at-arms
+
+A ruler's professional troops, as opposed to levies. Some rules rename regiment types the current game no longer has.
+
+### soak
+
+Letting the game run an updated save for a while, unattended, to see whether it stays stable. `ck3update soak` is the one command that starts the game ([Soak](soak.md)).

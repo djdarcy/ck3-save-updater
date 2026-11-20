@@ -88,5 +88,7 @@ def test_on_the_founding_campaign_every_culture_lists_what_a_fresh_game_lists():
     fresh = set().union(*(inn for *_, inn, _ in C._cultures(ref)))
     # 18 missing on all cultures, 7 on some; 67 discovered by the evidence rule (prosperity_01 29, pattern_welding 26,
     # monasticism 7, heavy_plow 3, craft_ordinances 1, prosperity_02 1), none of which v17 listed for that culture
-    assert len(r.missing) == 25 and r.cultures == 284 and r.added == 5844 and len(r.discovered) == 67
+    # 27 since 2026-11-20: the two Legacy of Persia innovations (prefixed keys) the reader missed before, on 229 cultures
+    assert len(r.missing) == 27 and r.cultures == 284 and r.added == 6302 and len(r.discovered) == 67
+    assert {"fp3_innovation_fritware", "fp3_innovation_mural_sextant"} <= set(r.missing)
     assert all(fresh <= set(inn) for *_, inn, _ in C._cultures(r.gamestate))
