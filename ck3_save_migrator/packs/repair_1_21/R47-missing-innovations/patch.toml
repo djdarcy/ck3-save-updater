@@ -1,0 +1,9 @@
+format = 1
+id = "R47"
+name = "missing-innovations"
+title = "give every culture the innovations new in 1.21 that the game's conversion never lists (undiscovered unless a fresh 1.21 game's same culture starts with them)"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r47_missing_innovations"

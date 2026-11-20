@@ -411,6 +411,7 @@ def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
         "R38": "needs a reference save, and there is none",    # title types: the reference, not the witness
         "R39": PL.skipped_needs(["R38"]),                       # the cooldown clean-up runs with R38
         "R40": "needs a reference save, and there is none",    # province sizes come from the reference
+        "R47": "needs a reference save, and there is none",    # innovations: what a fresh 1.21 game lists
         "R44": "needs --witness (your last save from before 1.21; phase two)",   # holding tiers: the witness's
         "R42": "needs --witness (your last save from before 1.21; phase two)"}   # the regular districts: the witness's
     w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")

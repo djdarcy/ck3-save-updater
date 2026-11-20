@@ -24,6 +24,7 @@ tier 1). A holding that already fills the slot is left alone, so a second run ch
 """
 from __future__ import annotations
 
+import collections
 import re
 from dataclasses import dataclass, field
 
@@ -772,3 +773,100 @@ def _append(g: bytes, path: str, top: str, rows: str) -> bytes:
         return g[:b.close] + rows.encode() + b"\t" + g[b.close:]
     except gs.GamestateError:
         return g + f"{top}={{\n\tdatabase={{\n{rows}\t}}\n}}\n".encode()
+
+
+# --------------------------------------------------------------------------------------------- innovations (F5)
+
+ERAS = ("culture_era_tribal", "culture_era_early_medieval", "culture_era_high_medieval", "culture_era_late_medieval")
+
+
+@dataclass
+class InnovationsResult:
+    gamestate: bytes
+    missing: list = field(default_factory=list)       # innovation keys added to at least one culture
+    added: int = 0                                    # entries written, over all cultures
+    discovered: list = field(default_factory=list)    # (culture id, template, innovation) written with progress=100
+    cultures: int = 0                                 # cultures that gained entries
+
+
+def _cultures(g: bytes):
+    """(entry, template, era index reached, {innovation: progress or None}, (start, end) of culture_innovation's body)
+    for every culture. An innovation is listed for every culture; ``progress=100`` marks it discovered."""
+    for e in gs.iter_entries(g, *gs.locate(g, "culture_manager/cultures").body):
+        if not e.key:
+            continue
+        b = g[e.open:e.close]
+        t = re.search(rb'culture_template="?([a-z_0-9]+)', b)
+        era = -1
+        ed = re.search(rb"culture_era_data=\{", b)
+        if ed:
+            body = b[ed.end():gs.match_brace(b, ed.end() - 1)]
+            for m in re.finditer(rb'type="?(culture_era_[a-z_]+)"?\s*(?:progress=([\d.]+))?', body):   # 1.20 quotes
+                if m.group(2) and float(m.group(2)) >= 100 and m.group(1).decode() in ERAS:
+                    era = max(era, ERAS.index(m.group(1).decode()))
+        inn, span = {}, None
+        ci = re.search(rb"culture_innovation=\{", b)
+        if ci:
+            close = gs.match_brace(b, ci.end() - 1)
+            for m in re.finditer(rb'\{\s*type="?(innovation_[a-z_0-9]+)"?\s*(?:progress=([\d.]+))?', b[ci.end():close]):
+                inn[m.group(1).decode()] = float(m.group(2)) if m.group(2) else None
+            span = (e.open + ci.end(), e.open + close)
+        yield e, (t.group(1).decode() if t else None), era, inn, span
+
+
+def innovation_eras(game_dir) -> dict[str, str]:
+    """innovation key -> its culture_era, from the game's common/culture/innovations."""
+    from .host_rules import _blocks
+    out = {}
+    for f in sorted((_common(game_dir) / "culture" / "innovations").glob("*.txt")):
+        for k, body, _ in _blocks(f):
+            m = re.search(r"culture_era\s*=\s*(culture_era_\w+)", body)
+            if k.startswith("innovation_") and m:
+                out[k] = m.group(1)
+    return out
+
+
+def insert_missing_innovations(g: bytes, ref: bytes, eras: dict[str, str]) -> InnovationsResult:
+    """Give every culture each innovation the new version's own fresh game lists and that culture does not list.
+
+    A fresh 1.21 game lists all 131 innovations for every culture; a culture researches only what it lists. The game's
+    1.21 conversion of a 1.20 save leaves gaps: 18 innovations new in 1.21 (prospecting, coppicing, heavy plow,
+    monasticism, ...) on all 284 cultures of the converted campaign, and 7 more (coat of plates, pole vault, glassmaking,
+    ...) on 55 to 229 of them; two years of play added none (measure 2026-11-19, goal 22:43 S1). Written undiscovered
+    into a copy, the 18 were researched in play: 678 culture entries in progress after two years, against 0.
+
+    Each is written undiscovered (``{ type=X }``, the fresh game's own form), except where the evidence says the culture
+    starts with it: the fresh game's culture of the same template has it discovered, and this culture has reached the
+    innovation's era (12 entries on the founding campaign; djdarcy 2026-11-19: "Evidence, measured first"). An entry the
+    culture already has is never altered, so a second run changes nothing."""
+    ref_by_template = collections.defaultdict(set)
+    fresh_all = set()
+    for _, t, _, inn, _ in _cultures(ref):
+        fresh_all.update(inn)
+        ref_by_template[t].update(i for i, p in inn.items() if (p or 0) >= 100)
+    cults = list(_cultures(g))
+    missing = sorted({i for _, _, _, inn, span in cults if span is not None for i in fresh_all - set(inn)})
+    res = InnovationsResult(gamestate=g, missing=missing)
+    if not missing:
+        return res
+    out, last = [], 0
+    for e, t, era, inn, span in cults:
+        here = sorted(fresh_all - set(inn))
+        if span is None or not here:
+            continue
+        rows = []
+        for i in here:
+            era_ok = eras.get(i) in ERAS and era >= ERAS.index(eras[i])
+            if i in ref_by_template.get(t, ()) and era_ok:
+                rows.append(f" {{\n\t\t\t\t\ttype={i}\n\t\t\t\t\tprogress=100\n\t\t\t\t}}\n")
+                res.discovered.append((e.key.decode(), t, i))
+            else:
+                rows.append(f" {{\n\t\t\t\t\ttype={i}\n\t\t\t\t}}\n")
+        out.append(g[last:span[1]])
+        out.append("".join(rows).encode())
+        last = span[1]
+        res.cultures += 1
+        res.added += len(rows)
+    out.append(g[last:])
+    res.gamestate = b"".join(out)
+    return res

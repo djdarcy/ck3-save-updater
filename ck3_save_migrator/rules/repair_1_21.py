@@ -146,6 +146,29 @@ def r38_title_types(save: CK3Save, ctx, rule):
                               "left empty": len(r.unknown)})
 
 
+def r47_missing_innovations(save: CK3Save, ctx, rule):
+    """The innovations new in 1.21 that the game's conversion never gives a culture (goal 2026-11-19__22-43-27, S1).
+
+    No witness needed: the rule reads the save, the 1.21 reference and the game's innovation eras. The game's
+    conversion of djdarcy's 1.20 campaign left 18 of 1.21's 131 innovations (prospecting, coppicing, heavy plow,
+    monasticism, ...) off all 284 cultures, and two years of play added none. Each is written undiscovered, except
+    where the fresh game's culture of the same template starts with it and this culture has reached its era (12 on
+    the founding campaign). Leave it out with ``--rules -R47`` or ``disable R47``.
+    """
+    from ..carry_1_21 import innovation_eras, insert_missing_innovations
+    if ctx.reference is None:
+        return rule.result(extra={"skipped": "needs a 1.21 reference save (which innovations a culture lists is read there)"})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "culture" / "innovations").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    from .religion_1_20 import reference_gamestate
+    r = insert_missing_innovations(save.gamestate, reference_gamestate(ctx), innovation_eras(ctx.game_dir))
+    if r.cultures:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.missing), edited=r.cultures,
+                       extra={"innovations added": r.missing, "cultures": r.cultures,
+                              "discovered (the fresh game's same culture, era reached)": len(r.discovered)})
+
+
 def r39_empty_cooldowns(save: CK3Save, ctx, rule):
     """The decision cooldowns the game's conversion writes with an empty key: each for a decision neither 1.20 nor 1.21
     defines, 1.8-era decisions replaced by activities and carried in old saves (S8).

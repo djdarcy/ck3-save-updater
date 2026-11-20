@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.42] - 2026-11-20
+
+### Added
+- A save the game converted to 1.21 can now research the innovations new in 1.21. In a fresh 1.21 game every culture lists every innovation, and a culture can only research what it lists. The game's conversion never added the new ones (prospecting, coppicing, heavy plow, monasticism and others), so no converted culture could ever research them. The update now adds each missing innovation to each culture. One starts discovered only where a fresh 1.21 game's version of the same culture starts with it and the culture has reached its era. Otherwise it starts undiscovered. This needs a 1.21 reference save. `--rules -R47` leaves it out.
+
 ## [0.6.41] - 2026-11-20
 
 ### Added
@@ -1186,7 +1191,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...HEAD
+[0.6.42]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...v0.6.42
 [0.6.41]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...v0.6.41
 [0.6.40]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...v0.6.40
 [0.6.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...v0.6.39
