@@ -173,6 +173,35 @@ def r45_duchy_capitals_from_witness(save: CK3Save, ctx, rule):
                               "named": [f"{p} {k}: {w}" for p, k, w in r.named]})
 
 
+def r46_resource_districts_from_witness(save: CK3Save, ctx, rule):
+    """The witness's resource-type buildings (quarries, logging camps, orchards, elephant pens) carried into the
+    province's 1.21 resource slot (goal 2026-11-19__22-43-27, S5): an empty slot gets the district, the same district
+    is raised, another district asks the player (--auto resources=k|m|r; default m: the game's minor building inside
+    it). On the founding campaign with the defaults: 426 districts, 21 raised, 161 minor buildings, none replaced.
+    --rules -R46 leaves it out.
+    """
+    from ..carry_1_21 import carry_resource_districts
+    from ..choices import Asker
+    from ..district_lint import province_facts, stage_two_facts
+    from ..host_rules import load
+    why = _same_date(save, ctx)
+    if why:
+        return rule.result(extra={"skipped": why})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    g = save.gamestate
+    facts = stage_two_facts(g, str(ctx.game_dir), province_facts(g, str(ctx.game_dir)))
+    r = carry_resource_districts(g, load(str(ctx.game_dir)), _witness(ctx).gamestate, facts,
+                                 ctx.state.get("asker") or Asker())
+    if r.written or r.raised or r.minor or r.replaced:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.written) + len(r.raised) + len(r.minor) + len(r.replaced) + len(r.named),
+                       edited=len(r.written) + len(r.raised) + len(r.minor) + len(r.replaced),
+                       extra={"districts": len(r.written), "raised": len(r.raised), "minor": len(r.minor),
+                              "replaced": len(r.replaced),
+                              "named": dict(collections.Counter(w[:60] for _, _, w in r.named).most_common())})
+
+
 def r47_missing_innovations(save: CK3Save, ctx, rule):
     """The innovations new in 1.21 that the game's conversion never gives a culture (goal 2026-11-19__22-43-27, S1).
 

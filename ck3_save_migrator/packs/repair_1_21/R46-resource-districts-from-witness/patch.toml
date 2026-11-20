@@ -1,0 +1,9 @@
+format = 1
+id = "R46"
+name = "resource-districts-from-witness"
+title = "carry the witness's quarries, logging camps, orchards and elephant pens into the province's 1.21 resource slot"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r46_resource_districts_from_witness"

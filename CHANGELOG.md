@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.44] - 2026-11-20
+
+### Added
+- Quarries, logging camps, orchards and elephant pens are now carried into 1.21, where they became resource districts (stone, forestry, fruit, ivory). The game's conversion wrote none of them. A province has one resource slot, and the update writes the district only where the county has the trade good. An empty slot gets the district at your old tier, but at most tier 2, since higher tiers need innovations no converted culture has. A slot that already holds the same district is raised to your tier.
+- A slot that holds a different district asks the first of the update's questions, `resources`. The default, `m`, keeps the game's district and adds the small building of your old kind inside it. `k` keeps it and adds nothing. `r` replaces it with yours, and is offered only when the game's district holds nothing but its own building. `--auto resources=k` (or `all`, `all=mygame`, `all=newgame`) answers in advance. On the founding campaign with the default: 426 districts written, 21 raised, 161 small buildings added, none replaced.
+
 ## [0.6.43] - 2026-11-20
 
 ### Added
@@ -1196,7 +1202,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...HEAD
+[0.6.44]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...v0.6.44
 [0.6.43]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...v0.6.43
 [0.6.42]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...v0.6.42
 [0.6.41]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...v0.6.41

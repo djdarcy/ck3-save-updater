@@ -216,6 +216,153 @@ def carry_duchy_capitals(g: bytes, host: HostRules, witness: bytes, facts: dict)
     return res
 
 
+RESOURCE_FAMILIES = {   # 1.20 family -> (1.21 resource district, trade good, the minor building family) -- S5, R46
+    "quarries": ("stone_district", "stone", "stone_cutters"),
+    "logging_camps": ("forestry_district", "wood", "minor_forestry"),
+    "orchards": ("fruit_district", "fruit", "fruit_gardens"),
+    "elephant_pens": ("ivory_district", "ivory", "ivory_camp"),
+}
+
+
+@dataclass
+class ResourceResult:
+    gamestate: bytes
+    written: list = field(default_factory=list)       # (province, family, district, primary)
+    raised: list = field(default_factory=list)        # (province, family, old primary, new primary)
+    minor: list = field(default_factory=list)         # (province, family, host district, minor building)
+    replaced: list = field(default_factory=list)      # (province, family, old district, new district)
+    named: list = field(default_factory=list)         # (province, family, why)
+
+
+def carry_resource_districts(g: bytes, host: HostRules, witness: bytes, facts: dict, asker) -> ResourceResult:
+    """``g`` with each 1.20 resource-type building carried into the province's 1.21 resource slot (goal
+    2026-11-19__22-43-27, S5; R46). A 1.21 resource district is player-built where the county has the trade good's
+    potential, one per province. Per province, for quarries, logging camps, orchards and elephant pens: an empty slot
+    gets the district, its primary at the old tier (at most 2 -- higher tiers need innovations no converted culture
+    has -- and only as far as host_rules allows); the same district is raised to the old tier; another district asks
+    the player (``resources``: keep, add the game's minor building inside it, or replace a district holding nothing but
+    its primary). Two families for one empty slot are named. A second run changes nothing it already wrote."""
+    res = ResourceResult(g)
+    old = {}
+    for e, _, hb in _holdings(witness):
+        for k in re.findall(rb'\{\s*type="?([a-z_]+)_(\d+)', hb):
+            fam, t = k[0].decode(), int(k[1])
+            if fam in RESOURCE_FAMILIES:
+                old.setdefault(e.key.decode(), {})[fam] = max(t, old.get(e.key.decode(), {}).get(fam, 0))
+    D = {e.key.decode(): (e, g[e.open:e.close]) for e in gs.iter_entries(g, *gs.locate(g, "districts/database").body) if e.key}
+    B = {e.key.decode(): g[e.open:e.close] for e in gs.iter_entries(g, *gs.locate(g, "buildings/database").body) if e.key}
+    nb, nd = _next_index(g, "buildings/database") - 1, _next_index(g, "districts/database") - 1
+    btext, dtext, p = [], [], gs.EditPass()
+
+    def primary_at(district, tier, place):
+        best = None
+        for n in range(1, min(tier, 2) + 1):
+            k = f"{host.districts[district].primary.rsplit('_', 1)[0]}_{n}"
+            if host.building_legal(k, district, k, place).ok is True:
+                best = k
+        return best
+
+    for e, h_at, hb in _holdings(g):
+        pid = e.key.decode()
+        fams = old.get(pid)
+        f = facts.get(pid)
+        if not fams or f is None:
+            continue
+        goods = f.place.county_goods or frozenset()
+        able = {fam: t for fam, t in fams.items() if RESOURCE_FAMILIES[fam][1] in goods}
+        for fam in fams.keys() - able.keys():
+            res.named.append((pid, fam, "the county has no potential for its trade good"))
+        if not able:
+            continue
+        slot = re.search(rb"\n\t\t\tresource_district=(\d+)", hb)
+        if slot is None:
+            if len(able) > 1:
+                res.named.append((pid, "+".join(sorted(able)), "several families for one empty resource slot"))
+                continue
+            fam, t = next(iter(able.items()))
+            dk = RESOURCE_FAMILIES[fam][0]
+            prim = primary_at(dk, t, f.place)
+            if prim is None:
+                res.named.append((pid, fam, f"{dk}'s primary is not legal here"))
+                continue
+            nb += 1
+            nd += 1
+            btext.append(f"\t\t{nb}={{\n\t\t\ttype={prim}\n\t\t}}\n")
+            dtext.append(f"\t\t{nd}={{\n\t\t\tbuildings={{ {nb} }}\n\t\t\ttype={dk}\n\t\t\towner={pid}\n\t\t}}\n")
+            t_ = re.search(rb'\n\t\t\ttype="?\w+"?', hb)
+            at = h_at + (t_.end() if t_ else 0)
+            p.add(gs.Edit(at, at, f"\n\t\t\tresource_district={nd}".encode(), "carry", f"{pid} {fam} -> {dk}"))
+            res.written.append((pid, fam, dk, prim))
+            continue
+        ent, body = D.get(slot.group(1).decode(), (None, b""))
+        cur = re.search(rb"\btype=([a-z_]+)", body)
+        cur = cur.group(1).decode() if cur else None
+        ids = re.findall(rb"\d+", re.search(rb"buildings=\{([^}]*)\}", body).group(1)) if b"buildings=" in body else []
+        types = [re.search(rb'type="?([a-z_0-9]+)', B.get(i.decode(), b"")) for i in ids]
+        types = [m.group(1).decode() for m in types if m]
+        for fam, t in sorted(able.items()):
+            dk, _, minor = RESOURCE_FAMILIES[fam]
+            if cur == dk:
+                prim = primary_at(dk, t, f.place)
+                if prim and types and host.level(prim) > host.level(types[0]) and ent is not None and ids:
+                    bid = ids[0].decode()
+                    m = re.search(rb'type="?' + types[0].encode(), B[bid])
+                    be = next(x for x in gs.iter_entries(g, *gs.locate(g, "buildings/database").body) if x.key == ids[0])
+                    p.add(gs.Edit(be.open + m.start(), be.open + m.end(), f"type={prim}".encode(), "carry", f"{pid} raise"))
+                    res.raised.append((pid, fam, types[0], prim))
+                continue
+            label = f"province {pid}: your {fam.replace('_', ' ')} (tier {t}); the slot holds {cur}"
+            a = asker.ask("resources", label)
+            if a == "k":
+                res.named.append((pid, fam, f"kept the game's {cur} (answer k)"))
+            elif a == "m":
+                mk = f"{minor}_1"
+                free = host.building_slots(types[0]) - (len(types) - 1) if types else 0
+                if cur not in host.districts or mk not in host.districts[cur].buildings or free < 1 or ent is None:
+                    res.named.append((pid, fam, f"{cur} has no room for {mk}"))
+                    continue
+                v = host.building_legal(mk, cur, types[0], f.place)
+                if v.ok is not True:
+                    res.named.append((pid, fam, v.why))
+                    continue
+                nb += 1
+                btext.append(f"\t\t{nb}={{\n\t\t\ttype={mk}\n\t\t}}\n")
+                bl = re.search(rb"buildings=\{([^}]*)\}", body)
+                at = ent.open + bl.end(1)
+                p.add(gs.Edit(at, at, f" {nb} ".encode(), "carry", f"{pid} minor {mk}"))
+                res.minor.append((pid, fam, cur, mk))
+                types.append(mk)
+            elif a == "r":
+                if len(types) > 1 or ent is None:
+                    res.named.append((pid, fam, f"{cur} holds buildings beyond its primary; not replaced"))
+                    continue
+                prim = primary_at(dk, t, f.place)
+                if prim is None:
+                    res.named.append((pid, fam, f"{dk}'s primary is not legal here"))
+                    continue
+                m = re.search(rb"\btype=" + cur.encode(), body)
+                p.add(gs.Edit(ent.open + m.start(), ent.open + m.end(), f"type={dk}".encode(), "carry", f"{pid} replace"))
+                be = next(x for x in gs.iter_entries(g, *gs.locate(g, "buildings/database").body) if x.key == ids[0])
+                mb = re.search(rb'type="?' + types[0].encode(), B[ids[0].decode()])
+                p.add(gs.Edit(be.open + mb.start(), be.open + mb.end(), f"type={prim}".encode(), "carry", f"{pid} replace primary"))
+                res.replaced.append((pid, fam, cur, dk))
+                # one resource slot: the families still to come in this province are named, not edited against text
+                # this pass has already rewritten (a second family crashed here, found by its test 2026-11-20)
+                for rest, _ in sorted(able.items()):
+                    if rest > fam:
+                        res.named.append((pid, rest, f"the slot was given to {fam}"))
+                break
+    if not (res.written or res.raised or res.minor or res.replaced):
+        return res
+    out = p.apply(g)
+    if btext:
+        out = _append(out, "buildings/database", "buildings", "".join(btext))
+    if dtext:
+        out = _append(out, "districts/database", "districts", "".join(dtext))
+    res.gamestate = out
+    return res
+
+
 @dataclass
 class TiersResult:
     gamestate: bytes

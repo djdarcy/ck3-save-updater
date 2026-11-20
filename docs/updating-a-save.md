@@ -57,6 +57,30 @@ Then copy the updated save into the save games folder (if it is not there alread
 
 `ck3update soak My_Old_Campaign__updated__1.20.1.2.ck3` starts the game, loads the save, lets it run, exits through Exit to Desktop and says whether that went cleanly ([soak](soak.md)).
 
+### Questions during the update, and `--auto`
+
+Some patches ask what you want where your old save and the new game disagree. Today there is one question, `resources`. It comes up when your old save had a quarry, logging camp, orchard or elephant pen in a province where the game already placed a different resource district. The answers are:
+
+- `m` (minor): keep the game's district and add the small building of your old kind inside it. This is the default.
+- `k` (keep): keep the game's district and add nothing.
+- `r` (replace): put your old district back in place of the game's. It is offered only when the game's district holds nothing but its own building.
+
+At a terminal the question is asked for each province. Answering `a` followed by a letter (`am`, `ak`, `ar`) gives that answer to every remaining province. Without a terminal, with `--no-ask`, or with `--dry-run`, every question takes its default and nothing is asked.
+
+`--auto` answers in advance, before the plan is shown:
+
+```
+ck3update update My_Campaign --witness My_Last_120_Save --auto resources=k
+ck3update update My_Campaign --witness My_Last_120_Save --auto all=mygame
+```
+
+- `all` gives every question its default.
+- `all=mygame` prefers your old save everywhere (for `resources`, that is `r`).
+- `all=newgame` prefers what the new game placed (for `resources`, `k`).
+- `resources=k` (or `resources=keep`) answers one question.
+
+Entries are read left to right, and a later one wins. `--auto all=newgame,resources=m` therefore answers `m` for resources. The plan prints a `question :` line saying how each question will be answered. The report records every answer and how it was reached. A misspelled question or answer stops the update before anything runs, and the message names the valid ones.
+
 ## When it refuses
 
 A REFUSED plan ends with each reason, and a `fix:` line under it:

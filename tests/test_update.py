@@ -415,6 +415,7 @@ def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
         "R47": "needs a reference save, and there is none",    # innovations: what a fresh 1.21 game lists
         "R44": "needs --witness (your last save from before 1.21; phase two)",   # holding tiers: the witness's
         "R45": "needs --witness (your last save from before 1.21; phase two)",   # duchy capitals: the witness's
+        "R46": "needs --witness (your last save from before 1.21; phase two)",   # resource districts: the witness's
         "R42": "needs --witness (your last save from before 1.21; phase two)"}   # the regular districts: the witness's
     w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")
     steps = {x.id: x for x in PL.plan_update(s, game_dir=g, witness=str(w)).steps if x.pack == "repair_1_21"}
@@ -664,3 +665,22 @@ def test_a_bad_applies_table_is_refused_when_the_pack_loads(tmp_path):
                                                         'key = "b"\n', encoding="utf-8")
     with pytest.raises(PatchError, match=r"\[applies\] save"):
         read_pack(tmp_path / "p")
+
+
+def test_auto_is_checked_before_the_plan_and_the_run_never_prompts_under_dry_run_or_no_ask(tmp_path, saves, capsys,
+                                                                                         monkeypatch):
+    # S4 (goal 2026-11-19__22-43-27): a wrong --auto stops the run naming the questions; the asker the rules get is
+    # interactive only at a terminal without --dry-run or --no-ask
+    from ck3_save_migrator import choices as CH
+    s, g = old_save(saves), game(tmp_path)
+    code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--auto", "pastures=k", "--no-lint")
+    assert code != 0 and "the questions are: resources" in err
+    made = []
+    real = CH.Asker
+    monkeypatch.setattr(CH, "Asker", lambda **kw: made.append(kw) or real(**kw))
+    monkeypatch.setattr(cli, "interactive", lambda: True)
+    for flags in (("--dry-run",), ("--no-ask",)):
+        made.clear()
+        run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--custom-faith-as", "faith",
+            "--auto", "all=newgame", *flags)
+        assert made and all(kw["interactive"] is False for kw in made) and made[0]["auto"] == {"resources": "k"}
