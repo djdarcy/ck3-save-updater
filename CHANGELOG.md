@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.40] - 2026-11-20
+
+### Added
+- `update --auto` answers the update's questions in advance, so a run never has to stop and ask. `--auto all` takes each question's default. `--auto all=mygame` prefers what your save had, and `--auto all=newgame` prefers what the new game version set up. A single question can be answered on its own, as `--auto resources=m`. Later entries win, so `--auto all=newgame,resources=m` mixes the two. At a terminal, a question nobody answered in advance is asked, and an answer like `am` settles every remaining question of that kind. The report lists each answer and how it was reached. The first question that uses this comes with the resource-district carry.
+
 ## [0.6.39] - 2026-11-19
 
 ### Changed
@@ -1176,7 +1181,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...HEAD
+[0.6.40]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...v0.6.40
 [0.6.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...v0.6.39
 [0.6.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.37...v0.6.38
 [0.6.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.36...v0.6.37

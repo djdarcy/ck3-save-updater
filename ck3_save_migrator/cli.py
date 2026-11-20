@@ -274,6 +274,9 @@ def _emit(args, save, results, out: Path, report_path: str | None, ctx, in_sha: 
             "save_versions": ctx.state.get("save_versions"),
             "user_packs": ctx.state.get("user_packs", []),
             **({"plan": ctx.state["plan"]} if "plan" in ctx.state else {}),     # update: the plan it executed
+            **({"choices": [{"question": k, "item": i, "answer": a, "how": h}
+                            for k, i, a, h in ctx.state["asker"].record]}
+               if ctx.state.get("asker") and ctx.state["asker"].record else {}),   # the player's answers (S4)
             "reference": str(ctx.reference) if ctx.reference else None, "wos_shape": ctx.wos_shape,
             "assumptions": [a for r in results for a in r.extra.get("assumptions", [])],
             "lost": lost,
@@ -515,6 +518,8 @@ def cmd_update(args) -> int:
         raise ValueError("--in-place writes the update under the save's own name; it does not take -o")
     ask = getattr(args, "ask", None)
     asking = (interactive() if ask is None else ask) and not args.dry_run
+    from .choices import parse_auto
+    parse_auto(getattr(args, "auto", None))           # a wrong --auto stops here, before the plan, naming what is valid
     # the plan a person reads before answering (--ask) or as a preview (--dry-run) has every step judged; a run that
     # neither asks nor previews skips the checks that only word the plan's lines (djdarcy, 2026-11-07), and the
     # patches' own counts follow the run
@@ -739,6 +744,11 @@ def execute_rules(args, rules, user_packs, out: Path, state: dict | None = None,
     ctx.state["save_versions"] = save_versions(save.meta)
     ctx.state["user_packs"] = [up.as_dict() for up in user_packs]           # the report lists them
     ctx.state["patch_vars"] = patch_vars
+    from .choices import Asker, parse_auto
+    # the player's choices (goal 2026-11-19__22-43-27, S4): asked only at a terminal, never under --dry-run or --no-ask
+    ctx.state["asker"] = Asker(auto=parse_auto(getattr(args, "auto", None)),
+                               interactive=(interactive() and getattr(args, "ask", None) is not False
+                                            and not getattr(args, "dry_run", False)))
     ctx.state.update(state or {})
     known = None         # what the game and the mods define: read once, shared by both outputs
     ref_gamestate = [None]   # the reference's gamestate, read with `known`: lint compares the save's titles to it
@@ -1715,6 +1725,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="print the plan, then ask before running it ('Run the update now? [y/N]'). The default "
                             "in a terminal; a script, a pipe or output sent to a file runs without asking. --no-ask "
                             "never asks")
+        p.add_argument("--auto", action="append", metavar="ANSWERS",
+                       help="answer the update's questions in advance: 'all' (each question's default), "
+                            "'all=mygame' (prefer what your save had), 'all=newgame' (prefer what the new version set "
+                            "up), or KIND=ANSWER (resources=k|m|r). Commas or repeats; later entries win. A question "
+                            "not answered here is asked in a terminal, and takes its default otherwise")
         p.add_argument("--dry-run", action="store_true",
                        help="run every selected patch in memory and print the plan with their counts; write nothing")
         p.add_argument("--force", action="store_true", help="overwrite an existing output (never the save itself)")
