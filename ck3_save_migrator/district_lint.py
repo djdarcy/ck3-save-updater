@@ -111,6 +111,104 @@ def province_facts(g: bytes, game_dir, capitals: str = "save") -> dict[str, Fact
     return out
 
 
+def government_flags(game_dir) -> dict[str, frozenset]:
+    """government key -> its flags, from common/governments (``flags = { government_is_feudal ... }``)."""
+    from .host_rules import _blocks, _list
+    d = Path(game_dir) / "common" / "governments"
+    return {k: frozenset(_list(body, "flags")) for f in sorted(d.glob("*.txt")) if d.is_dir() for k, body, _ in _blocks(f)}
+
+
+def stage_two_facts(g: bytes, game_dir, facts: dict[str, Facts]) -> dict[str, Facts]:
+    """``facts`` with each Place's stage-two fields filled from the save (goal 2026-11-19__22-43-27, S3): the county
+    holder's government flags, the province culture's discovered innovations, the holding's main building and every
+    building in the province's districts, and the duchy-capital answer -- the barony's ``duchy_capital_barony=yes``
+    and the county's holder holding the province's de jure duchy, read through the save's own de_jure_liege chain (the
+    stage-two review: the game files' tree is wrong where de jure drifted). A field the save cannot answer stays None."""
+    from dataclasses import replace
+
+    from .carry_1_21 import _cultures, gov_of_landed
+    from .mapdata import barony_provinces
+    titles, by_id = {}, {}
+    for e in gs.iter_entries(g, *gs.locate(g, "landed_titles/landed_titles").body):
+        b = g[e.open:e.close]
+        k = re.search(rb'\bkey="?([^\s"]+)', b)
+        if not (k and e.key):
+            continue
+        h = re.search(rb"\n\tholder=(\d+)", b)                 # the entry's own holder, one tab in
+        dj = re.search(rb"\n\tde_jure_liege=(\d+)", b)
+        rec = (h.group(1).decode() if h else None, dj.group(1).decode() if dj else None,
+               bool(re.search(rb"\bduchy_capital_barony=yes", b)))
+        titles[k.group(1).decode()] = rec
+        by_id[e.key.decode()] = k.group(1).decode()
+    prov_barony = {str(p): b for b, p in barony_provinces(Path(game_dir)).items()}
+    living = {e.key.decode(): e for e in gs.iter_entries(g, *gs.locate(g, "living").body) if e.key}
+    gflags = government_flags(game_dir)
+    innov = {e.key.decode(): frozenset(i for i, p in inn.items() if (p or 0) >= 100) for e, _, _, inn, _ in _cultures(g)}
+    # a 1.21 province has no culture of its own: the county does (county_manager/counties: c_x = { culture=176 })
+    county_culture = {}
+    for e in gs.iter_entries(g, *gs.locate(g, "county_manager/counties").body):
+        c = re.search(rb"\n\t\t\tculture=(\d+)", g[e.open:e.close]) if e.key else None
+        if c:
+            county_culture[e.key.decode()] = c.group(1).decode()
+    def db(path):    # a 1.20 save (phase one) has neither database: its buildings sit in the holding itself
+        try:
+            return {e.key.decode(): g[e.open:e.close] for e in gs.iter_entries(g, *gs.locate(g, path).body) if e.key}
+        except gs.GamestateError:
+            return {}
+    D, B = db("districts/database"), db("buildings/database")
+
+    def btypes(did):
+        d = D.get(did, b"")
+        bl = re.search(rb"buildings=\{([^}]*)\}", d)
+        out = []
+        for i in re.findall(rb"\d+", bl.group(1)) if bl else []:
+            t = re.search(rb'type="?([a-z_0-9]+)', B.get(i.decode(), b""))
+            if t:
+                out.append(t.group(1).decode())
+        return out
+
+    out = {}
+    for e in gs.iter_entries(g, *gs.locate(g, "provinces").body):
+        pid = e.key.decode() if e.key else None
+        if pid not in facts:
+            continue
+        body = g[e.open:e.close]
+        hd = re.search(rb"\n\t\t\tholding_district=(\d+)", body)
+        main = (btypes(hd.group(1).decode()) or [None])[0] if hd else None
+        ids = [x.decode() for x in re.findall(rb"\n\t\t\t(?:holding_district|resource_district|special_district|"
+                                             rb"duchy_capital_district)=(\d+)", body)]
+        rd = re.search(rb"\n\t\t\tdistricts=\{([^}]*)\}", body)
+        ids += [x.decode() for x in re.findall(rb"\d+", rd.group(1))] if rd else []
+        built = frozenset(t for i in ids if i != EMPTY.decode() for t in btypes(i))
+        if not D:        # 1.20: holding={ buildings={ {type="castle_01"} {type=...} } duchy_capital_building={type=...} }
+            hb = re.search(rb"\n\t\tholding=\{(.*?)\n\t\t\}", body, re.S)
+            old = [t.decode() for t in re.findall(rb'type="?([a-z_0-9]+)', hb.group(1))] if hb else []
+            old = [t for t in old if not t.endswith("_holding")]
+            main, built = (old or [None])[0], frozenset(old)
+        barony = prov_barony.get(pid)
+        bh, county_id, flag = titles.get(barony, (None, None, False))
+        county = by_id.get(county_id)
+        ch, duchy_id, _ = titles.get(county, (None, None, False))
+        duchy = by_id.get(duchy_id)
+        dh = titles.get(duchy, (None,))[0]
+        # scope:holder in a district's or building's gate is the holding's own holder (the barony's), not the county's:
+        # with the county holder, 63 tribal districts of the fresh game read as disabled (control, 2026-11-20 02:2x)
+        who = bh if bh in living else ch
+        gov = gov_of_landed(g, living[who]) if who in living else None
+        pc = re.search(rb"\n\t\tculture=(\d+)", body)     # 1.20 keeps culture on the province; 1.21 on the county
+        duchy_cap = None if barony not in titles else bool(flag and ch is not None and ch == dh)
+        # can_have_duchy_capital_building_trigger has a republic branch (capital_county = this county, holding a duchy
+        # or higher) this reader does not evaluate: a republic county holder leaves the answer unknown, never a guess
+        if flag and ch in living and "government_is_republic" in gflags.get(gov_of_landed(g, living[ch]), ()):
+            duchy_cap = None
+        out[pid] = Facts(replace(facts[pid].place,
+                                 government_flags=gflags.get(gov) if gov else None,
+                                 main_building=main, buildings=built,
+                                 innovations=innov.get(county_culture.get(county) or (pc.group(1).decode() if pc else None)),
+                                 duchy_capital=duchy_cap), facts[pid].size_level)
+    return {pid: out.get(pid, f) for pid, f in facts.items()}
+
+
 def lint(g: bytes, host: HostRules, facts: dict[str, Facts]) -> LintResult:
     res = LintResult()
     dist = {e.key: g[e.open:e.close] for e in gs.iter_entries(g, *gs.locate(g, "districts/database").body)}

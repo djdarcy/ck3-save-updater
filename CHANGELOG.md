@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.43] - 2026-11-20
+
+### Added
+- Duchy-capital buildings (march, jousting lists, blacksmiths, royal forest and the others 1.21 kept) are now carried into 1.21. The game's conversion dropped every one. The update writes each into a 1.21 duchy-capital district, but only where the game would allow that district: the barony is the duchy's capital barony, and the county's ruler holds the duchy. Under a republic the game asks something else, so such a province is listed in the report instead of written. A save you already loaded in 1.21 gets them from your last 1.20 save, given with `--witness`. A 1.20 save gets them before its first load in 1.21. On the founding campaign both ways write the same 7, and list the two tax assessors, which no 1.21 duchy-capital district takes.
+
 ## [0.6.42] - 2026-11-20
 
 ### Added
@@ -1191,7 +1196,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...HEAD
+[0.6.43]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...v0.6.43
 [0.6.42]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...v0.6.42
 [0.6.41]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...v0.6.41
 [0.6.40]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...v0.6.40

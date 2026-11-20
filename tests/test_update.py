@@ -349,7 +349,8 @@ def test_to_1_21_runs_its_pre_load_pass_and_says_the_first_load_finishes_it(tmp_
     row = next(x for x in p.packs if x.id == "to_1_21")
     assert row.selected is True and "a frame" not in row.why and p.uncovered is None
     later = [(x.id, x.pack) for x in p.steps if x.pack == "to_1_21"]
-    assert later == [("R33", "to_1_21"), ("R34", "to_1_21"), ("R41", "to_1_21")]   # R41: the regular districts
+    assert later == [("R33", "to_1_21"), ("R34", "to_1_21"), ("R41", "to_1_21"),   # R41: the regular districts
+                     ("R48", "to_1_21")]                                           # R48: the duchy capitals
     assert [x.id for x in p.steps].index("R33") > max((i for i, x in enumerate(p.steps) if x.pack == "to_1_20"),
                                                      default=-1)
     assert any("load it once in 1.21.0 and save" in n for n in p.notes)
@@ -413,6 +414,7 @@ def test_phase_two_runs_only_with_a_witness(tmp_path, saves):
         "R40": "needs a reference save, and there is none",    # province sizes come from the reference
         "R47": "needs a reference save, and there is none",    # innovations: what a fresh 1.21 game lists
         "R44": "needs --witness (your last save from before 1.21; phase two)",   # holding tiers: the witness's
+        "R45": "needs --witness (your last save from before 1.21; phase two)",   # duchy capitals: the witness's
         "R42": "needs --witness (your last save from before 1.21; phase two)"}   # the regular districts: the witness's
     w = ref_save(saves, "Old.ck3", version=b"1.20.1.2")
     steps = {x.id: x for x in PL.plan_update(s, game_dir=g, witness=str(w)).steps if x.pack == "repair_1_21"}

@@ -49,7 +49,7 @@ _MOD = re.compile(rb'"(mod/[^"]+\.mod)"')
 # game folder, or the built-in table for the save's version line: deadtitles.old_map). Each
 # says so itself when it runs (its "skipped" note); the plan says so beforehand. A test checks the two agree.
 NEEDS_REFERENCE = ("R8", "R10", "R9", "R12", "R14", "R16", "R17", "R34", "R36", "R38", "R40", "R47")    # R34, R36: the roads come from it
-NEEDS_WITNESS = ("R35", "R36", "R37", "R44", "R42")   # repair_1_21 (phase two): only with the player's last 1.20 save
+NEEDS_WITNESS = ("R35", "R36", "R37", "R44", "R45", "R42")   # repair_1_21 (phase two): only with the player's last 1.20 save
 NEEDS_OLD_GAME = ("R15",)
 NOT_KNOWABLE = "not knowable before running (update --dry-run runs the patches in memory and counts)"
 REFERENCE_STEPS = (

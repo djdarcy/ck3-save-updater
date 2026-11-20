@@ -1,0 +1,9 @@
+format = 1
+id = "R45"
+name = "duchy-capitals-from-witness"
+title = "write the witness's duchy-capital buildings into 1.21 duchy-capital districts, where the province may hold one"
+since = "1.21<=v<1.22"
+default = true
+requires = []
+tested = { origin = ["1.21.0"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.repair_1_21:r45_duchy_capitals_from_witness"

@@ -146,6 +146,33 @@ def r38_title_types(save: CK3Save, ctx, rule):
                               "left empty": len(r.unknown)})
 
 
+def r45_duchy_capitals_from_witness(save: CK3Save, ctx, rule):
+    """The witness's duchy-capital buildings, written into 1.21 duchy-capital districts (goal 2026-11-19__22-43-27, S3).
+
+    The game's conversion of djdarcy's 1.20 campaign dropped all 9 of its duchy-capital buildings; 1.21 keeps 16 of
+    1.20's 17 families under the same key, in districts a province may hold where its barony is the duchy's capital
+    barony and the county's holder holds the duchy. Written only where every gate the save answers holds (the district
+    enabled, its own building and the old one legal); the rest are named. On the founding campaign: 7 written, the 2 tax
+    assessors named (1.21 has no tax assessor). --rules -R45 leaves it out.
+    """
+    from ..carry_1_21 import carry_duchy_capitals
+    from ..district_lint import province_facts, stage_two_facts
+    from ..host_rules import load
+    why = _same_date(save, ctx)
+    if why:
+        return rule.result(extra={"skipped": why})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    g = save.gamestate
+    facts = stage_two_facts(g, str(ctx.game_dir), province_facts(g, str(ctx.game_dir)))
+    r = carry_duchy_capitals(g, load(str(ctx.game_dir)), _witness(ctx).gamestate, facts)
+    if r.written:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.written) + len(r.named), edited=len(r.written),
+                       extra={"written": [f"{p} {k} -> {d}" for p, k, d, _, _ in r.written],
+                              "named": [f"{p} {k}: {w}" for p, k, w in r.named]})
+
+
 def r47_missing_innovations(save: CK3Save, ctx, rule):
     """The innovations new in 1.21 that the game's conversion never gives a culture (goal 2026-11-19__22-43-27, S1).
 

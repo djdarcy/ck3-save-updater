@@ -3,7 +3,7 @@ id = "to_1_21"
 title = "Saves from 1.20 to 1.21 (Florin, Silk & Silver)"
 # decision C (OPEN-QUESTIONS Q261117-04): a pre-load pass. The save stays stamped 1.20, and the player's first load
 # in 1.21 converts it, keeping what these rules wrote (measured 2026-11-17: wonders 133 of 134, roads 4,201 of 4,201)
-order = ["R33", "R34", "R41"]   # R41: the built-state carry's phase one (2026-11-19)
+order = ["R33", "R34", "R41", "R48"]   # R41: the built-state carry's phase one (2026-11-19); R48: its duchy capitals
 
 # which saves and games this pack is for (update and status select a pack by it; migrate ignores it)
 [applies]

@@ -149,6 +149,74 @@ def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> Wo
 
 
 @dataclass
+class DuchyResult:
+    gamestate: bytes
+    written: list = field(default_factory=list)       # (province, old building, district, primary, new building)
+    named: list = field(default_factory=list)         # (province, old building, why not written)
+
+
+def carry_duchy_capitals(g: bytes, host: HostRules, witness: bytes, facts: dict) -> DuchyResult:
+    """``g`` with each province's 1.20 duchy-capital building written into a 1.21 duchy-capital district (goal
+    2026-11-19__22-43-27, S3; R45).
+
+    1.21 keeps 16 of 1.20's 17 duchy-capital building families under the same key, inside duchy-capital districts that
+    a province may hold where its barony is the duchy's capital barony and the county's holder holds the duchy
+    (``can_have_duchy_capital_building_trigger``). The game's conversion of the founding campaign kept none of v17's
+    9. Each is written only where every gate the save can answer holds -- the district enabled, its own building
+    (primary) and the old building legal at the place, through host_rules with the stage-two facts -- else named. A
+    holding that already has a duchy-capital district is left alone, so a second run changes nothing."""
+    res = DuchyResult(g)
+    duchy = {k: d for k, d in host.districts.items() if d.kind == "duchy_capital" and d.primary}
+    old = {}
+    for e, _, hb in _holdings(witness):
+        keys = [k.decode() for k in re.findall(rb'\{\s*type="?([^\s"}]+)', hb)]
+        hits = [k for k in keys if any(k in d.buildings and k != d.primary for d in duchy.values())
+                or re.sub(r"_\d+$", "", k) in ("tax_assessor",)]
+        if hits:
+            old[e.key.decode()] = hits
+    nb, nd = _next_index(g, "buildings/database") - 1, _next_index(g, "districts/database") - 1
+    btext, dtext, p = [], [], gs.EditPass()
+    for e, h_at, hb in _holdings(g):
+        pid = e.key.decode()
+        for key in old.get(pid, []):
+            if re.search(rb"\bduchy_capital_district=\d", hb):
+                res.named.append((pid, key, "the holding already has a duchy-capital district"))
+                continue
+            f = facts.get(pid)
+            if f is None:
+                res.named.append((pid, key, "no facts for this province"))
+                continue
+            why = f"no 1.21 duchy-capital district lists {key}"
+            for dk, d in sorted(duchy.items()):
+                if key not in d.buildings:
+                    continue
+                checks = (host.district_enabled(dk, f.place), host.building_legal(d.primary, dk, d.primary, f.place),
+                          host.building_legal(key, dk, d.primary, f.place))
+                bad = next((v for v in checks if v.ok is not True), None)
+                if bad is not None:
+                    why = f"{dk}: {bad.why}"
+                    continue
+                nb += 2
+                nd += 1
+                btext.append(f"\t\t{nb - 1}={{\n\t\t\ttype={d.primary}\n\t\t}}\n\t\t{nb}={{\n\t\t\ttype={key}\n\t\t}}\n")
+                dtext.append(f"\t\t{nd}={{\n\t\t\tbuildings={{ {nb - 1} {nb} }}\n\t\t\ttype={dk}\n\t\t\towner={pid}\n\t\t}}\n")
+                t = re.search(rb'\n\t\t\ttype="?\w+"?', hb)
+                at = h_at + (t.end() if t else 0)
+                p.add(gs.Edit(at, at, f"\n\t\t\tduchy_capital_district={nd}".encode(), "carry", f"{pid} {key} -> {dk}"))
+                res.written.append((pid, key, dk, d.primary, key))
+                break
+            else:
+                res.named.append((pid, key, why))
+    if not res.written:
+        return res
+    out = p.apply(g)
+    out = _append(out, "buildings/database", "buildings", "".join(btext))
+    out = _append(out, "districts/database", "districts", "".join(dtext))
+    res.gamestate = out
+    return res
+
+
+@dataclass
 class TiersResult:
     gamestate: bytes
     restored: list = field(default_factory=list)      # (province, conversion's key, witness's key)

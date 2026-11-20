@@ -74,6 +74,25 @@ def r41_districts(save: CK3Save, ctx, rule):
                               "dropped": dict(collections.Counter(w for _, _, w in r.dropped).most_common())})
 
 
+def r48_duchy_capitals(save: CK3Save, ctx, rule):
+    """The save's own duchy-capital buildings, written as 1.21 duchy-capital districts before the game converts it
+    (S3's phase one, goal 2026-11-19__22-43-27; the same carry as R45, which works from the witness after the
+    conversion). The facts come from the 1.20 save itself: holders, de jure chain, governments, the province's culture."""
+    from ..carry_1_21 import carry_duchy_capitals
+    from ..district_lint import province_facts, stage_two_facts
+    from ..host_rules import load
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "districts").is_dir():
+        return rule.result(extra={"skipped": f"no 1.21 game data at {ctx.game_dir}"})
+    g, game = save.gamestate, str(ctx.game_dir)
+    facts = stage_two_facts(g, game, province_facts(g, game, capitals="game"))
+    r = carry_duchy_capitals(g, load(game), g, facts)
+    if r.written:
+        save.set_gamestate(r.gamestate)
+    return rule.result(matched=len(r.written) + len(r.named), edited=len(r.written),
+                       extra={"written": sorted(f"{p} {k} -> {d}" for p, k, d, _, _ in r.written),
+                              "named": sorted(f"{p} {k}: {w}" for p, k, w in r.named)})
+
+
 def r34_roads(save: CK3Save, ctx, rule):
     """The 1.21 reference's roads, into a save that has none (a 1.20 save gets an empty roads database first)."""
     from ..roads import defined_road_types, transplant_roads
