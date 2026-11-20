@@ -80,6 +80,12 @@ def test_phase_one_reads_the_1_20_save_itself_and_writes_the_same_seven(setup):
     assert p.main_building == "castle_01" and "blacksmiths_01" in p.buildings and len(p.innovations) > 5
     r = C.carry_duchy_capitals(w, host, w, f20)
     assert sorted(x for x, *_ in r.written) == ["1114", "1129", "2508", "476", "482", "490", "5642"]
+    # as the pack runs it: R33 has already written its districts (and the database) into the 1.20 save; the facts
+    # must still read each holding's own buildings (the v20 1.8-route golden wrote 0 of 9 before this, 2026-11-20)
+    w33 = C.carry_wonders(w, host).gamestate
+    f33 = stage_two_facts(w33, str(GAME), province_facts(w33, str(GAME), capitals="game"))
+    assert f33["476"].place.main_building == "castle_01"
+    assert len(C.carry_duchy_capitals(w33, host, w33, f33).written) == 7
     assert sorted(x for x, _, _ in r.named) == ["1362", "1381"]
     assert b"districts={" in r.gamestate[r.gamestate.rfind(b"\ndistricts={"):]   # the database a 1.20 save lacked
     again = C.carry_duchy_capitals(r.gamestate, host, r.gamestate,

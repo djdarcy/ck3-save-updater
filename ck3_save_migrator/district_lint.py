@@ -180,11 +180,15 @@ def stage_two_facts(g: bytes, game_dir, facts: dict[str, Facts]) -> dict[str, Fa
         rd = re.search(rb"\n\t\t\tdistricts=\{([^}]*)\}", body)
         ids += [x.decode() for x in re.findall(rb"\d+", rd.group(1))] if rd else []
         built = frozenset(t for i in ids if i != EMPTY.decode() for t in btypes(i))
-        if not D:        # 1.20: holding={ buildings={ {type="castle_01"} {type=...} } duchy_capital_building={type=...} }
+        # 1.20: holding={ buildings={ {type="castle_01"} {type=...} } duchy_capital_building={type=...} }. Decided per
+        # province by the missing holding_district, not by a missing database: in the to_1_21 pack R33 and R41 write
+        # districts (and the database) into the 1.20 save before R48 reads it, and the v20 1.8-route golden's R48 then
+        # found no main building and wrote none of its 9 (2026-11-20)
+        if hd is None:
             hb = re.search(rb"\n\t\tholding=\{(.*?)\n\t\t\}", body, re.S)
             old = [t.decode() for t in re.findall(rb'type="?([a-z_0-9]+)', hb.group(1))] if hb else []
             old = [t for t in old if not t.endswith("_holding")]
-            main, built = (old or [None])[0], frozenset(old)
+            main, built = (old or [None])[0], built | frozenset(old)
         barony = prov_barony.get(pid)
         bh, county_id, flag = titles.get(barony, (None, None, False))
         county = by_id.get(county_id)

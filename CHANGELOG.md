@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.46] - 2026-11-20
+
+### Fixed
+- A 1.20 save brought to 1.21 now gets its duchy-capital buildings before its first load, as 0.6.43 meant it to. The patches that run first write the save's wonders and regular districts, and after them the duchy-capital patch no longer read each holding's own buildings. It then found no castle, and every duchy-capital building failed the castle level it needs. On the founding campaign's 1.8 save it wrote none of 9; it now writes 7, as from its 1.20 save.
+
 ## [0.6.45] - 2026-11-20
 
 ### Added
@@ -1210,7 +1215,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...HEAD
+[0.6.46]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...v0.6.46
 [0.6.45]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...v0.6.45
 [0.6.44]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...v0.6.44
 [0.6.43]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...v0.6.43
