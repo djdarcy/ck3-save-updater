@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.41] - 2026-11-20
+
+### Added
+- The update's plan now says, before anything runs, how each question the update will ask is going to be answered. The answer can come from `--auto`, or be asked for each province at the terminal. Otherwise it is the question's default, and the line says why no one will be asked. A question appears only when the patch that asks it will run.
+
 ## [0.6.40] - 2026-11-20
 
 ### Added
@@ -1181,7 +1186,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...HEAD
+[0.6.41]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.40...v0.6.41
 [0.6.40]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...v0.6.40
 [0.6.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...v0.6.39
 [0.6.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.37...v0.6.38

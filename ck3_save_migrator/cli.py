@@ -510,6 +510,26 @@ def confirm_replace(paths) -> bool:
     return answer.strip().lower() in ("y", "yes")
 
 
+def say_choices(plan, args, asking: bool) -> None:
+    """Before the run: how each question the plan's rules will ask gets answered (goal 2026-11-19__22-43-27, S4) --
+    from --auto, at the prompt, or the default. R46 asks ``resources``; the counts follow the run, in the report."""
+    from .choices import KINDS, parse_auto
+    asks = {"R46": "resources"}
+    kinds = sorted({k for s in plan.steps if s.will_run for i, k in asks.items() if s.id == i})
+    if not kinds:
+        return
+    auto = parse_auto(getattr(args, "auto", None))
+    for k in kinds:
+        kind = KINDS[k]
+        if k in auto:
+            how = f"{kind.answers[auto[k]]} (--auto)"
+        elif asking:
+            how = "asked for each province (a<letter> answers the rest)"
+        else:
+            how = f"{kind.answers[kind.default]} (the default; no terminal, --no-ask or --dry-run)"
+        say(MINIMAL, f"question  : {k}: {how}", "rules")
+
+
 def cmd_update(args) -> int:
     """Execute the plan ``status`` prints: with --dry-run, run every patch in memory and print the plan with each
     patch's counts (nothing is written); otherwise write the output and, unless --report names another,
@@ -527,6 +547,7 @@ def cmd_update(args) -> int:
     plan = make_plan(args, writes=not args.dry_run, display_checks=not args.checks_skipped)
     LAST_PLAN.update(update=plan)
     say_plan(plan)
+    say_choices(plan, args, asking)
     if plan.refusals:
         return 1
     if plan.already_current:
