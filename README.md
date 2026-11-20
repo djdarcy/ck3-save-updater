@@ -3,6 +3,7 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/djdarcy/ck3-save-updater/main/docs/images/ck3-save-updater-banner.jpg" alt="ck3-save-updater banner" width="800">
 </p>
+
 [![PyPI](https://img.shields.io/pypi/v/ck3-save-updater?color=green)](https://pypi.org/project/ck3-save-updater/)
 [![Release Date](https://img.shields.io/github/release-date/djdarcy/ck3-save-updater?color=green)](https://github.com/djdarcy/ck3-save-updater/releases)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/ck3-save-updater?period=total&units=international_system&left_color=black&right_color=green&left_text=downloads)](https://pypistats.org/packages/ck3-save-updater)
