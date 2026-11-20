@@ -52,6 +52,8 @@ class District:
     primary: str | None = None  # primary_building (pb_villages_01; household's is pb_royal_palace_01)
     unlocked_by: str | None = None
     enabled: str = ""           # the is_enabled block, whitespace collapsed; "" = always
+    potential: str = ""         # the district's can_construct_potential, collapsed (a resource district's county
+    #                             trade-good potential; stage two evaluates it instead of answering None)
 
 
 @dataclass
@@ -61,6 +63,14 @@ class Place:
     holding: str
     county_goods: frozenset | None = None   # trade goods the county has potential for (its provinces' resource
     #                                         districts, wool_district -> wool); None = not known, so not evaluated
+    # the stage-two gates (goal 2026-11-19__22-43-27, S2); each None = not known, so a gate asking it is not evaluated
+    government_flags: frozenset | None = None   # the holder's government flags (government_is_feudal, ...)
+    main_building: str | None = None            # the holding's own building (castle_02): building_requirement_*, levels
+    buildings: frozenset | None = None          # every building standing in the province (has_building_or_higher)
+    innovations: frozenset | None = None        # the province culture's discovered innovations (has_innovation)
+    duchy_capital: bool | None = None           # can_have_duchy_capital_building_trigger, answered from save facts:
+    #                                             the barony's duchy_capital_barony flag and the county holder holding
+    #                                             the province's de jure duchy (the stage-two review, round 1)
 
 
 @dataclass
@@ -73,6 +83,10 @@ class HostRules:
     b_enabled: dict = field(default_factory=dict)   # building -> its is_enabled block, collapsed
     b_potential: dict = field(default_factory=dict) # building -> its own can_construct_potential block, collapsed
     triggers: dict = field(default_factory=dict)    # scripted trigger -> body, collapsed
+    b_failures: dict = field(default_factory=dict)  # building -> can_construct_showing_failures_only (holding level,
+    #                                                 innovations: the gates the stage-two review found unread)
+    b_construct: dict = field(default_factory=dict) # building -> can_construct
+    nxt: dict = field(default_factory=dict)         # building -> next_building (has_building_or_higher walks it)
 
     @staticmethod
     def regular_slot_limit(province_size_level: int) -> int:
@@ -93,9 +107,22 @@ class HostRules:
 
     def condition(self, text: str, place: Place, depth: int = 0) -> bool | None:
         """A gate's condition evaluated where the save can answer it: True, False, or None (a trigger this reader does
-        not evaluate). Handles is_county_capital, holding_is_city, has_holding_type, AND/OR/NOT, custom_tooltip, and
-        one scripted trigger level (metropolitan_type_district_trigger = county capital or city)."""
-        return _eval(_parse(text), place, self.triggers, depth)
+        not evaluate). Handles is_county_capital, holding_is_city, has_holding_type, AND/OR/NOT, custom_tooltip,
+        trigger_if / trigger_else_if / trigger_else, always, scripted triggers (with parameters, and negated by
+        ``= no``), government_has_flag, has_building_or_higher, culture's has_innovation, the county's trade-good
+        potential, and can_have_duchy_capital_building_trigger from save facts. Anything else is None."""
+        return _eval(_parse(text), place, self, depth)
+
+    def _gate(self, building: str, table: dict, label: str, place: Place) -> Verdict | None:
+        """One of a building's own condition blocks: a refusal or a not-evaluated verdict, or None when it holds."""
+        if building not in table:
+            return None
+        ok = self.condition(table[building], place)
+        if ok is False:
+            return Verdict(False, f"{building}'s {label} fails here", self.buildings.get(building, ""))
+        if ok is None:
+            return Verdict(None, f"{building} behind a trigger not evaluated ({label})", self.buildings.get(building, ""))
+        return None
 
     def district_enabled(self, district: str, place: Place) -> Verdict:
         d = self.districts.get(district)
@@ -125,15 +152,18 @@ class HostRules:
             if ok is None:
                 return Verdict(None, f"{building} is_enabled not evaluated: {self.b_enabled[building]}",
                                self.buildings.get(building, ""))
-        if building in self.b_potential:
-            ok = self.condition(self.b_potential[building], place)
-            if ok is False:
-                return Verdict(False, f"{building}'s can_construct_potential fails here", self.buildings.get(building, ""))
-            if ok is None:
-                return Verdict(None, f"{building} behind a trigger not evaluated (can_construct_potential)",
-                               self.buildings.get(building, ""))
+        for table, label in ((self.b_potential, "can_construct_potential"),
+                             (self.b_failures, "can_construct_showing_failures_only"), (self.b_construct, "can_construct")):
+            g = self._gate(building, table, label, place)
+            if g is not None:
+                return g
         if v.ok is None:
-            return Verdict(None, f"{district} is gated: {v.why}", v.where)
+            d = self.districts[district]
+            ok = self.condition(d.potential, place) if d.potential else None
+            if ok is False:
+                return Verdict(False, f"{district}'s can_construct_potential fails here: {d.potential}", d.where)
+            if ok is None:
+                return Verdict(None, f"{district} is gated: {v.why}", v.where)
         return Verdict(True, f"{district} at level {self.level(primary)} hosts {building}", v.where)
 
     def building_on(self, building: str, holding: str) -> Verdict:
@@ -207,8 +237,9 @@ def _inner(body: str, key: str) -> str:
 
 
 def _parse(text: str) -> list:
-    """A condition block as [(key, value)], value a word or a nested list."""
-    toks = re.findall(r"[{}=]|[^\s{}=]+", text)
+    """A condition block as [(key, value)], value a word or a nested list. ``?=`` (assign if the scope exists) reads as
+    ``=``; comparison operators other than ``=`` leave the item a word, which _eval does not evaluate."""
+    toks = re.findall(r"[{}=]|[^\s{}=]+", text.replace("?=", "="))
 
     def block(i):
         out = []
@@ -238,42 +269,92 @@ def _any(vals):
     return True if True in vals else None if None in vals else False
 
 
-def _eval(items: list, place: Place, triggers: dict, depth: int, scope: str = "province") -> bool | None:
-    out = []
+def _not(r):
+    return None if r is None else not r
+
+
+def _or_higher(rules, have: frozenset, key: str) -> bool:
+    """Does any building in ``have`` stand at ``key`` or a later tier of its line? (has_building_or_higher). Walks from
+    ``key`` up its next_building chain: castle_02 satisfies castle_01, castle_01 does not satisfy castle_02."""
+    b, seen = key, set()
+    while b and b not in seen:
+        if b in have:
+            return True
+        seen.add(b)
+        b = rules.nxt.get(b)
+    return False
+
+
+def _eval(items: list, place: Place, rules, depth: int, scope: str = "province") -> bool | None:
+    triggers = rules.triggers
+    out, chain = [], None          # chain: the open trigger_if / trigger_else_if sequence (None, or "decided" / "open")
     for key, val in items:
-        if scope == "county":
-            # inside county = { }: only the county's trade-good potential is answered (the villages buildings' gate)
-            if key == "has_potential_for_trade_good" and isinstance(val, str):
-                good = val.rsplit(":", 1)[-1].removeprefix("trade_good_")
-                out.append(None if place.county_goods is None else good in place.county_goods)
-            elif isinstance(val, list) and key in ("OR", "AND", "NOT"):
-                r = [_eval([it], place, triggers, depth, scope) for it in val]
-                out.append(_any(r) if key == "OR" else _all(r) if key == "AND" else
-                           (None if _all(r) is None else not _all(r)))
-            else:
-                out.append(None)
+        if key in ("trigger_if", "trigger_else_if", "trigger_else") and isinstance(val, list):
+            if key == "trigger_if":
+                chain = "open"
+            if chain != "open":
+                continue                                 # an earlier branch of this chain was taken
+            if key == "trigger_else":
+                out.append(_eval(val, place, rules, depth, scope))
+                chain = None
+                continue
+            limit = next((v for k, v in val if k == "limit" and isinstance(v, list)), None)
+            lim = _eval(limit, place, rules, depth, scope) if limit is not None else True
+            if lim is None:
+                out.append(None)                         # which branch applies is not known
+                chain = None
+            elif lim:
+                out.append(_eval([it for it in val if it[0] != "limit"], place, rules, depth, scope))
+                chain = "decided"
             continue
-        if key == "county" and isinstance(val, list):
-            out.append(_eval(val, place, triggers, depth, "county"))
+        chain = None
+        if key == "always" and val in ("yes", "no"):
+            out.append(val == "yes")
+        elif key == "text" and isinstance(val, str):
+            continue                                     # custom_tooltip's label
+        elif isinstance(val, list) and key in ("AND", "custom_tooltip"):
+            out.append(_eval(val, place, rules, depth, scope))
+        elif isinstance(val, list) and key == "OR":
+            out.append(_any(_eval([it], place, rules, depth, scope) for it in val))
+        elif isinstance(val, list) and key in ("NOT", "NOR"):
+            out.append(_not(_any(_eval([it], place, rules, depth, scope) for it in val)) if key == "NOR"
+                       else _not(_eval(val, place, rules, depth, scope)))
+        elif key == "has_potential_for_trade_good" and scope == "county" and isinstance(val, str):
+            good = val.rsplit(":", 1)[-1].removeprefix("trade_good_")
+            out.append(None if place.county_goods is None else good in place.county_goods)
+        elif key == "has_innovation" and scope == "culture" and isinstance(val, str):
+            out.append(None if place.innovations is None else val in place.innovations)
+        elif key == "government_has_flag" and scope in ("holder", "province") and isinstance(val, str):
+            out.append(None if place.government_flags is None else val in place.government_flags)
+        elif key == "can_have_duchy_capital_building_trigger" and val in ("yes", "no"):
+            out.append(None if place.duchy_capital is None else place.duchy_capital == (val == "yes"))
+        elif key in triggers and depth < 4 and (val in ("yes", "no") or isinstance(val, list)):
+            body = triggers[key]
+            if isinstance(val, list):                    # a scripted trigger with parameters: LEVEL = 01 -> $LEVEL$
+                for p, v in val:
+                    if isinstance(v, str):
+                        body = body.replace(f"${p}$", v)
+            r = _eval(_parse(body), place, rules, depth + 1, scope)
+            out.append(_not(r) if val == "no" else r)
+        elif scope != "province":
+            out.append(None)                             # anything else inside county / culture / holder
+        elif key == "county" and isinstance(val, list):
+            out.append(_eval(val, place, rules, depth, "county"))
+        elif key == "culture" and isinstance(val, list):
+            out.append(_eval(val, place, rules, depth, "culture"))
+        elif key in ("scope:holder", "holder", "county.holder") and isinstance(val, list):
+            out.append(_eval(val, place, rules, depth, "holder"))
         elif key == "is_county_capital":
             out.append(place.county_capital == (val == "yes"))
         elif key == "holding_is_city":
             out.append((place.holding == "city_holding") == (val == "yes"))
         elif key == "has_holding_type":
             out.append(place.holding == val)
-        elif key == "text" and isinstance(val, str):
-            continue                                     # custom_tooltip's label
-        elif isinstance(val, list) and key in ("AND", "custom_tooltip"):
-            out.append(_eval(val, place, triggers, depth))
-        elif isinstance(val, list) and key == "OR":
-            out.append(_any(_eval([it], place, triggers, depth) for it in val))
-        elif isinstance(val, list) and key == "NOT":
-            r = _eval(val, place, triggers, depth)
-            out.append(None if r is None else not r)
-        elif val == "yes" and key in triggers and depth < 3:
-            out.append(_eval(_parse(triggers[key]), place, triggers, depth + 1))
+        elif key == "has_building_or_higher" and isinstance(val, str):
+            have = (place.buildings or frozenset()) | ({place.main_building} if place.main_building else set())
+            out.append(None if place.buildings is None and place.main_building is None else _or_higher(rules, have, val))
         else:
-            out.append(None)                             # scope:, government flags, trigger_if, ...: not evaluated
+            out.append(None)                             # other scopes, comparisons, cultural parameters: not evaluated
     return _all(out)
 
 
@@ -281,6 +362,7 @@ def _eval(items: list, place: Place, triggers: dict, depth: int, scope: str = "p
 def load(game_dir: str) -> HostRules:
     game = Path(game_dir) / "common"
     nxt, buildings, level_req, slots, b_enabled, b_potential = {}, {}, {}, {}, {}, {}
+    b_failures, b_construct = {}, {}
     for f in sorted((game / "buildings").rglob("*.txt")):
         for key, body, line in _blocks(f):
             buildings[key] = f"{f.name}:{line}"
@@ -299,6 +381,12 @@ def load(game_dir: str) -> HostRules:
             p = _inner(body, "can_construct_potential")
             if p:
                 b_potential[key] = p
+            p = _inner(body, "can_construct_showing_failures_only")
+            if p:
+                b_failures[key] = p
+            p = _inner(body, "can_construct")
+            if p:
+                b_construct[key] = p
     triggers = {}
     for f in sorted((game / "scripted_triggers").rglob("*.txt")) if (game / "scripted_triggers").is_dir() else []:
         for key, body, _ in _blocks(f):
@@ -316,15 +404,17 @@ def load(game_dir: str) -> HostRules:
                     if x in nxt:
                         todo.append(nxt[x])
             kind = ("holding" if f.name.startswith("holding") else "resource" if f.name.startswith("resource")
-                    else "regular" if f.name.startswith("regular") else "special")
+                    else "regular" if f.name.startswith("regular")
+                    else "duchy_capital" if f.name.startswith("duchy_capital") else "special")
             prim = re.search(r"\bprimary_building\s*=\s*" + _KEY, body)
             unl = re.search(r"\bunlocked_by\s*=\s*" + _KEY, body)
             districts[key] = District(key, reach, "can_construct_potential" in body, f"{f.name}:{line}", kind,
                                       prim.group(1) if prim else None, unl.group(1) if unl else None,
-                                      _inner(body, "is_enabled"))
+                                      _inner(body, "is_enabled"), _inner(body, "can_construct_potential"))
     holdings = {}
     for f in sorted((game / "holdings").rglob("*.txt")):
         for key, body, line in _blocks(f):
             names = set(_list(body, "districts")) | set(re.findall(r"\bprimary_district\s*=\s*" + _KEY, body))
             holdings[key] = (names, f"{f.name}:{line}")
-    return HostRules(holdings, districts, buildings, level_req, slots, b_enabled, b_potential, triggers)
+    return HostRules(holdings, districts, buildings, level_req, slots, b_enabled, b_potential, triggers,
+                     b_failures, b_construct, nxt)

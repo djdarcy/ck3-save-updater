@@ -88,7 +88,8 @@ def _built_wonders(g: bytes, host: HostRules) -> dict[str, list[str]]:
             for k in re.findall(rb'\{\s*type="?([^\s"}]+)', g[start + 1:gs.match_brace(g, start)]):
                 k = k.decode()
                 d, _ = host.wonder_district(k)
-                if d is not None and host.districts[d].kind == "special" and k not in built:
+                # duchy_capital: host_rules' own kind since stage two (the walls of Constantinople and Rome live there)
+                if d is not None and host.districts[d].kind in ("special", "duchy_capital") and k not in built:
                     built.append(k)
         if built:
             out[e.key.decode()] = built
@@ -117,7 +118,7 @@ def carry_wonders(g: bytes, host: HostRules, witness: bytes | None = None) -> Wo
                 res.unmapped.append((pid, key, how))
                 continue
             d = host.districts[district]
-            if d.kind != "special":
+            if d.kind not in ("special", "duchy_capital"):
                 res.unmapped.append((pid, key, f"{district} is not a special district"))
                 continue
             slot, typed = _SLOT.get(d.where.split(":")[0], ("special_district", True))

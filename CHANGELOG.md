@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.39] - 2026-11-19
+
+### Changed
+- The check that decides where a 1.21 building may stand now reads more of the game's own rules: the holding level and innovation a building needs, the ruler's government, and whether the county's ruler also holds its duchy. Before, it set aside any building behind those rules, so duchy-capital buildings, higher resource tiers and the small resource buildings could never be carried. What the update already carries is unchanged.
+
 ## [0.6.38] - 2026-11-19
 
 ### Fixed
@@ -1171,7 +1176,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.39...HEAD
+[0.6.39]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.38...v0.6.39
 [0.6.38]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.37...v0.6.38
 [0.6.37]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.36...v0.6.37
 [0.6.36]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.35...v0.6.36
