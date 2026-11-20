@@ -3,7 +3,6 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/djdarcy/ck3-save-updater/main/docs/images/ck3-save-updater-banner.jpg" alt="ck3-save-updater banner" width="800">
 </p>
-
 [![PyPI](https://img.shields.io/pypi/v/ck3-save-updater?color=green)](https://pypi.org/project/ck3-save-updater/)
 [![Release Date](https://img.shields.io/github/release-date/djdarcy/ck3-save-updater?color=green)](https://github.com/djdarcy/ck3-save-updater/releases)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/ck3-save-updater?period=total&units=international_system&left_color=black&right_color=green&left_text=downloads)](https://pypistats.org/packages/ck3-save-updater)
@@ -16,6 +15,9 @@
 `ck3update` brings an old Crusader Kings III save forward to the game version you have installed, so the current game can load it. It removes what the new version rejects and moves data to where the new version expects it. It rebuilds the map and religion from a save written by the new version, keeping custom faiths, religious heads and every character's faith. Faces keep their look under the portrait mods you play with. Perks, regiments, innovations, county modifiers and artifact bonuses that the game renamed are matched to their new names. House feuds and running plots come across, and plots keep their agents. Artifacts keep their pictures and armour models.
 
 **It can also edit a save.** `ck3update edit` changes one thing in a save because you want it changed, with no need to know how a save is built. Make a daughter a son (normal in-game cheat codes can't do this). See the events waiting to happen to a character, then reroll one, remove one, or schedule one. Give someone a copy of an artifact. Each edit shows you the change first, writes a new file beside your save, and can be undone. See [Change something on purpose](#change-something-on-purpose-ck3update-edit).
+
+> [!NOTE]
+> **ck3update now works with Silk & Silver (1.21 "Florin").** It is still in beta. It repairs much of what the game's own conversion of a 1.20 save loses: wonders, buildings and districts, duchy-capital buildings, resource districts, roads, province sizes and the new innovations. See [what the updater repairs after 1.21's own conversion](docs/what-the-tool-adds-1.20-to-1.21.md), and [what is not carried over yet](docs/not-carried-over.md).
 
 ## Quick start
 
@@ -50,14 +52,23 @@ It prints the plan and asks "Run the update now? [y/N]". The first line is the a
 
 **4. Play.** Start the game with that same playset, and load `My Save__updated__...`.
 
+**5. On 1.21, one more step after the first load.** 1.21 converts a 1.20 save itself when it loads it, and that conversion loses things only a second pass can repair (buildings and districts, holding tiers, duchy-capital buildings, resource districts and the new innovations). So after the first load, save the game immediately, before unpausing (for example as perhaps `My Save 1.21`), and quit. The second pass runs only when the two saves have the same in-game date. That way it can't overwrite anything you played after the first load. Then run the update on that save, giving your last 1.20 save as the witness:
+
+```
+ck3update update "My Save 1.21" --witness "My Save__updated__1.20.1.2"
+```
+
+Where your old save and the new game put different resource districts in one province, it asks what you want (`--auto` answers in advance; see [questions during the update](docs/updating-a-save.md#questions-during-the-update-and---auto)). Load the result and play.
+
 Stuck? `ck3update -h`, [Troubleshooting](docs/troubleshooting.md), or the sections below.
 
 ## What ck3update has been tested against
 
-I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been fully tested. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
+I used one campaign, with 34 mods, updated from 1.8.1 to 1.20.1.2, and it loads and plays in 1.20.1.2. The same campaign has been upgraded to 1.21.0 (*Silk & Silver* aka the Florin update), both from its 1.20 save and straight from its 1.8.1 save. It loads, the game keeps what the updater wrote, and its districts were still intact after two years of play. The built-in rules cover saves from 1.8 onwards. Saves from 1.8.x through 1.19.x should work, since each game version after 1.8 has only added to what a save holds, but so far only 1.8.1 has been fully tested. Saves older than 1.8 are refused for now, and `status` names the gap. Support for them is planned. The [CHANGELOG](CHANGELOG.md) says what each release covers.
 
-Not handled yet:
+### Not handled yet
 
+- **On 1.21, some buildings have no 1.21 counterpart chosen yet.** On the campaign this was tested on, that is about 4,000 buildings in four families alone: guild halls, hunting grounds, monastic schools and barracks. Tribal holdings' buildings, the Great Wall's upper tiers, war camps and plantations aren't carried either. Each one left behind is listed in the update's report. [What doesn't carry over: buildings in 1.21's districts](docs/not-carried-over.md#buildings-in-121s-districts) has the full list and the reasons.
 - Some things the current game removed with no replacement, such as timed modifiers from events that later versions removed. The game drops them when the save loads. [What doesn't carry over](docs/not-carried-over.md) lists each one.
 - Mod content in general. You can write your own rules for a mod, though. [Writing a patch](docs/writing-a-patch.md) shows how.
 
@@ -221,6 +232,9 @@ The [documentation guide](docs/README.md) organizes these pages by what you are 
 - [Checking a save](docs/lint.md): what `lint` checks.
 - [Reports](docs/reports.md): what the report beside each output contains.
 - [Differences from the game](docs/differences-from-the-game.md): where the tool deliberately does something other than the game's own conversion.
+- What the updater adds beyond the game: [for a 1.8 save](docs/what-the-tool-adds-1.8-to-1.20.md), and [after 1.21's own conversion](docs/what-the-tool-adds-1.20-to-1.21.md).
+- [What changed in 1.21, and why](docs/what-changed-in-1.21-and-why.md): the new economy, and what to open first in a carried campaign.
+- [What doesn't carry over](docs/not-carried-over.md): what an old save has that the current game no longer keeps.
 - [Writing a patch](docs/writing-a-patch.md): your own fixes, as `patch.toml` files in your packs folder.
 - [gamediff](docs/gamediff.md): what a game update changed, and what of it your save uses.
 - [Thinning a save's population](docs/thin-population.md): a diagnostic copy of a save with fewer characters.

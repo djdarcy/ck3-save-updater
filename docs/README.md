@@ -9,6 +9,12 @@ ck3-save-updater does two things. It brings an old Crusader Kings III save up to
 - [Old game files](old-game-files.md): what the tool brings forward from older versions, and how to fetch an older build's files when you need them.
 - [Glossary](glossary.md): every term the tool uses, and every header `status` prints.
 
+## What the updater adds beyond the game
+
+- [For a 1.8 save](what-the-tool-adds-1.8-to-1.20.md): what the game alone keeps, gets wrong and loses on the way from 1.8 to 1.20, and what the updater does instead.
+- [After 1.21's own conversion](what-the-tool-adds-1.20-to-1.21.md): what the game's conversion of a 1.20 save keeps, gets wrong and loses, and what the updater repairs.
+- [What changed in 1.21, and why](what-changed-in-1.21-and-why.md): the new economy, with what Paradox said beside what the files show, and what to open first in a carried campaign.
+
 ## Editing a save
 
 - [Editing a save](editing-a-save.md): change one thing on purpose and undo it. A character's sex, the events queued for a character, a copy of an artifact.

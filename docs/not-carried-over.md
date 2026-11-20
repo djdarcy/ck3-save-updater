@@ -8,7 +8,7 @@ Miss something here? Say so in [GitHub Discussions](https://github.com/djdarcy/c
 
 1.21 put a holding's buildings into districts, and the game's own conversion empties them. The update writes your buildings back where 1.21's rules allow them, and the report names every building it could not place, with the reason. Some don't carry yet:
 
-- **Buildings with no chosen 1.21 successor.** Many 1.20 buildings have no clear match in 1.21, such as guild halls, monastic schools and barracks. Until a successor is chosen, they are listed in the report as not carried.
+- **Buildings with no chosen 1.21 successor.** Many 1.20 buildings have no clear match in 1.21, such as guild halls, monastic schools and barracks. On the campaign this was tested on, the largest families were guild halls (1,139), hunting grounds (1,130), monastic schools (954) and barracks (845). Until a successor is chosen, they are listed in the report as not carried.
 - **Buildings a county can't have in 1.21.** A pasture needs the county to have cattle, wool or horses, and farmland needs a grain. Where the county has none of them, the building is left out, because a 1.21 game would not build it there either.
 - **Walls outside a county capital.** 1.21 allows a walls district only in the county's capital holding.
 - **More district types than a holding has room for.** A holding has two district slots at first, more as the province grows. Villages and urban housing aren't built together.

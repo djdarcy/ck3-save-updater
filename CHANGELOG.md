@@ -4,6 +4,12 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.47] - 2026-11-20
+
+### Added
+- Three pages on what the updater adds beyond the game itself, linked from the docs index. [For a 1.8 save](docs/what-the-tool-adds-1.8-to-1.20.md) compares the game alone, stepping through 1.18 and 1.19, with the updater on the same campaign. [After 1.21's own conversion](docs/what-the-tool-adds-1.20-to-1.21.md) lists what the game's conversion of a 1.20 save keeps, gets wrong and loses. [What changed in 1.21, and why](docs/what-changed-in-1.21-and-why.md) explains the new economy, setting what Paradox said beside what the game's files show, and what to open first in a carried campaign. Every claim rests on a measurement of this project's founding campaign.
+- The README now says up front that the updater works with Silk & Silver (1.21), still in beta. Its quick start gains the step 1.21 needs after the first load: save at once, then run `update` on that save with `--witness` and your last 1.20 save. Its test record covers 1.21, and the buildings 1.21 has no place for yet are listed under what is not handled.
+
 ## [0.6.46] - 2026-11-20
 
 ### Fixed
@@ -1215,7 +1221,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.47...HEAD
+[0.6.47]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...v0.6.47
 [0.6.46]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...v0.6.46
 [0.6.45]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...v0.6.45
 [0.6.44]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...v0.6.44
