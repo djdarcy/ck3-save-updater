@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.45] - 2026-11-20
+
+### Added
+- `lint` now also checks each province's resource district and duchy-capital district: whether the game allows the district there, and whether each building in it is legal. Before, it read only the regular districts.
+
+### Changed
+- [What is not carried over](docs/not-carried-over.md) has a section on 1.21's districts: buildings with no chosen successor, a county without the trade good, walls outside a county capital, full holdings, tribal holdings, the Great Wall's upper tiers, tax assessors, resource districts above tier 2, and the resource slot the game already filled.
+
 ## [0.6.44] - 2026-11-20
 
 ### Added
@@ -1202,7 +1210,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...HEAD
+[0.6.45]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.44...v0.6.45
 [0.6.44]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.43...v0.6.44
 [0.6.43]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.42...v0.6.43
 [0.6.42]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.41...v0.6.42

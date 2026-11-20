@@ -222,6 +222,33 @@ def lint(g: bytes, host: HostRules, facts: dict[str, Facts]) -> LintResult:
         h = re.search(rb"\n\t\tholding=\{(.*?)\n\t\t\}", g[e.open:e.close], re.S)
         m = re.search(rb"\bdistricts=\{([^{}]*)\}", h.group(1)) if h else None
         ids = [i for i in (m.group(1).split() if m else []) if i != EMPTY and i in dist]
+        # S6 (goal 2026-11-19__22-43-27): the resource and duchy-capital slots -- the district's own gate (a resource
+        # district's county potential; a duchy-capital district's duchy_capital_barony + duchy holder, which needs
+        # stage_two_facts) and each building in it (tiers, innovations, a minor building beside its own main line)
+        for slot in (rb"resource_district", rb"duchy_capital_district"):
+            s = re.search(rb"\n\t\t\t" + slot + rb"=(\d+)", h.group(1)) if h else None
+            sd = s.group(1) if s else None
+            if sd is None or sd not in dist:
+                continue
+            t = re.search(rb"\btype=([a-z_0-9]+)", dist[sd])
+            dt = t.group(1).decode() if t else None
+            if dt not in host.districts:
+                continue
+            v = host.district_enabled(dt, f.place)
+            if v.ok is False:
+                res.breaches.append((pid, "district disabled here", v.why))
+            elif v.ok is None:
+                res.unknown[f"district {dt}: enable not evaluated"] += 1
+            bl = re.search(rb"buildings=\{([^}]*)\}", dist[sd])
+            keys = [btype.get(b, "?") for b in (bl.group(1).split() if bl else []) if b != EMPTY]
+            for k in keys:
+                if k == "?":
+                    continue
+                v = host.building_legal(k, dt, keys[0], f.place)
+                if v.ok is False:
+                    res.breaches.append((pid, "building illegal here", f"{k} in {dt}: {v.why}"))
+                elif v.ok is None:
+                    res.unknown[f"building {re.sub(r'_[0-9]+$', '', k)}: not evaluated"] += 1
         if not ids:
             continue
         res.holdings += 1

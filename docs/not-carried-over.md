@@ -4,6 +4,20 @@ Some things in an old save have no home in the current game. The game removed th
 
 Miss something here? Say so in [GitHub Discussions](https://github.com/djdarcy/ck3-save-updater/discussions). We are collecting these for a separate mod that brings back mechanics older versions had. The updater itself only uses what the base game defines.
 
+## Buildings in 1.21's districts
+
+1.21 put a holding's buildings into districts, and the game's own conversion empties them. The update writes your buildings back where 1.21's rules allow them, and the report names every building it could not place, with the reason. Some don't carry yet:
+
+- **Buildings with no chosen 1.21 successor.** Many 1.20 buildings have no clear match in 1.21, such as guild halls, monastic schools and barracks. Until a successor is chosen, they are listed in the report as not carried.
+- **Buildings a county can't have in 1.21.** A pasture needs the county to have cattle, wool or horses, and farmland needs a grain. Where the county has none of them, the building is left out, because a 1.21 game would not build it there either.
+- **Walls outside a county capital.** 1.21 allows a walls district only in the county's capital holding.
+- **More district types than a holding has room for.** A holding has two district slots at first, more as the province grows. Villages and urban housing aren't built together.
+- **Tribal holdings' buildings.** Every 1.21 tribal district depends on a condition the update doesn't check yet, so tribal buildings aren't carried.
+- **The Great Wall's upper tiers.** 1.21 has no district for tiers 2 and 3. They are reported, not written.
+- **Tax assessors.** 1.21 has no duchy-capital district that takes one, so it is listed in the report. A duchy-capital building is also left out where the county's ruler does not hold the duchy, and where the ruler is a republic, whose rule the update doesn't check yet.
+- **Resource districts above tier 2, or without the trade good.** A quarry, logging camp, orchard or elephant pen becomes a resource district at most at tier 2, since higher tiers need innovations no converted culture has. Where the county doesn't have the trade good (stone, wood, fruit, ivory), nothing is written.
+- **A resource district in place of the game's, unless you ask.** A province has one resource slot. Where the game already placed a different district, the update keeps it by default and adds the small building of your old kind inside. It replaces the game's district only when you answer `r` to the `resources` question, and only if that district holds nothing but its own building.
+
 ## Timed modifiers from removed events
 
 These modifiers came from events that later versions removed or rewrote. Most of them last a few years and then expire anyway. Version 1.13 reworked holding court, and most of these went with it.

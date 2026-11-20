@@ -43,6 +43,30 @@ def test_a_fresh_1_21_game_is_nearly_clean():
 
 
 @pytest.mark.skipif(not REAL, reason="set CK3_REAL_SAVES=1 with the game and the 1.21 reference on disk")
+def test_with_stage_two_facts_the_fresh_game_breaks_only_where_its_own_history_does():
+    # goal 2026-11-19__22-43-27, S6: with government, innovations, buildings and the duchy answer known, the fresh game
+    # shows 169 more (2026-11-20 02:34, read one by one): districts gated on a government their holder lacks (66), and
+    # resource buildings the 987 history placed above their innovation or holding level (94 at tier 3-4); 9 others,
+    # each read and found in the start state. A wrong fact shows up as a jump here, the way county goods once gave 1,926
+    import re
+
+    from ck3_save_migrator import district_lint as L
+    from ck3_save_migrator import host_rules as H
+    from ck3_save_migrator.savefile import read_save
+    g = read_save(REF_121).gamestate
+    host, plain = H.load(str(GAME)), L.province_facts(g, str(GAME))
+    before = set(L.lint(g, host, plain).breaches)
+    extra = [b for b in L.lint(g, host, L.stage_two_facts(g, str(GAME), plain)).breaches if b not in before]
+    gov = [b for b in extra if "government_has_flag" in b[2]]
+    high = [b for b in extra if re.match(r"\S+_[34] in ", b[2])]
+    assert len(extra) <= 190 and len(gov) <= 75 and len(high) <= 105
+    assert len(extra) - len(gov) - len(high) <= 15
+    # and they are seen at all: the tier-3/4 resource buildings sit in the resource slot, which only the S6 rows read
+    # (red-green 2026-11-20: with upper bounds alone, removing those rows passed)
+    assert len(high) >= 85 and len(gov) >= 60
+
+
+@pytest.mark.skipif(not REAL, reason="set CK3_REAL_SAVES=1 with the game and the 1.21 reference on disk")
 def test_the_games_county_capitals_are_each_countys_first_barony():
     # phase one judges a 1.20 save by 1.21's capitals (the map moved some: province 3204's walls were disabled after
     # the conversion, 2026-11-19 15:3x); the rule "first-listed barony" must equal what a fresh 1.21 game marks
