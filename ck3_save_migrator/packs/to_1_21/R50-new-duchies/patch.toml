@@ -1,0 +1,14 @@
+format = 1
+id = "R50"
+name = "new-duchies"
+title = "add the duchies 1.21 added, with the counties a new 1.21 game puts in them, before the game converts the save (so they get markets)"
+since = "1.20<=v<1.21"
+default = true
+requires = []
+tested = { origin = ["1.20.1.2"], target = ["1.21.0"] }
+script = "ck3_save_migrator.rules.to_1_21:r50_new_duchies"
+
+# The game's 1.21 conversion never creates a title the old save lacks: 11 duchies 1.21 split out of older ones
+# (Artois, Liege, Passau, Upper Lombardy and others) are missing from a converted campaign, with no market. The game
+# builds a market at its conversion for each duchy that has counties then (measured 2026-11-20: 911 markets once the
+# 1.20 side's empty duchies had their counties). Unheld, as a fresh game has them. The `duchies` question leaves them.

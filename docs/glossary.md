@@ -302,7 +302,7 @@ What to do where your old save had a quarry, logging camp, orchard or elephant p
 
 ### the duchies question
 
-Asked once, when a save going to 1.20 has counties in an old duchy that a newer game moved into a duchy of its own. `f` moves them into the new duchy, unheld, as a new game has it (the default). `l` leaves them where the campaign had them, as the game itself would, and the new duchy stays empty.
+Asked once per update, when your save has counties in an old duchy that a newer game moved into a duchy of its own (going to 1.20, or the duchies 1.21 added, going to 1.21). `f` moves them into the new duchy, unheld, as a new game has it (the default). `l` leaves them where the campaign had them, as the game itself would, and the new duchy stays empty.
 
 ### --auto
 

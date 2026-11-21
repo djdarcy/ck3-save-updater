@@ -1011,6 +1011,53 @@ def test_s4_a_campaign_county_joins_the_new_duchy_a_fresh_game_puts_it_in_and_no
     assert b"de_jure_liege=0" in titles_by_key(save3.gamestate)["c_moves"][1]
 
 
+def test_r50_adds_the_new_duchies_that_have_counties_and_a_kingdom_and_nothing_else(tmp_path):
+    """R50 (to_1_21): a 1.20 save lacks the duchies 1.21 split out, and the game's conversion never creates them, so
+    they have no market. R50 adds each one the reference gives counties the save has, under a kingdom the save has,
+    unheld, with its counties moved in; a county-less titular duchy (the communes, adventurer titles) and one whose
+    kingdom the save lacks are not added. The `l` answer adds none."""
+    from ck3_save_migrator.choices import Asker
+    from ck3_save_migrator.rules.to_1_21 import r50_new_duchies
+
+    class Shim:
+        def result(self, **kw):
+            return kw
+
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "k_k", "\tde_jure_vassals={ 1 }\n") + title(1, "d_old", "\tholder=40\n\tde_jure_liege=0\n"
+                                                                    "\tde_jure_vassals={ 2 3 }\n")
+        + title(2, "c_a", "\tholder=40\n\tde_jure_liege=1\n") + title(3, "c_b", "\tde_jure_liege=1\n"),
+        title_index=4, extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "k_k", "\tde_jure_vassals={ 1 4 }\n") + title(1, "d_old", "\tde_jure_liege=0\n"
+                                                                    "\tde_jure_vassals={ 3 }\n")
+        + title(2, "c_a", "\tde_jure_liege=4\n") + title(3, "c_b", "\tde_jure_liege=1\n")
+        + title(4, "d_new", "\tde_jure_liege=0\n\tde_jure_vassals={ 2 }\n\tcapital=2\n")
+        + title(5, "d_commune_x", "\tde_jure_liege=0\n")
+        + title(6, "k_gone", "\tde_jure_vassals={ 7 }\n") + title(7, "d_far", "\tde_jure_liege=6\n\tde_jure_vassals={ 3 }\n"),
+        extra="provinces={\n1={\n}\n}\n")
+
+    def run(answer):
+        save = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+        ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+        ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+        ctx.state["asker"] = Asker(auto={"duchies": answer})
+        return save, r50_new_duchies(save, ctx, Shim())
+
+    save, res = run("f")
+    assert res["extra"]["new_duchies"] == ["d_new"]                 # k_gone is not in the save, so d_far stays out
+    assert res["extra"]["counties_to_new_duchies"] == ["c_a -> d_new"]
+    t = titles_by_key(save.gamestate)
+    assert "d_commune_x" not in t and "d_far" not in t
+    new_id, d_new = t["d_new"]
+    assert f"de_jure_liege={new_id}".encode() in t["c_a"][1] and b"holder=" not in d_new
+    assert re.search(rb"de_jure_vassals=\{([^}]*)\}", t["d_old"][1]).group(1).split() == [b"3"]
+    save_l, res_l = run("l")
+    assert "d_new" not in titles_by_key(save_l.gamestate) and res_l["extra"]["new_duchies"] == ["d_new"]
+
+
 def _lease_run(tmp_path, expansion: bool):
     save_body = gamestate(
         living=char(40),

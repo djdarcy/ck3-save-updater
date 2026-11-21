@@ -93,6 +93,59 @@ def r48_duchy_capitals(save: CK3Save, ctx, rule):
                               "named": sorted(f"{p} {k}: {w}" for p, k, w in r.named)})
 
 
+def r50_new_duchies(save: CK3Save, ctx, rule):
+    """The duchies 1.21 added, with the campaign's counties a fresh 1.21 game puts in them, before the game converts the
+    save (goal 2026-11-20__16-02-08, S4; DWP 2026-11-20__21-28-20, addenda 22:26 and 23:54).
+
+    The game's 1.21 conversion never creates a title the old save lacks, so 1.21's new duchies (Artois, Liège, Passau,
+    Upper Lombardy and seven more on the founding campaign) are missing, their counties stay in the old duchies, and
+    there is no market for them (902 against a fresh game's 922). The game builds a market at its conversion for each
+    duchy that has counties then (measured 2026-11-20: 911 after the 1.20 side's fix). This adds each 1.21 duchy the
+    save lacks that has counties in the reference and a de jure kingdom the save has, through the transplant (ids,
+    coat of arms; nothing else it references comes along), unheld as a fresh game has it, and moves the campaign's
+    counties into it (the transplant's S4). Asked as the `duchies` question; `l` or `--auto all=newgame` leaves them.
+    """
+    import re
+    from .. import translate as TR
+    from ..choices import Asker
+    from ..transplant import TITLES
+    from .transplant_1_20 import transplant_of, transplant_refusal
+    if ctx.reference is None:
+        return rule.result(extra={"skipped": "needs a 1.21 reference save (the duchies come from it)"})
+    if why := transplant_refusal(save, ctx):
+        return rule.result(extra={"skipped": why})
+    t = transplant_of(save, ctx)
+    ref_keys = t.title_keys()
+    save_keys = {k.decode() for k in TR.keyed(save.gamestate, TITLES)}
+    want = set()
+    for i, k in ref_keys.items():
+        if not k.startswith("d_") or k in save_keys:
+            continue
+        b = t.ref[t.entries(TITLES)[i].open:t.entries(TITLES)[i].close]
+        v = re.search(rb"\n\tde_jure_vassals=\{([^}]*)\}", b)
+        lg = re.search(rb"\n\tde_jure_liege=(\d+)", b)
+        counties = [ref_keys.get(int(x), "") for x in (v.group(1).split() if v else [])]
+        if lg and ref_keys.get(int(lg.group(1)), "") in save_keys and any(c in save_keys for c in counties):
+            want.add(i)
+    if not want:
+        return rule.result(extra={"new_duchies": 0})
+    t.add("title", want, "R50")
+    moving = t.newduchy_plan()
+    asker = ctx.state.get("asker") or Asker()
+    a = asker.ask("duchies", f"{len(want)} duchies 1.21 added, with {len(moving)} of your counties a new 1.21 game "
+                             f"puts in them (without them the game's conversion leaves those duchies out)")
+    names = sorted(ref_keys[i] for i in want)
+    if a == "l":
+        return rule.result(matched=len(want), extra={"new_duchies": names, "answer": "left: the game's conversion "
+                                                     "leaves these duchies out"})
+    ep = t.edits()
+    ep.apply_to(save)
+    rep = t.report.as_dict()
+    return rule.result(matched=len(want), edited=len(ep.edits),
+                       extra={"new_duchies": names, "counties_to_new_duchies": rep["counties_to_new_duchies"],
+                              "inserted": rep["inserted"]})
+
+
 def r34_roads(save: CK3Save, ctx, rule):
     """The 1.21 reference's roads, into a save that has none (a 1.20 save gets an empty roads database first)."""
     from ..roads import defined_road_types, transplant_roads

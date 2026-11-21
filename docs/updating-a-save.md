@@ -67,7 +67,7 @@ Some patches ask what you want where your old save and the new game disagree. Th
 - `k` (keep): keep the game's district and add nothing.
 - `r` (replace): put your old district back in place of the game's. It is offered only when the game's district holds nothing but its own building.
 
-`duchies` comes up once, when a save going to 1.20 has counties in an old duchy that a newer game moved into a duchy of its own. Without them, that new duchy would be an empty title (and in 1.21, a duchy with no market). Nobody is given the new duchy: it is created unheld, as in a new game. But its old duke's de jure claim no longer covers those counties. The answers are:
+`duchies` comes up once per update, when your save has counties in an old duchy that a newer game moved into a duchy of its own. Going to 1.20, those duchies are written but would be empty. Going to 1.21, the game's own conversion leaves the duchies 1.21 added out altogether. Either way, such a duchy gets no market in 1.21. Nobody is given the new duchy: it is created unheld, as in a new game. But its old duke's de jure claim no longer covers those counties. The answers are:
 
 - `f` (fix): move the counties into the duchies a new game puts them in. This is the default.
 - `l` (leave): keep them where your campaign had them, as the game itself would. The new duchies stay empty.

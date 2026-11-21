@@ -349,9 +349,10 @@ def test_to_1_21_runs_its_pre_load_pass_and_says_the_first_load_finishes_it(tmp_
     row = next(x for x in p.packs if x.id == "to_1_21")
     assert row.selected is True and "a frame" not in row.why and p.uncovered is None
     later = [(x.id, x.pack) for x in p.steps if x.pack == "to_1_21"]
-    assert later == [("R33", "to_1_21"), ("R34", "to_1_21"), ("R41", "to_1_21"),   # R41: the regular districts
+    assert later == [("R50", "to_1_21"),                                           # R50: 1.21's new duchies
+                     ("R33", "to_1_21"), ("R34", "to_1_21"), ("R41", "to_1_21"),   # R41: the regular districts
                      ("R48", "to_1_21")]                                           # R48: the duchy capitals
-    assert [x.id for x in p.steps].index("R33") > max((i for i, x in enumerate(p.steps) if x.pack == "to_1_20"),
+    assert [x.id for x in p.steps].index("R50") > max((i for i, x in enumerate(p.steps) if x.pack == "to_1_20"),
                                                      default=-1)
     assert any("load it once in 1.21.0 and save" in n for n in p.notes)
 
