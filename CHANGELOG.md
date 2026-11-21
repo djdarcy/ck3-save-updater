@@ -4,6 +4,11 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.50] - 2026-11-20
+
+### Changed
+- Development tools only: the script that runs the game for tests no longer force-closes the game when its normal close fails. It waits, and asks the person to close it. Two measurement scripts were added, one comparing saves before and after play, one tracing missing markets. A hand-run test checklist for 0.6.49's innovations repair (`tests/checklists/`).
+
 ## [0.6.49] - 2026-11-20
 
 ### Added
@@ -1238,7 +1243,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.49...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.50...HEAD
+[0.6.50]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.49...v0.6.50
 [0.6.49]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.48...v0.6.49
 [0.6.48]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.47...v0.6.48
 [0.6.47]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...v0.6.47

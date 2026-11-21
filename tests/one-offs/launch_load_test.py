@@ -97,7 +97,9 @@ def post_console(hwnd: int, command: str) -> None:
         user32.PostMessageW(hwnd, WM_CHAR, ord(ch), 1)
         _t.sleep(0.02)
     key(VK_RETURN, "\r")
-    _t.sleep(0.5)
+    # a save keeps the game busy for seconds, and a key posted meanwhile is dropped: the console then stays open and
+    # the next command's open key closes it instead (2026-11-20, soak run 2's 'quit' never ran)
+    _t.sleep(6 if command.startswith("save") else 0.5)
     key(VK_OEM_3)
 
 
@@ -339,6 +341,20 @@ def main(run_name: str, args: list[str]) -> int:
                         time.sleep(3)
                     post_console(hwnd, exit_console)
                     note(f"exit: console '{exit_console}' typed {exit_after}s after in game")
+                    # 2026-11-20 (soak run 2): 'quit' never reached the console (debug.log shows observe and save,
+                    # no quit), most likely because the console was left open by the late save and the open key
+                    # closed it. Check the game's own log; if the command is not there, type it once more.
+                    dbg = LOGS / "debug.log"
+                    want = f"Running console command: {exit_console}"
+                    seen = False
+                    for _ in range(8):
+                        time.sleep(1)
+                        if dbg.exists() and want in dbg.read_text(encoding="utf-8", errors="ignore")[-200000:]:
+                            seen = True
+                            break
+                    if not seen and proc.poll() is None:
+                        post_console(hwnd, exit_console)
+                        note(f"exit: '{exit_console}' not in debug.log after 8 s; typed again")
                 else:
                     ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)      # WM_CLOSE: opens "Exit Game"
                     note(f"exit: WM_CLOSE posted {exit_after}s after in game (opens the Exit Game dialog)")
@@ -463,9 +479,21 @@ def main(run_name: str, args: list[str]) -> int:
             for p in CRASHES.iterdir():
                 if p.name not in crashes_before:
                     shutil.copytree(p, run / "crashes" / p.name, dirs_exist_ok=True)
+        if guard and proc.poll() is None:
+            # The game must be gone before its files are put back, but the harness never kills it (djdarcy's rule;
+            # 2026-11-20: this line used to call proc.terminate(), and killed two soak runs whose close had failed).
+            # Wait for a normal close, or for djdarcy to close it; if it is still running, leave the files alone.
+            note(f"autosave guard: the game is still running (pid {proc.pid}); waiting up to 10 min for it to close")
+            for _ in range(300):
+                if proc.poll() is not None:
+                    break
+                time.sleep(2)
+            if proc.poll() is None:
+                note(f"autosave guard: NOT RESTORED -- the game is still running; ask djdarcy to close ck3.exe "
+                     f"(pid {proc.pid}), then restore autosave*.ck3 from {run / 'autosave-guard'}")
+                guard = False
         if guard:
             import hashlib
-            proc.poll() is None and proc.terminate()      # the game must be gone before its files are put back
             time.sleep(3)
             for f in saves_dir.glob("autosave*.ck3"):
                 h = hashlib.sha256(f.read_bytes()).hexdigest()
