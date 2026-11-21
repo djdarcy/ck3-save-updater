@@ -968,6 +968,49 @@ def test_s3_a_campaign_title_whose_old_parent_died_joins_its_1_20_parent(tmp_pat
     assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", t["k_camp"][1]).group(1).split()) == [b"1", b"3"]
 
 
+def test_s4_a_campaign_county_joins_the_new_duchy_a_fresh_game_puts_it_in_and_nothing_else_moves(tmp_path):
+    """S4 (djdarcy 2026-11-20: "yes we can do the fix for the 9"): a duchy new since the save's version comes with
+    its counties, as a fresh game has them, so it is not an empty title (and gets a market in 1.21). c_moves leaves
+    d_old for the new d_new. c_drift sits in a different duchy than the reference puts it, but that duchy (d_camp)
+    is the campaign's own: the campaign's de jure stays (G10; c_langres on the founding campaign). Unheld, as the
+    fresh game has it: nobody is given the new title."""
+    save_body = gamestate(
+        living=char(40),
+        titles=title(0, "d_old", "\tholder=40\n\tde_jure_vassals={ 1 2 4 }\n")
+        + title(1, "c_moves", "\tholder=40\n\tde_jure_liege=0\n") + title(2, "c_stays", "\tde_jure_liege=0\n")
+        + title(3, "d_camp", "") + title(4, "c_drift", "\tde_jure_liege=0\n"),
+        title_index=5, extra="provinces={\n1={\n}\n}\n")
+    ref_body = gamestate(
+        living=char(9),
+        titles=title(0, "d_old", "\tde_jure_vassals={ 2 }\n") + title(1, "c_moves", "\tde_jure_liege=5\n")
+        + title(2, "c_stays", "\tde_jure_liege=0\n") + title(3, "d_camp", "\tde_jure_vassals={ 4 }\n")
+        + title(4, "c_drift", "\tde_jure_liege=3\n") + title(5, "d_new", "\tde_jure_vassals={ 1 }\n\tcapital=1\n"),
+        extra="provinces={\n1={\n}\n}\n")
+    save, res = migrate(tmp_path, save_body, ref_body)
+    assert res["R17"].extra["counties_to_new_duchies"] == ["c_moves -> d_new"]
+    t = titles_by_key(save.gamestate)
+    new_id, d_new = t["d_new"]
+    assert f"de_jure_liege={new_id}".encode() in t["c_moves"][1]
+    assert re.search(rb"de_jure_vassals=\{([^}]*)\}", d_new).group(1).split() == [b"1"]
+    assert sorted(re.search(rb"de_jure_vassals=\{([^}]*)\}", t["d_old"][1]).group(1).split()) == [b"2", b"4"]
+    assert b"de_jure_liege=0" in t["c_drift"][1] and b"de_jure_liege=0" in t["c_stays"][1]
+    assert b"holder=" not in d_new                              # unheld, as the fresh game has it
+    body = save.gamestate[save.gamestate.index(b"\n", save.gamestate.index(b"meta_data")) :] \
+        if save.gamestate.startswith(b"meta_data") else save.gamestate
+    _, res2 = migrate(tmp_path, body, ref_body)                 # a second run: d_new is the campaign's now
+    assert not res2["R17"].extra.get("counties_to_new_duchies")
+    # the purist answer (`--auto duchies=l`, or all=newgame): the new duchy comes, empty, as the game's conversion has it
+    from ck3_save_migrator.choices import Asker
+    save3 = sf.parse_save(build_ck3(meta=DEFAULT_META, body=save_body))
+    ctx = R.RuleContext(reference=tmp_path / "ref.ck3")
+    ctx.state["reference_gamestate"] = DEFAULT_META + ref_body
+    ctx.state["asker"] = Asker(auto={"duchies": "l"})
+    res3 = {r.id: r for r in R.run_rules(save3, R.select("R14,R16"), ctx)}
+    assert res3["R14"].extra["new_duchies_given_their_counties"] == "left as the campaign had them"
+    assert not res3["R17"].extra.get("counties_to_new_duchies")
+    assert b"de_jure_liege=0" in titles_by_key(save3.gamestate)["c_moves"][1]
+
+
 def _lease_run(tmp_path, expansion: bool):
     save_body = gamestate(
         living=char(40),

@@ -149,6 +149,18 @@ def r14_new_titles(save: CK3Save, ctx, rule):
     tiers = {}
     for i in new:
         tiers[ref_keys[i][0]] = tiers.get(ref_keys[i][0], 0) + 1
+    # S4: the campaign counties a new duchy takes, as a fresh game has them; asked once (the `duchies` question)
+    moving = t.newduchy_plan()
+    duchies = "none"
+    if moving:
+        from ..choices import Asker
+        asker = ctx.state.get("asker") or Asker()
+        n_d = len(set(moving.values()))
+        a = asker.ask("duchies", f"{len(moving)} counties into {n_d} duchies the current game added "
+                                 f"(each would otherwise have no counties of its own, or fewer than a fresh game)")
+        duchies = {"f": f"fix: {len(moving)} counties into {n_d} duchies", "l": "left as the campaign had them"}[a]
+        if a == "l":
+            t._ent["_newduchy"] = {}
     return rule.result(matched=len(new) + len(provinces),
                        extra={"titles_planned": len(new), "by_tier": dict(sorted(tiers.items())),
                               "unheld_titular_carried": len(unheld_titular),
@@ -156,6 +168,7 @@ def r14_new_titles(save: CK3Save, ctx, rule):
                               "holy_order_titles_leasing_campaign_land": sorted(ref_keys[i] for i in ho_campaign),
                               "expansion_orders": "added" if ctx.expansion_orders else "left out",
                               "provinces_planned": len(provinces),
+                              "new_duchies_given_their_counties": duchies,
                               "provinces_given_a_holding": len(t.fill_provinces),
                               "unbuilt_in_the_campaign_built_in_a_fresh_1_20_game": unbuilt,
                               "x_titles_left_out": sum(1 for k in ref_keys.values() if k.startswith("x_"))})

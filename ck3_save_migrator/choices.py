@@ -35,6 +35,12 @@ class Kind:
 KINDS = {
     "resources": Kind("resources", {"k": "keep", "m": "minor", "r": "replace"}, default="m", mygame="r", newgame="k",
                       question="The slot holds another resource district. Keep it, add the minor building, or replace?"),
+    # neither your old save nor the game's own conversion has the duchies the current game added; only a fresh game
+    # does. So "prefer my game" and "prefer the new version's conversion" both leave them; fixing is the default
+    # (djdarcy 2026-11-20: "I'm going to say we have a mode that says fix everything we see as weird")
+    "duchies": Kind("duchies", {"f": "fix", "l": "leave"}, default="f", mygame="l", newgame="l",
+                    question="Counties sit in their old duchy while a duchy the current game added has none of them, "
+                             "so it has no market. Move them into it, as a fresh game has them, or leave them?"),
 }
 
 

@@ -298,7 +298,11 @@ An advance a culture researches, which unlocks buildings, districts and units. A
 
 ### the resources question
 
-The one question an update asks today: what to do where your old save had a quarry, logging camp, orchard or elephant pen, and the game already placed a different resource district in that province. The answers are `m`, `k` and `r` ([Updating a save](updating-a-save.md#questions-during-the-update-and---auto)).
+What to do where your old save had a quarry, logging camp, orchard or elephant pen, and the game already placed a different resource district in that province. The answers are `m`, `k` and `r` ([Updating a save](updating-a-save.md#questions-during-the-update-and---auto)).
+
+### the duchies question
+
+Asked once, when a save going to 1.20 has counties in an old duchy that a newer game moved into a duchy of its own. `f` moves them into the new duchy, unheld, as a new game has it (the default). `l` leaves them where the campaign had them, as the game itself would, and the new duchy stays empty.
 
 ### --auto
 

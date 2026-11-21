@@ -16,15 +16,17 @@ from ck3_save_migrator import choices as CH
 
 
 def test_the_grammar_all_mygame_newgame_and_later_wins():
-    assert CH.parse_auto(["all"]) == {"resources": "m"}
-    assert CH.parse_auto(["all=mygame"]) == {"resources": "r"}
-    assert CH.parse_auto(["all=newgame"]) == {"resources": "k"}
-    assert CH.parse_auto(["all=newgame,resources=m"]) == {"resources": "m"}           # later wins
-    assert CH.parse_auto(["resources=replace", "all=newgame"]) == {"resources": "k"}   # the option repeated, still later wins
+    assert CH.parse_auto(["all"]) == {"resources": "m", "duchies": "f"}
+    assert CH.parse_auto(["all=mygame"]) == {"resources": "r", "duchies": "l"}
+    # duchies: neither the old save nor the game's conversion has the new duchies, so both preferences leave them
+    assert CH.parse_auto(["all=newgame"]) == {"resources": "k", "duchies": "l"}
+    assert CH.parse_auto(["all=newgame,resources=m"]) == {"resources": "m", "duchies": "l"}     # later wins
+    assert CH.parse_auto(["resources=replace", "all=newgame"]) == {"resources": "k", "duchies": "l"}   # still later wins
+    assert CH.parse_auto(["all=newgame,duchies=fix"]) == {"resources": "k", "duchies": "f"}
     assert CH.parse_auto(["resources=keep"]) == {"resources": "k"}                     # the word or the letter
 
 
-@pytest.mark.parametrize("spec, says", [("pastures=k", "the questions are: resources"),
+@pytest.mark.parametrize("spec, says", [("pastures=k", "the questions are: duchies, resources"),
                                         ("resources=x", "the answers are k (keep), m (minor), r (replace)"),
                                         ("all=mine", "all=mygame or all=newgame")])
 def test_an_unknown_kind_or_answer_errors_naming_what_is_valid(spec, says):

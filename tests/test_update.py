@@ -674,7 +674,7 @@ def test_auto_is_checked_before_the_plan_and_the_run_never_prompts_under_dry_run
     from ck3_save_migrator import choices as CH
     s, g = old_save(saves), game(tmp_path)
     code, out, err = run(capsys, "update", str(s), "--game-dir", str(g), "--auto", "pastures=k", "--no-lint")
-    assert code != 0 and "the questions are: resources" in err
+    assert code != 0 and "the questions are: duchies, resources" in err
     made = []
     real = CH.Asker
     monkeypatch.setattr(CH, "Asker", lambda **kw: made.append(kw) or real(**kw))
@@ -683,4 +683,5 @@ def test_auto_is_checked_before_the_plan_and_the_run_never_prompts_under_dry_run
         made.clear()
         run(capsys, "update", str(s), "--game-dir", str(g), "--no-lint", "--custom-faith-as", "faith",
             "--auto", "all=newgame", *flags)
-        assert made and all(kw["interactive"] is False for kw in made) and made[0]["auto"] == {"resources": "k"}
+        assert made and all(kw["interactive"] is False for kw in made) and \
+            made[0]["auto"] == {"resources": "k", "duchies": "l"}

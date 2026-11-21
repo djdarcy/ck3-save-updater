@@ -116,6 +116,7 @@ class Report:
     kept_relinked: list = field(default_factory=list)          # lieges and contracts re-pointed so realms agree
     kept_skipped: list = field(default_factory=list)           # successors not given (not carried, settled, contested)
     orphans_reparented: list = field(default_factory=list)     # S3: "<title> -> <its 1.20 de jure parent>"
+    counties_to_new_duchies: list = field(default_factory=list)  # S4: "<county> -> <the new duchy it joins>"
     expansion_orders: list[str] = field(default_factory=list)  # holy orders added onto campaign land
     collisions: Counter = field(default_factory=Counter)       # space -> copied slots already used by the save
     leases_added: list[str] = field(default_factory=list)      # "<campaign title key> -> <order title key>"
@@ -139,6 +140,7 @@ class Report:
                 "attached": self.attached, "attach_independent": self.attach_independent,
                 "attach_skipped": self.attach_skipped, "contracts_created": self.contracts_created,
                 "orphans_reparented": self.orphans_reparented,
+                "counties_to_new_duchies": self.counties_to_new_duchies,
                 "collisions": sum(self.collisions.values()), "collisions_by_space": dict(self.collisions),
                 "expansion_content_added": {"holy_orders": self.expansion_orders, "leases": self.leases_added},
                 "seams": self.seams, "seam_parents": self.seam_parents,
@@ -1282,6 +1284,38 @@ class Transplant:
         self._ent["_orphans"] = out
         return out
 
+    def newduchy_plan(self) -> dict[int, int]:
+        """S4 (djdarcy 2026-11-20: "yes we can do the fix for the 9"; DWP 2026-11-20__21-28-20, addendum 22:26): a
+        campaign county whose reference de jure duchy is a title this transplant adds (a duchy new since the save's
+        version) moves into it, so the new duchy has its counties, and a market in 1.21, as a fresh game has them.
+        save county id -> reference duchy id. A county whose reference duchy the campaign already had keeps the
+        campaign's structure (G10): that is the campaign's own de jure (c_langres in d_bar). Measured 2026-11-20 on
+        the founding campaign: 54 counties into 27 new duchies, 9 of which held none."""
+        if "_newduchy" in self._ent:
+            return self._ent["_newduchy"]
+        tm = self.tr.spaces["title"]
+        keys = self.title_keys()
+        ref_dj = {}
+        for r, e in self.entries(TITLES).items():
+            if not keys.get(r, "").startswith("c_"):
+                continue
+            m = re.search(rb"\n\tde_jure_liege=(\d+)", self.ref[e.open:min(e.close, e.open + 4096)])
+            if m:
+                ref_dj[r] = int(m.group(1))
+        orphans = self.orphan_plan()
+        out = {}
+        for s, e in T.entries(self.save, TITLES):
+            r = self._ref_of(s)
+            if r is None or r not in ref_dj or ("save", s) in orphans:
+                continue
+            p = ref_dj[r]
+            if p in tm.join or p not in self.carry["title"]:
+                continue                                # the parent is the campaign's own, or not added
+            if re.search(rb"\n\tde_jure_liege=\d+", self.save[e.open:min(e.close, e.open + 4096)]):
+                out[s] = p
+        self._ent["_newduchy"] = out
+        return out
+
     def reparented(self, s: int) -> bool:
         """Is campaign barony ``s`` moved to its 1.20 county: a 1c case, or one step 1c-bis settles."""
         case = self.reparent_plan().get(s, (None, None, ""))[2]
@@ -1304,6 +1338,8 @@ class Transplant:
                 return True             # a campaign barony 1.20 put in this new county comes with it (step 1c)
             if space == "title" and path.startswith("de_jure_vassals") and ("save", m.join[v]) in self.orphan_plan():
                 return True             # a campaign title whose old parent died joins its 1.20 parent (S3)
+            if space == "title" and path.startswith("de_jure_vassals") and m.join[v] in self.newduchy_plan():
+                return True             # a campaign county joins the new duchy a fresh game puts it in (S4)
             if space == "title" and path == "de_facto_liege" and self.save_title_key(m.join[v]).startswith("c_"):
                 return True             # a new barony in an existing county: the engine requires de facto = de jure
             if space == "title" and (path == "de_facto_liege" or path.startswith("de_jure_vassals")):
@@ -1700,6 +1736,15 @@ class Transplant:
                 removed[old].add(b)
             if want[0] == "save":
                 children[want[1]].append(b)
+        # S4: a county moving into a new duchy leaves its old duchy's list (the new duchy lists it: ``keep``)
+        newduchy = self.newduchy_plan()
+        if newduchy:
+            stitles = dict(T.entries(self.save, TITLES))
+            for s in newduchy:
+                m = re.search(rb"\n\tde_jure_liege=(\d+)", self.save[stitles[s].open:min(stitles[s].close,
+                                                                                        stitles[s].open + 4096)])
+                if m:
+                    removed[int(m.group(1))].add(s)
         parents = set(children) | set(removed)
         if not parents:
             return
@@ -1805,6 +1850,16 @@ class Transplant:
             new_p = tmo.join[p] if p in tmo.join else tmo.translate(p)
             ep.add(gs.Edit(at, at, f"\tde_jure_liege={new_p}\n".encode(), "transplant", "S3 de jure parent"))
             rep.orphans_reparented.append(f"{self.save_title_key(s)} -> {self.title_keys().get(p, '')}")
+        # S4: a campaign county moving into a new duchy points at it
+        newduchy = self.newduchy_plan()
+        if newduchy and not stitles:
+            stitles = dict(T.entries(self.save, TITLES))
+        for s, p in sorted(newduchy.items()):
+            e = stitles[s]
+            m = re.search(rb"\n\tde_jure_liege=(\d+)", self.save[e.open:min(e.close, e.open + 4096)])
+            ep.add(gs.Edit(e.open + m.start(1), e.open + m.end(1), str(tmo.translate(p)).encode(), "transplant",
+                           "S4 new-duchy de jure"))
+            rep.counties_to_new_duchies.append(f"{self.save_title_key(s)} -> {self.title_keys().get(p, '')}")
         self._name_mirror_cases(head)
         # campaign characters' entries, each edited once: contract lists, domains, court (1c and 1c-bis)
         ops: dict[int, dict] = defaultdict(lambda: {"vc_drop": set(), "vc_add": [], "dom_drop": set(),
