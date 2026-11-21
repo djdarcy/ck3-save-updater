@@ -1599,6 +1599,34 @@ def r32_head_determination(save: CK3Save, ctx, rule) -> object:
 
 from . import Rule  # noqa: E402  (circular-safe: Rule is defined before this module is imported)
 
+def r49_missing_innovations(save: CK3Save, ctx, rule) -> object:
+    """Give every culture each innovation a fresh 1.20 game lists on every culture and the save does not list
+    (goal 2026-11-20__16-02-08, S2; DWP 2026-11-20__15-17-51).
+
+    A fresh 1.20 game lists all 108 innovations on all 244 cultures; a culture researches only what it lists. A 1.8 save
+    lists only 1.8's innovations, and neither the game's own stepping (1.18.4, 1.19.0, 1.20.1.2) nor the transplant adds
+    the rest for a carried culture: djdarcy's 1.20 re-save of our output lacked Pole Vault on 228 of 284 cultures and
+    Legacy of Persia's fritware and mural sextant on 229 (measured 2026-11-20). The core is R47's
+    (``carry_1_21.insert_missing_innovations``), with its guardrails: only a key the reference lists on every culture,
+    undiscovered unless the fresh game's same culture starts with it and this culture has reached its era, and never an
+    entry the culture already has. Leave it out with ``--rules -R49``.
+    """
+    from ..carry_1_21 import innovation_eras, insert_missing_innovations
+    from .religion_1_20 import reference_gamestate
+    if ctx.reference is None:
+        return rule.result(extra={"skipped": "needs a 1.20 reference save (which innovations a culture lists is read there)"})
+    if ctx.game_dir is None or not (Path(ctx.game_dir) / "common" / "culture" / "innovations").is_dir():
+        return rule.result(extra={"skipped": f"no game data at {ctx.game_dir}"})
+    r = insert_missing_innovations(save.gamestate, reference_gamestate(ctx), innovation_eras(ctx.game_dir))
+    if r.cultures:
+        save.set_gamestate(r.gamestate)
+    extra = {"innovations added": r.missing, "cultures": r.cultures,
+             "discovered (the fresh game's same culture, era reached)": len(r.discovered)}
+    if r.partial:
+        extra["left alone (the reference lists them on some cultures only)"] = r.partial
+    return rule.result(matched=len(r.missing), edited=r.cultures, extra=extra)
+
+
 RULES = [
     Rule("R2", "relation-flags", UNKNOWN_SINCE,
          "re-encode scripted_relations flags bitsets to 1.20's 1-byte width", r2_relation_flags),
@@ -1636,4 +1664,7 @@ RULES = [
     Rule("R32", "head-determination", "1.8.1<v<=1.20.1.2",
          "give each carried culture the head determination its template's definition declares",
          r32_head_determination),
+    Rule("R49", "missing-innovations", "1.8.1<v<=1.20.1.2",
+         "give every culture the innovations a fresh 1.20 game lists on every culture (undiscovered unless the fresh "
+         "game's same culture starts with them)", r49_missing_innovations),
 ]

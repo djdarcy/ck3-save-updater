@@ -1,0 +1,14 @@
+format = 1
+id = "R49"
+name = "missing-innovations"
+title = "give every culture the innovations a fresh 1.20 game lists on every culture (undiscovered unless the fresh game's same culture starts with them)"
+since = "1.8.1<v<=1.20.1.2"
+default = true
+requires = []
+tested = { origin = ["1.8.1"], target = ["1.20.1.2"] }
+script = "ck3_save_migrator.rules.to_1_20:r49_missing_innovations"
+
+# R47's core with the 1.20 reference (DWP 2026-11-20__15-17-51). djdarcy's 1.20 re-save of our output lacked Pole Vault
+# on 228 of 284 cultures and Legacy of Persia's fritware and mural sextant on 229; the game's own stepping through
+# 1.18.4, 1.19.0 and 1.20.1.2 leaves the same gaps (and gunpowder on 229). Only keys the reference lists on every
+# culture are spread (none partial in ref-1.20, measured 2026-11-20).

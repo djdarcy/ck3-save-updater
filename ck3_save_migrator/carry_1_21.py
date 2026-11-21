@@ -1002,6 +1002,7 @@ class InnovationsResult:
     added: int = 0                                    # entries written, over all cultures
     discovered: list = field(default_factory=list)    # (culture id, template, innovation) written with progress=100
     cultures: int = 0                                 # cultures that gained entries
+    partial: list = field(default_factory=list)       # keys the reference lists on some cultures only: never spread (G1)
 
 
 def _cultures(g: bytes):
@@ -1039,7 +1040,7 @@ def innovation_eras(game_dir) -> dict[str, str]:
     for f in sorted((_common(game_dir) / "culture" / "innovations").glob("*.txt")):
         for k, body, _ in _blocks(f):
             m = re.search(r"culture_era\s*=\s*(culture_era_\w+)", body)
-            if k.startswith("innovation_") and m:
+            if "innovation_" in k and m:     # fp3_innovation_fritware too (2026-11-20)
                 out[k] = m.group(1)
     return out
 
@@ -1056,15 +1057,24 @@ def insert_missing_innovations(g: bytes, ref: bytes, eras: dict[str, str]) -> In
     Each is written undiscovered (``{ type=X }``, the fresh game's own form), except where the evidence says the culture
     starts with it: the fresh game's culture of the same template has it discovered, and this culture has reached the
     innovation's era (12 entries on the founding campaign; djdarcy 2026-11-19: "Evidence, measured first"). An entry the
-    culture already has is never altered, so a second run changes nothing."""
+    culture already has is never altered, so a second run changes nothing.
+
+    Shared by R47 (1.21, the 1.21 reference) and R49 (1.20, the 1.20 reference). Three guardrails (DWP
+    2026-11-20__15-17-51), answering djdarcy's "I don't want innovations that are truly meant to be limited to cultures
+    / religious groups / regions / etc to be applied universally": G1, only a key the reference lists on EVERY culture
+    is spread (a key on some cultures only is left alone and reported in ``partial``; none in ref-1.20 or ref-1.21,
+    measured 2026-11-20); G2, discovered only by the evidence above; G3, an existing entry is never touched."""
     ref_by_template = collections.defaultdict(set)
-    fresh_all = set()
-    for _, t, _, inn, _ in _cultures(ref):
-        fresh_all.update(inn)
+    lists = []
+    for _, t, _, inn, span in _cultures(ref):
+        if span is not None:
+            lists.append(set(inn))
         ref_by_template[t].update(i for i, p in inn.items() if (p or 0) >= 100)
+    fresh_all = set.intersection(*lists) if lists else set()         # G1
+    partial = sorted(set().union(*lists) - fresh_all) if lists else []
     cults = list(_cultures(g))
     missing = sorted({i for _, _, _, inn, span in cults if span is not None for i in fresh_all - set(inn)})
-    res = InnovationsResult(gamestate=g, missing=missing)
+    res = InnovationsResult(gamestate=g, missing=missing, partial=partial)
     if not missing:
         return res
     out, last = [], 0

@@ -92,3 +92,39 @@ def test_on_the_founding_campaign_every_culture_lists_what_a_fresh_game_lists():
     assert len(r.missing) == 27 and r.cultures == 284 and r.added == 6302 and len(r.discovered) == 67
     assert {"fp3_innovation_fritware", "fp3_innovation_mural_sextant"} <= set(r.missing)
     assert all(fresh <= set(inn) for *_, inn, _ in C._cultures(r.gamestate))
+
+
+def test_g1_a_key_the_reference_lists_on_some_cultures_only_is_never_spread():
+    """djdarcy 2026-11-20: "I don't want innovations that are truly meant to be limited to cultures / religious groups /
+    regions / etc to be applied universally." Fresh games list every innovation on every culture (108 in ref-1.20, 133
+    in ref-1.21, none partial); a reference that lists a key on some cultures only is evidence it is limited, so it is
+    left alone and reported."""
+    ref = save(culture(0, "han", ["culture_era_tribal"], [("innovation_old", None), ("innovation_regional", None)]),
+               culture(1, "akan", ["culture_era_tribal"], [("innovation_old", None)]))
+    conv = save(culture(5, "akan", ["culture_era_tribal"], []), culture(6, "han", ["culture_era_tribal"], []))
+    r = C.insert_missing_innovations(conv, ref, ERAS)
+    got = listed(r.gamestate)
+    assert r.missing == ["innovation_old"] and r.partial == ["innovation_regional"]
+    assert all("innovation_regional" not in got[c] for c in "56")       # not even on the han culture
+    assert all(got[c] == {"innovation_old": None} for c in "56")
+
+
+OURS_1_20 = Path(os.environ.get("USERPROFILE", "~")) / "Documents/Paradox Interactive/Crusader Kings III/save games/_Beidh_of_Ireland_987_10_27_Bruide-issues.ck3"
+REF_1_20 = Path(__file__).resolve().parents[1] / "private/data/originals/reference-1.20/ref_1_20_987_10_27.ck3"
+
+
+@pytest.mark.skipif(not (OURS_1_20.exists() and REF_1_20.exists() and GAME.is_dir()), reason="needs djdarcy's 1.20 re-save, the 1.20 reference and the game")
+def test_r49_on_the_founding_campaign_in_1_20_fills_the_three_innovations_1_8_never_listed():
+    """ours-1.20 (djdarcy's 1.20 re-save of our output, read only) lacked Pole Vault on 228 cultures and Legacy of
+    Persia's two on 229; R49's core gives every culture all 108, writes none discovered (no fresh 1.20 culture starts
+    with them), and a second run changes nothing."""
+    from ck3_save_migrator.savefile import read_save
+    ref = read_save(REF_1_20).gamestate
+    eras = C.innovation_eras(GAME)
+    r = C.insert_missing_innovations(read_save(OURS_1_20).gamestate, ref, eras)
+    assert r.missing == ["fp3_innovation_fritware", "fp3_innovation_mural_sextant", "innovation_pole_vault"]
+    assert r.added == 228 + 229 + 229 and r.discovered == [] and r.partial == []
+    fresh = set.intersection(*(set(inn) for *_, inn, span in C._cultures(ref) if span is not None))
+    assert len(fresh) == 108 and all(fresh <= set(inn) for *_, inn, span in C._cultures(r.gamestate) if span is not None)
+    again = C.insert_missing_innovations(r.gamestate, ref, eras)
+    assert again.added == 0 and again.gamestate == r.gamestate

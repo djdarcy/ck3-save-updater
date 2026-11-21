@@ -4,6 +4,14 @@ All notable changes to ck3-save-migrator are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.49] - 2026-11-20
+
+### Added
+- A save going to 1.20 now lists every innovation a new 1.20 game lists on every culture. A 1.8 save lists only 1.8's innovations, and the game's first load never adds Pole Vault or Legacy of Persia's fritware and mural sextant, so those cultures could never research them. The update adds each missing innovation before that load. It spreads only innovations a new game gives every culture, so one meant for some cultures only is never spread. An added innovation starts discovered only where a new game's version of the same culture starts with it and the culture has reached its era. On the founding campaign it adds 21 innovations over 229 cultures.
+
+### Changed
+- The innovations repair for 1.21 also spreads only innovations a new game gives every culture. A new 1.21 game gives all of them to every culture, so the repair's result doesn't change.
+
 ## [0.6.48] - 2026-11-20
 
 ### Fixed
@@ -1230,7 +1238,8 @@ The first working version: a save written by Crusader Kings III 1.8 can be rewri
 ### Added
 - The project's structure, from git-repokit.
 
-[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.48...HEAD
+[Unreleased]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.49...HEAD
+[0.6.49]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.48...v0.6.49
 [0.6.48]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.47...v0.6.48
 [0.6.47]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.46...v0.6.47
 [0.6.46]: https://github.com/djdarcy/ck3-save-updater/compare/v0.6.45...v0.6.46
